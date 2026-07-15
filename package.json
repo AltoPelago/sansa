@@ -1,0 +1,24 @@
+{
+  "name": "@altopelago/sansa",
+  "version": "0.1.0",
+  "description": "Shared SANSA address parser and model.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "sansa",
+    "aeonite",
+    "address",
+    "parser"
+  ]
+}

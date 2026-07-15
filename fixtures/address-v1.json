@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "spec": "sansa-address-v1",
+    "description": "Initial SANSA Address parser fixtures."
+  },
+  "cases": [
+    {
+      "id": "root-absolute",
+      "source": "$",
+      "valid": true,
+      "canonical": "$",
+      "exact": true
+    },
+    {
+      "id": "root-contextual",
+      "source": "?",
+      "valid": true,
+      "canonical": "?",
+      "exact": true
+    },
+    {
+      "id": "exact-member-index-attribute-local",
+      "source": "$.inventory[0].[\"display.name\"].@.<\"pdf\">",
+      "valid": true,
+      "canonical": "$.inventory[0].[\"display.name\"].@.<\"pdf\">",
+      "exact": true
+    },
+    {
+      "id": "expanded-selectors",
+      "source": "$.items.*#text%stringLiteral.(\"item_*\").**",
+      "valid": true,
+      "canonical": "$.items.*#text%stringLiteral.(\"item_*\").**",
+      "exact": false
+    },
+    {
+      "id": "qualified-union",
+      "source": "$.result:number|nan",
+      "valid": true,
+      "canonical": "$.result:number|nan",
+      "exact": true
+    },
+    {
+      "id": "qualified-quoted-argument",
+      "source": "$.inventory:csv[\",\"]",
+      "valid": true,
+      "canonical": "$.inventory:csv[\",\"]",
+      "exact": true
+    },
+    {
+      "id": "reject-raw-comma-argument",
+      "source": "$.inventory:csv[,]",
+      "valid": false,
+      "error": "SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR"
+    },
+    {
+      "id": "reject-leading-zero-index",
+      "source": "$.items[01]",
+      "valid": false,
+      "error": "SANSA_LEADING_ZERO_INDEX"
+    }
+  ]
+}
