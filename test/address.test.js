@@ -101,6 +101,19 @@ test('fixture cases match parser behavior', () => {
     if (entry.valid) {
       assert.equal(result.address.canonical, entry.canonical, entry.id);
       assert.equal(result.address.isExact, entry.exact, entry.id);
+      if (entry.root) {
+        assert.equal(result.address.root.kind, entry.root, entry.id);
+      }
+      if (entry.selectors) {
+        assert.deepEqual(result.address.selectors.map((selector) => selector.type), entry.selectors, entry.id);
+      }
+      if (entry.qualifierTerms) {
+        assert.deepEqual(
+          result.address.qualifierExpression?.terms.map((term) => term.name),
+          entry.qualifierTerms,
+          entry.id
+        );
+      }
     } else {
       assert.equal(result.errors[0].code, entry.error, entry.id);
     }

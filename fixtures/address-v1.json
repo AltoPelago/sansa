@@ -27,25 +27,116 @@
       "exact": true
     },
     {
+      "id": "canonicalize-safe-quoted-member",
+      "source": "$.[\"name\"]",
+      "valid": true,
+      "canonical": "$.name",
+      "exact": true,
+      "selectors": ["member"]
+    },
+    {
+      "id": "quoted-member-escapes",
+      "source": "$.[\"line\\nfeed\"].[\"tab\\tname\"].[\"quote\\\"name\"]",
+      "valid": true,
+      "canonical": "$.[\"line\\nfeed\"].[\"tab\\tname\"].[\"quote\\\"name\"]",
+      "exact": true,
+      "selectors": ["member", "member", "member"]
+    },
+    {
+      "id": "quoted-member-unicode-escape",
+      "source": "$.[\"emoji_\\u{1F642}\"]",
+      "valid": true,
+      "canonical": "$.[\"emoji_🙂\"]",
+      "exact": true,
+      "selectors": ["member"]
+    },
+    {
+      "id": "contextual-local-space",
+      "source": "?.<\"request\">.user_id",
+      "valid": true,
+      "canonical": "?.<\"request\">.user_id",
+      "exact": true,
+      "root": "contextual",
+      "selectors": ["localSpace", "member"]
+    },
+    {
       "id": "expanded-selectors",
       "source": "$.items.*#text%stringLiteral.(\"item_*\").**",
       "valid": true,
       "canonical": "$.items.*#text%stringLiteral.(\"item_*\").**",
-      "exact": false
+      "exact": false,
+      "selectors": [
+        "member",
+        "directExpansion",
+        "semanticTypeFilter",
+        "representationKindFilter",
+        "namePattern",
+        "descendantExpansion"
+      ]
+    },
+    {
+      "id": "direct-expansion-only",
+      "source": "$.items.*",
+      "valid": true,
+      "canonical": "$.items.*",
+      "exact": false,
+      "selectors": ["member", "directExpansion"]
+    },
+    {
+      "id": "descendant-expansion-only",
+      "source": "$.items.**",
+      "valid": true,
+      "canonical": "$.items.**",
+      "exact": false,
+      "selectors": ["member", "descendantExpansion"]
+    },
+    {
+      "id": "filters-only",
+      "source": "$#record%object",
+      "valid": true,
+      "canonical": "$#record%object",
+      "exact": false,
+      "selectors": ["semanticTypeFilter", "representationKindFilter"]
     },
     {
       "id": "qualified-union",
       "source": "$.result:number|nan",
       "valid": true,
       "canonical": "$.result:number|nan",
-      "exact": true
+      "exact": true,
+      "qualifierTerms": ["number", "nan"]
+    },
+    {
+      "id": "qualified-generic",
+      "source": "$.inventory:list<string>",
+      "valid": true,
+      "canonical": "$.inventory:list<string>",
+      "exact": true,
+      "qualifierTerms": ["list"]
+    },
+    {
+      "id": "qualified-token-argument",
+      "source": "$.version:sep[.]",
+      "valid": true,
+      "canonical": "$.version:sep[.]",
+      "exact": true,
+      "qualifierTerms": ["sep"]
     },
     {
       "id": "qualified-quoted-argument",
       "source": "$.inventory:csv[\",\"]",
       "valid": true,
       "canonical": "$.inventory:csv[\",\"]",
-      "exact": true
+      "exact": true,
+      "qualifierTerms": ["csv"]
+    },
+    {
+      "id": "qualified-rich-host-surface",
+      "source": "$.claim:type<type>[arg]",
+      "valid": true,
+      "canonical": "$.claim:type<type>[arg]",
+      "exact": true,
+      "qualifierTerms": ["type"]
     },
     {
       "id": "reject-raw-comma-argument",
@@ -54,10 +145,52 @@
       "error": "SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR"
     },
     {
+      "id": "reject-empty-qualifier-argument",
+      "source": "$.inventory:csv[]",
+      "valid": false,
+      "error": "SANSA_EXPECTED_QUALIFIER_ARGUMENT"
+    },
+    {
       "id": "reject-leading-zero-index",
       "source": "$.items[01]",
       "valid": false,
       "error": "SANSA_LEADING_ZERO_INDEX"
+    },
+    {
+      "id": "reject-empty-quoted-member",
+      "source": "$.[\"\"]",
+      "valid": false,
+      "error": "SANSA_EMPTY_MEMBER_NAME"
+    },
+    {
+      "id": "reject-empty-local-space",
+      "source": "$.<\"\">",
+      "valid": false,
+      "error": "SANSA_EMPTY_LOCAL_SPACE_NAME"
+    },
+    {
+      "id": "reject-raw-whitespace",
+      "source": "$.bad name",
+      "valid": false,
+      "error": "SANSA_UNEXPECTED_WHITESPACE"
+    },
+    {
+      "id": "reject-invalid-escape",
+      "source": "$.[\"bad\\q\"]",
+      "valid": false,
+      "error": "SANSA_INVALID_ESCAPE"
+    },
+    {
+      "id": "reject-invalid-unicode-scalar",
+      "source": "$.[\"bad\\u{D800}\"]",
+      "valid": false,
+      "error": "SANSA_INVALID_UNICODE_SCALAR"
+    },
+    {
+      "id": "reject-nested-qualifier-union",
+      "source": "$.value:list<string|number>",
+      "valid": false,
+      "error": "SANSA_INVALID_QUALIFIER"
     }
   ]
 }

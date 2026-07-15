@@ -18,6 +18,8 @@ This package is the first implementation slice for SANSA Address. It parses and 
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
+The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
+
 ## API
 
 ```js
@@ -30,4 +32,3 @@ if (result.ok) {
   console.log(renderAddress(result.address));
 }
 ```
-
