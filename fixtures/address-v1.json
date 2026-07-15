@@ -115,6 +115,14 @@
       "qualifierTerms": ["list"]
     },
     {
+      "id": "qualified-repeated-parameter-groups",
+      "source": "$.key:tuple<x><y>",
+      "valid": true,
+      "canonical": "$.key:tuple<x><y>",
+      "exact": true,
+      "qualifierTerms": ["tuple"]
+    },
+    {
       "id": "qualified-token-argument",
       "source": "$.version:sep[.]",
       "valid": true,
@@ -129,6 +137,14 @@
       "canonical": "$.inventory:csv[\",\"]",
       "exact": true,
       "qualifierTerms": ["csv"]
+    },
+    {
+      "id": "qualified-repeated-arguments",
+      "source": "$.key:string[\",\"][\".\"]",
+      "valid": true,
+      "canonical": "$.key:string[\",\"][\".\"]",
+      "exact": true,
+      "qualifierTerms": ["string"]
     },
     {
       "id": "qualified-rich-host-surface",

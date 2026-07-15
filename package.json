@@ -16,6 +16,8 @@
     "src",
     "docs",
     "fixtures",
+    "scripts",
+    "stress-tests",
     "README.md",
     "LICENSE"
   ],
@@ -24,6 +26,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },
   "keywords": [

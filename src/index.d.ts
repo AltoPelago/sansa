@@ -112,8 +112,11 @@ export interface QualifierExpression {
 export interface QualifierTerm {
   readonly type: 'QualifierTerm';
   readonly name: string;
+  /** Flattened convenience view across all parameter groups. */
   readonly parameters: readonly QualifierTerm[];
-  readonly argument: QualifierArgument | null;
+  /** Source-preserving parameter groups rendered as repeated <...> segments. */
+  readonly parameterGroups: readonly (readonly QualifierTerm[])[];
+  readonly arguments: readonly QualifierArgument[];
 }
 
 export type QualifierArgument = QualifierTokenArgument | QualifierQuotedArgument;

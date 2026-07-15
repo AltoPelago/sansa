@@ -60,9 +60,16 @@ test('parses qualified address literals', () => {
 
 test('parses qualifier parameters and quoted arguments', () => {
   const address = parseOk('$.inventory:csv[","]');
-  assert.equal(address.qualifierExpression.terms[0].argument.kind, 'quoted');
-  assert.equal(address.qualifierExpression.terms[0].argument.value, ',');
+  assert.equal(address.qualifierExpression.terms[0].arguments[0].kind, 'quoted');
+  assert.equal(address.qualifierExpression.terms[0].arguments[0].value, ',');
   assert.equal(address.canonical, '$.inventory:csv[","]');
+});
+
+test('parses repeated qualifier arguments', () => {
+  const address = parseOk('$.key:string[","]["."]');
+  const args = address.qualifierExpression.terms[0].arguments;
+  assert.deepEqual(args.map((arg) => arg.value), [',', '.']);
+  assert.equal(address.canonical, '$.key:string[","]["."]');
 });
 
 test('parses nested qualifier terms without nested unions', () => {
@@ -70,6 +77,15 @@ test('parses nested qualifier terms without nested unions', () => {
   const term = address.qualifierExpression.terms[0];
   assert.equal(term.name, 'list');
   assert.equal(term.parameters[0].name, 'string');
+  assert.equal(term.parameterGroups.length, 1);
+});
+
+test('parses repeated qualifier parameter groups', () => {
+  const address = parseOk('$.key:tuple<x><y>');
+  const term = address.qualifierExpression.terms[0];
+  assert.deepEqual(term.parameters.map((param) => param.name), ['x', 'y']);
+  assert.deepEqual(term.parameterGroups.map((group) => group.map((param) => param.name)), [['x'], ['y']]);
+  assert.equal(address.canonical, '$.key:tuple<x><y>');
 });
 
 test('rejects whitespace outside quoted payloads', () => {

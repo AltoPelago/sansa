@@ -77,7 +77,8 @@ Selector names and patterns are decoded string values. Renderers choose the shor
   type: "QualifierTerm",
   name,
   parameters,
-  argument
+  parameterGroups,
+  arguments
 }
 ```
 
@@ -89,6 +90,14 @@ Arguments are either:
 ```
 
 Top-level qualifier unions are represented by multiple `terms`. Nested qualifier unions inside generic parameters are rejected.
+
+Qualifier terms may contain zero or more parameter groups and zero or more argument groups:
+
+```text
+name<parameter,parameter><parameter>[argument][argument]
+```
+
+`parameters` is a flattened convenience view. `parameterGroups` preserves how the term should render. Repeated parameter and argument groups allow host embeddings to avoid raw comma where comma would conflict with the host parser.
 
 ## Canonical Rendering
 
@@ -102,6 +111,7 @@ Canonical rendering:
 - renders quoted payload escapes using AEON double-quoted string escape forms
 - renders qualifier unions without spaces, for example `number|nan`
 - renders qualifier parameters without spaces, for example `list<string>`
+- preserves repeated qualifier parameter groups, for example `tuple<x><y>`
 - renders quoted qualifier arguments when the argument was parsed as quoted
 
 ## Current Error Codes
@@ -129,4 +139,3 @@ Canonical rendering:
 - `SANSA_UNTERMINATED_UNICODE_ESCAPE`
 - `SANSA_INVALID_UNICODE_ESCAPE`
 - `SANSA_INVALID_UNICODE_SCALAR`
-

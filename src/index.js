@@ -90,11 +90,12 @@ export function renderQualifierExpression(expression) {
 
 export function renderQualifierTerm(term) {
   let output = term.name;
-  if (term.parameters.length > 0) {
-    output += `<${term.parameters.map(renderQualifierTerm).join(',')}>`;
+  const parameterGroups = term.parameterGroups ?? (term.parameters.length > 0 ? [term.parameters] : []);
+  for (const group of parameterGroups) {
+    output += `<${group.map(renderQualifierTerm).join(',')}>`;
   }
-  if (term.argument) {
-    output += `[${renderQualifierArgument(term.argument)}]`;
+  for (const argument of term.arguments) {
+    output += `[${renderQualifierArgument(argument)}]`;
   }
   return output;
 }
@@ -217,24 +218,28 @@ class AddressParser {
   parseQualifierTerm(stopChar = '') {
     const name = this.parseIdentifier('qualifier type name');
     const parameters = [];
-    let argument = null;
+    const parameterGroups = [];
+    const args = [];
 
-    if (this.match('<')) {
-      parameters.push(this.parseQualifierTerm('>'));
+    while (this.match('<')) {
+      const group = [];
+      group.push(this.parseQualifierTerm('>'));
       if (this.peek() === '|') {
         this.fail('Nested qualifier unions are not supported', 'SANSA_INVALID_QUALIFIER');
       }
       while (this.match(',')) {
-        parameters.push(this.parseQualifierTerm('>'));
+        group.push(this.parseQualifierTerm('>'));
         if (this.peek() === '|') {
           this.fail('Nested qualifier unions are not supported', 'SANSA_INVALID_QUALIFIER');
         }
       }
       this.consume('>');
+      parameterGroups.push(group);
+      parameters.push(...group);
     }
 
-    if (this.match('[')) {
-      argument = this.parseQualifierArgument();
+    while (this.match('[')) {
+      args.push(this.parseQualifierArgument());
       this.consume(']');
     }
 
@@ -243,7 +248,7 @@ class AddressParser {
       this.fail(`Unexpected character '${next}' in qualifier expression`, 'SANSA_INVALID_QUALIFIER');
     }
 
-    return { type: 'QualifierTerm', name, parameters, argument };
+    return { type: 'QualifierTerm', name, parameters, parameterGroups, arguments: args };
   }
 
   parseQualifierArgument() {
