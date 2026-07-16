@@ -26,6 +26,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "cts": "node scripts/cts-address.mjs",
     "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },
