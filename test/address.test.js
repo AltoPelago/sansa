@@ -40,7 +40,7 @@ test('canonicalizes identifier-safe quoted member names', () => {
 });
 
 test('parses expanded address expressions', () => {
-  const address = parseOk('$.items.*#text%stringLiteral.("item_*").**');
+  const address = parseOk('$.items.*#text%stringLiteral.("item?*").**');
   assert.equal(address.isExact, false);
   assert.deepEqual(address.selectors.map((selector) => selector.type), [
     'member',
