@@ -38,6 +38,25 @@ export function parseAddressOrThrow(input, options = {}) {
   return result.address;
 }
 
+export function resolveAddress(input, namespace, options = {}) {
+  const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
+
+  const rootResult = resolveRoot(parsed.address.root, namespace, options);
+  if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+
+  let current = [rootResult.binding];
+  for (let index = 0; index < parsed.address.selectors.length; index += 1) {
+    const selector = parsed.address.selectors[index];
+    const selected = applyResolveSelector(selector, current, namespace, index);
+    if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
+    current = selected.bindings;
+    if (current.length === 0) break;
+  }
+
+  return { ok: true, bindings: current, diagnostics: [] };
+}
+
 export function renderAddress(address) {
   let output = address.root.kind === 'absolute' ? '$' : '?';
 
@@ -82,6 +101,172 @@ export function renderAddress(address) {
   }
 
   return output;
+}
+
+function resolveRoot(root, namespace, options) {
+  if (!namespace || typeof namespace !== 'object') {
+    return { ok: false, error: resolveError('SANSA_RESOLVE_EXPECTED_NAMESPACE', 'Expected SANSA resolve namespace') };
+  }
+
+  if (root.kind === 'contextual') {
+    const contextualRoot = options.contextualRoot ?? namespace.contextualRoot;
+    const binding = typeof contextualRoot === 'function' ? contextualRoot() : contextualRoot;
+    if (binding) return { ok: true, binding };
+    return {
+      ok: false,
+      error: resolveError('SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT', 'Contextual root requires a contextualRoot binding'),
+    };
+  }
+
+  const rootBinding = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
+  if (rootBinding) return { ok: true, binding: rootBinding };
+  return { ok: false, error: resolveError('SANSA_RESOLVE_MISSING_ROOT', 'SANSA resolve namespace does not expose a root binding') };
+}
+
+function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
+  switch (selector.type) {
+    case 'member':
+      return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
+    case 'position':
+      return { ok: true, bindings: bindings.flatMap((binding) => selectPosition(namespace, binding, selector.index)) };
+    case 'directExpansion':
+      return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
+    case 'descendantExpansion':
+      return { ok: true, bindings: bindings.flatMap((binding) => getDescendants(namespace, binding)) };
+    case 'namePattern': {
+      const pattern = globPatternToRegExp(selector.pattern);
+      return {
+        ok: true,
+        bindings: bindings.flatMap((binding) => getChildren(namespace, binding).filter((child) => {
+          const name = getBindingName(namespace, child);
+          return typeof name === 'string' && pattern.test(name);
+        })),
+      };
+    }
+    case 'semanticTypeFilter':
+      return { ok: true, bindings: bindings.filter((binding) => matchesSemanticType(namespace, binding, selector.name)) };
+    case 'representationKindFilter':
+      return { ok: true, bindings: bindings.filter((binding) => matchesRepresentationKind(namespace, binding, selector.name)) };
+    case 'attributeSpace':
+      return selectAttributeSpaces(namespace, bindings, selectorIndex);
+    case 'localSpace':
+      return selectLocalSpaces(namespace, bindings, selector.name, selectorIndex);
+    default:
+      return {
+        ok: false,
+        error: resolveError(
+          'SANSA_RESOLVE_UNSUPPORTED_SELECTOR',
+          `Unsupported SANSA selector type: ${selector.type}`,
+          selectorIndex,
+        ),
+      };
+  }
+}
+
+function selectMember(namespace, binding, name) {
+  if (typeof namespace.member === 'function') {
+    const selected = namespace.member(binding, name);
+    return selected ? [selected] : [];
+  }
+  return getChildren(namespace, binding).filter((child) => getBindingName(namespace, child) === name);
+}
+
+function selectPosition(namespace, binding, index) {
+  if (typeof namespace.position === 'function') {
+    const selected = namespace.position(binding, index);
+    return selected ? [selected] : [];
+  }
+  const children = getChildren(namespace, binding);
+  const indexed = children.find((child) => getBindingIndex(namespace, child) === index);
+  if (indexed) return [indexed];
+  return children[index] ? [children[index]] : [];
+}
+
+function selectAttributeSpaces(namespace, bindings, selectorIndex) {
+  if (typeof namespace.attributeSpace !== 'function') {
+    const selected = bindings
+      .map((binding) => binding.attributeSpace ?? binding.attributes)
+      .filter(Boolean);
+    if (selected.length > 0 || bindings.length === 0) return { ok: true, bindings: selected };
+    return {
+      ok: false,
+      error: resolveError(
+        'SANSA_RESOLVE_UNSUPPORTED_ATTRIBUTE_SPACE',
+        'The namespace does not expose attribute address-space traversal',
+        selectorIndex,
+      ),
+    };
+  }
+  return {
+    ok: true,
+    bindings: bindings.map((binding) => namespace.attributeSpace(binding)).filter(Boolean),
+  };
+}
+
+function selectLocalSpaces(namespace, bindings, name, selectorIndex) {
+  if (typeof namespace.localSpace !== 'function') {
+    return {
+      ok: false,
+      error: resolveError(
+        'SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE',
+        `The namespace does not expose local address space '${name}'`,
+        selectorIndex,
+      ),
+    };
+  }
+  return {
+    ok: true,
+    bindings: bindings.map((binding) => namespace.localSpace(binding, name)).filter(Boolean),
+  };
+}
+
+function getChildren(namespace, binding) {
+  if (typeof namespace.children === 'function') return Array.from(namespace.children(binding) ?? []);
+  if (Array.isArray(binding.children)) return binding.children;
+  return [];
+}
+
+function getDescendants(namespace, binding) {
+  const output = [];
+  for (const child of getChildren(namespace, binding)) {
+    output.push(child, ...getDescendants(namespace, child));
+  }
+  return output;
+}
+
+function getBindingName(namespace, binding) {
+  if (typeof namespace.name === 'function') return namespace.name(binding);
+  return binding.name ?? binding.key ?? undefined;
+}
+
+function getBindingIndex(namespace, binding) {
+  if (typeof namespace.index === 'function') return namespace.index(binding);
+  return Number.isInteger(binding.index) ? binding.index : undefined;
+}
+
+function matchesSemanticType(namespace, binding, expected) {
+  if (typeof namespace.semanticTypeMatches === 'function') return namespace.semanticTypeMatches(binding, expected) === true;
+  const actual = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding.semanticType ?? binding.datatype;
+  if (actual === expected) return true;
+  return typeof actual === 'string' && datatypeBaseName(actual) === expected;
+}
+
+function matchesRepresentationKind(namespace, binding, expected) {
+  if (typeof namespace.representationKindMatches === 'function') return namespace.representationKindMatches(binding, expected) === true;
+  const actual = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.representationKind ?? binding.kind ?? binding.type;
+  return typeof actual === 'string' && lowerFirst(actual) === expected;
+}
+
+function resolveError(code, message, selectorIndex) {
+  return {
+    code,
+    message,
+    ...(selectorIndex === undefined ? {} : { selectorIndex }),
+  };
 }
 
 export function renderQualifierExpression(expression) {
@@ -390,6 +575,35 @@ function isLayout(char) {
 
 function isQualifierArgumentChar(char) {
   return /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]$/.test(char ?? '');
+}
+
+function datatypeBaseName(datatype) {
+  const genericCut = datatype.indexOf('<');
+  const argumentCut = datatype.indexOf('[');
+  const cut = [genericCut, argumentCut].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+  return (cut === undefined ? datatype : datatype.slice(0, cut)).trim();
+}
+
+function lowerFirst(value) {
+  return `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
+}
+
+function globPatternToRegExp(pattern) {
+  let source = '^';
+  for (const char of pattern) {
+    if (char === '*') {
+      source += '.*';
+    } else if (char === '?') {
+      source += '.';
+    } else {
+      source += escapeRegExp(char);
+    }
+  }
+  return new RegExp(`${source}$`, 'u');
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }
 
 function codePointToString(codePoint, index) {

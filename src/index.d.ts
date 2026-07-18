@@ -36,6 +36,61 @@ export type SansaParseResult =
   | { readonly ok: true; readonly address: SansaAddress }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
+export type SansaResolveErrorCode =
+  | 'SANSA_RESOLVE_EXPECTED_NAMESPACE'
+  | 'SANSA_RESOLVE_MISSING_ROOT'
+  | 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT'
+  | 'SANSA_RESOLVE_UNSUPPORTED_ATTRIBUTE_SPACE'
+  | 'SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE'
+  | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
+
+export interface SansaResolveDiagnostic {
+  readonly code: SansaResolveErrorCode | SansaParseErrorCode;
+  readonly message: string;
+  readonly index?: number;
+  readonly selectorIndex?: number;
+}
+
+export interface SansaResolveBinding {
+  readonly address?: string;
+  readonly name?: string;
+  readonly key?: string;
+  readonly index?: number;
+  readonly semanticType?: string;
+  readonly datatype?: string;
+  readonly representationKind?: string;
+  readonly kind?: string;
+  readonly type?: string;
+  readonly children?: readonly SansaResolveBinding[];
+  readonly attributeSpace?: SansaResolveBinding;
+  readonly attributes?: SansaResolveBinding;
+}
+
+export interface SansaResolveNamespace<TBinding extends object = SansaResolveBinding> {
+  readonly root: TBinding | (() => TBinding | undefined);
+  readonly contextualRoot?: TBinding | (() => TBinding | undefined);
+  readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
+  readonly member?: (binding: TBinding, name: string) => TBinding | undefined;
+  readonly position?: (binding: TBinding, index: number) => TBinding | undefined;
+  readonly attributeSpace?: (binding: TBinding) => TBinding | undefined;
+  readonly localSpace?: (binding: TBinding, name: string) => TBinding | undefined;
+  readonly name?: (binding: TBinding) => string | undefined;
+  readonly index?: (binding: TBinding) => number | undefined;
+  readonly semanticType?: (binding: TBinding) => string | undefined;
+  readonly representationKind?: (binding: TBinding) => string | undefined;
+  readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
+  readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
+}
+
+export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
+  readonly parse?: SansaParseOptions;
+  readonly contextualRoot?: TBinding;
+}
+
+export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
+  | { readonly ok: true; readonly bindings: readonly TBinding[]; readonly diagnostics: readonly SansaResolveDiagnostic[] }
+  | { readonly ok: false; readonly bindings: readonly TBinding[]; readonly errors: readonly SansaResolveDiagnostic[] };
+
 export interface SansaAddress {
   readonly type: 'SansaAddress';
   readonly root: RootSelector;
@@ -139,6 +194,11 @@ export class SansaParseError extends Error {
 
 export function parseAddress(input: string, options?: SansaParseOptions): SansaParseResult;
 export function parseAddressOrThrow(input: string, options?: SansaParseOptions): SansaAddress;
+export function resolveAddress<TBinding extends object = SansaResolveBinding>(
+  input: string | SansaAddress,
+  namespace: SansaResolveNamespace<TBinding>,
+  options?: SansaResolveOptions<TBinding>,
+): SansaResolveResult<TBinding>;
 export function renderAddress(address: SansaAddress): string;
 export function renderQualifierExpression(expression: QualifierExpression): string;
 export function renderQualifierTerm(term: QualifierTerm): string;
