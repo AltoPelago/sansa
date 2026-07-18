@@ -23,6 +23,13 @@ Host implementations also decide which address spaces they expose during resolut
 
 The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
 
+The CTS runner covers both address parsing and resolve behavior:
+
+```bash
+npm run cts
+npm run cts:resolve
+```
+
 ## API
 
 ```js

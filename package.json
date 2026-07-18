@@ -26,7 +26,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "cts": "node scripts/cts-address.mjs",
+    "cts": "npm run cts:address && npm run cts:resolve",
+    "cts:address": "node scripts/cts-address.mjs",
+    "cts:resolve": "node scripts/cts-resolve.mjs",
     "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },
