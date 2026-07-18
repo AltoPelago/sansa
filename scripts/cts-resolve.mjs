@@ -101,6 +101,9 @@ function buildNamespaces(entries) {
         root: entry.root,
         children: (binding) => binding.children ?? [],
         attributeSpace: (binding) => binding.attributeSpace,
+        ...(entry.supportsLocalSpaces === true
+          ? { localSpace: (binding, name) => binding.localSpaces?.[name] }
+          : {}),
       },
     });
   }

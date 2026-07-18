@@ -16,10 +16,11 @@ This package is the first implementation slice for SANSA Address and SANSA Resol
 - name pattern selector: `.("pattern")`
 - qualified address literals with top-level qualifier unions
 - structural resolve over host bindings with exact selectors, expansion selectors, name patterns, semantic type filters, and representation kind filters
+- deterministic preorder descendant expansion with explicit attribute and local address-space traversal
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
-Host implementations also decide which address spaces they expose during resolution. Attribute and local address-space traversal fail explicitly unless the host exposes those capabilities through the resolve namespace adapter or binding model.
+Host implementations also decide which address spaces they expose during resolution. Attribute and local address-space traversal are entered explicitly with `.@` and `.<"namespace">`. They fail explicitly unless the host exposes those capabilities through the resolve namespace adapter or binding model.
 
 The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
 

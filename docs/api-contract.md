@@ -113,11 +113,11 @@ For simple hosts, bindings may expose fields directly:
 }
 ```
 
-Exact member and position selectors select direct children. `.*` returns direct children. `.**` returns descendants, excluding the current binding. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
+Exact member and position selectors select direct children. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
 
-`?` uses `options.contextualRoot` or `namespace.contextualRoot`. Attribute and local address-space traversal fail explicitly unless exposed by the namespace adapter or binding model.
+`?` uses `options.contextualRoot` or `namespace.contextualRoot`. Attribute and local address-space traversal are explicit transitions through `.@` and `.<"name">`. They fail explicitly unless exposed by the namespace adapter or binding model. When local-space traversal is supported but a binding does not expose the named local space, normal resolution returns an empty binding set.
 
 Qualifiers are preserved by the parser but ignored by generic structural resolution.
 

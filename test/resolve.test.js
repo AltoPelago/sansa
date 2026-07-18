@@ -10,6 +10,7 @@ function binding({
   representationKind,
   children = [],
   attributeSpace,
+  localSpaces,
 }) {
   return {
     address,
@@ -19,6 +20,7 @@ function binding({
     ...(representationKind === undefined ? {} : { representationKind }),
     children,
     ...(attributeSpace === undefined ? {} : { attributeSpace }),
+    ...(localSpaces === undefined ? {} : { localSpaces }),
   };
 }
 
@@ -31,10 +33,22 @@ const sku0 = binding({ name: 'sku', address: '$.inventory.items[0].sku', semanti
 const qty0 = binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number' });
 const sku1 = binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string' });
 const qty1 = binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number' });
+const status1 = binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'boolean', representationKind: 'bool' });
 const item0 = binding({ index: 0, address: '$.inventory.items[0]', representationKind: 'object', children: [sku0, qty0] });
-const item1 = binding({ index: 1, address: '$.inventory.items[1]', representationKind: 'object', children: [sku1, qty1] });
+const item1 = binding({ index: 1, address: '$.inventory.items[1]', representationKind: 'object', children: [sku1, qty1, status1] });
 const items = binding({ name: 'items', address: '$.inventory.items', representationKind: 'list', children: [item0, item1] });
-const inventory = binding({ name: 'inventory', address: '$.inventory', representationKind: 'object', children: [items] });
+const itemA1 = binding({ name: 'itemA1', address: '$.inventory.itemA1', representationKind: 'object' });
+const itemB2 = binding({ name: 'itemB2', address: '$.inventory.itemB2', representationKind: 'object' });
+const archive = binding({ name: 'archive', address: '$.inventory.archive', representationKind: 'object' });
+const catalogSkuIndex = binding({ name: 'skuIndex', address: '$.inventory.<"catalog">.skuIndex', representationKind: 'object' });
+const catalogSpace = binding({ address: '$.inventory.<"catalog">', representationKind: 'object', children: [catalogSkuIndex] });
+const inventory = binding({
+  name: 'inventory',
+  address: '$.inventory',
+  representationKind: 'object',
+  children: [items, itemA1, itemB2, archive],
+  localSpaces: { catalog: catalogSpace },
+});
 const readingUnit = binding({ name: 'unit', address: '$.reading.@.unit', semanticType: 'string', representationKind: 'string' });
 const readingAttributes = binding({ address: '$.reading.@', representationKind: 'object', children: [readingUnit] });
 const reading = binding({
@@ -52,6 +66,11 @@ const namespace = {
   attributeSpace: (entry) => entry.attributeSpace,
 };
 
+const localSpaceNamespace = {
+  ...namespace,
+  localSpace: (entry, name) => entry.localSpaces?.[name],
+};
+
 test('resolves exact absolute addresses to zero or one binding', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku', namespace)), ['$.inventory.items[1].sku']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2].sku', namespace)), []);
@@ -62,10 +81,24 @@ test('resolves direct and descendant expansion selectors', () => {
     '$.inventory.items[0]',
     '$.inventory.items[1]',
   ]);
+  assert.deepEqual(addresses(resolveAddress('$.inventory.**', namespace)), [
+    '$.inventory.items',
+    '$.inventory.items[0]',
+    '$.inventory.items[0].sku',
+    '$.inventory.items[0].qty',
+    '$.inventory.items[1]',
+    '$.inventory.items[1].sku',
+    '$.inventory.items[1].qty',
+    '$.inventory.items[1].status',
+    '$.inventory.itemA1',
+    '$.inventory.itemB2',
+    '$.inventory.archive',
+  ]);
   assert.deepEqual(addresses(resolveAddress('$.inventory.**.sku', namespace)), [
     '$.inventory.items[0].sku',
     '$.inventory.items[1].sku',
   ]);
+  assert.deepEqual(addresses(resolveAddress('$.**.unit', namespace)), []);
 });
 
 test('resolves name pattern selectors against direct child binding names', () => {
@@ -86,6 +119,7 @@ test('resolves semantic type and representation kind filters over the current bi
 
 test('resolves attribute-space traversal only when the host exposes attributes', () => {
   assert.deepEqual(addresses(resolveAddress('$.reading.@.unit', namespace)), ['$.reading.@.unit']);
+  assert.deepEqual(addresses(resolveAddress('$.reading.@.*', namespace)), ['$.reading.@.unit']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.@', namespace)), []);
 
   const result = resolveAddress('$.inventory.@', { root, children: (entry) => entry.children });
@@ -95,13 +129,23 @@ test('resolves attribute-space traversal only when the host exposes attributes',
 
 test('resolves contextual roots when a contextual binding is provided', () => {
   assert.deepEqual(addresses(resolveAddress('?.sku', namespace, { contextualRoot: item0 })), ['$.inventory.items[0].sku']);
+  assert.deepEqual(addresses(resolveAddress('?.*', namespace, { contextualRoot: item1 })), [
+    '$.inventory.items[1].sku',
+    '$.inventory.items[1].qty',
+    '$.inventory.items[1].status',
+  ]);
 
   const result = resolveAddress('?.sku', namespace);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT');
 });
 
-test('reports unsupported local-space traversal explicitly', () => {
+test('resolves local-space traversal only when the host exposes local spaces', () => {
+  assert.deepEqual(addresses(resolveAddress('$.inventory.<"catalog">.skuIndex', localSpaceNamespace)), [
+    '$.inventory.<"catalog">.skuIndex',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.reading.<"catalog">', localSpaceNamespace)), []);
+
   const result = resolveAddress('$.inventory.<"catalog">', namespace);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE');
