@@ -207,6 +207,30 @@
       "source": "$.value:list<string|number>",
       "valid": false,
       "error": "SANSA_INVALID_QUALIFIER"
+    },
+    {
+      "id": "reject-compact-attribute-bare",
+      "source": "$.a@id",
+      "valid": false,
+      "error": "SANSA_UNEXPECTED_CHARACTER"
+    },
+    {
+      "id": "reject-compact-attribute-quoted",
+      "source": "$.a@[\"id\"]",
+      "valid": false,
+      "error": "SANSA_UNEXPECTED_CHARACTER"
+    },
+    {
+      "id": "reject-half-migrated-attribute-bare",
+      "source": "$.a.@id",
+      "valid": false,
+      "error": "SANSA_UNEXPECTED_CHARACTER"
+    },
+    {
+      "id": "reject-half-migrated-attribute-quoted",
+      "source": "$.a.@[\"id\"]",
+      "valid": false,
+      "error": "SANSA_EXPECTED_INDEX"
     }
   ]
 }

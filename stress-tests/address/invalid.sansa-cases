@@ -27,6 +27,14 @@ $.inventory:csv[]
 ---
 $.value:list<string|number>
 ---
+$.a@id
+---
+$.a@["id"]
+---
+$.a.@id
+---
+$.a.@["id"]
+---
 $.items/
 ---
 $.items..name
