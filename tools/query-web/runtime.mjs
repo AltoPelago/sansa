@@ -5,10 +5,12 @@ const aeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/c
 export function parseQueryForWorkbench(querySource) {
   const result = parseQuery(querySource);
   if (!result.ok) {
+    const errors = normalizeDiagnostics(result.errors);
     return {
       ok: false,
       mode: 'parse',
-      errors: normalizeDiagnostics(result.errors),
+      text: renderDiagnosticText(errors),
+      errors,
     };
   }
 
@@ -31,11 +33,13 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
 
   const result = evaluateQuery(query, namespaceResult.namespace);
   if (!result.ok) {
+    const errors = normalizeDiagnostics(result.errors);
     return {
       ok: false,
       mode: 'evaluate',
       sourceKind,
-      errors: normalizeDiagnostics(result.errors),
+      text: renderDiagnosticText(errors),
+      errors,
       sourceDiagnostics: namespaceResult.diagnostics,
     };
   }
@@ -75,6 +79,10 @@ function namespaceFromJsonSource(source) {
       ok: false,
       mode: 'evaluate',
       sourceKind: 'json',
+      text: renderDiagnosticText([{
+        code: 'SANSA_QUERY_WORKBENCH_INVALID_JSON',
+        message: error.message,
+      }]),
       errors: [{
         code: 'SANSA_QUERY_WORKBENCH_INVALID_JSON',
         message: error.message,
@@ -88,14 +96,16 @@ async function namespaceFromAeonSource(source) {
   try {
     aeonCore = await import(aeonCoreUrl.href);
   } catch (error) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_AEON_RUNTIME_UNAVAILABLE',
+      message: `Could not load AEON TypeScript core build: ${error.message}`,
+    }];
     return {
       ok: false,
       mode: 'evaluate',
       sourceKind: 'aeon',
-      errors: [{
-        code: 'SANSA_QUERY_WORKBENCH_AEON_RUNTIME_UNAVAILABLE',
-        message: `Could not load AEON TypeScript core build: ${error.message}`,
-      }],
+      text: renderDiagnosticText(errors),
+      errors,
     };
   }
 
@@ -106,11 +116,13 @@ async function namespaceFromAeonSource(source) {
   });
 
   if (compiled.errors.length > 0) {
+    const errors = compiled.errors.map(normalizeAeonError);
     return {
       ok: false,
       mode: 'evaluate',
       sourceKind: 'aeon',
-      errors: compiled.errors.map(normalizeAeonError),
+      text: renderDiagnosticText(errors),
+      errors,
     };
   }
 
@@ -327,6 +339,20 @@ function nullReasonFromValue(value) {
 function renderTextResults(results) {
   if (results.length === 0) return '(no results)';
   return results.flatMap((entry) => renderQueryValueLines(entry.value, entry.binding)).join('\n');
+}
+
+function renderDiagnosticText(errors) {
+  if (errors.length === 0) return '(no diagnostics)';
+  return errors.map((error) => {
+    const phase = typeof error.phase === 'string' ? ` [${error.phase}]` : '';
+    const candidate = typeof error.candidateAddress === 'string' ? ` at ${error.candidateAddress}` : '';
+    const location = Number.isInteger(error.index)
+      ? ` index ${error.index}`
+      : Number.isInteger(error.selectorIndex)
+        ? ` selector ${error.selectorIndex}`
+        : '';
+    return `${error.code}${phase}${candidate}${location}: ${error.message}`;
+  }).join('\n');
 }
 
 function renderQueryValueLines(value, sourceBinding) {

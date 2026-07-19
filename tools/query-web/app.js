@@ -66,6 +66,11 @@ const examples = {
     'where .qty >= 2',
     'select { sku = .sku active = .active }',
   ].join('\n'),
+  diagnosticWhere: [
+    'from $.inventory.items.*',
+    'where .sku',
+    'select .sku',
+  ].join('\n'),
 };
 
 const fixtureInput = document.querySelector('#fixtureInput');
@@ -173,7 +178,7 @@ async function parseOnly() {
   resultStatus.textContent = payload.ok
     ? 'parse summary'
     : `${payload.errors.length} error${payload.errors.length === 1 ? '' : 's'}`;
-  renderValue(formatOutputMode() === 'json' ? payload : payload.text ?? payload);
+  renderValue(formatOutputMode() === 'json' ? payload : formatPayloadText(payload));
 }
 
 async function runQuery() {
@@ -189,7 +194,7 @@ async function runQuery() {
   resultStatus.textContent = payload.ok
     ? `${payload.count} result${payload.count === 1 ? '' : 's'}`
     : `${payload.errors.length} error${payload.errors.length === 1 ? '' : 's'}`;
-  renderValue(formatOutputMode() === 'json' ? payload : payload.text ?? payload);
+  renderValue(formatOutputMode() === 'json' ? payload : formatPayloadText(payload));
 }
 
 async function queryApi(payload) {
@@ -219,6 +224,26 @@ function renderValue(value) {
   resultOutput.textContent = typeof value === 'string'
     ? value
     : JSON.stringify(value, null, 2);
+}
+
+function formatPayloadText(payload) {
+  if (typeof payload.text === 'string') return payload.text;
+  if (Array.isArray(payload.errors)) return formatDiagnostics(payload.errors);
+  return JSON.stringify(payload, null, 2);
+}
+
+function formatDiagnostics(errors) {
+  if (errors.length === 0) return '(no diagnostics)';
+  return errors.map((error) => {
+    const phase = typeof error.phase === 'string' ? ` [${error.phase}]` : '';
+    const candidate = typeof error.candidateAddress === 'string' ? ` at ${error.candidateAddress}` : '';
+    const location = Number.isInteger(error.index)
+      ? ` index ${error.index}`
+      : Number.isInteger(error.selectorIndex)
+        ? ` selector ${error.selectorIndex}`
+        : '';
+    return `${error.code}${phase}${candidate}${location}: ${error.message}`;
+  }).join('\n');
 }
 
 function formatOutputMode() {

@@ -126,6 +126,7 @@ test('query web runtime reports AEON source diagnostics', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'UNTYPED_VALUE_IN_STRICT_MODE');
+  assert.match(result.text, /UNTYPED_VALUE_IN_STRICT_MODE:/);
 });
 
 test('query web runtime preserves query diagnostic context', async () => {
@@ -140,6 +141,18 @@ test('query web runtime preserves query diagnostic context', async () => {
   assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
   assert.equal(result.errors[0].phase, 'where');
   assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
+  assert.equal(
+    result.text,
+    'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN [where] at $.inventory.items[0]: Expected Boolean query value',
+  );
+});
+
+test('query web runtime formats parse diagnostics as text', () => {
+  const result = parseQueryForWorkbench('from $.inventory.items.*');
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_EXPECTED_SELECT');
+  assert.match(result.text, /SANSA_QUERY_EXPECTED_SELECT index/);
 });
 
 function escapeRegExp(value) {
