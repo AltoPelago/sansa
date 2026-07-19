@@ -4,9 +4,40 @@ const examples = {
     'where contains(.sku, "B")',
     'select .sku',
   ].join('\n'),
+  itemAttributes: [
+    'from $.inventory.items.*',
+    'where .@.lane == "primary"',
+    'select { sku = .sku lane = .@.lane }',
+  ].join('\n'),
+  fieldAttributes: [
+    'from $.inventory.items.*',
+    'where .sku.@.origin == "catalog"',
+    'select { sku = .sku origin = .sku.@.origin }',
+  ].join('\n'),
+  directExpansion: [
+    'from $.inventory.items',
+    'select .*',
+  ].join('\n'),
+  descendantStrings: [
+    'from $',
+    'select $.inventory.items.**#string',
+  ].join('\n'),
+  descendantNumbers: [
+    'from $',
+    'select $.inventory.items.**%number',
+  ].join('\n'),
+  namePattern: [
+    'from $.inventory.items.*',
+    'select .("s*")',
+  ].join('\n'),
   adminRoles: [
     'from $.inventory.items.*',
     'where any(.roles.* == "admin")',
+    'select { sku = .sku name = .name }',
+  ].join('\n'),
+  emptyRoles: [
+    'from $.inventory.items.*',
+    'where exists(.roles) and absent(.roles.*)',
     'select { sku = .sku name = .name }',
   ].join('\n'),
   inactiveOrder: [

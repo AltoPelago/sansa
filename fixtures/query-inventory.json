@@ -21,13 +21,39 @@
                 "index": 0,
                 "address": "$.inventory.items[0]",
                 "representationKind": "object",
+                "attributeSpace": {
+                  "address": "$.inventory.items[0].@",
+                  "representationKind": "attributeSpace",
+                  "children": [
+                    {
+                      "name": "lane",
+                      "address": "$.inventory.items[0].@.lane",
+                      "semanticType": "string",
+                      "representationKind": "string",
+                      "value": "primary"
+                    }
+                  ]
+                },
                 "children": [
                   {
                     "name": "sku",
                     "address": "$.inventory.items[0].sku",
                     "semanticType": "string",
                     "representationKind": "string",
-                    "value": "A-100"
+                    "value": "A-100",
+                    "attributeSpace": {
+                      "address": "$.inventory.items[0].sku.@",
+                      "representationKind": "attributeSpace",
+                      "children": [
+                        {
+                          "name": "origin",
+                          "address": "$.inventory.items[0].sku.@.origin",
+                          "semanticType": "string",
+                          "representationKind": "string",
+                          "value": "catalog"
+                        }
+                      ]
+                    }
                   },
                   {
                     "name": "name",
@@ -77,13 +103,39 @@
                 "index": 1,
                 "address": "$.inventory.items[1]",
                 "representationKind": "object",
+                "attributeSpace": {
+                  "address": "$.inventory.items[1].@",
+                  "representationKind": "attributeSpace",
+                  "children": [
+                    {
+                      "name": "lane",
+                      "address": "$.inventory.items[1].@.lane",
+                      "semanticType": "string",
+                      "representationKind": "string",
+                      "value": "primary"
+                    }
+                  ]
+                },
                 "children": [
                   {
                     "name": "sku",
                     "address": "$.inventory.items[1].sku",
                     "semanticType": "string",
                     "representationKind": "string",
-                    "value": "B-200"
+                    "value": "B-200",
+                    "attributeSpace": {
+                      "address": "$.inventory.items[1].sku.@",
+                      "representationKind": "attributeSpace",
+                      "children": [
+                        {
+                          "name": "origin",
+                          "address": "$.inventory.items[1].sku.@.origin",
+                          "semanticType": "string",
+                          "representationKind": "string",
+                          "value": "catalog"
+                        }
+                      ]
+                    }
                   },
                   {
                     "name": "name",
@@ -126,13 +178,39 @@
                 "index": 2,
                 "address": "$.inventory.items[2]",
                 "representationKind": "object",
+                "attributeSpace": {
+                  "address": "$.inventory.items[2].@",
+                  "representationKind": "attributeSpace",
+                  "children": [
+                    {
+                      "name": "lane",
+                      "address": "$.inventory.items[2].@.lane",
+                      "semanticType": "string",
+                      "representationKind": "string",
+                      "value": "overflow"
+                    }
+                  ]
+                },
                 "children": [
                   {
                     "name": "sku",
                     "address": "$.inventory.items[2].sku",
                     "semanticType": "string",
                     "representationKind": "string",
-                    "value": "C-300"
+                    "value": "C-300",
+                    "attributeSpace": {
+                      "address": "$.inventory.items[2].sku.@",
+                      "representationKind": "attributeSpace",
+                      "children": [
+                        {
+                          "name": "origin",
+                          "address": "$.inventory.items[2].sku.@.origin",
+                          "semanticType": "string",
+                          "representationKind": "string",
+                          "value": "manual"
+                        }
+                      ]
+                    }
                   },
                   {
                     "name": "name",
@@ -166,13 +244,39 @@
                 "index": 3,
                 "address": "$.inventory.items[3]",
                 "representationKind": "object",
+                "attributeSpace": {
+                  "address": "$.inventory.items[3].@",
+                  "representationKind": "attributeSpace",
+                  "children": [
+                    {
+                      "name": "lane",
+                      "address": "$.inventory.items[3].@.lane",
+                      "semanticType": "string",
+                      "representationKind": "string",
+                      "value": "overflow"
+                    }
+                  ]
+                },
                 "children": [
                   {
                     "name": "sku",
                     "address": "$.inventory.items[3].sku",
                     "semanticType": "string",
                     "representationKind": "string",
-                    "value": "D-250"
+                    "value": "D-250",
+                    "attributeSpace": {
+                      "address": "$.inventory.items[3].sku.@",
+                      "representationKind": "attributeSpace",
+                      "children": [
+                        {
+                          "name": "origin",
+                          "address": "$.inventory.items[3].sku.@.origin",
+                          "semanticType": "string",
+                          "representationKind": "string",
+                          "value": "catalog"
+                        }
+                      ]
+                    }
                   },
                   {
                     "name": "name",

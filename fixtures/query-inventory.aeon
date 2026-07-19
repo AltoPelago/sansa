@@ -1,28 +1,28 @@
 inventory:object = {
   items:list<object> = [
-    {
-      sku:string = "A-100"
+    @{lane:string = "primary"}:object = {
+      sku@{origin:string = "catalog"}:string = "A-100"
       name:string = "Adapter"
       qty:number = 1
       active:boolean = true
       roles:list<string> = ["admin", "user"]
     },
-    {
-      sku:string = "B-200"
+    @{lane:string = "primary"}:object = {
+      sku@{origin:string = "catalog"}:string = "B-200"
       name:string = "Bracket"
       qty:number = 4
       active:boolean = true
       roles:list<string> = ["user"]
     },
-    {
-      sku:string = "C-300"
+    @{lane:string = "overflow"}:object = {
+      sku@{origin:string = "manual"}:string = "C-300"
       name:string = "Coupler"
       qty:number = 8
       active:boolean = false
       roles:list<string> = []
     },
-    {
-      sku:string = "D-250"
+    @{lane:string = "overflow"}:object = {
+      sku@{origin:string = "catalog"}:string = "D-250"
       name:string = "Driver"
       qty:number = 4
       active:boolean = false

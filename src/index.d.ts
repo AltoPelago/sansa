@@ -91,6 +91,7 @@ export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_EVALUATE_MISSING_SCALAR'
   | 'SANSA_QUERY_EVALUATE_CARDINALITY'
   | 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON'
+  | 'SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT'
   | 'SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT';
 
 export interface SansaResolveDiagnostic {
@@ -243,6 +244,7 @@ export type SansaQueryExpression =
   | SansaQueryUnaryExpression
   | SansaQueryBinaryExpression
   | SansaQueryFunctionCallExpression
+  | SansaQueryExistenceExpression
   | SansaQueryCardinalityExpression
   | SansaQueryProjectionExpression;
 
@@ -285,6 +287,13 @@ export interface SansaQueryFunctionCallExpression {
   readonly type: 'functionCallExpression';
   readonly name: string;
   readonly arguments: readonly SansaQueryExpression[];
+  readonly canonical: string;
+}
+
+export interface SansaQueryExistenceExpression {
+  readonly type: 'existenceExpression';
+  readonly operator: 'exists' | 'absent';
+  readonly argument: SansaQueryExpression;
   readonly canonical: string;
 }
 

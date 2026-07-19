@@ -250,6 +250,7 @@ Expression nodes:
 { type: "unaryExpression", operator, argument, canonical }
 { type: "binaryExpression", operator, left, right, canonical }
 { type: "functionCallExpression", name, arguments, canonical }
+{ type: "existenceExpression", operator, argument, canonical }
 { type: "cardinalityExpression", operator, argument, canonical }
 { type: "projectionExpression", fields, canonical }
 ```
@@ -303,9 +304,33 @@ Currently evaluated:
 - resolution expressions
 - comparisons between same-type scalar values
 - Boolean `not`, `and`, `or`
+- existence predicates over resolution expressions: `exists`, `absent`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
 - built-in string functions: `contains`, `startsWith`, `lower`, `concat`
 - projection expressions
+
+Existence predicates inspect binding presence rather than scalar value:
+
+```text
+exists(.email) == true when .email resolves one or more bindings
+absent(.email) == true when .email resolves zero bindings
+```
+
+Cardinality predicates follow conventional quantified logic:
+
+```text
+any(empty)  = false
+all(empty)  = true
+none(empty) = true
+```
+
+`all(...)` therefore means every resolved binding satisfies the predicate; it does not by itself require that at least one binding exists. A non-empty all-match condition is expressed by combining `any(...)` and `all(...)`:
+
+```text
+where any(.roles.* == "admin") and all(.roles.* == "admin")
+```
+
+`only(...)` is not currently recognized by the parser or evaluator. It is reserved as a possible future shorthand for the non-empty all-match pattern.
 
 Currently rejected with explicit diagnostics:
 
@@ -446,6 +471,7 @@ Canonical rendering:
 - `SANSA_QUERY_EVALUATE_MISSING_SCALAR`
 - `SANSA_QUERY_EVALUATE_CARDINALITY`
 - `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`
+- `SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT`
 - `SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT`
 
 ## Current Resolve Error Codes

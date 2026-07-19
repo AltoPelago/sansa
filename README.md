@@ -58,6 +58,22 @@ Then open `http://127.0.0.1:4173/tools/query-web/`.
 
 The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a JSON fixture mode for debugging the resolver shape directly.
 
+Existence predicates inspect whether a resolution expression resolves any bindings. `exists(...)` returns true when one or more bindings are present, and `absent(...)` returns true when no bindings are present.
+
+```text
+where exists(.roles) and absent(.roles.*)
+```
+
+Cardinality operators follow conventional quantified logic. `any(...)` requires at least one match, `all(...)` is true when every resolved binding matches, and `none(...)` is true when no resolved binding matches. Empty Binding Sets therefore evaluate as `any(empty) = false`, `all(empty) = true`, and `none(empty) = true`.
+
+To require a non-empty set where every binding matches, combine `any(...)` and `all(...)` explicitly:
+
+```text
+where any(.roles.* == "admin") and all(.roles.* == "admin")
+```
+
+The name `only(...)` is not part of the current query surface; it remains a possible future shorthand for this non-empty-all pattern.
+
 ## API
 
 ```js

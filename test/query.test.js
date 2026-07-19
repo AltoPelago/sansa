@@ -95,6 +95,15 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(cardinality.operator, 'any');
   assert.equal(cardinality.argument.type, 'binaryExpression');
 
+  const existence = parseExpressionOk('exists(.roles) and absent(.roles.*)');
+  assert.equal(existence.type, 'binaryExpression');
+  assert.equal(existence.operator, 'and');
+  assert.equal(existence.left.type, 'existenceExpression');
+  assert.equal(existence.left.operator, 'exists');
+  assert.equal(existence.right.type, 'existenceExpression');
+  assert.equal(existence.right.operator, 'absent');
+  assert.equal(renderQueryExpression(existence), 'exists(.roles) and absent(.roles.*)');
+
   const projection = parseExpressionOk('{ name = .name status = lookup($.statuses, .status) }');
   assert.equal(projection.type, 'projectionExpression');
   assert.deepEqual(projection.fields.map((field) => field.name), ['name', 'status']);
@@ -105,6 +114,8 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('', 'SANSA_QUERY_EXPECTED_EXPRESSION');
   parseExpressionBad('thing', 'SANSA_QUERY_UNEXPECTED_EXPRESSION_TOKEN');
   parseExpressionBad('any(.roles.*, "admin")', 'SANSA_QUERY_INVALID_FUNCTION_CALL');
+  parseExpressionBad('exists(.roles, .sku)', 'SANSA_QUERY_INVALID_FUNCTION_CALL');
+  parseExpressionBad('absent("roles")', 'SANSA_QUERY_INVALID_FUNCTION_CALL');
   parseExpressionBad('{ name = }', 'SANSA_QUERY_INVALID_PROJECTION');
   parseExpressionBad('( .name', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
 });

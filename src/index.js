@@ -229,6 +229,8 @@ export function renderQueryExpression(expression) {
       return `${renderQueryExpression(expression.left)} ${expression.operator} ${renderQueryExpression(expression.right)}`;
     case 'functionCallExpression':
       return `${expression.name}(${expression.arguments.map((argument) => renderQueryExpression(argument)).join(', ')})`;
+    case 'existenceExpression':
+      return `${expression.operator}(${renderQueryExpression(expression.argument)})`;
     case 'cardinalityExpression':
       return `${expression.operator}(${renderQueryExpression(expression.argument)})`;
     case 'projectionExpression':
@@ -280,6 +282,8 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
       return evaluateProjectionExpression(expression, currentBinding, namespace, options);
     case 'functionCallExpression':
       return evaluateFunctionCallExpression(expression, currentBinding, namespace, options);
+    case 'existenceExpression':
+      return evaluateExistenceExpression(expression, currentBinding, namespace, options);
     case 'cardinalityExpression':
       return evaluateCardinalityExpression(expression, currentBinding, namespace, options);
     default:
@@ -436,6 +440,32 @@ function evaluateStringFunction(name, args, arity, operation) {
       value: operation(args),
     },
   };
+}
+
+function evaluateExistenceExpression(expression, currentBinding, namespace, options) {
+  const resolution = unwrapResolutionExpression(expression.argument);
+  if (!resolution) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT', 'Existence operators require a resolution expression'),
+    };
+  }
+
+  const resolved = evaluateResolutionExpression(resolution, currentBinding, namespace, options);
+  if (!resolved.ok) return resolved;
+  const hasBindings = resolved.value.bindings.length > 0;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: expression.operator === 'exists' ? hasBindings : !hasBindings,
+    },
+  };
+}
+
+function unwrapResolutionExpression(expression) {
+  if (expression.type === 'groupExpression') return unwrapResolutionExpression(expression.expression);
+  return expression.type === 'resolutionExpression' ? expression : null;
 }
 
 function evaluateCardinalityExpression(expression, currentBinding, namespace, options) {
@@ -1340,6 +1370,20 @@ class QueryExpressionParser {
       }
       return {
         type: 'cardinalityExpression',
+        operator: name,
+        argument: args[0],
+        canonical: '',
+      };
+    }
+    if (['exists', 'absent'].includes(name)) {
+      if (args.length !== 1) {
+        this.fail(`Existence operator '${name}' expects exactly one resolution expression`, 'SANSA_QUERY_INVALID_FUNCTION_CALL');
+      }
+      if (!unwrapResolutionExpression(args[0])) {
+        this.fail(`Existence operator '${name}' expects a resolution expression`, 'SANSA_QUERY_INVALID_FUNCTION_CALL');
+      }
+      return {
+        type: 'existenceExpression',
         operator: name,
         argument: args[0],
         canonical: '',

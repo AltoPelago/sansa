@@ -37,6 +37,66 @@ test('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+test('query web runtime exercises workbench edge-case examples', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const cases = [
+    {
+      name: 'item attributes',
+      query: 'from $.inventory.items.* where .@.lane == "primary" select { sku = .sku lane = .@.lane }',
+      count: 2,
+      includes: '$.inventory.items[0] = {"sku":"A-100","lane":"primary"}',
+    },
+    {
+      name: 'field attributes',
+      query: 'from $.inventory.items.* where .sku.@.origin == "catalog" select { sku = .sku origin = .sku.@.origin }',
+      count: 3,
+      includes: '$.inventory.items[3] = {"sku":"D-250","origin":"catalog"}',
+    },
+    {
+      name: 'direct expansion',
+      query: 'from $.inventory.items select .*',
+      count: 1,
+      includes: '$.inventory.items[2]',
+    },
+    {
+      name: 'descendant semantic type filter',
+      query: 'from $ select $.inventory.items.**#string',
+      count: 1,
+      includes: '$.inventory.items[0].roles[0] = "admin"',
+    },
+    {
+      name: 'descendant representation kind filter',
+      query: 'from $ select $.inventory.items.**%number',
+      count: 1,
+      includes: '$.inventory.items[2].qty = 8',
+    },
+    {
+      name: 'name pattern',
+      query: 'from $.inventory.items.* select .("s*")',
+      count: 4,
+      includes: '$.inventory.items[1].sku = "B-200"',
+    },
+    {
+      name: 'empty roles',
+      query: 'from $.inventory.items.* where exists(.roles) and absent(.roles.*) select { sku = .sku name = .name }',
+      count: 1,
+      includes: '$.inventory.items[2] = {"sku":"C-300","name":"Coupler"}',
+    },
+  ];
+
+  for (const entry of cases) {
+    const result = await evaluateQueryForWorkbench({
+      sourceKind: 'aeon',
+      source,
+      query: entry.query,
+    });
+
+    assert.equal(result.ok, true, `${entry.name}: ${JSON.stringify(result.errors ?? [])}`);
+    assert.equal(result.count, entry.count, entry.name);
+    assert.match(result.text, new RegExp(escapeRegExp(entry.includes)), entry.name);
+  }
+});
+
 test('query web runtime reports AEON source diagnostics', async () => {
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -47,3 +107,7 @@ test('query web runtime reports AEON source diagnostics', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'UNTYPED_VALUE_IN_STRICT_MODE');
 });
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

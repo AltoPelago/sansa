@@ -28,6 +28,7 @@ const item0 = binding({
   representationKind: 'object',
   children: [
     binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string', value: 'A-100' }),
+    binding({ name: 'name', address: '$.inventory.items[0].name', semanticType: 'string', representationKind: 'string', value: 'Adapter' }),
     binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number', value: 1 }),
     binding({ name: 'active', address: '$.inventory.items[0].active', semanticType: 'boolean', representationKind: 'boolean', value: true }),
     binding({
@@ -48,6 +49,7 @@ const item1 = binding({
   representationKind: 'object',
   children: [
     binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
+    binding({ name: 'name', address: '$.inventory.items[1].name', semanticType: 'string', representationKind: 'string', value: 'Bracket' }),
     binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[1].active', semanticType: 'boolean', representationKind: 'boolean', value: true }),
     binding({
@@ -67,6 +69,7 @@ const item2 = binding({
   representationKind: 'object',
   children: [
     binding({ name: 'sku', address: '$.inventory.items[2].sku', semanticType: 'string', representationKind: 'string', value: 'C-300' }),
+    binding({ name: 'name', address: '$.inventory.items[2].name', semanticType: 'string', representationKind: 'string', value: 'Coupler' }),
     binding({ name: 'qty', address: '$.inventory.items[2].qty', semanticType: 'number', representationKind: 'number', value: 8 }),
     binding({ name: 'active', address: '$.inventory.items[2].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
     binding({ name: 'roles', address: '$.inventory.items[2].roles', representationKind: 'list' }),
@@ -79,6 +82,7 @@ const item3 = binding({
   representationKind: 'object',
   children: [
     binding({ name: 'sku', address: '$.inventory.items[3].sku', semanticType: 'string', representationKind: 'string', value: 'D-250' }),
+    binding({ name: 'name', address: '$.inventory.items[3].name', semanticType: 'string', representationKind: 'string', value: 'Driver' }),
     binding({ name: 'qty', address: '$.inventory.items[3].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[3].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
     binding({
@@ -212,6 +216,51 @@ test('evaluates any all and none cardinality predicates', () => {
   assert.deepEqual(noneAdmin.results.map((entry) => entry.binding.address), [
     '$.inventory.items[1]',
     '$.inventory.items[2]',
+  ]);
+});
+
+test('evaluates exists and absent presence predicates', () => {
+  const existingRoles = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.roles)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(existingRoles.ok, true, JSON.stringify(existingRoles.errors ?? []));
+  assert.deepEqual(existingRoles.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
+
+  const emptyRoles = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.roles) and absent(.roles.*)',
+    'select { sku = .sku name = .name }',
+  ].join('\n'), namespace);
+  assert.equal(emptyRoles.ok, true, JSON.stringify(emptyRoles.errors ?? []));
+  assert.deepEqual(emptyRoles.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+  assert.deepEqual(emptyRoles.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'C-300',
+        name: 'Coupler',
+      },
+    },
+  ]);
+
+  const missingField = evaluateQuery([
+    'from $.inventory.items.*',
+    'where absent(.deletedAt)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(missingField.ok, true, JSON.stringify(missingField.errors ?? []));
+  assert.deepEqual(missingField.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
   ]);
 });
 
