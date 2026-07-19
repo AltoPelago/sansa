@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseQuery, parseQueryExpression } from '../src/index.js';
+import { evaluateQuery, parseQuery, parseQueryExpression } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -20,10 +20,11 @@ console.log('Running SANSA query parser CTS against @altopelago/sansa');
 for (const suiteRef of manifest.suites ?? []) {
   const suitePath = resolve(dirname(manifestPath), suiteRef.file);
   const suite = readJson(suitePath);
+  const namespaces = buildNamespaces(suite.fixtures?.namespaces ?? []);
   console.log(`\n--- Suite: ${suite.title} ---`);
 
   for (const test of suite.tests ?? []) {
-    const failures = runTest(test);
+    const failures = runTest(test, namespaces);
     if (failures.length > 0) {
       fail += 1;
       console.log(`FAIL ${test.id}`);
@@ -38,12 +39,22 @@ for (const suiteRef of manifest.suites ?? []) {
 console.log(`\nSummary: pass=${pass} fail=${fail}`);
 process.exit(fail > 0 ? 1 : 0);
 
-function runTest(test) {
+function runTest(test, namespaces) {
   const failures = [];
   const expected = test.expected ?? {};
   const isExpressionCase = typeof test.input?.expression === 'string';
+  const isEvaluateCase = typeof test.input?.namespace === 'string';
   const source = String(isExpressionCase ? test.input.expression : test.input?.source ?? '');
-  const result = isExpressionCase ? parseQueryExpression(source) : parseQuery(source);
+  const fixture = isEvaluateCase ? namespaces.get(test.input.namespace) : null;
+  if (isEvaluateCase && !fixture) {
+    failures.push(`unknown namespace fixture: ${test.input.namespace}`);
+    return failures;
+  }
+  const result = isEvaluateCase
+    ? evaluateQuery(source, fixture.namespace)
+    : isExpressionCase
+      ? parseQueryExpression(source)
+      : parseQuery(source);
 
   if (result.ok !== Boolean(expected.ok)) {
     failures.push(`ok mismatch: expected ${Boolean(expected.ok)}, got ${result.ok}`);
@@ -67,6 +78,26 @@ function runTest(test) {
     }
     if (expected.ast && !matchesSubset(expected.ast, expression)) {
       failures.push(`ast mismatch: expected subset ${JSON.stringify(expected.ast)}, got ${JSON.stringify(expression)}`);
+    }
+    return failures;
+  }
+
+  if (isEvaluateCase) {
+    if (Array.isArray(expected.resultAddresses)) {
+      compareArray(expected.resultAddresses, result.results.map((entry) => entry.binding.address), 'resultAddresses', failures);
+    }
+    if (Array.isArray(expected.values)) {
+      compareJson(expected.values, result.results.map((entry) => entry.value), 'values', failures);
+    }
+    if (Array.isArray(expected.selectedAddresses)) {
+      compareJson(
+        expected.selectedAddresses,
+        result.results.map((entry) => entry.value.type === 'bindingSet'
+          ? entry.value.bindings.map((binding) => binding.address)
+          : null),
+        'selectedAddresses',
+        failures,
+      );
     }
     return failures;
   }
@@ -105,6 +136,19 @@ function runTest(test) {
   return failures;
 }
 
+function buildNamespaces(entries) {
+  const output = new Map();
+  for (const entry of entries) {
+    output.set(entry.id, {
+      namespace: {
+        root: entry.root,
+        children: (binding) => binding.children ?? [],
+      },
+    });
+  }
+  return output;
+}
+
 function matchesSubset(expected, actual) {
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || expected.length !== actual.length) return false;
@@ -115,6 +159,14 @@ function matchesSubset(expected, actual) {
     return Object.entries(expected).every(([key, value]) => matchesSubset(value, actual[key]));
   }
   return Object.is(expected, actual);
+}
+
+function compareJson(expected, actual, label, failures) {
+  const expectedJson = JSON.stringify(expected);
+  const actualJson = JSON.stringify(actual);
+  if (expectedJson !== actualJson) {
+    failures.push(`${label} mismatch: expected ${expectedJson}, got ${actualJson}`);
+  }
 }
 
 function compareArray(expected, actual, label, failures) {

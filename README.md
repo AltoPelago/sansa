@@ -1,8 +1,8 @@
 # SANSA
 
-Shared SANSA address, resolve, and query parser model.
+Shared SANSA address, resolve, and query parser/evaluator model.
 
-This package is the first implementation slice for SANSA Address, SANSA Resolve, and SANSA.Query parsing. It parses and renders SANSA address expressions, can resolve those expressions against a host-supplied namespace adapter, and can parse the SANSA.Query clause and expression surfaces. It does not evaluate queries, inspect host values directly, or apply host-specific authorization.
+This package is the first implementation slice for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, can resolve those expressions against a host-supplied namespace adapter, can parse the SANSA.Query clause and expression surfaces, and includes an initial evaluator scaffold. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
 ## Current Scope
 
@@ -20,6 +20,7 @@ This package is the first implementation slice for SANSA Address, SANSA Resolve,
 - Stage 0 SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
 - query comment stripping, clause-order validation, and canonical query rendering
 - Stage 1 SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, cardinality operators, function-call shape, and projection shape
+- Stage 2 SANSA.Query evaluator scaffold for `from`, Boolean `where`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, and projection expressions
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -38,7 +39,7 @@ npm run cts:query
 ## API
 
 ```js
-import { parseAddress, parseQuery, parseQueryExpression, renderAddress, resolveAddress } from "@altopelago/sansa";
+import { evaluateQuery, parseAddress, parseQuery, parseQueryExpression, renderAddress, resolveAddress } from "@altopelago/sansa";
 
 const result = parseAddress('$.inventory:csv[","]');
 
@@ -76,5 +77,11 @@ const expression = parseQueryExpression('any(.roles.* == "admin")');
 
 if (expression.ok) {
   console.log(expression.expression.type);
+}
+
+const evaluated = evaluateQuery('from $.inventory.items.*\nselect .sku', { root });
+
+if (evaluated.ok) {
+  console.log(evaluated.results.length);
 }
 ```

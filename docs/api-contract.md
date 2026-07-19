@@ -1,8 +1,8 @@
 # SANSA Parser API Contract
 
-Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, Stage 4 query clause parser/model, and Stage 5 query expression parser/model slices.
+Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, Stage 4 query clause parser/model, Stage 5 query expression parser/model, and Stage 6 query evaluator scaffold slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The package does not evaluate queries, inspect host values directly, check authorization, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator scaffold applies a restricted query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
 ## Entry Points
 
@@ -13,6 +13,7 @@ parseQuery(input, options?)
 parseQueryOrThrow(input, options?)
 parseQueryExpression(input, options?)
 parseQueryExpressionOrThrow(input, options?)
+evaluateQuery(input, namespace, options?)
 resolveAddress(input, namespace, options?)
 renderAddress(address)
 renderQuery(query)
@@ -47,6 +48,13 @@ renderQualifierTerm(term)
 ```
 
 `parseQueryExpressionOrThrow` returns `expression` or throws `SansaParseError`.
+
+`evaluateQuery` accepts either a query string or a parsed `SansaQuery` and returns:
+
+```js
+{ ok: true, results, diagnostics }
+{ ok: false, results: [], errors }
+```
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -252,6 +260,52 @@ and
 or
 ```
 
+## Query Evaluator Scaffold
+
+The evaluator scaffold is intentionally narrower than the query grammar. It exists to prove the parser, resolver, and expression model can execute together over host-neutral bindings.
+
+Currently evaluated:
+
+- `from` through SANSA Resolve
+- `where` expressions that produce explicit Boolean values
+- `offset`
+- `limit`
+- `select` expressions
+- scalar literals
+- resolution expressions
+- comparisons between same-type scalar values
+- Boolean `not`, `and`, `or`
+- projection expressions
+
+Currently rejected with explicit diagnostics:
+
+- `order by`
+- function-call expressions
+- cardinality expressions
+- cross-type comparisons
+- missing scalar values in scalar context
+- multiple bindings in scalar context
+
+Query results:
+
+```js
+{
+  type: "queryResult",
+  binding,
+  value
+}
+```
+
+Query values:
+
+```js
+{ type: "scalar", value }
+{ type: "bindingSet", bindings }
+{ type: "object", value }
+```
+
+Bindings expose scalar values through `namespace.value(binding)`, `binding.value`, or `binding.scalar`.
+
 ## Qualifier Model
 
 ```js
@@ -349,6 +403,18 @@ Canonical rendering:
 - `SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION`
 - `SANSA_QUERY_INVALID_FUNCTION_CALL`
 - `SANSA_QUERY_INVALID_PROJECTION`
+
+## Current Query Evaluate Error Codes
+
+- `SANSA_QUERY_EVALUATE_UNSUPPORTED_ORDER`
+- `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
+- `SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY`
+- `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION`
+- `SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN`
+- `SANSA_QUERY_EVALUATE_EXPECTED_SCALAR`
+- `SANSA_QUERY_EVALUATE_MISSING_SCALAR`
+- `SANSA_QUERY_EVALUATE_CARDINALITY`
+- `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`
 
 ## Current Resolve Error Codes
 

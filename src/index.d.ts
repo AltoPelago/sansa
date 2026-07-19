@@ -82,8 +82,26 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE'
   | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
 
+export type SansaQueryEvaluateErrorCode =
+  | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_ORDER'
+  | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION'
+  | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY'
+  | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION'
+  | 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN'
+  | 'SANSA_QUERY_EVALUATE_EXPECTED_SCALAR'
+  | 'SANSA_QUERY_EVALUATE_MISSING_SCALAR'
+  | 'SANSA_QUERY_EVALUATE_CARDINALITY'
+  | 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON';
+
 export interface SansaResolveDiagnostic {
   readonly code: SansaResolveErrorCode | SansaParseErrorCode;
+  readonly message: string;
+  readonly index?: number;
+  readonly selectorIndex?: number;
+}
+
+export interface SansaQueryEvaluateDiagnostic {
+  readonly code: SansaQueryEvaluateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
   readonly index?: number;
   readonly selectorIndex?: number;
@@ -99,6 +117,8 @@ export interface SansaResolveBinding {
   readonly representationKind?: string;
   readonly kind?: string;
   readonly type?: string;
+  readonly value?: unknown;
+  readonly scalar?: unknown;
   readonly children?: readonly SansaResolveBinding[];
   readonly attributeSpace?: SansaResolveBinding;
   readonly attributes?: SansaResolveBinding;
@@ -116,6 +136,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly index?: (binding: TBinding) => number | undefined;
   readonly semanticType?: (binding: TBinding) => string | undefined;
   readonly representationKind?: (binding: TBinding) => string | undefined;
+  readonly value?: (binding: TBinding) => unknown;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
 }
@@ -128,6 +149,41 @@ export interface SansaResolveOptions<TBinding extends object = SansaResolveBindi
 export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
   | { readonly ok: true; readonly bindings: readonly TBinding[]; readonly diagnostics: readonly SansaResolveDiagnostic[] }
   | { readonly ok: false; readonly bindings: readonly TBinding[]; readonly errors: readonly SansaResolveDiagnostic[] };
+
+export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolveBinding> {
+  readonly parse?: SansaQueryParseOptions;
+  readonly resolve?: SansaResolveOptions<TBinding>;
+}
+
+export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBinding> =
+  | { readonly ok: true; readonly results: readonly SansaQueryResult<TBinding>[]; readonly diagnostics: readonly SansaQueryEvaluateDiagnostic[] }
+  | { readonly ok: false; readonly results: readonly SansaQueryResult<TBinding>[]; readonly errors: readonly SansaQueryEvaluateDiagnostic[] };
+
+export interface SansaQueryResult<TBinding extends object = SansaResolveBinding> {
+  readonly type: 'queryResult';
+  readonly binding: TBinding;
+  readonly value: SansaQueryValue<TBinding>;
+}
+
+export type SansaQueryValue<TBinding extends object = SansaResolveBinding> =
+  | SansaQueryScalarValue
+  | SansaQueryBindingSetValue<TBinding>
+  | SansaQueryObjectValue;
+
+export interface SansaQueryScalarValue {
+  readonly type: 'scalar';
+  readonly value: unknown;
+}
+
+export interface SansaQueryBindingSetValue<TBinding extends object = SansaResolveBinding> {
+  readonly type: 'bindingSet';
+  readonly bindings: readonly TBinding[];
+}
+
+export interface SansaQueryObjectValue {
+  readonly type: 'object';
+  readonly value: Record<string, unknown>;
+}
 
 export interface SansaAddress {
   readonly type: 'SansaAddress';
@@ -349,6 +405,11 @@ export function parseQuery(input: string, options?: SansaQueryParseOptions): San
 export function parseQueryOrThrow(input: string, options?: SansaQueryParseOptions): SansaQuery;
 export function parseQueryExpression(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpressionParseResult;
 export function parseQueryExpressionOrThrow(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpression;
+export function evaluateQuery<TBinding extends object = SansaResolveBinding>(
+  input: string | SansaQuery,
+  namespace: SansaResolveNamespace<TBinding>,
+  options?: SansaQueryEvaluateOptions<TBinding>,
+): SansaQueryEvaluateResult<TBinding>;
 export function resolveAddress<TBinding extends object = SansaResolveBinding>(
   input: string | SansaAddress,
   namespace: SansaResolveNamespace<TBinding>,

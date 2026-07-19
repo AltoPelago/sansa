@@ -94,6 +94,52 @@ export function parseQueryExpressionOrThrow(input, options = {}) {
   return result.expression;
 }
 
+export function evaluateQuery(input, namespace, options = {}) {
+  const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
+  if (!parsed.ok) return { ok: false, results: [], errors: parsed.errors };
+
+  const query = parsed.query;
+  if (query.orderBy) {
+    return {
+      ok: false,
+      results: [],
+      errors: [queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_ORDER', "'order by' evaluation is not supported by this slice")],
+    };
+  }
+
+  const from = resolveAddress(query.from.address, namespace, options.resolve);
+  if (!from.ok) return { ok: false, results: [], errors: from.errors };
+
+  let bindings = from.bindings;
+  if (query.where) {
+    const filtered = [];
+    for (const binding of bindings) {
+      const evaluated = evaluateQueryExpressionValue(query.where.ast, binding, namespace, options);
+      if (!evaluated.ok) return { ok: false, results: [], errors: [evaluated.error] };
+      const boolean = expectBooleanQueryValue(evaluated.value);
+      if (!boolean.ok) return { ok: false, results: [], errors: [boolean.error] };
+      if (boolean.value) filtered.push(binding);
+    }
+    bindings = filtered;
+  }
+
+  if (query.offset) bindings = bindings.slice(query.offset.value);
+  if (query.limit) bindings = bindings.slice(0, query.limit.value);
+
+  const results = [];
+  for (const binding of bindings) {
+    const evaluated = evaluateQueryExpressionValue(query.select.ast, binding, namespace, options);
+    if (!evaluated.ok) return { ok: false, results: [], errors: [evaluated.error] };
+    results.push({
+      type: 'queryResult',
+      binding,
+      value: evaluated.value,
+    });
+  }
+
+  return { ok: true, results, diagnostics: [] };
+}
+
 export function resolveAddress(input, namespace, options = {}) {
   const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
@@ -212,6 +258,224 @@ function resolveRoot(root, namespace, options) {
   const rootBinding = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
   if (rootBinding) return { ok: true, binding: rootBinding };
   return { ok: false, error: resolveError('SANSA_RESOLVE_MISSING_ROOT', 'SANSA resolve namespace does not expose a root binding') };
+}
+
+function evaluateQueryExpressionValue(expression, currentBinding, namespace, options) {
+  switch (expression.type) {
+    case 'literalExpression':
+      return {
+        ok: true,
+        value: {
+          type: 'scalar',
+          value: expression.value,
+        },
+      };
+    case 'resolutionExpression':
+      return evaluateResolutionExpression(expression, currentBinding, namespace, options);
+    case 'groupExpression':
+      return evaluateQueryExpressionValue(expression.expression, currentBinding, namespace, options);
+    case 'unaryExpression':
+      return evaluateUnaryExpression(expression, currentBinding, namespace, options);
+    case 'binaryExpression':
+      return evaluateBinaryExpression(expression, currentBinding, namespace, options);
+    case 'projectionExpression':
+      return evaluateProjectionExpression(expression, currentBinding, namespace, options);
+    case 'functionCallExpression':
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+      };
+    case 'cardinalityExpression':
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY', `Cardinality operator '${expression.operator}' is not supported by this evaluator slice`),
+      };
+    default:
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION', `Unsupported query expression type: ${expression.type}`),
+      };
+  }
+}
+
+function evaluateResolutionExpression(expression, currentBinding, namespace, options) {
+  const resolveOptions = {
+    ...(options.resolve ?? {}),
+    ...(expression.scope === 'current' ? { contextualRoot: currentBinding } : {}),
+  };
+  const resolved = resolveAddress(expression.address, namespace, resolveOptions);
+  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  return {
+    ok: true,
+    value: {
+      type: 'bindingSet',
+      bindings: resolved.bindings,
+    },
+  };
+}
+
+function evaluateUnaryExpression(expression, currentBinding, namespace, options) {
+  const evaluated = evaluateQueryExpressionValue(expression.argument, currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  const boolean = expectBooleanQueryValue(evaluated.value);
+  if (!boolean.ok) return boolean;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: !boolean.value,
+    },
+  };
+}
+
+function evaluateBinaryExpression(expression, currentBinding, namespace, options) {
+  if (expression.operator === 'and' || expression.operator === 'or') {
+    return evaluateBooleanBinaryExpression(expression, currentBinding, namespace, options);
+  }
+
+  const left = evaluateQueryExpressionValue(expression.left, currentBinding, namespace, options);
+  if (!left.ok) return left;
+  const right = evaluateQueryExpressionValue(expression.right, currentBinding, namespace, options);
+  if (!right.ok) return right;
+
+  const leftScalar = expectScalarQueryValue(left.value, namespace);
+  if (!leftScalar.ok) return leftScalar;
+  const rightScalar = expectScalarQueryValue(right.value, namespace);
+  if (!rightScalar.ok) return rightScalar;
+  return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value);
+}
+
+function evaluateBooleanBinaryExpression(expression, currentBinding, namespace, options) {
+  const left = evaluateQueryExpressionValue(expression.left, currentBinding, namespace, options);
+  if (!left.ok) return left;
+  const leftBoolean = expectBooleanQueryValue(left.value);
+  if (!leftBoolean.ok) return leftBoolean;
+
+  if (expression.operator === 'and' && leftBoolean.value === false) {
+    return { ok: true, value: { type: 'scalar', value: false } };
+  }
+  if (expression.operator === 'or' && leftBoolean.value === true) {
+    return { ok: true, value: { type: 'scalar', value: true } };
+  }
+
+  const right = evaluateQueryExpressionValue(expression.right, currentBinding, namespace, options);
+  if (!right.ok) return right;
+  const rightBoolean = expectBooleanQueryValue(right.value);
+  if (!rightBoolean.ok) return rightBoolean;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: expression.operator === 'and'
+        ? leftBoolean.value && rightBoolean.value
+        : leftBoolean.value || rightBoolean.value,
+    },
+  };
+}
+
+function evaluateProjectionExpression(expression, currentBinding, namespace, options) {
+  const value = {};
+  for (const field of expression.fields) {
+    const evaluated = evaluateQueryExpressionValue(field.expression, currentBinding, namespace, options);
+    if (!evaluated.ok) return evaluated;
+    const unwrapped = unwrapQueryValue(evaluated.value, namespace);
+    if (!unwrapped.ok) return unwrapped;
+    value[field.name] = unwrapped.value;
+  }
+  return {
+    ok: true,
+    value: {
+      type: 'object',
+      value,
+    },
+  };
+}
+
+function compareQueryScalars(operator, left, right) {
+  if (typeof left !== typeof right) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Cross-type comparison is not supported by this evaluator slice'),
+    };
+  }
+  if (!['string', 'number', 'boolean'].includes(typeof left)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', `Unsupported comparison value type '${typeof left}'`),
+    };
+  }
+  if (['<', '<=', '>', '>='].includes(operator) && typeof left === 'boolean') {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Ordering comparison is not defined for Boolean values'),
+    };
+  }
+
+  const value = (() => {
+    switch (operator) {
+      case '==': return left === right;
+      case '!=': return left !== right;
+      case '<': return left < right;
+      case '<=': return left <= right;
+      case '>': return left > right;
+      case '>=': return left >= right;
+      default: return false;
+    }
+  })();
+  return { ok: true, value: { type: 'scalar', value } };
+}
+
+function expectBooleanQueryValue(value) {
+  if (value.type === 'scalar' && typeof value.value === 'boolean') {
+    return { ok: true, value: value.value };
+  }
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN', 'Expected Boolean query value'),
+  };
+}
+
+function expectScalarQueryValue(value, namespace) {
+  if (value.type === 'scalar') return { ok: true, value: value.value };
+  if (value.type === 'bindingSet') {
+    if (value.bindings.length === 0) {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Expected one binding but resolved none'),
+      };
+    }
+    if (value.bindings.length > 1) {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', 'Expected one binding but resolved multiple bindings'),
+      };
+    }
+    const scalar = getBindingScalarValue(namespace, value.bindings[0]);
+    if (!scalar.ok) return scalar;
+    return { ok: true, value: scalar.value };
+  }
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_EVALUATE_EXPECTED_SCALAR', 'Expected scalar query value'),
+  };
+}
+
+function unwrapQueryValue(value, namespace) {
+  if (value.type === 'scalar') return { ok: true, value: value.value };
+  if (value.type === 'object') return { ok: true, value: value.value };
+  return expectScalarQueryValue(value, namespace);
+}
+
+function getBindingScalarValue(namespace, binding) {
+  if (typeof namespace.value === 'function') {
+    return { ok: true, value: namespace.value(binding) };
+  }
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar };
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
+  };
 }
 
 function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
@@ -358,6 +622,10 @@ function resolveError(code, message, selectorIndex) {
     message,
     ...(selectorIndex === undefined ? {} : { selectorIndex }),
   };
+}
+
+function queryEvaluateError(code, message) {
+  return { code, message };
 }
 
 export function renderQualifierExpression(expression) {
