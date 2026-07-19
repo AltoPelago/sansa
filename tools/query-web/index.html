@@ -28,8 +28,18 @@
       <section class="workspace" aria-label="SANSA Query workspace">
         <section class="panel source-panel">
           <div class="panel-head">
-            <label for="fixtureInput">Fixture JSON</label>
-            <span id="fixtureStatus">default fixture</span>
+            <label id="sourceLabel" for="fixtureInput">AEON Source</label>
+            <span id="fixtureStatus">default aeon</span>
+          </div>
+          <div class="source-mode-row">
+            <label>
+              <input type="radio" name="sourceKind" value="aeon" checked>
+              AEON
+            </label>
+            <label>
+              <input type="radio" name="sourceKind" value="json">
+              JSON fixture
+            </label>
           </div>
           <textarea id="fixtureInput" spellcheck="false"></textarea>
         </section>

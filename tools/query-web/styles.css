@@ -110,7 +110,7 @@ button {
 }
 
 .source-panel {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .query-panel {
@@ -176,7 +176,8 @@ pre {
   word-break: break-word;
 }
 
-.mode-row {
+.mode-row,
+.source-mode-row {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -185,7 +186,13 @@ pre {
   border-top: 1px solid var(--line);
 }
 
-.mode-row label {
+.source-mode-row {
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mode-row label,
+.source-mode-row label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -194,7 +201,8 @@ pre {
   text-transform: none;
 }
 
-.mode-row input {
+.mode-row input,
+.source-mode-row input {
   accent-color: var(--accent);
 }
 

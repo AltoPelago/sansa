@@ -48,13 +48,15 @@ npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.js
 
 The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json). Fixtures expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
 
-For browser-based testing, run the technical workbench:
+For browser-based testing against `.aeon` source, run the technical workbench:
 
 ```bash
 npm run query:web
 ```
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
+
+The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a JSON fixture mode for debugging the resolver shape directly.
 
 ## API
 
