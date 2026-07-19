@@ -99,14 +99,6 @@ export function evaluateQuery(input, namespace, options = {}) {
   if (!parsed.ok) return { ok: false, results: [], errors: parsed.errors };
 
   const query = parsed.query;
-  if (query.orderBy) {
-    return {
-      ok: false,
-      results: [],
-      errors: [queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_ORDER', "'order by' evaluation is not supported by this slice")],
-    };
-  }
-
   const from = resolveAddress(query.from.address, namespace, options.resolve);
   if (!from.ok) return { ok: false, results: [], errors: from.errors };
 
@@ -121,6 +113,12 @@ export function evaluateQuery(input, namespace, options = {}) {
       if (boolean.value) filtered.push(binding);
     }
     bindings = filtered;
+  }
+
+  if (query.orderBy) {
+    const ordered = orderQueryBindings(query.orderBy, bindings, namespace, options);
+    if (!ordered.ok) return { ok: false, results: [], errors: [ordered.error] };
+    bindings = ordered.bindings;
   }
 
   if (query.offset) bindings = bindings.slice(query.offset.value);
@@ -389,6 +387,60 @@ function evaluateProjectionExpression(expression, currentBinding, namespace, opt
       value,
     },
   };
+}
+
+function orderQueryBindings(orderBy, bindings, namespace, options) {
+  const keyed = [];
+  for (let index = 0; index < bindings.length; index += 1) {
+    const binding = bindings[index];
+    const keys = [];
+    for (const key of orderBy.keys) {
+      const evaluated = evaluateQueryExpressionValue(key.ast, binding, namespace, options);
+      if (!evaluated.ok) return { ok: false, error: evaluated.error };
+      const scalar = expectScalarQueryValue(evaluated.value, namespace);
+      if (!scalar.ok) return scalar;
+      if (!['number', 'string'].includes(typeof scalar.value)) {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Order keys must evaluate to string or number scalar values'),
+        };
+      }
+      keys.push({ value: scalar.value, direction: key.direction });
+    }
+    keyed.push({ binding, keys, index });
+  }
+
+  for (let keyIndex = 0; keyIndex < orderBy.keys.length; keyIndex += 1) {
+    const expectedType = keyed[0] ? typeof keyed[0].keys[keyIndex].value : null;
+    if (expectedType && keyed.some((entry) => typeof entry.keys[keyIndex].value !== expectedType)) {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Order keys must evaluate to one scalar type per key position'),
+      };
+    }
+  }
+
+  keyed.sort((left, right) => {
+    for (let index = 0; index < left.keys.length; index += 1) {
+      const comparison = compareOrderKeyValues(left.keys[index].value, right.keys[index].value);
+      if (comparison !== 0) {
+        return left.keys[index].direction === 'desc' ? -comparison : comparison;
+      }
+    }
+    return left.index - right.index;
+  });
+
+  return {
+    ok: true,
+    bindings: keyed.map((entry) => entry.binding),
+  };
+}
+
+function compareOrderKeyValues(left, right) {
+  if (typeof left === 'string') return left.localeCompare(right);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function compareQueryScalars(operator, left, right) {

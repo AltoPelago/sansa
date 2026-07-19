@@ -268,6 +268,7 @@ Currently evaluated:
 
 - `from` through SANSA Resolve
 - `where` expressions that produce explicit Boolean values
+- `order by` over string and number scalar keys
 - `offset`
 - `limit`
 - `select` expressions
@@ -279,7 +280,6 @@ Currently evaluated:
 
 Currently rejected with explicit diagnostics:
 
-- `order by`
 - function-call expressions
 - cardinality expressions
 - cross-type comparisons
@@ -406,7 +406,6 @@ Canonical rendering:
 
 ## Current Query Evaluate Error Codes
 
-- `SANSA_QUERY_EVALUATE_UNSUPPORTED_ORDER`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION`
