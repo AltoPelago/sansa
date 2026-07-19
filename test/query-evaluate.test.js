@@ -196,6 +196,8 @@ test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
+  assert.equal(result.errors[0].phase, 'where');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
 });
 
 test('evaluates any all and none cardinality predicates', () => {
@@ -358,6 +360,8 @@ test('rejects NaN in scalar comparison and ordering', () => {
   ].join('\n'), namespace);
   assert.equal(order.ok, false);
   assert.equal(order.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+  assert.equal(order.errors[0].phase, 'order');
+  assert.equal(order.errors[0].candidateAddress, '$.inventory.items[2]');
 });
 
 test('follows the comparison policy matrix', () => {

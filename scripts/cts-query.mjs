@@ -68,6 +68,18 @@ function runTest(test, namespaces) {
         failures.push(`error mismatch: expected ${expectedCode}, got ${actualCode}`);
       }
     }
+    if (typeof expected.errorPhase === 'string') {
+      const actualPhase = result.errors?.[0]?.phase ?? null;
+      if (actualPhase !== expected.errorPhase) {
+        failures.push(`errorPhase mismatch: expected ${expected.errorPhase}, got ${actualPhase}`);
+      }
+    }
+    if (typeof expected.candidateAddress === 'string') {
+      const actualAddress = result.errors?.[0]?.candidateAddress ?? null;
+      if (actualAddress !== expected.candidateAddress) {
+        failures.push(`candidateAddress mismatch: expected ${expected.candidateAddress}, got ${actualAddress}`);
+      }
+    }
     return failures;
   }
 

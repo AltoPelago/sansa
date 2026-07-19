@@ -65,6 +65,19 @@ renderQualifierTerm(term)
 
 Parse errors are returned through the same `ok: false` shape. Normal no-match resolution returns `ok: true` with an empty `bindings` array.
 
+Query evaluation diagnostics include query context when available:
+
+```js
+{
+  code,
+  message,
+  phase,
+  candidateAddress
+}
+```
+
+`phase` is one of `parse`, `from`, `where`, `order`, or `select`. `candidateAddress` is present when the failure occurs while evaluating a specific candidate binding.
+
 ## Command Line Tool
 
 The package exposes `sansa-query` and the local `npm run query` script. The tool is intended for development fixtures and language exploration rather than host integration.
@@ -522,6 +535,8 @@ Canonical rendering:
 - `SANSA_QUERY_INVALID_PROJECTION`
 
 ## Current Query Evaluate Error Codes
+
+Evaluation diagnostics may also include `phase` and `candidateAddress` fields. These fields are context, not distinct error categories.
 
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
 - `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL`

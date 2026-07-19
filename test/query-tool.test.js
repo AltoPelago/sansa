@@ -58,6 +58,8 @@ test('query tool reports evaluator diagnostics as JSON', () => {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.ok, false);
   assert.equal(payload.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
+  assert.equal(payload.errors[0].phase, 'where');
+  assert.equal(payload.errors[0].candidateAddress, '$.inventory.items[0]');
 });
 
 test('query tool emits stable JSON result envelope', () => {

@@ -148,7 +148,9 @@ function printTextResult(result, mode, fixturePath) {
         : Number.isInteger(error.selectorIndex)
           ? ` at selector ${error.selectorIndex}`
           : '';
-      console.error(`${error.code}${location}: ${error.message}`);
+      const phase = typeof error.phase === 'string' ? ` [${error.phase}]` : '';
+      const candidate = typeof error.candidateAddress === 'string' ? ` at ${error.candidateAddress}` : '';
+      console.error(`${error.code}${phase}${candidate}${location}: ${error.message}`);
     }
     return;
   }

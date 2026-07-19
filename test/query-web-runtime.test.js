@@ -128,6 +128,20 @@ test('query web runtime reports AEON source diagnostics', async () => {
   assert.equal(result.errors[0].code, 'UNTYPED_VALUE_IN_STRICT_MODE');
 });
 
+test('query web runtime preserves query diagnostic context', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items.* where .sku select .sku',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
+  assert.equal(result.errors[0].phase, 'where');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
+});
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

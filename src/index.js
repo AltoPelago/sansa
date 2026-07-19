@@ -96,20 +96,50 @@ export function parseQueryExpressionOrThrow(input, options = {}) {
 
 export function evaluateQuery(input, namespace, options = {}) {
   const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
-  if (!parsed.ok) return { ok: false, results: [], errors: parsed.errors };
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      results: [],
+      errors: parsed.errors.map((error) => annotateQueryDiagnostic(error, { phase: 'parse' })),
+    };
+  }
 
   const query = parsed.query;
   const from = resolveAddress(query.from.address, namespace, options.resolve);
-  if (!from.ok) return { ok: false, results: [], errors: from.errors };
+  if (!from.ok) {
+    return {
+      ok: false,
+      results: [],
+      errors: from.errors.map((error) => annotateQueryDiagnostic(error, { phase: 'from' })),
+    };
+  }
 
   let bindings = from.bindings;
   if (query.where) {
     const filtered = [];
     for (const binding of bindings) {
       const evaluated = evaluateQueryExpressionValue(query.where.ast, binding, namespace, options);
-      if (!evaluated.ok) return { ok: false, results: [], errors: [evaluated.error] };
+      if (!evaluated.ok) {
+        return {
+          ok: false,
+          results: [],
+          errors: [annotateQueryDiagnostic(evaluated.error, {
+            phase: 'where',
+            candidateAddress: getBindingAddress(binding),
+          })],
+        };
+      }
       const boolean = expectBooleanQueryValue(evaluated.value);
-      if (!boolean.ok) return { ok: false, results: [], errors: [boolean.error] };
+      if (!boolean.ok) {
+        return {
+          ok: false,
+          results: [],
+          errors: [annotateQueryDiagnostic(boolean.error, {
+            phase: 'where',
+            candidateAddress: getBindingAddress(binding),
+          })],
+        };
+      }
       if (boolean.value) filtered.push(binding);
     }
     bindings = filtered;
@@ -117,7 +147,13 @@ export function evaluateQuery(input, namespace, options = {}) {
 
   if (query.orderBy) {
     const ordered = orderQueryBindings(query.orderBy, bindings, namespace, options);
-    if (!ordered.ok) return { ok: false, results: [], errors: [ordered.error] };
+    if (!ordered.ok) {
+      return {
+        ok: false,
+        results: [],
+        errors: [annotateQueryDiagnostic(ordered.error, { phase: 'order' })],
+      };
+    }
     bindings = ordered.bindings;
   }
 
@@ -127,7 +163,16 @@ export function evaluateQuery(input, namespace, options = {}) {
   const results = [];
   for (const binding of bindings) {
     const evaluated = evaluateQueryExpressionValue(query.select.ast, binding, namespace, options);
-    if (!evaluated.ok) return { ok: false, results: [], errors: [evaluated.error] };
+    if (!evaluated.ok) {
+      return {
+        ok: false,
+        results: [],
+        errors: [annotateQueryDiagnostic(evaluated.error, {
+          phase: 'select',
+          candidateAddress: getBindingAddress(binding),
+        })],
+      };
+    }
     results.push({
       type: 'queryResult',
       ...(typeof binding.address === 'string' ? { address: binding.address } : {}),
@@ -657,19 +702,37 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
     const keys = [];
     for (const key of orderBy.keys) {
       const evaluated = evaluateQueryExpressionValue(key.ast, binding, namespace, options);
-      if (!evaluated.ok) return { ok: false, error: evaluated.error };
+      if (!evaluated.ok) {
+        return {
+          ok: false,
+          error: annotateQueryDiagnostic(evaluated.error, { candidateAddress: getBindingAddress(binding) }),
+        };
+      }
       const scalar = expectScalarQueryValue(evaluated.value, namespace);
-      if (!scalar.ok) return scalar;
+      if (!scalar.ok) {
+        return {
+          ok: false,
+          error: annotateQueryDiagnostic(scalar.error, { candidateAddress: getBindingAddress(binding) }),
+        };
+      }
       if (!['number', 'string'].includes(typeof scalar.value)) {
         return {
           ok: false,
-          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Order keys must evaluate to string or number scalar values'),
+          error: queryEvaluateError(
+            'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+            'Order keys must evaluate to string or number scalar values',
+            { candidateAddress: getBindingAddress(binding) },
+          ),
         };
       }
       if (typeof scalar.value === 'number' && Number.isNaN(scalar.value)) {
         return {
           ok: false,
-          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'NaN is not a valid order key'),
+          error: queryEvaluateError(
+            'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+            'NaN is not a valid order key',
+            { candidateAddress: getBindingAddress(binding) },
+          ),
         };
       }
       keys.push({ value: scalar.value, direction: key.direction });
@@ -679,10 +742,17 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
 
   for (let keyIndex = 0; keyIndex < orderBy.keys.length; keyIndex += 1) {
     const expectedType = keyed[0] ? typeof keyed[0].keys[keyIndex].value : null;
-    if (expectedType && keyed.some((entry) => typeof entry.keys[keyIndex].value !== expectedType)) {
+    const mismatched = expectedType
+      ? keyed.find((entry) => typeof entry.keys[keyIndex].value !== expectedType)
+      : undefined;
+    if (mismatched) {
       return {
         ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Order keys must evaluate to one scalar type per key position'),
+        error: queryEvaluateError(
+          'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+          'Order keys must evaluate to one scalar type per key position',
+          { candidateAddress: getBindingAddress(mismatched.binding) },
+        ),
       };
     }
   }
@@ -972,8 +1042,20 @@ function resolveError(code, message, selectorIndex) {
   };
 }
 
-function queryEvaluateError(code, message) {
-  return { code, message };
+function queryEvaluateError(code, message, details = {}) {
+  return { code, message, ...details };
+}
+
+function annotateQueryDiagnostic(error, details) {
+  return {
+    ...error,
+    ...(details.phase === undefined ? {} : { phase: details.phase }),
+    ...(details.candidateAddress === undefined ? {} : { candidateAddress: details.candidateAddress }),
+  };
+}
+
+function getBindingAddress(binding) {
+  return typeof binding.address === 'string' ? binding.address : undefined;
 }
 
 export function renderQualifierExpression(expression) {

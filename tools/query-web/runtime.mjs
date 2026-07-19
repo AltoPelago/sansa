@@ -404,6 +404,8 @@ function normalizeDiagnostics(errors) {
   return errors.map((error) => ({
     code: error.code,
     message: error.message,
+    ...(typeof error.phase === 'string' ? { phase: error.phase } : {}),
+    ...(typeof error.candidateAddress === 'string' ? { candidateAddress: error.candidateAddress } : {}),
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),
     ...(Number.isInteger(error.selectorIndex) ? { selectorIndex: error.selectorIndex } : {}),
   }));

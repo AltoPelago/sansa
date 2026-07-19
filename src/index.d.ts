@@ -104,6 +104,8 @@ export interface SansaResolveDiagnostic {
 export interface SansaQueryEvaluateDiagnostic {
   readonly code: SansaQueryEvaluateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
+  readonly phase?: 'parse' | 'from' | 'where' | 'order' | 'select';
+  readonly candidateAddress?: string;
   readonly index?: number;
   readonly selectorIndex?: number;
 }
