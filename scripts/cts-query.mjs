@@ -84,7 +84,7 @@ function runTest(test, namespaces) {
 
   if (isEvaluateCase) {
     if (Array.isArray(expected.resultAddresses)) {
-      compareArray(expected.resultAddresses, result.results.map((entry) => entry.binding.address), 'resultAddresses', failures);
+      compareArray(expected.resultAddresses, result.results.map((entry) => entry.address), 'resultAddresses', failures);
     }
     if (Array.isArray(expected.values)) {
       compareJson(expected.values, result.results.map((entry) => entry.value), 'values', failures);

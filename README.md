@@ -141,5 +141,8 @@ const evaluated = evaluateQuery('from $.inventory.items.*\nselect .sku', { root 
 
 if (evaluated.ok) {
   console.log(evaluated.results.length);
+  console.log(evaluated.results[0]?.address);
 }
 ```
+
+Each query result carries the source candidate `address` when the namespace exposes one. The projected selection or object lives in `result.value`.

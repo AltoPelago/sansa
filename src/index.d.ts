@@ -167,6 +167,7 @@ export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBindi
 
 export interface SansaQueryResult<TBinding extends object = SansaResolveBinding> {
   readonly type: 'queryResult';
+  readonly address?: string;
   readonly binding: TBinding;
   readonly value: SansaQueryValue<TBinding>;
 }

@@ -26,6 +26,8 @@ test('query web runtime evaluates against AEON source', async () => {
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   assert.equal(result.count, 1);
   assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
+  assert.equal(result.results[0].type, 'queryResult');
+  assert.equal(result.results[0].address, '$.inventory.items[1]');
   assert.deepEqual(result.results[0].value.bindings, [
     {
       address: '$.inventory.items[1].sku',

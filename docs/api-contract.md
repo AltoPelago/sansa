@@ -403,10 +403,13 @@ Query results:
 ```js
 {
   type: "queryResult",
+  address,
   binding,
   value
 }
 ```
+
+`address` is optional and records the canonical source address of the candidate binding when the namespace exposes one. It is the address selected by `from`, after `where`, ordering, and slicing. Projection output remains in `value`; a `select` expression that resolves other addresses returns those selected bindings inside a `bindingSet` value.
 
 Query values:
 

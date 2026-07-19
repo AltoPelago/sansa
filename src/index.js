@@ -130,6 +130,7 @@ export function evaluateQuery(input, namespace, options = {}) {
     if (!evaluated.ok) return { ok: false, results: [], errors: [evaluated.error] };
     results.push({
       type: 'queryResult',
+      ...(typeof binding.address === 'string' ? { address: binding.address } : {}),
       binding,
       value: evaluated.value,
     });

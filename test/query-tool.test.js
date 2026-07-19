@@ -59,3 +59,39 @@ test('query tool reports evaluator diagnostics as JSON', () => {
   assert.equal(payload.ok, false);
   assert.equal(payload.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
 });
+
+test('query tool emits stable JSON result envelope', () => {
+  const result = runTool([
+    '--format',
+    'json',
+    '--query',
+    'from $.inventory.items.* where contains(.sku, "B") select .sku',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.mode, 'evaluate');
+  assert.equal(payload.count, 1);
+  assert.deepEqual(payload.results[0], {
+    type: 'queryResult',
+    address: '$.inventory.items[1]',
+    binding: {
+      address: '$.inventory.items[1]',
+      index: 1,
+      representationKind: 'object',
+    },
+    value: {
+      type: 'bindingSet',
+      bindings: [
+        {
+          address: '$.inventory.items[1].sku',
+          name: 'sku',
+          semanticType: 'string',
+          representationKind: 'string',
+          value: 'B-200',
+        },
+      ],
+    },
+  });
+});

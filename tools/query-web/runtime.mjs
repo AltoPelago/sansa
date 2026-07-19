@@ -47,6 +47,8 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
     count: result.results.length,
     text: renderTextResults(result.results),
     results: result.results.map((entry) => ({
+      type: entry.type,
+      ...(entry.address === undefined ? {} : { address: entry.address }),
       binding: summarizeBinding(entry.binding),
       value: summarizeQueryValue(entry.value),
     })),

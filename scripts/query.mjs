@@ -131,6 +131,8 @@ function formatJsonResult(result, mode, fixturePath) {
     fixture: fixturePath,
     count: result.results.length,
     results: result.results.map((entry) => ({
+      type: entry.type,
+      ...(entry.address === undefined ? {} : { address: entry.address }),
       binding: summarizeBinding(entry.binding),
       value: sanitizeJsonValue(summarizeQueryValue(entry.value)),
     })),

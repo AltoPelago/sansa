@@ -142,6 +142,8 @@ test('evaluates query projection over filtered bindings', () => {
   ].join('\n'), namespace);
 
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.results.map((entry) => entry.type), ['queryResult']);
+  assert.deepEqual(result.results.map((entry) => entry.address), ['$.inventory.items[1]']);
   assert.deepEqual(result.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
   assert.deepEqual(result.results.map((entry) => entry.value), [
     {
