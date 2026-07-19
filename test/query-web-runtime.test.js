@@ -88,6 +88,18 @@ test('query web runtime exercises workbench edge-case examples', async () => {
       count: 1,
       includes: '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
     },
+    {
+      name: 'null reason',
+      query: 'from $.inventory.items.* where exists(.status) and isNullReason(.status, "notSet") select { sku = .sku name = .name }',
+      count: 1,
+      includes: '$.inventory.items[0] = {"sku":"A-100","name":"Adapter"}',
+    },
+    {
+      name: 'numeric specials',
+      query: 'from $.inventory.items.* where (exists(.metric) and isNaN(.metric)) or (exists(.ceiling) and isInfinity(.ceiling)) select { sku = .sku name = .name }',
+      count: 2,
+      includes: '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
+    },
   ];
 
   for (const entry of cases) {

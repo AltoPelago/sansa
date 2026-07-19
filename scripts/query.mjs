@@ -104,6 +104,7 @@ function buildNamespace(fixture) {
     children: (binding) => binding.children ?? [],
     attributeSpace: (binding) => binding.attributeSpace ?? binding.attributes,
     localSpace: (binding, name) => binding.localSpaces?.[name],
+    value: valueFromBinding,
   };
 }
 
@@ -131,7 +132,7 @@ function formatJsonResult(result, mode, fixturePath) {
     count: result.results.length,
     results: result.results.map((entry) => ({
       binding: summarizeBinding(entry.binding),
-      value: summarizeQueryValue(entry.value),
+      value: sanitizeJsonValue(summarizeQueryValue(entry.value)),
     })),
   };
 }
@@ -170,15 +171,15 @@ function printTextResult(result, mode, fixturePath) {
 function renderQueryValueLines(value, sourceBinding) {
   switch (value.type) {
     case 'scalar':
-      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(value.value)}`];
+      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(value.value))}`];
     case 'object':
-      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(value.value)}`];
+      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(value.value))}`];
     case 'bindingSet':
       if (value.bindings.length === 0) return [`${sourceBinding.address ?? '<binding>'} -> (empty)`];
       return value.bindings.map((binding) => {
         const scalar = scalarFromBinding(binding);
         return scalar.ok
-          ? `${binding.address ?? '<binding>'} = ${JSON.stringify(scalar.value)}`
+          ? `${binding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(scalar.value))}`
           : `${binding.address ?? '<binding>'}`;
       });
     default:
@@ -199,6 +200,25 @@ function summarizeQueryValue(value) {
     default:
       return value;
   }
+}
+
+function valueFromBinding(binding) {
+  if (binding.scalarKind === 'nan') return Number.NaN;
+  if (binding.scalarKind === 'infinity') {
+    return binding.value === '-Infinity' || binding.scalar === '-Infinity' ? -Infinity : Infinity;
+  }
+  if (Object.hasOwn(binding, 'value')) return binding.value;
+  if (Object.hasOwn(binding, 'scalar')) return binding.scalar;
+  return undefined;
+}
+
+function sanitizeJsonValue(value) {
+  if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
+  if (Array.isArray(value)) return value.map(sanitizeJsonValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeJsonValue(entry)]));
+  }
+  return value;
 }
 
 function summarizeQuery(query) {
@@ -227,11 +247,15 @@ function summarizeBinding(binding) {
     ...(binding.index === undefined ? {} : { index: binding.index }),
     ...(binding.semanticType === undefined ? {} : { semanticType: binding.semanticType }),
     ...(binding.representationKind === undefined ? {} : { representationKind: binding.representationKind }),
-    ...(scalar.ok ? { value: scalar.value } : {}),
+    ...(binding.scalarKind === undefined ? {} : { scalarKind: binding.scalarKind }),
+    ...(binding.nullReason === undefined ? {} : { nullReason: binding.nullReason }),
+    ...(scalar.ok ? { value: sanitizeJsonValue(scalar.value) } : {}),
   };
 }
 
 function scalarFromBinding(binding) {
+  const value = valueFromBinding(binding);
+  if (value !== undefined) return { ok: true, value };
   if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value };
   if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar };
   return { ok: false };

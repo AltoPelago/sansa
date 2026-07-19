@@ -118,6 +118,10 @@ export interface SansaResolveBinding {
   readonly representationKind?: string;
   readonly kind?: string;
   readonly type?: string;
+  readonly scalarKind?: string;
+  readonly valueKind?: string;
+  readonly literalKind?: string;
+  readonly nullReason?: string;
   readonly value?: unknown;
   readonly scalar?: unknown;
   readonly children?: readonly SansaResolveBinding[];
@@ -138,6 +142,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly semanticType?: (binding: TBinding) => string | undefined;
   readonly representationKind?: (binding: TBinding) => string | undefined;
   readonly value?: (binding: TBinding) => unknown;
+  readonly nullReason?: (binding: TBinding) => string | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
 }

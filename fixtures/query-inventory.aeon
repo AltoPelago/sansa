@@ -3,6 +3,8 @@ inventory:object = {
     @{lane:string = "primary"}:object = {
       sku@{origin:string = "catalog"}:string = "A-100"
       name:string = "Adapter"
+      status:null<string> = !notSet
+      metric:number = 10
       qty:number = 1
       active:boolean = true
       roles:list<string> = ["admin", "user"]
@@ -10,6 +12,7 @@ inventory:object = {
     @{lane:string = "primary"}:object = {
       sku@{origin:string = "catalog"}:string = "B-200"
       name:string = "Bracket"
+      status:string = "active"
       id:string = "4"
       qty:number = 4
       active:boolean = true
@@ -18,6 +21,7 @@ inventory:object = {
     @{lane:string = "overflow"}:object = {
       sku@{origin:string = "manual"}:string = "C-300"
       name:string = "Coupler"
+      metric:nan<number> = NaN
       qty:number = 8
       active:boolean = false
       roles:list<string> = []
@@ -25,7 +29,9 @@ inventory:object = {
     @{lane:string = "overflow"}:object = {
       sku@{origin:string = "catalog"}:string = "D-250"
       name:string = "Driver"
+      status:null<string> = !notApplicable
       id:number = 3
+      ceiling:infinity<number> = Infinity
       qty:number = 4
       active:boolean = false
       roles:list<string> = ["admin", "admin"]

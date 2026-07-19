@@ -141,6 +141,9 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (segment?.type === 'index') binding.index = segment.index;
     binding.semanticType = event.datatype ?? semanticTypeFromValue(event.value);
     binding.representationKind = representationKindFromValue(event.value);
+    binding.scalarKind = scalarKindFromValue(event.value);
+    const nullReason = nullReasonFromValue(event.value);
+    if (nullReason !== undefined) binding.nullReason = nullReason;
 
     const scalar = scalarFromAeonValue(event.value);
     if (scalar.ok) binding.value = scalar.value;
@@ -178,8 +181,11 @@ function buildAttributeSpace(ownerAddress, annotations) {
         address: appendMember(`${ownerAddress}.@`, name),
         semanticType: entry.datatype ?? semanticTypeFromValue(entry.value),
         representationKind: representationKindFromValue(entry.value),
+        scalarKind: scalarKindFromValue(entry.value),
         children: [],
       };
+      const nullReason = nullReasonFromValue(entry.value);
+      if (nullReason !== undefined) binding.nullReason = nullReason;
       const scalar = scalarFromAeonValue(entry.value);
       if (scalar.ok) binding.value = scalar.value;
       if (entry.annotations?.size) {
@@ -201,9 +207,11 @@ function semanticTypeFromValue(value) {
     case 'StringLiteral':
       return 'string';
     case 'NumberLiteral':
-    case 'InfinityLiteral':
-    case 'NaNLiteral':
       return 'number';
+    case 'InfinityLiteral':
+      return 'infinity';
+    case 'NaNLiteral':
+      return 'nan';
     case 'BooleanLiteral':
       return 'boolean';
     case 'NullLiteral':
@@ -288,6 +296,32 @@ function scalarFromAeonValue(value) {
   }
 }
 
+function scalarKindFromValue(value) {
+  switch (value.type) {
+    case 'TypedValue':
+      return scalarKindFromValue(value.value);
+    case 'NullLiteral':
+      return 'null';
+    case 'InfinityLiteral':
+      return 'infinity';
+    case 'NaNLiteral':
+      return 'nan';
+    default:
+      return undefined;
+  }
+}
+
+function nullReasonFromValue(value) {
+  switch (value.type) {
+    case 'TypedValue':
+      return nullReasonFromValue(value.value);
+    case 'NullLiteral':
+      return value.value;
+    default:
+      return undefined;
+  }
+}
+
 function renderTextResults(results) {
   if (results.length === 0) return '(no results)';
   return results.flatMap((entry) => renderQueryValueLines(entry.value, entry.binding)).join('\n');
@@ -297,13 +331,13 @@ function renderQueryValueLines(value, sourceBinding) {
   switch (value.type) {
     case 'scalar':
     case 'object':
-      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(value.value)}`];
+      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(value.value))}`];
     case 'bindingSet':
       if (value.bindings.length === 0) return [`${sourceBinding.address ?? '<binding>'} -> (empty)`];
       return value.bindings.map((binding) => {
         const scalar = scalarFromBinding(binding);
         return scalar.ok
-          ? `${binding.address ?? '<binding>'} = ${JSON.stringify(scalar.value)}`
+          ? `${binding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(scalar.value))}`
           : `${binding.address ?? '<binding>'}`;
       });
     default:
@@ -352,6 +386,8 @@ function summarizeBinding(binding) {
     ...(binding.index === undefined ? {} : { index: binding.index }),
     ...(binding.semanticType === undefined ? {} : { semanticType: binding.semanticType }),
     ...(binding.representationKind === undefined ? {} : { representationKind: binding.representationKind }),
+    ...(binding.scalarKind === undefined ? {} : { scalarKind: binding.scalarKind }),
+    ...(binding.nullReason === undefined ? {} : { nullReason: binding.nullReason }),
     ...(scalar.ok ? { value: sanitizeJsonValue(scalar.value) } : {}),
   };
 }

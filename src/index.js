@@ -388,6 +388,10 @@ function evaluateProjectionExpression(expression, currentBinding, namespace, opt
 }
 
 function evaluateFunctionCallExpression(expression, currentBinding, namespace, options) {
+  if (isSpecialValuePredicateName(expression.name)) {
+    return evaluateSpecialValuePredicate(expression, currentBinding, namespace, options);
+  }
+
   const evaluatedArgs = [];
   for (const argument of expression.arguments) {
     const evaluated = evaluateQueryExpressionValue(argument, currentBinding, namespace, options);
@@ -418,6 +422,99 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function isSpecialValuePredicateName(name) {
+  return ['isNull', 'isNullReason', 'isNaN', 'isInfinity'].includes(name);
+}
+
+function evaluateSpecialValuePredicate(expression, currentBinding, namespace, options) {
+  const arity = expression.name === 'isNullReason' ? 2 : 1;
+  if (expression.arguments.length !== arity) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${expression.name}' expects ${arity} argument${arity === 1 ? '' : 's'}`),
+    };
+  }
+
+  const bindingInfo = evaluateSingleBindingArgument(expression.name, expression.arguments[0], currentBinding, namespace, options);
+  if (!bindingInfo.ok) return bindingInfo;
+
+  switch (expression.name) {
+    case 'isNull':
+      return scalarBoolean(isExplicitNullScalar(bindingInfo));
+    case 'isNullReason': {
+      const reason = evaluateQueryExpressionValue(expression.arguments[1], currentBinding, namespace, options);
+      if (!reason.ok) return reason;
+      const scalarReason = expectScalarQueryValue(reason.value, namespace);
+      if (!scalarReason.ok) return scalarReason;
+      if (typeof scalarReason.value !== 'string') {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'isNullReason' expects a string reason"),
+        };
+      }
+      return scalarBoolean(isExplicitNullScalar(bindingInfo) && bindingInfo.nullReason === scalarReason.value);
+    }
+    case 'isNaN':
+      return scalarBoolean(isNanScalar(bindingInfo));
+    case 'isInfinity':
+      return scalarBoolean(isInfinityScalar(bindingInfo));
+    default:
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+      };
+  }
+}
+
+function evaluateSingleBindingArgument(name, argument, currentBinding, namespace, options) {
+  const resolution = unwrapResolutionExpression(argument);
+  if (!resolution) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects a resolution expression`),
+    };
+  }
+  const evaluated = evaluateResolutionExpression(resolution, currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  if (evaluated.value.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', `Function '${name}' expected one binding but resolved none`),
+    };
+  }
+  if (evaluated.value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', `Function '${name}' expected one binding but resolved multiple bindings`),
+    };
+  }
+  const scalar = getBindingScalarInfo(namespace, evaluated.value.bindings[0]);
+  if (!scalar.ok) return scalar;
+  return scalar;
+}
+
+function isExplicitNullScalar(info) {
+  return info.kind === 'null' || info.value === null;
+}
+
+function isNanScalar(info) {
+  return info.kind === 'nan' || (typeof info.value === 'number' && Number.isNaN(info.value));
+}
+
+function isInfinityScalar(info) {
+  return info.kind === 'infinity' || info.value === Infinity || info.value === -Infinity;
+}
+
+function scalarBoolean(value) {
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value,
+    },
+  };
 }
 
 function evaluateStringFunction(name, args, arity, operation) {
@@ -568,6 +665,12 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
           error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Order keys must evaluate to string or number scalar values'),
         };
       }
+      if (typeof scalar.value === 'number' && Number.isNaN(scalar.value)) {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'NaN is not a valid order key'),
+        };
+      }
       keys.push({ value: scalar.value, direction: key.direction });
     }
     keyed.push({ binding, keys, index });
@@ -617,6 +720,12 @@ function compareQueryScalars(operator, left, right) {
     return {
       ok: false,
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', `Unsupported comparison value type '${typeof left}'`),
+    };
+  }
+  if (typeof left === 'number' && (Number.isNaN(left) || Number.isNaN(right))) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'NaN is not comparable; use isNaN(...) for explicit NaN tests'),
     };
   }
   if (['<', '<=', '>', '>='].includes(operator) && typeof left === 'boolean') {
@@ -682,15 +791,38 @@ function unwrapQueryValue(value, namespace) {
 }
 
 function getBindingScalarValue(namespace, binding) {
+  const info = getBindingScalarInfo(namespace, binding);
+  if (!info.ok) return info;
+  return { ok: true, value: info.value };
+}
+
+function getBindingScalarInfo(namespace, binding) {
+  const kind = getBindingScalarKind(namespace, binding);
+  const nullReason = getBindingNullReason(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding) };
+    return { ok: true, value: namespace.value(binding), kind, nullReason };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, nullReason };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, nullReason };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
   };
+}
+
+function getBindingScalarKind(namespace, binding) {
+  const actual = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.scalarKind ?? binding.valueKind ?? binding.literalKind ?? binding.representationKind ?? binding.kind ?? binding.type;
+  if (actual === 'NullLiteral') return 'null';
+  if (actual === 'NaNLiteral') return 'nan';
+  if (actual === 'InfinityLiteral') return 'infinity';
+  return typeof actual === 'string' ? lowerFirst(actual) : undefined;
+}
+
+function getBindingNullReason(namespace, binding) {
+  if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
+  return binding.nullReason;
 }
 
 function applyResolveSelector(selector, bindings, namespace, selectorIndex) {

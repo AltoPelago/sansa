@@ -8,6 +8,8 @@ function binding({
   index,
   semanticType,
   representationKind,
+  scalarKind,
+  nullReason,
   value,
   children = [],
 }) {
@@ -17,6 +19,8 @@ function binding({
     ...(index === undefined ? {} : { index }),
     ...(semanticType === undefined ? {} : { semanticType }),
     ...(representationKind === undefined ? {} : { representationKind }),
+    ...(scalarKind === undefined ? {} : { scalarKind }),
+    ...(nullReason === undefined ? {} : { nullReason }),
     ...(value === undefined ? {} : { value }),
     children,
   };
@@ -29,6 +33,8 @@ const item0 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string', value: 'A-100' }),
     binding({ name: 'name', address: '$.inventory.items[0].name', semanticType: 'string', representationKind: 'string', value: 'Adapter' }),
+    binding({ name: 'status', address: '$.inventory.items[0].status', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notSet', value: null }),
+    binding({ name: 'metric', address: '$.inventory.items[0].metric', semanticType: 'number', representationKind: 'number', value: 10 }),
     binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number', value: 1 }),
     binding({ name: 'active', address: '$.inventory.items[0].active', semanticType: 'boolean', representationKind: 'boolean', value: true }),
     binding({
@@ -50,6 +56,7 @@ const item1 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
     binding({ name: 'name', address: '$.inventory.items[1].name', semanticType: 'string', representationKind: 'string', value: 'Bracket' }),
+    binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'string', representationKind: 'string', value: 'active' }),
     binding({ name: 'id', address: '$.inventory.items[1].id', semanticType: 'string', representationKind: 'string', value: '4' }),
     binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[1].active', semanticType: 'boolean', representationKind: 'boolean', value: true }),
@@ -71,6 +78,7 @@ const item2 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[2].sku', semanticType: 'string', representationKind: 'string', value: 'C-300' }),
     binding({ name: 'name', address: '$.inventory.items[2].name', semanticType: 'string', representationKind: 'string', value: 'Coupler' }),
+    binding({ name: 'metric', address: '$.inventory.items[2].metric', semanticType: 'nan<number>', representationKind: 'nan', scalarKind: 'nan', value: Number.NaN }),
     binding({ name: 'qty', address: '$.inventory.items[2].qty', semanticType: 'number', representationKind: 'number', value: 8 }),
     binding({ name: 'active', address: '$.inventory.items[2].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
     binding({ name: 'roles', address: '$.inventory.items[2].roles', representationKind: 'list' }),
@@ -84,7 +92,9 @@ const item3 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[3].sku', semanticType: 'string', representationKind: 'string', value: 'D-250' }),
     binding({ name: 'name', address: '$.inventory.items[3].name', semanticType: 'string', representationKind: 'string', value: 'Driver' }),
+    binding({ name: 'status', address: '$.inventory.items[3].status', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notApplicable', value: null }),
     binding({ name: 'id', address: '$.inventory.items[3].id', semanticType: 'number', representationKind: 'number', value: 3 }),
+    binding({ name: 'ceiling', address: '$.inventory.items[3].ceiling', semanticType: 'infinity<number>', representationKind: 'infinity', scalarKind: 'infinity', value: Infinity }),
     binding({ name: 'qty', address: '$.inventory.items[3].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[3].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
     binding({
@@ -264,6 +274,88 @@ test('evaluates exists and absent presence predicates', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+});
+
+test('distinguishes missing bindings from explicit null values', () => {
+  const nullStatuses = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.status) and isNull(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nullStatuses.ok, true, JSON.stringify(nullStatuses.errors ?? []));
+  assert.deepEqual(nullStatuses.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[3]',
+  ]);
+
+  const notSetStatus = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.status) and isNullReason(.status, "notSet")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(notSetStatus.ok, true, JSON.stringify(notSetStatus.errors ?? []));
+  assert.deepEqual(notSetStatus.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
+  const missingStatus = evaluateQuery([
+    'from $.inventory.items.*',
+    'where absent(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(missingStatus.ok, true, JSON.stringify(missingStatus.errors ?? []));
+  assert.deepEqual(missingStatus.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+
+  const unguardedMissingStatus = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where isNull(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(unguardedMissingStatus.ok, false);
+  assert.equal(unguardedMissingStatus.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+});
+
+test('evaluates NaN and Infinity predicates explicitly', () => {
+  const nanMetric = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.metric) and isNaN(.metric)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nanMetric.ok, true, JSON.stringify(nanMetric.errors ?? []));
+  assert.deepEqual(nanMetric.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+
+  const infiniteCeiling = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.ceiling) and isInfinity(.ceiling)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infiniteCeiling.ok, true, JSON.stringify(infiniteCeiling.errors ?? []));
+  assert.deepEqual(infiniteCeiling.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+
+  const infinityComparison = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.ceiling%infinity) and .ceiling > 1000000',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infinityComparison.ok, true, JSON.stringify(infinityComparison.errors ?? []));
+  assert.deepEqual(infinityComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+});
+
+test('rejects NaN in scalar comparison and ordering', () => {
+  const comparison = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where .metric == .metric',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(comparison.ok, false);
+  assert.equal(comparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const order = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.metric)',
+    'order by .metric asc',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(order.ok, false);
+  assert.equal(order.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
 test('uses semantic filters as comparison guards', () => {

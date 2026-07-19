@@ -143,10 +143,21 @@ function buildNamespaces(entries) {
       namespace: {
         root: entry.root,
         children: (binding) => binding.children ?? [],
+        value: valueFromBinding,
       },
     });
   }
   return output;
+}
+
+function valueFromBinding(binding) {
+  if (binding.scalarKind === 'nan') return Number.NaN;
+  if (binding.scalarKind === 'infinity') {
+    return binding.value === '-Infinity' || binding.scalar === '-Infinity' ? -Infinity : Infinity;
+  }
+  if (Object.hasOwn(binding, 'value')) return binding.value;
+  if (Object.hasOwn(binding, 'scalar')) return binding.scalar;
+  return undefined;
 }
 
 function matchesSubset(expected, actual) {

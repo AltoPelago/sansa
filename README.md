@@ -66,6 +66,14 @@ Existence predicates inspect whether a resolution expression resolves any bindin
 where exists(.roles) and absent(.roles.*)
 ```
 
+Explicit null values are bindings, not missing data. Use `isNull(...)` or `isNullReason(...)` to test null values after guarding for presence:
+
+```text
+where exists(.status) and isNullReason(.status, "notSet")
+```
+
+NaN and infinity are explicit numeric special values. Use `isNaN(...)` and `isInfinity(...)` for literal-form tests; `NaN` is rejected by scalar comparison and ordering.
+
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
 ```text

@@ -63,6 +63,22 @@
                     "value": "Adapter"
                   },
                   {
+                    "name": "status",
+                    "address": "$.inventory.items[0].status",
+                    "semanticType": "null<string>",
+                    "representationKind": "null",
+                    "scalarKind": "null",
+                    "nullReason": "notSet",
+                    "value": null
+                  },
+                  {
+                    "name": "metric",
+                    "address": "$.inventory.items[0].metric",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 10
+                  },
+                  {
                     "name": "qty",
                     "address": "$.inventory.items[0].qty",
                     "semanticType": "number",
@@ -143,6 +159,13 @@
                     "semanticType": "string",
                     "representationKind": "string",
                     "value": "Bracket"
+                  },
+                  {
+                    "name": "status",
+                    "address": "$.inventory.items[1].status",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "active"
                   },
                   {
                     "name": "id",
@@ -227,6 +250,14 @@
                     "value": "Coupler"
                   },
                   {
+                    "name": "metric",
+                    "address": "$.inventory.items[2].metric",
+                    "semanticType": "nan<number>",
+                    "representationKind": "nan",
+                    "scalarKind": "nan",
+                    "value": "NaN"
+                  },
+                  {
                     "name": "qty",
                     "address": "$.inventory.items[2].qty",
                     "semanticType": "number",
@@ -293,11 +324,28 @@
                     "value": "Driver"
                   },
                   {
+                    "name": "status",
+                    "address": "$.inventory.items[3].status",
+                    "semanticType": "null<string>",
+                    "representationKind": "null",
+                    "scalarKind": "null",
+                    "nullReason": "notApplicable",
+                    "value": null
+                  },
+                  {
                     "name": "id",
                     "address": "$.inventory.items[3].id",
                     "semanticType": "number",
                     "representationKind": "number",
                     "value": 3
+                  },
+                  {
+                    "name": "ceiling",
+                    "address": "$.inventory.items[3].ceiling",
+                    "semanticType": "infinity<number>",
+                    "representationKind": "infinity",
+                    "scalarKind": "infinity",
+                    "value": "Infinity"
                   },
                   {
                     "name": "qty",

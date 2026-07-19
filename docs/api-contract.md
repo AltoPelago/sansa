@@ -149,6 +149,8 @@ Resolve is host-adapted. A namespace must expose a root binding:
   index?(binding),
   semanticType?(binding),
   representationKind?(binding),
+  value?(binding),
+  nullReason?(binding),
   semanticTypeMatches?(binding, expected),
   representationKindMatches?(binding, expected)
 }
@@ -166,11 +168,19 @@ For simple hosts, bindings may expose fields directly:
   representationKind,
   kind,
   type,
+  scalarKind,
+  valueKind,
+  literalKind,
+  nullReason,
+  value,
+  scalar,
   children,
   attributeSpace,
   attributes
 }
 ```
+
+`scalarKind`, `valueKind`, or `literalKind` may be used by host-neutral fixtures to preserve scalar forms that JSON cannot express directly, such as `nan`, `infinity`, and explicit `null`. `nullReason` carries the surfaced AEON null reason, such as `notSet` or `notApplicable`.
 
 Exact member and position selectors select direct children. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
 
@@ -307,6 +317,7 @@ Currently evaluated:
 - existence predicates over resolution expressions: `exists`, `absent`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
 - built-in string functions: `contains`, `startsWith`, `lower`, `concat`
+- built-in value predicates: `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
 Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
@@ -325,6 +336,20 @@ where exists(.id#number) and .id > 2
 ```
 
 Without the `#number` filter, `.id > 2` may fail on a present non-number binding.
+
+Missing bindings, explicit null values, and special numeric values are distinct:
+
+```text
+absent(.status) == true when .status resolves zero bindings
+isNull(.status) == true when .status resolves one explicit null binding
+isNullReason(.status, "notSet") == true when the null reason matches
+isNaN(.metric) == true when the scalar is explicit NaN
+isInfinity(.limit) == true when the scalar is positive or negative infinity
+```
+
+`isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
+
+`NaN` is not comparable. Scalar comparison and ordering over `NaN` fail with `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`; use `isNaN(...)` for explicit tests. Infinity values remain numeric bounds and may participate in same-type numeric comparisons and ordering.
 
 Cardinality predicates follow conventional quantified logic:
 

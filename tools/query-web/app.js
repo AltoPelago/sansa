@@ -45,6 +45,16 @@ const examples = {
     'where exists(.id#number) and .id > 2',
     'select { sku = .sku name = .name }',
   ].join('\n'),
+  nullReason: [
+    'from $.inventory.items.*',
+    'where exists(.status) and isNullReason(.status, "notSet")',
+    'select { sku = .sku name = .name }',
+  ].join('\n'),
+  numericSpecials: [
+    'from $.inventory.items.*',
+    'where (exists(.metric) and isNaN(.metric)) or (exists(.ceiling) and isInfinity(.ceiling))',
+    'select { sku = .sku name = .name }',
+  ].join('\n'),
   inactiveOrder: [
     'from $.inventory.items.*',
     'where .active == false',
