@@ -276,12 +276,13 @@ Currently evaluated:
 - resolution expressions
 - comparisons between same-type scalar values
 - Boolean `not`, `and`, `or`
+- cardinality predicates over resolved binding sets: `any`, `all`, `none`
 - projection expressions
 
 Currently rejected with explicit diagnostics:
 
 - function-call expressions
-- cardinality expressions
+- cardinality expressions that do not contain a supported binding-set predicate
 - cross-type comparisons
 - missing scalar values in scalar context
 - multiple bindings in scalar context
@@ -407,13 +408,13 @@ Canonical rendering:
 ## Current Query Evaluate Error Codes
 
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
-- `SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION`
 - `SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN`
 - `SANSA_QUERY_EVALUATE_EXPECTED_SCALAR`
 - `SANSA_QUERY_EVALUATE_MISSING_SCALAR`
 - `SANSA_QUERY_EVALUATE_CARDINALITY`
 - `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`
+- `SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT`
 
 ## Current Resolve Error Codes
 

@@ -284,10 +284,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
     case 'cardinalityExpression':
-      return {
-        ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_CARDINALITY', `Cardinality operator '${expression.operator}' is not supported by this evaluator slice`),
-      };
+      return evaluateCardinalityExpression(expression, currentBinding, namespace, options);
     default:
       return {
         ok: false,
@@ -387,6 +384,90 @@ function evaluateProjectionExpression(expression, currentBinding, namespace, opt
       value,
     },
   };
+}
+
+function evaluateCardinalityExpression(expression, currentBinding, namespace, options) {
+  const booleans = evaluateCardinalityBooleans(expression.argument, currentBinding, namespace, options);
+  if (!booleans.ok) return booleans;
+  const value = (() => {
+    switch (expression.operator) {
+      case 'any': return booleans.values.some(Boolean);
+      case 'all': return booleans.values.every(Boolean);
+      case 'none': return booleans.values.every((entry) => !entry);
+      default: return false;
+    }
+  })();
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value,
+    },
+  };
+}
+
+function evaluateCardinalityBooleans(expression, currentBinding, namespace, options) {
+  if (expression.type === 'groupExpression') {
+    return evaluateCardinalityBooleans(expression.expression, currentBinding, namespace, options);
+  }
+
+  if (expression.type === 'resolutionExpression') {
+    const resolved = evaluateResolutionExpression(expression, currentBinding, namespace, options);
+    if (!resolved.ok) return resolved;
+    const values = [];
+    for (const binding of resolved.value.bindings) {
+      const scalar = getBindingScalarValue(namespace, binding);
+      if (!scalar.ok) return scalar;
+      if (typeof scalar.value !== 'boolean') {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN', 'Cardinality resolution operands must expose Boolean scalar values'),
+        };
+      }
+      values.push(scalar.value);
+    }
+    return { ok: true, values };
+  }
+
+  if (expression.type !== 'binaryExpression' || ['and', 'or'].includes(expression.operator)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT', 'Cardinality operators require a resolution predicate in this evaluator slice'),
+    };
+  }
+
+  const left = evaluateQueryExpressionValue(expression.left, currentBinding, namespace, options);
+  if (!left.ok) return left;
+  const right = evaluateQueryExpressionValue(expression.right, currentBinding, namespace, options);
+  if (!right.ok) return right;
+
+  const leftIsSet = left.value.type === 'bindingSet';
+  const rightIsSet = right.value.type === 'bindingSet';
+
+  if (leftIsSet === rightIsSet) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT', 'Cardinality comparison predicates require exactly one binding-set side'),
+    };
+  }
+
+  const setValue = leftIsSet ? left.value : right.value;
+  const scalarValue = leftIsSet
+    ? expectScalarQueryValue(right.value, namespace)
+    : expectScalarQueryValue(left.value, namespace);
+  if (!scalarValue.ok) return scalarValue;
+
+  const values = [];
+  for (const binding of setValue.bindings) {
+    const bindingScalar = getBindingScalarValue(namespace, binding);
+    if (!bindingScalar.ok) return bindingScalar;
+    const compared = leftIsSet
+      ? compareQueryScalars(expression.operator, bindingScalar.value, scalarValue.value)
+      : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value);
+    if (!compared.ok) return compared;
+    values.push(compared.value.value);
+  }
+  return { ok: true, values };
 }
 
 function orderQueryBindings(orderBy, bindings, namespace, options) {
