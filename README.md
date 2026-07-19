@@ -64,6 +64,12 @@ Existence predicates inspect whether a resolution expression resolves any bindin
 where exists(.roles) and absent(.roles.*)
 ```
 
+Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
+
+```text
+where exists(.id#number) and .id > 2
+```
+
 Cardinality operators follow conventional quantified logic. `any(...)` requires at least one match, `all(...)` is true when every resolved binding matches, and `none(...)` is true when no resolved binding matches. Empty Binding Sets therefore evaluate as `any(empty) = false`, `all(empty) = true`, and `none(empty) = true`.
 
 To require a non-empty set where every binding matches, combine `any(...)` and `all(...)` explicitly:

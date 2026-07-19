@@ -145,6 +145,13 @@
                     "value": "Bracket"
                   },
                   {
+                    "name": "id",
+                    "address": "$.inventory.items[1].id",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "4"
+                  },
+                  {
                     "name": "qty",
                     "address": "$.inventory.items[1].qty",
                     "semanticType": "number",
@@ -284,6 +291,13 @@
                     "semanticType": "string",
                     "representationKind": "string",
                     "value": "Driver"
+                  },
+                  {
+                    "name": "id",
+                    "address": "$.inventory.items[3].id",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 3
                   },
                   {
                     "name": "qty",

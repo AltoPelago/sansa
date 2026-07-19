@@ -40,6 +40,11 @@ const examples = {
     'where exists(.roles) and absent(.roles.*)',
     'select { sku = .sku name = .name }',
   ].join('\n'),
+  numericIdGuard: [
+    'from $.inventory.items.*',
+    'where exists(.id#number) and .id > 2',
+    'select { sku = .sku name = .name }',
+  ].join('\n'),
   inactiveOrder: [
     'from $.inventory.items.*',
     'where .active == false',

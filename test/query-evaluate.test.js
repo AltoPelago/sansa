@@ -50,6 +50,7 @@ const item1 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
     binding({ name: 'name', address: '$.inventory.items[1].name', semanticType: 'string', representationKind: 'string', value: 'Bracket' }),
+    binding({ name: 'id', address: '$.inventory.items[1].id', semanticType: 'string', representationKind: 'string', value: '4' }),
     binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[1].active', semanticType: 'boolean', representationKind: 'boolean', value: true }),
     binding({
@@ -83,6 +84,7 @@ const item3 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[3].sku', semanticType: 'string', representationKind: 'string', value: 'D-250' }),
     binding({ name: 'name', address: '$.inventory.items[3].name', semanticType: 'string', representationKind: 'string', value: 'Driver' }),
+    binding({ name: 'id', address: '$.inventory.items[3].id', semanticType: 'number', representationKind: 'number', value: 3 }),
     binding({ name: 'qty', address: '$.inventory.items[3].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
     binding({ name: 'active', address: '$.inventory.items[3].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
     binding({
@@ -262,6 +264,33 @@ test('evaluates exists and absent presence predicates', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+});
+
+test('uses semantic filters as comparison guards', () => {
+  const guarded = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.id#number) and .id > 2',
+    'select { sku = .sku name = .name }',
+  ].join('\n'), namespace);
+  assert.equal(guarded.ok, true, JSON.stringify(guarded.errors ?? []));
+  assert.deepEqual(guarded.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+  assert.deepEqual(guarded.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'D-250',
+        name: 'Driver',
+      },
+    },
+  ]);
+
+  const unguarded = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.id) and .id > 2',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(unguarded.ok, false);
+  assert.equal(unguarded.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
 test('evaluates built-in string functions', () => {

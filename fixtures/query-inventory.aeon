@@ -10,6 +10,7 @@ inventory:object = {
     @{lane:string = "primary"}:object = {
       sku@{origin:string = "catalog"}:string = "B-200"
       name:string = "Bracket"
+      id:string = "4"
       qty:number = 4
       active:boolean = true
       roles:list<string> = ["user"]
@@ -24,6 +25,7 @@ inventory:object = {
     @{lane:string = "overflow"}:object = {
       sku@{origin:string = "catalog"}:string = "D-250"
       name:string = "Driver"
+      id:number = 3
       qty:number = 4
       active:boolean = false
       roles:list<string> = ["admin", "admin"]

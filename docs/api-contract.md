@@ -316,6 +316,14 @@ exists(.email) == true when .email resolves one or more bindings
 absent(.email) == true when .email resolves zero bindings
 ```
 
+Use semantic or representation filters inside the existence operand to guard later scalar comparisons:
+
+```text
+where exists(.id#number) and .id > 2
+```
+
+Without the `#number` filter, `.id > 2` may fail on a present non-number binding.
+
 Cardinality predicates follow conventional quantified logic:
 
 ```text

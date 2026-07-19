@@ -82,6 +82,12 @@ test('query web runtime exercises workbench edge-case examples', async () => {
       count: 1,
       includes: '$.inventory.items[2] = {"sku":"C-300","name":"Coupler"}',
     },
+    {
+      name: 'numeric id guard',
+      query: 'from $.inventory.items.* where exists(.id#number) and .id > 2 select { sku = .sku name = .name }',
+      count: 1,
+      includes: '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
+    },
   ];
 
   for (const entry of cases) {
