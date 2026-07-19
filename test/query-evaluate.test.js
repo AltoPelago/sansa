@@ -358,6 +358,59 @@ test('rejects NaN in scalar comparison and ordering', () => {
   assert.equal(order.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
+test('follows the comparison policy matrix', () => {
+  const numberComparison = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .qty < 2',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(numberComparison.ok, true, JSON.stringify(numberComparison.errors ?? []));
+  assert.deepEqual(numberComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
+  const stringEquality = evaluateQuery([
+    'from $.inventory.items.*',
+    'where .sku == "B-200"',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(stringEquality.ok, true, JSON.stringify(stringEquality.errors ?? []));
+  assert.deepEqual(stringEquality.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
+
+  const booleanEquality = evaluateQuery([
+    'from $.inventory.items.*',
+    'where .active == false',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(booleanEquality.ok, true, JSON.stringify(booleanEquality.errors ?? []));
+  assert.deepEqual(booleanEquality.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
+
+  const infinityComparison = evaluateQuery([
+    'from $.inventory.items[3]',
+    'where .ceiling > 1000000',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infinityComparison.ok, true, JSON.stringify(infinityComparison.errors ?? []));
+  assert.deepEqual(infinityComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+
+  const nullComparison = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .status == .status',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nullComparison.ok, false);
+  assert.equal(nullComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const booleanOrdering = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .active > false',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(booleanOrdering.ok, false);
+  assert.equal(booleanOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
 test('uses semantic filters as comparison guards', () => {
   const guarded = evaluateQuery([
     'from $.inventory.items.*',

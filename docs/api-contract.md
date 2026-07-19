@@ -351,6 +351,18 @@ isInfinity(.limit) == true when the scalar is positive or negative infinity
 
 `NaN` is not comparable. Scalar comparison and ordering over `NaN` fail with `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`; use `isNaN(...)` for explicit tests. Infinity values remain numeric bounds and may participate in same-type numeric comparisons and ordering.
 
+Current comparison policy:
+
+| Operands | Equality | Ordering | Result |
+| --- | --- | --- | --- |
+| number and number | allowed | allowed | numeric comparison |
+| string and string | allowed | allowed | string comparison |
+| boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
+| explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
+| NaN | error | error | use `isNaN(...)` |
+| infinity and number | allowed | allowed | numeric bound comparison |
+| mixed types | error | error | no implicit coercion |
+
 Cardinality predicates follow conventional quantified logic:
 
 ```text
