@@ -363,6 +363,16 @@ Current comparison policy:
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
 
+Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:
+
+| Argument outcome | Diagnostic |
+| --- | --- |
+| zero bindings | `SANSA_QUERY_EVALUATE_MISSING_SCALAR` |
+| multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
+| unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
+
+The current built-in string functions require string arguments. They reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Special value predicates such as `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+
 Cardinality predicates follow conventional quantified logic:
 
 ```text

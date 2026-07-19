@@ -489,6 +489,43 @@ test('evaluates built-in string functions', () => {
   ]);
 });
 
+test('applies ordinary function argument semantics', () => {
+  const missing = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lower(.deletedAt)',
+  ].join('\n'), namespace);
+  assert.equal(missing.ok, false);
+  assert.equal(missing.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+
+  const cardinality = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lower(.roles.*)',
+  ].join('\n'), namespace);
+  assert.equal(cardinality.ok, false);
+  assert.equal(cardinality.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const explicitNull = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lower(.status)',
+  ].join('\n'), namespace);
+  assert.equal(explicitNull.ok, false);
+  assert.equal(explicitNull.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const nan = evaluateQuery([
+    'from $.inventory.items[2]',
+    'select lower(.metric)',
+  ].join('\n'), namespace);
+  assert.equal(nan.ok, false);
+  assert.equal(nan.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const infinity = evaluateQuery([
+    'from $.inventory.items[3]',
+    'select lower(.ceiling)',
+  ].join('\n'), namespace);
+  assert.equal(infinity.ok, false);
+  assert.equal(infinity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
 test('rejects unsupported and invalid function calls explicitly', () => {
   const unsupported = evaluateQuery('from $.inventory.items.*\nselect endsWith(.sku, "B")', namespace);
   assert.equal(unsupported.ok, false);

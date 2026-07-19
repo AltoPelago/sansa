@@ -76,6 +76,8 @@ NaN and infinity are explicit numeric special values. Use `isNaN(...)` and `isIn
 
 The current evaluator allows same-type number and string comparisons, Boolean equality, and infinity as a numeric bound. It rejects mixed-type comparisons, Boolean ordering, explicit null comparison, and NaN comparison.
 
+Ordinary string functions consume single scalar string arguments. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
+
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
 ```text
