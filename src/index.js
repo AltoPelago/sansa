@@ -279,10 +279,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
     case 'projectionExpression':
       return evaluateProjectionExpression(expression, currentBinding, namespace, options);
     case 'functionCallExpression':
-      return {
-        ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
-      };
+      return evaluateFunctionCallExpression(expression, currentBinding, namespace, options);
     case 'cardinalityExpression':
       return evaluateCardinalityExpression(expression, currentBinding, namespace, options);
     default:
@@ -382,6 +379,61 @@ function evaluateProjectionExpression(expression, currentBinding, namespace, opt
     value: {
       type: 'object',
       value,
+    },
+  };
+}
+
+function evaluateFunctionCallExpression(expression, currentBinding, namespace, options) {
+  const evaluatedArgs = [];
+  for (const argument of expression.arguments) {
+    const evaluated = evaluateQueryExpressionValue(argument, currentBinding, namespace, options);
+    if (!evaluated.ok) return evaluated;
+    const scalar = expectScalarQueryValue(evaluated.value, namespace);
+    if (!scalar.ok) return scalar;
+    evaluatedArgs.push(scalar.value);
+  }
+
+  switch (expression.name) {
+    case 'contains':
+      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
+    case 'startsWith':
+      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.startsWith(search));
+    case 'lower':
+      return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
+    case 'concat':
+      if (evaluatedArgs.length === 0) {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'concat' expects at least one argument"),
+        };
+      }
+      return evaluateStringFunction(expression.name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
+    default:
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+      };
+  }
+}
+
+function evaluateStringFunction(name, args, arity, operation) {
+  if (args.length !== arity) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects ${arity} argument${arity === 1 ? '' : 's'}`),
+    };
+  }
+  if (args.some((arg) => typeof arg !== 'string')) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects string arguments`),
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: operation(args),
     },
   };
 }

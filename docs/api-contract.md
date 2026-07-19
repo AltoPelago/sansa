@@ -277,11 +277,13 @@ Currently evaluated:
 - comparisons between same-type scalar values
 - Boolean `not`, `and`, `or`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
+- built-in string functions: `contains`, `startsWith`, `lower`, `concat`
 - projection expressions
 
 Currently rejected with explicit diagnostics:
 
-- function-call expressions
+- unsupported function names
+- invalid built-in function arity or argument types
 - cardinality expressions that do not contain a supported binding-set predicate
 - cross-type comparisons
 - missing scalar values in scalar context
@@ -306,6 +308,8 @@ Query values:
 ```
 
 Bindings expose scalar values through `namespace.value(binding)`, `binding.value`, or `binding.scalar`.
+
+The evaluator scaffold does not execute host-supplied functions. Function support is limited to the built-ins listed above.
 
 ## Qualifier Model
 
@@ -408,6 +412,7 @@ Canonical rendering:
 ## Current Query Evaluate Error Codes
 
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
+- `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION`
 - `SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN`
 - `SANSA_QUERY_EVALUATE_EXPECTED_SCALAR`

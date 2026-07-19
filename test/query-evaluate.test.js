@@ -174,12 +174,6 @@ test('evaluates stable order by before offset and limit', () => {
   ]);
 });
 
-test('rejects unsupported evaluator features explicitly', () => {
-  const called = evaluateQuery('from $.inventory.items.*\nselect contains(.sku, "B")', namespace);
-  assert.equal(called.ok, false);
-  assert.equal(called.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
-});
-
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
@@ -219,4 +213,51 @@ test('evaluates any all and none cardinality predicates', () => {
     '$.inventory.items[1]',
     '$.inventory.items[2]',
   ]);
+});
+
+test('evaluates built-in string functions', () => {
+  const filtered = evaluateQuery([
+    'from $.inventory.items.*',
+    'where contains(.sku, "B")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(filtered.ok, true, JSON.stringify(filtered.errors ?? []));
+  assert.deepEqual(filtered.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
+
+  const projected = evaluateQuery([
+    'from $.inventory.items.*',
+    'where startsWith(.sku, "A") or startsWith(.sku, "B")',
+    'select { code = lower(.sku) label = concat("item:", .sku) }',
+  ].join('\n'), namespace);
+  assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
+  assert.deepEqual(projected.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        code: 'a-100',
+        label: 'item:A-100',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        code: 'b-200',
+        label: 'item:B-200',
+      },
+    },
+  ]);
+});
+
+test('rejects unsupported and invalid function calls explicitly', () => {
+  const unsupported = evaluateQuery('from $.inventory.items.*\nselect endsWith(.sku, "B")', namespace);
+  assert.equal(unsupported.ok, false);
+  assert.equal(unsupported.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
+
+  const invalidArity = evaluateQuery('from $.inventory.items.*\nselect lower(.sku, "x")', namespace);
+  assert.equal(invalidArity.ok, false);
+  assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const invalidType = evaluateQuery('from $.inventory.items.*\nselect contains(.qty, "4")', namespace);
+  assert.equal(invalidType.ok, false);
+  assert.equal(invalidType.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
