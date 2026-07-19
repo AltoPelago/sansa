@@ -14,18 +14,26 @@
         </div>
         <div class="topbar-actions">
           <select id="exampleSelect" aria-label="Example query">
-            <option value="skuFilter">SKU contains B</option>
-            <option value="itemAttributes">Item attributes</option>
-            <option value="fieldAttributes">Field attributes</option>
-            <option value="directExpansion">Direct expansion</option>
-            <option value="descendantStrings">Descendant #string</option>
-            <option value="descendantNumbers">Descendant %number</option>
-            <option value="namePattern">Name pattern</option>
-            <option value="adminRoles">Any admin role</option>
-            <option value="emptyRoles">Empty roles</option>
-            <option value="numericIdGuard">Numeric id guard</option>
-            <option value="inactiveOrder">Inactive ordered by quantity</option>
-            <option value="parseProjection">Projection parse check</option>
+            <optgroup label="Resolution">
+              <option value="directExpansion">Direct expansion</option>
+              <option value="descendantStrings">Descendant #string</option>
+              <option value="descendantNumbers">Descendant %number</option>
+              <option value="namePattern">Name pattern</option>
+            </optgroup>
+            <optgroup label="Attributes">
+              <option value="itemAttributes">Item attributes</option>
+              <option value="fieldAttributes">Field attributes</option>
+            </optgroup>
+            <optgroup label="Predicates">
+              <option value="skuFilter">SKU contains B</option>
+              <option value="adminRoles">Any admin role</option>
+              <option value="emptyRoles">Empty roles</option>
+              <option value="numericIdGuard">Numeric id guard</option>
+            </optgroup>
+            <optgroup label="Pipeline">
+              <option value="inactiveOrder">Inactive ordered by quantity</option>
+              <option value="parseProjection">Projection parse check</option>
+            </optgroup>
           </select>
           <button id="resetButton" type="button">Reset</button>
           <button id="parseButton" type="button">Parse</button>

@@ -309,6 +309,8 @@ Currently evaluated:
 - built-in string functions: `contains`, `startsWith`, `lower`, `concat`
 - projection expressions
 
+Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
+
 Existence predicates inspect binding presence rather than scalar value:
 
 ```text

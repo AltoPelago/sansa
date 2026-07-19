@@ -293,6 +293,24 @@ test('uses semantic filters as comparison guards', () => {
   assert.equal(unguarded.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
+test('short-circuits boolean evaluation', () => {
+  const andResult = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where .active == true and .deletedAt == "never evaluated"',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(andResult.ok, true, JSON.stringify(andResult.errors ?? []));
+  assert.equal(andResult.results.length, 0);
+
+  const orResult = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .active == true or .deletedAt == "never evaluated"',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(orResult.ok, true, JSON.stringify(orResult.errors ?? []));
+  assert.deepEqual(orResult.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+});
+
 test('evaluates built-in string functions', () => {
   const filtered = evaluateQuery([
     'from $.inventory.items.*',
