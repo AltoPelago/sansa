@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseQuery } from '../src/index.js';
+import { parseQuery, parseQueryExpression } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -41,8 +41,9 @@ process.exit(fail > 0 ? 1 : 0);
 function runTest(test) {
   const failures = [];
   const expected = test.expected ?? {};
-  const source = String(test.input?.source ?? '');
-  const result = parseQuery(source);
+  const isExpressionCase = typeof test.input?.expression === 'string';
+  const source = String(isExpressionCase ? test.input.expression : test.input?.source ?? '');
+  const result = isExpressionCase ? parseQueryExpression(source) : parseQuery(source);
 
   if (result.ok !== Boolean(expected.ok)) {
     failures.push(`ok mismatch: expected ${Boolean(expected.ok)}, got ${result.ok}`);
@@ -55,6 +56,17 @@ function runTest(test) {
       if (actualCode !== expectedCode) {
         failures.push(`error mismatch: expected ${expectedCode}, got ${actualCode}`);
       }
+    }
+    return failures;
+  }
+
+  if (isExpressionCase) {
+    const expression = result.expression;
+    if (typeof expected.canonical === 'string' && expression.canonical !== expected.canonical) {
+      failures.push(`canonical mismatch: expected ${JSON.stringify(expected.canonical)}, got ${JSON.stringify(expression.canonical)}`);
+    }
+    if (expected.ast && !matchesSubset(expected.ast, expression)) {
+      failures.push(`ast mismatch: expected subset ${JSON.stringify(expected.ast)}, got ${JSON.stringify(expression)}`);
     }
     return failures;
   }
@@ -91,6 +103,18 @@ function runTest(test) {
   }
 
   return failures;
+}
+
+function matchesSubset(expected, actual) {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) return false;
+    return expected.every((item, index) => matchesSubset(item, actual[index]));
+  }
+  if (expected && typeof expected === 'object') {
+    if (!actual || typeof actual !== 'object') return false;
+    return Object.entries(expected).every(([key, value]) => matchesSubset(value, actual[key]));
+  }
+  return Object.is(expected, actual);
 }
 
 function compareArray(expected, actual, label, failures) {

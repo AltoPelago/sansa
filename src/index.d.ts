@@ -36,6 +36,13 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_EXPECTED_ORDER_EXPRESSION'
   | 'SANSA_QUERY_INVALID_OFFSET'
   | 'SANSA_QUERY_INVALID_LIMIT'
+  | 'SANSA_QUERY_EXPECTED_EXPRESSION'
+  | 'SANSA_QUERY_UNEXPECTED_EXPRESSION_TOKEN'
+  | 'SANSA_QUERY_UNTERMINATED_EXPRESSION'
+  | 'SANSA_QUERY_INVALID_NUMBER_LITERAL'
+  | 'SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION'
+  | 'SANSA_QUERY_INVALID_FUNCTION_CALL'
+  | 'SANSA_QUERY_INVALID_PROJECTION'
   | 'SANSA_PARSE_ERROR';
 
 export interface SansaDiagnostic {
@@ -46,8 +53,13 @@ export interface SansaDiagnostic {
 
 export interface SansaParseOptions {}
 
+export interface SansaQueryExpressionParseOptions {
+  readonly address?: SansaParseOptions;
+}
+
 export interface SansaQueryParseOptions {
   readonly address?: SansaParseOptions;
+  readonly expression?: SansaQueryExpressionParseOptions;
 }
 
 export type SansaParseResult =
@@ -56,6 +68,10 @@ export type SansaParseResult =
 
 export type SansaQueryParseResult =
   | { readonly ok: true; readonly query: SansaQuery }
+  | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
+
+export type SansaQueryExpressionParseResult =
+  | { readonly ok: true; readonly expression: SansaQueryExpression }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaResolveErrorCode =
@@ -144,6 +160,7 @@ export interface SansaQueryFromClause {
 export interface SansaQueryExpressionClause {
   readonly type: 'whereClause' | 'selectClause';
   readonly expression: string;
+  readonly ast: SansaQueryExpression;
 }
 
 export interface SansaQueryOrderByClause {
@@ -154,12 +171,84 @@ export interface SansaQueryOrderByClause {
 export interface SansaQueryOrderKey {
   readonly type: 'orderKey';
   readonly expression: string;
+  readonly ast: SansaQueryExpression;
   readonly direction: 'asc' | 'desc';
 }
 
 export interface SansaQueryIntegerClause {
   readonly type: 'offsetClause' | 'limitClause';
   readonly value: number;
+}
+
+export type SansaQueryExpression =
+  | SansaQueryLiteralExpression
+  | SansaQueryResolutionExpression
+  | SansaQueryGroupExpression
+  | SansaQueryUnaryExpression
+  | SansaQueryBinaryExpression
+  | SansaQueryFunctionCallExpression
+  | SansaQueryCardinalityExpression
+  | SansaQueryProjectionExpression;
+
+export interface SansaQueryLiteralExpression {
+  readonly type: 'literalExpression';
+  readonly kind: 'string' | 'number' | 'boolean';
+  readonly value: string | number | boolean;
+  readonly canonical: string;
+}
+
+export interface SansaQueryResolutionExpression {
+  readonly type: 'resolutionExpression';
+  readonly scope: 'current' | 'absolute' | 'contextual';
+  readonly address: SansaAddress;
+  readonly canonical: string;
+}
+
+export interface SansaQueryGroupExpression {
+  readonly type: 'groupExpression';
+  readonly expression: SansaQueryExpression;
+  readonly canonical: string;
+}
+
+export interface SansaQueryUnaryExpression {
+  readonly type: 'unaryExpression';
+  readonly operator: 'not';
+  readonly argument: SansaQueryExpression;
+  readonly canonical: string;
+}
+
+export interface SansaQueryBinaryExpression {
+  readonly type: 'binaryExpression';
+  readonly operator: 'or' | 'and' | '==' | '!=' | '<' | '<=' | '>' | '>=';
+  readonly left: SansaQueryExpression;
+  readonly right: SansaQueryExpression;
+  readonly canonical: string;
+}
+
+export interface SansaQueryFunctionCallExpression {
+  readonly type: 'functionCallExpression';
+  readonly name: string;
+  readonly arguments: readonly SansaQueryExpression[];
+  readonly canonical: string;
+}
+
+export interface SansaQueryCardinalityExpression {
+  readonly type: 'cardinalityExpression';
+  readonly operator: 'any' | 'all' | 'none';
+  readonly argument: SansaQueryExpression;
+  readonly canonical: string;
+}
+
+export interface SansaQueryProjectionExpression {
+  readonly type: 'projectionExpression';
+  readonly fields: readonly SansaQueryProjectionField[];
+  readonly canonical: string;
+}
+
+export interface SansaQueryProjectionField {
+  readonly type: 'projectionField';
+  readonly name: string;
+  readonly expression: SansaQueryExpression;
 }
 
 export interface RootSelector {
@@ -258,6 +347,8 @@ export function parseAddress(input: string, options?: SansaParseOptions): SansaP
 export function parseAddressOrThrow(input: string, options?: SansaParseOptions): SansaAddress;
 export function parseQuery(input: string, options?: SansaQueryParseOptions): SansaQueryParseResult;
 export function parseQueryOrThrow(input: string, options?: SansaQueryParseOptions): SansaQuery;
+export function parseQueryExpression(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpressionParseResult;
+export function parseQueryExpressionOrThrow(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpression;
 export function resolveAddress<TBinding extends object = SansaResolveBinding>(
   input: string | SansaAddress,
   namespace: SansaResolveNamespace<TBinding>,
@@ -265,5 +356,6 @@ export function resolveAddress<TBinding extends object = SansaResolveBinding>(
 ): SansaResolveResult<TBinding>;
 export function renderAddress(address: SansaAddress): string;
 export function renderQuery(query: SansaQuery): string;
+export function renderQueryExpression(expression: SansaQueryExpression): string;
 export function renderQualifierExpression(expression: QualifierExpression): string;
 export function renderQualifierTerm(term: QualifierTerm): string;

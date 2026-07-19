@@ -2,7 +2,7 @@
 
 Shared SANSA address, resolve, and query parser model.
 
-This package is the first implementation slice for SANSA Address, SANSA Resolve, and SANSA.Query parsing. It parses and renders SANSA address expressions, can resolve those expressions against a host-supplied namespace adapter, and can parse the Stage 0 SANSA.Query clause surface. It does not evaluate queries, inspect host values directly, or apply host-specific authorization.
+This package is the first implementation slice for SANSA Address, SANSA Resolve, and SANSA.Query parsing. It parses and renders SANSA address expressions, can resolve those expressions against a host-supplied namespace adapter, and can parse the SANSA.Query clause and expression surfaces. It does not evaluate queries, inspect host values directly, or apply host-specific authorization.
 
 ## Current Scope
 
@@ -19,6 +19,7 @@ This package is the first implementation slice for SANSA Address, SANSA Resolve,
 - deterministic preorder descendant expansion with explicit attribute and local address-space traversal
 - Stage 0 SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
 - query comment stripping, clause-order validation, and canonical query rendering
+- Stage 1 SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, cardinality operators, function-call shape, and projection shape
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -37,7 +38,7 @@ npm run cts:query
 ## API
 
 ```js
-import { parseAddress, parseQuery, renderAddress, resolveAddress } from "@altopelago/sansa";
+import { parseAddress, parseQuery, parseQueryExpression, renderAddress, resolveAddress } from "@altopelago/sansa";
 
 const result = parseAddress('$.inventory:csv[","]');
 
@@ -69,5 +70,11 @@ const query = parseQuery('from $.inventory.items.*\nwhere .qty >= 1\nselect .sku
 
 if (query.ok) {
   console.log(query.query.canonical);
+}
+
+const expression = parseQueryExpression('any(.roles.* == "admin")');
+
+if (expression.ok) {
+  console.log(expression.expression.type);
 }
 ```
