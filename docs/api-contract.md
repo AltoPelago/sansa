@@ -1,16 +1,19 @@
-# SANSA Address Parser API Contract
+# SANSA Parser API Contract
 
-Status: initial implementation contract for the Stage 2 parser/model and Stage 3 resolve slices.
+Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, and Stage 4 query parser/model slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The package does not evaluate queries, inspect host values directly, check authorization, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the Stage 0 SANSA.Query clause surface and returns a structural model. The package does not evaluate queries, inspect host values directly, check authorization, or assign semantics to qualifiers.
 
 ## Entry Points
 
 ```js
 parseAddress(input, options?)
 parseAddressOrThrow(input, options?)
+parseQuery(input, options?)
+parseQueryOrThrow(input, options?)
 resolveAddress(input, namespace, options?)
 renderAddress(address)
+renderQuery(query)
 renderQualifierExpression(expression)
 renderQualifierTerm(term)
 ```
@@ -23,6 +26,15 @@ renderQualifierTerm(term)
 ```
 
 `parseAddressOrThrow` returns `address` or throws `SansaParseError`.
+
+`parseQuery` returns a discriminated result:
+
+```js
+{ ok: true, query }
+{ ok: false, errors: [{ code, message, index }] }
+```
+
+`parseQueryOrThrow` returns `query` or throws `SansaParseError`.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -121,6 +133,63 @@ Exact member and position selectors select direct children. `.*` returns direct 
 
 Qualifiers are preserved by the parser but ignored by generic structural resolution.
 
+## Query Parser Model
+
+```js
+{
+  type: "SansaQuery",
+  from,
+  where,
+  orderBy,
+  offset,
+  limit,
+  select,
+  clauses,
+  canonical
+}
+```
+
+Stage 0 query parsing validates query structure only. It does not evaluate query expressions, resolve candidate bindings, apply filters, sort bindings, slice results, or construct projection output.
+
+The accepted clause order is:
+
+```text
+from
+where
+order by
+offset
+limit
+select
+```
+
+`from` is required and must contain one valid SANSA address expression. `select` is required and terminal. `where` and `select` expression bodies are preserved as normalized source strings. `order by` is split into top-level keys, each with an `asc` or `desc` direction; omitted directions canonicalize to `asc`. `offset` and `limit` accept non-negative integers without leading zeroes.
+
+Query comments are lexical trivia:
+
+```text
+// line comment
+/* block comment */
+```
+
+Comments are removed from canonical query rendering.
+
+Query clause nodes:
+
+```js
+{ type: "fromClause", address }
+{ type: "whereClause", expression }
+{ type: "orderByClause", keys }
+{ type: "offsetClause", value }
+{ type: "limitClause", value }
+{ type: "selectClause", expression }
+```
+
+Order keys:
+
+```js
+{ type: "orderKey", expression, direction }
+```
+
 ## Qualifier Model
 
 ```js
@@ -197,6 +266,20 @@ Canonical rendering:
 - `SANSA_UNTERMINATED_UNICODE_ESCAPE`
 - `SANSA_INVALID_UNICODE_ESCAPE`
 - `SANSA_INVALID_UNICODE_SCALAR`
+- `SANSA_QUERY_EMPTY`
+- `SANSA_QUERY_EXPECTED_FROM`
+- `SANSA_QUERY_EXPECTED_SELECT`
+- `SANSA_QUERY_SELECT_MUST_BE_TERMINAL`
+- `SANSA_QUERY_DUPLICATE_CLAUSE`
+- `SANSA_QUERY_INVALID_CLAUSE_ORDER`
+- `SANSA_QUERY_UNTERMINATED_BLOCK_COMMENT`
+- `SANSA_QUERY_EXPECTED_FROM_ADDRESS`
+- `SANSA_QUERY_INVALID_FROM_ADDRESS`
+- `SANSA_QUERY_EXPECTED_WHERE_EXPRESSION`
+- `SANSA_QUERY_EXPECTED_SELECT_EXPRESSION`
+- `SANSA_QUERY_EXPECTED_ORDER_EXPRESSION`
+- `SANSA_QUERY_INVALID_OFFSET`
+- `SANSA_QUERY_INVALID_LIMIT`
 
 ## Current Resolve Error Codes
 

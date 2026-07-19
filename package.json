@@ -26,9 +26,10 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "cts": "npm run cts:address && npm run cts:resolve",
+    "cts": "npm run cts:address && npm run cts:resolve && npm run cts:query",
     "cts:address": "node scripts/cts-address.mjs",
     "cts:resolve": "node scripts/cts-resolve.mjs",
+    "cts:query": "node scripts/cts-query.mjs",
     "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },
@@ -36,6 +37,8 @@
     "sansa",
     "aeonite",
     "address",
+    "resolve",
+    "query",
     "parser"
   ]
 }

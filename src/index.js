@@ -38,6 +38,34 @@ export function parseAddressOrThrow(input, options = {}) {
   return result.address;
 }
 
+export function parseQuery(input, options = {}) {
+  try {
+    const parser = new QueryParser(input, options);
+    return { ok: true, query: parser.parse() };
+  } catch (error) {
+    if (error instanceof SansaParseError) {
+      return {
+        ok: false,
+        errors: [{
+          code: error.code,
+          message: error.message,
+          index: error.index,
+        }],
+      };
+    }
+    throw error;
+  }
+}
+
+export function parseQueryOrThrow(input, options = {}) {
+  const result = parseQuery(input, options);
+  if (!result.ok) {
+    const first = result.errors[0];
+    throw new SansaParseError(first.message, first.index, first.code);
+  }
+  return result.query;
+}
+
 export function resolveAddress(input, namespace, options = {}) {
   const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
@@ -101,6 +129,18 @@ export function renderAddress(address) {
   }
 
   return output;
+}
+
+export function renderQuery(query) {
+  const lines = [`from ${renderAddress(query.from.address)}`];
+  if (query.where) lines.push(`where ${query.where.expression}`);
+  if (query.orderBy) {
+    lines.push(`order by ${query.orderBy.keys.map((key) => `${key.expression} ${key.direction}`).join(', ')}`);
+  }
+  if (query.offset) lines.push(`offset ${query.offset.value}`);
+  if (query.limit) lines.push(`limit ${query.limit.value}`);
+  lines.push(`select ${query.select.expression}`);
+  return lines.join('\n');
 }
 
 function resolveRoot(root, namespace, options) {
@@ -551,6 +591,340 @@ class AddressParser {
   fail(message, code, index = this.index) {
     throw new SansaParseError(message, index, code);
   }
+}
+
+class QueryParser {
+  constructor(input, options) {
+    this.input = input;
+    this.options = options;
+  }
+
+  parse() {
+    const source = stripQueryComments(this.input);
+    if (source.trim().length === 0) {
+      this.fail('Expected SANSA query', 'SANSA_QUERY_EMPTY', 0);
+    }
+
+    const clauses = scanQueryClauses(source);
+    const first = clauses[0];
+    if (!first || first.name !== 'from' || source.slice(0, first.start).trim().length > 0) {
+      this.fail("Expected 'from' clause", 'SANSA_QUERY_EXPECTED_FROM', first?.start ?? 0);
+    }
+
+    let previousOrder = -1;
+    let sawSelect = false;
+    const seen = new Set();
+    const order = new Map([
+      ['from', 0],
+      ['where', 1],
+      ['order', 2],
+      ['offset', 3],
+      ['limit', 4],
+      ['select', 5],
+    ]);
+
+    for (const clause of clauses) {
+      if (sawSelect) {
+        this.fail("'select' must be the terminal SANSA query clause", 'SANSA_QUERY_SELECT_MUST_BE_TERMINAL', clause.start);
+      }
+      if (seen.has(clause.name)) {
+        this.fail(`Duplicate SANSA query clause '${clause.label}'`, 'SANSA_QUERY_DUPLICATE_CLAUSE', clause.start);
+      }
+      seen.add(clause.name);
+      const currentOrder = order.get(clause.name);
+      if (currentOrder < previousOrder) {
+        this.fail(`SANSA query clause '${clause.label}' is out of order`, 'SANSA_QUERY_INVALID_CLAUSE_ORDER', clause.start);
+      }
+      previousOrder = currentOrder;
+      if (clause.name === 'select') sawSelect = true;
+    }
+
+    if (!seen.has('select')) {
+      const end = source.length;
+      this.fail("Expected 'select' clause", 'SANSA_QUERY_EXPECTED_SELECT', end);
+    }
+
+    const clauseByName = new Map(clauses.map((clause) => [clause.name, clause]));
+    const from = this.parseFromClause(clauseByName.get('from'));
+    const where = clauseByName.has('where') ? this.parseExpressionClause(clauseByName.get('where'), 'where') : null;
+    const orderBy = clauseByName.has('order') ? this.parseOrderByClause(clauseByName.get('order')) : null;
+    const offset = clauseByName.has('offset') ? this.parseIntegerClause(clauseByName.get('offset'), 'offset') : null;
+    const limit = clauseByName.has('limit') ? this.parseIntegerClause(clauseByName.get('limit'), 'limit') : null;
+    const select = this.parseExpressionClause(clauseByName.get('select'), 'select');
+
+    const query = {
+      type: 'SansaQuery',
+      from,
+      where,
+      orderBy,
+      offset,
+      limit,
+      select,
+      clauses: clauses.map((clause) => clause.name),
+    };
+    query.canonical = renderQuery(query);
+    return query;
+  }
+
+  parseFromClause(clause) {
+    const expression = normalizeQueryExpression(clause.body);
+    if (expression.length === 0) {
+      this.fail("Expected SANSA address after 'from'", 'SANSA_QUERY_EXPECTED_FROM_ADDRESS', clause.bodyStart);
+    }
+    if (/\s/.test(expression)) {
+      this.fail("Expected a single SANSA address after 'from'", 'SANSA_QUERY_INVALID_FROM_ADDRESS', clause.bodyStart);
+    }
+    const result = parseAddress(expression, this.options.address);
+    if (!result.ok) {
+      const first = result.errors[0];
+      this.fail(first.message, first.code, clause.bodyStart + first.index);
+    }
+    return { type: 'fromClause', address: result.address };
+  }
+
+  parseExpressionClause(clause, name) {
+    const expression = normalizeQueryExpression(clause.body);
+    if (expression.length === 0) {
+      this.fail(`Expected expression after '${clause.label}'`, `SANSA_QUERY_EXPECTED_${name.toUpperCase()}_EXPRESSION`, clause.bodyStart);
+    }
+    return { type: `${name}Clause`, expression };
+  }
+
+  parseOrderByClause(clause) {
+    const expression = normalizeQueryExpression(clause.body);
+    if (expression.length === 0) {
+      this.fail("Expected expression after 'order by'", 'SANSA_QUERY_EXPECTED_ORDER_EXPRESSION', clause.bodyStart);
+    }
+    const keys = splitTopLevelQueryList(expression).map((part) => {
+      const normalized = normalizeQueryExpression(part);
+      const directionMatch = /^(.*)\s+(asc|desc)$/u.exec(normalized);
+      const keyExpression = directionMatch ? directionMatch[1].trim() : normalized;
+      const direction = directionMatch ? directionMatch[2] : 'asc';
+      if (keyExpression.length === 0) {
+        this.fail("Expected order key expression", 'SANSA_QUERY_EXPECTED_ORDER_EXPRESSION', clause.bodyStart);
+      }
+      return { type: 'orderKey', expression: keyExpression, direction };
+    });
+    return { type: 'orderByClause', keys };
+  }
+
+  parseIntegerClause(clause, name) {
+    const value = normalizeQueryExpression(clause.body);
+    const code = name === 'limit' ? 'SANSA_QUERY_INVALID_LIMIT' : 'SANSA_QUERY_INVALID_OFFSET';
+    if (!/^(0|[1-9][0-9]*)$/.test(value)) {
+      this.fail(`Expected non-negative integer after '${name}'`, code, clause.bodyStart);
+    }
+    return { type: `${name}Clause`, value: Number(value) };
+  }
+
+  fail(message, code, index) {
+    throw new SansaParseError(message, index, code);
+  }
+}
+
+function stripQueryComments(input) {
+  let output = '';
+  let quote = null;
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1] ?? '';
+    if (quote) {
+      output += char;
+      if (char === '\\') {
+        index += 1;
+        output += input[index] ?? '';
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      output += char;
+      continue;
+    }
+    if (char === '/' && next === '/') {
+      output += '  ';
+      index += 1;
+      while (index + 1 < input.length && input[index + 1] !== '\n' && input[index + 1] !== '\r') {
+        index += 1;
+        output += ' ';
+      }
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      const start = index;
+      output += '  ';
+      index += 1;
+      let closed = false;
+      while (index + 1 < input.length) {
+        index += 1;
+        const current = input[index];
+        const following = input[index + 1] ?? '';
+        output += current === '\n' || current === '\r' ? current : ' ';
+        if (current === '*' && following === '/') {
+          index += 1;
+          output += ' ';
+          closed = true;
+          break;
+        }
+      }
+      if (!closed) {
+        throw new SansaParseError('Unterminated SANSA query block comment', start, 'SANSA_QUERY_UNTERMINATED_BLOCK_COMMENT');
+      }
+      continue;
+    }
+    output += char;
+  }
+  return output;
+}
+
+function scanQueryClauses(source) {
+  const clauses = [];
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') {
+        index += 1;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+
+    if (parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0) {
+      continue;
+    }
+
+    const match = matchQueryClauseKeyword(source, index);
+    if (match) {
+      clauses.push({
+        name: match.name,
+        label: match.label,
+        start: index,
+        bodyStart: match.end,
+        body: '',
+      });
+      index = match.end - 1;
+    }
+  }
+
+  for (let index = 0; index < clauses.length; index += 1) {
+    const clause = clauses[index];
+    const next = clauses[index + 1];
+    const bodyEnd = next ? next.start : source.length;
+    clause.body = source.slice(clause.bodyStart, bodyEnd);
+  }
+  return clauses;
+}
+
+function matchQueryClauseKeyword(source, index) {
+  if (!isQueryClauseBoundaryBefore(source, index)) return null;
+  if (source.startsWith('order', index) && isQueryClauseBoundaryAfter(source, index + 'order'.length)) {
+    let cursor = index + 'order'.length;
+    const gapStart = cursor;
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (cursor > gapStart && source.startsWith('by', cursor) && isQueryClauseBoundaryAfter(source, cursor + 2)) {
+      return { name: 'order', label: 'order by', end: cursor + 2 };
+    }
+  }
+  for (const name of ['from', 'where', 'offset', 'limit', 'select']) {
+    if (source.startsWith(name, index) && isQueryClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, end: index + name.length };
+    }
+  }
+  return null;
+}
+
+function isQueryClauseBoundaryBefore(source, index) {
+  if (index === 0) return true;
+  return isLayout(source[index - 1]);
+}
+
+function isQueryClauseBoundaryAfter(source, index) {
+  const char = source[index] ?? '';
+  return char === '' || isLayout(char);
+}
+
+function normalizeQueryExpression(source) {
+  let output = '';
+  let quote = null;
+  let pendingSpace = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      output += char;
+      if (char === '\\') {
+        index += 1;
+        output += source[index] ?? '';
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      if (pendingSpace && output.length > 0) output += ' ';
+      pendingSpace = false;
+      quote = char;
+      output += char;
+      continue;
+    }
+    if (isLayout(char)) {
+      pendingSpace = output.length > 0;
+      continue;
+    }
+    if (pendingSpace && output.length > 0) output += ' ';
+    pendingSpace = false;
+    output += char;
+  }
+  return output.trim();
+}
+
+function splitTopLevelQueryList(source) {
+  const parts = [];
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let start = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+      parts.push(source.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(source.slice(start));
+  return parts;
 }
 
 function isExactSelector(selector) {
