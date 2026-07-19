@@ -36,6 +36,26 @@ npm run cts:resolve
 npm run cts:query
 ```
 
+## Query Tool
+
+The package includes a standalone query tool for exercising SANSA.Query against a host-neutral JSON namespace fixture:
+
+```bash
+npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
+npm run query -- --format json --query 'from $.inventory.items.* where any(.roles.* == "admin") select { sku = .sku name = .name }'
+npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
+```
+
+The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json). Fixtures expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
+
+For browser-based testing, run the technical workbench:
+
+```bash
+npm run query:web
+```
+
+Then open `http://127.0.0.1:4173/tools/query-web/`.
+
 ## API
 
 ```js

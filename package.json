@@ -12,11 +12,15 @@
       "import": "./src/index.js"
     }
   },
+  "bin": {
+    "sansa-query": "./scripts/query.mjs"
+  },
   "files": [
     "src",
     "docs",
     "fixtures",
     "scripts",
+    "tools",
     "stress-tests",
     "README.md",
     "LICENSE"
@@ -30,6 +34,8 @@
     "cts:address": "node scripts/cts-address.mjs",
     "cts:resolve": "node scripts/cts-resolve.mjs",
     "cts:query": "node scripts/cts-query.mjs",
+    "query": "node scripts/query.mjs",
+    "query:web": "node scripts/query-web.mjs",
     "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },

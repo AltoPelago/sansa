@@ -1,0 +1,227 @@
+{
+  "meta": {
+    "version": "0.1.0",
+    "description": "Sample host-neutral SANSA Query namespace fixture."
+  },
+  "root": {
+    "address": "$",
+    "representationKind": "object",
+    "children": [
+      {
+        "name": "inventory",
+        "address": "$.inventory",
+        "representationKind": "object",
+        "children": [
+          {
+            "name": "items",
+            "address": "$.inventory.items",
+            "representationKind": "list",
+            "children": [
+              {
+                "index": 0,
+                "address": "$.inventory.items[0]",
+                "representationKind": "object",
+                "children": [
+                  {
+                    "name": "sku",
+                    "address": "$.inventory.items[0].sku",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "A-100"
+                  },
+                  {
+                    "name": "name",
+                    "address": "$.inventory.items[0].name",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Adapter"
+                  },
+                  {
+                    "name": "qty",
+                    "address": "$.inventory.items[0].qty",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 1
+                  },
+                  {
+                    "name": "active",
+                    "address": "$.inventory.items[0].active",
+                    "semanticType": "boolean",
+                    "representationKind": "boolean",
+                    "value": true
+                  },
+                  {
+                    "name": "roles",
+                    "address": "$.inventory.items[0].roles",
+                    "representationKind": "list",
+                    "children": [
+                      {
+                        "index": 0,
+                        "address": "$.inventory.items[0].roles[0]",
+                        "semanticType": "string",
+                        "representationKind": "string",
+                        "value": "admin"
+                      },
+                      {
+                        "index": 1,
+                        "address": "$.inventory.items[0].roles[1]",
+                        "semanticType": "string",
+                        "representationKind": "string",
+                        "value": "user"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 1,
+                "address": "$.inventory.items[1]",
+                "representationKind": "object",
+                "children": [
+                  {
+                    "name": "sku",
+                    "address": "$.inventory.items[1].sku",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "B-200"
+                  },
+                  {
+                    "name": "name",
+                    "address": "$.inventory.items[1].name",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Bracket"
+                  },
+                  {
+                    "name": "qty",
+                    "address": "$.inventory.items[1].qty",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 4
+                  },
+                  {
+                    "name": "active",
+                    "address": "$.inventory.items[1].active",
+                    "semanticType": "boolean",
+                    "representationKind": "boolean",
+                    "value": true
+                  },
+                  {
+                    "name": "roles",
+                    "address": "$.inventory.items[1].roles",
+                    "representationKind": "list",
+                    "children": [
+                      {
+                        "index": 0,
+                        "address": "$.inventory.items[1].roles[0]",
+                        "semanticType": "string",
+                        "representationKind": "string",
+                        "value": "user"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "index": 2,
+                "address": "$.inventory.items[2]",
+                "representationKind": "object",
+                "children": [
+                  {
+                    "name": "sku",
+                    "address": "$.inventory.items[2].sku",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "C-300"
+                  },
+                  {
+                    "name": "name",
+                    "address": "$.inventory.items[2].name",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Coupler"
+                  },
+                  {
+                    "name": "qty",
+                    "address": "$.inventory.items[2].qty",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 8
+                  },
+                  {
+                    "name": "active",
+                    "address": "$.inventory.items[2].active",
+                    "semanticType": "boolean",
+                    "representationKind": "boolean",
+                    "value": false
+                  },
+                  {
+                    "name": "roles",
+                    "address": "$.inventory.items[2].roles",
+                    "representationKind": "list"
+                  }
+                ]
+              },
+              {
+                "index": 3,
+                "address": "$.inventory.items[3]",
+                "representationKind": "object",
+                "children": [
+                  {
+                    "name": "sku",
+                    "address": "$.inventory.items[3].sku",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "D-250"
+                  },
+                  {
+                    "name": "name",
+                    "address": "$.inventory.items[3].name",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Driver"
+                  },
+                  {
+                    "name": "qty",
+                    "address": "$.inventory.items[3].qty",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 4
+                  },
+                  {
+                    "name": "active",
+                    "address": "$.inventory.items[3].active",
+                    "semanticType": "boolean",
+                    "representationKind": "boolean",
+                    "value": false
+                  },
+                  {
+                    "name": "roles",
+                    "address": "$.inventory.items[3].roles",
+                    "representationKind": "list",
+                    "children": [
+                      {
+                        "index": 0,
+                        "address": "$.inventory.items[3].roles[0]",
+                        "semanticType": "string",
+                        "representationKind": "string",
+                        "value": "admin"
+                      },
+                      {
+                        "index": 1,
+                        "address": "$.inventory.items[3].roles[1]",
+                        "semanticType": "string",
+                        "representationKind": "string",
+                        "value": "admin"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

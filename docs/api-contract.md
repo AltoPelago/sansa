@@ -1,6 +1,6 @@
 # SANSA Parser API Contract
 
-Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, Stage 4 query clause parser/model, Stage 5 query expression parser/model, and Stage 6 query evaluator scaffold slices.
+Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, Stage 4 query clause parser/model, Stage 5 query expression parser/model, Stage 6 query evaluator scaffold, and standalone query tool slices.
 
 The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator scaffold applies a restricted query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
@@ -64,6 +64,33 @@ renderQualifierTerm(term)
 ```
 
 Parse errors are returned through the same `ok: false` shape. Normal no-match resolution returns `ok: true` with an empty `bindings` array.
+
+## Command Line Tool
+
+The package exposes `sansa-query` and the local `npm run query` script. The tool is intended for development fixtures and language exploration rather than host integration.
+
+```bash
+npm run query -- --query 'from $.inventory.items.* where .qty >= 2 select .sku'
+npm run query -- --mode parse --format json --query 'from $.inventory.items.* select .sku'
+```
+
+Options:
+
+- `--query`, `-q`: query source
+- `--query-file`: read query source from a file
+- `--fixture`, `-f`: JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
+- `--mode`: `evaluate` or `parse`
+- `--format`: `text` or `json`
+
+Fixture bindings are host-neutral objects. The built-in adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+
+The package also includes a browser workbench:
+
+```bash
+npm run query:web
+```
+
+The workbench serves [tools/query-web](../tools/query-web) and imports the current local implementation directly from `src/index.js`.
 
 ## Address Model
 
