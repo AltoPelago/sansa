@@ -25,7 +25,7 @@ export function parseQueryForWorkbench(querySource) {
   };
 }
 
-export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
+export async function evaluateQueryForWorkbench({ sourceKind, source, query, paramsSource = '' }) {
   const namespaceResult = sourceKind === 'json'
     ? namespaceFromJsonSource(source)
     : await namespaceFromAeonSource(source);
@@ -34,7 +34,20 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
     return namespaceResult;
   }
 
-  const result = evaluateQuery(query, namespaceResult.namespace);
+  const mounted = await mountParamsLocalSpace(namespaceResult.namespace, paramsSource);
+  if (!mounted.ok) {
+    return {
+      ...mounted,
+      sourceKind,
+    };
+  }
+
+  const sourceDiagnostics = [
+    ...(namespaceResult.diagnostics ?? []),
+    ...(mounted.diagnostics ?? []),
+  ];
+
+  const result = evaluateQuery(query, mounted.namespace);
   if (!result.ok) {
     const errors = normalizeDiagnostics(result.errors);
     return {
@@ -43,7 +56,7 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
       sourceKind,
       text: renderDiagnosticText(errors),
       errors,
-      sourceDiagnostics: namespaceResult.diagnostics,
+      sourceDiagnostics,
     };
   }
 
@@ -60,7 +73,7 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
       binding: summarizeBinding(entry.binding),
       value: summarizeQueryValue(entry.value),
     })),
-    sourceDiagnostics: namespaceResult.diagnostics,
+    sourceDiagnostics,
   };
 }
 
@@ -135,6 +148,117 @@ async function namespaceFromAeonSource(source) {
     namespace: buildNamespaceFromEvents(compiled.events, aeonCore.formatPath),
     diagnostics: [],
   };
+}
+
+async function mountParamsLocalSpace(namespace, paramsSource) {
+  if (String(paramsSource).trim().length === 0) {
+    return { ok: true, namespace, diagnostics: [] };
+  }
+
+  let aeonCore;
+  try {
+    aeonCore = await import(aeonCoreUrl.href);
+  } catch (error) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_AEON_RUNTIME_UNAVAILABLE',
+      message: `Could not load AEON TypeScript core build for params: ${error.message}`,
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  const compiled = aeonCore.compile(String(paramsSource), {
+    datatypePolicy: 'allow_custom',
+    mode: 'custom',
+    recovery: false,
+  });
+
+  if (compiled.errors.length > 0) {
+    const errors = compiled.errors.map(normalizeAeonError).map((error) => ({
+      ...error,
+      code: `PARAMS_${error.code}`,
+    }));
+    return {
+      ok: false,
+      mode: 'evaluate',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  const paramsNamespace = buildNamespaceFromEvents(compiled.events, aeonCore.formatPath);
+  const paramsBinding = remapLocalSpaceBinding(paramsNamespace.root, '$.<"params">');
+  const root = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
+  if (!root) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_PARAMS_MISSING_ROOT',
+      message: 'Cannot mount params local space because the source namespace has no root binding.',
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  root.localSpaces = {
+    ...(root.localSpaces ?? {}),
+    params: paramsBinding,
+  };
+  const localSpace = namespace.localSpace;
+
+  return {
+    ok: true,
+    namespace: {
+      ...namespace,
+      localSpace: (binding, name) => {
+        if (binding === root && name === 'params') return root.localSpaces?.params;
+        return localSpace?.(binding, name) ?? binding.localSpaces?.[name];
+      },
+    },
+    diagnostics: [{
+      code: 'SANSA_QUERY_WORKBENCH_PARAMS_MOUNTED',
+      message: 'Mounted $.<"params"> local space.',
+    }],
+  };
+}
+
+function remapLocalSpaceBinding(binding, targetAddress) {
+  return remapBindingTree({
+    ...binding,
+    address: '$',
+    representationKind: binding.representationKind ?? 'object',
+  }, '$', targetAddress);
+}
+
+function remapBindingTree(binding, sourceBase, targetBase) {
+  const address = remapAddress(binding.address, sourceBase, targetBase);
+  const output = {
+    ...binding,
+    address,
+    children: (binding.children ?? []).map((child) => remapBindingTree(child, sourceBase, targetBase)),
+  };
+  if (binding.attributeSpace) {
+    output.attributeSpace = remapBindingTree(binding.attributeSpace, sourceBase, targetBase);
+  }
+  if (binding.localSpaces) {
+    output.localSpaces = Object.fromEntries(Object.entries(binding.localSpaces).map(([name, localSpace]) => (
+      [name, remapBindingTree(localSpace, sourceBase, targetBase)]
+    )));
+  }
+  return output;
+}
+
+function remapAddress(address, sourceBase, targetBase) {
+  if (typeof address !== 'string') return address;
+  if (address === sourceBase) return targetBase;
+  if (address.startsWith(`${sourceBase}.`)) return `${targetBase}${address.slice(sourceBase.length)}`;
+  return address;
 }
 
 function buildNamespaceFromEvents(events, formatPath) {
@@ -296,7 +420,14 @@ function scalarFromAeonValue(value) {
     case 'SeparatorLiteral':
       return { ok: true, value: value.value };
     case 'SansaAddressLiteral':
-      return { ok: true, value: value.canonical ?? value.value };
+      return {
+        ok: true,
+        value: {
+          type: 'SansaAddressLiteral',
+          address: value.address ?? value.canonical ?? value.value,
+          ...(value.canonical === undefined ? {} : { canonical: value.canonical }),
+        },
+      };
     case 'NumberLiteral':
       return { ok: true, value: Number(value.value) };
     case 'InfinityLiteral':
@@ -412,6 +543,9 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (value === null) return 'null';
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value?.type === 'SansaAddressLiteral') {
+    return JSON.stringify(value.canonical ?? value.value ?? value.address?.canonical ?? value.address);
+  }
   if (Array.isArray(value)) {
     return `[${value.map((entry) => renderAeonValue(entry)).join(',')}]`;
   }

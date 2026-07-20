@@ -4,6 +4,13 @@ import test from 'node:test';
 import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../tools/query-web/examples.mjs';
 import { evaluateQueryForWorkbench, parseQueryForWorkbench } from '../tools/query-web/runtime.mjs';
 
+const defaultParamsSource = [
+  'source:sansa = $.inventory.items.*',
+  'field:sansa = ?.sku',
+  'statusField:sansa = ?.status',
+  'sortField:sansa = ?.qty',
+].join('\n');
+
 test('query web runtime parses query summaries', () => {
   const result = parseQueryForWorkbench('from $.inventory.items.* select .sku');
 
@@ -99,6 +106,44 @@ test('query web runtime activates dynamic from path sources from JSON fixtures',
   ].join('\n'));
 });
 
+test('query web runtime mounts AEON params as a local address space', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    paramsSource: defaultParamsSource,
+    query: [
+      'from path($.<"params">.source)',
+      'where isValue(path($.<"params">.statusField))',
+      'order by path($.<"params">.sortField) asc',
+      'select path($.<"params">.field)',
+    ].join('\n'),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
+  assert.deepEqual(result.sourceDiagnostics, [
+    {
+      code: 'SANSA_QUERY_WORKBENCH_PARAMS_MOUNTED',
+      message: 'Mounted $.<"params"> local space.',
+    },
+  ]);
+});
+
+test('query web runtime reports params diagnostics', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    paramsSource: 'source:sansa = $.items[01]',
+    query: 'from $.inventory.items.* select .sku',
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors[0].code, /^PARAMS_/);
+  assert.match(result.text, /PARAMS_/);
+});
+
 test('query web example catalog is grouped and uniquely keyed', () => {
   assert.equal(firstQueryExampleName(), 'directExpansion');
   assert.deepEqual(queryExampleGroups.map((group) => group.label), [
@@ -124,6 +169,7 @@ test('query web runtime exercises workbench examples', async () => {
     const result = await evaluateQueryForWorkbench({
       sourceKind: 'aeon',
       source,
+      paramsSource: defaultParamsSource,
       query: entry.query,
     });
 

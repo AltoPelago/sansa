@@ -110,7 +110,7 @@ button {
 }
 
 .source-panel {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(180px, 0.72fr) auto minmax(120px, 0.28fr);
 }
 
 .query-panel {
@@ -128,6 +128,10 @@ button {
 }
 
 .results-head {
+  border-top: 1px solid var(--line);
+}
+
+.params-head {
   border-top: 1px solid var(--line);
 }
 
@@ -222,6 +226,6 @@ pre {
 
   .workspace {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(420px, 48vh) minmax(520px, 1fr);
+    grid-template-rows: minmax(520px, 52vh) minmax(520px, 1fr);
   }
 }

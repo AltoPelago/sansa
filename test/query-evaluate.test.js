@@ -453,13 +453,13 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
   assert.equal(multipleValues.ok, false);
   assert.equal(multipleValues.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
 
-  const invalidArgument = evaluateQuery([
+  const literalValue = evaluateQuery([
     'from $.inventory.items[0]',
     'where isValue("sku")',
     'select .sku',
   ].join('\n'), namespace);
-  assert.equal(invalidArgument.ok, false);
-  assert.equal(invalidArgument.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+  assert.equal(literalValue.ok, true, JSON.stringify(literalValue.errors ?? []));
+  assert.deepEqual(literalValue.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 });
 
 test('evaluates NaN and Infinity predicates explicitly', () => {
@@ -883,6 +883,19 @@ test('evaluates dynamic from path source expressions', () => {
   assert.equal(stringSource.ok, false);
   assert.equal(stringSource.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
   assert.equal(stringSource.errors[0].phase, 'from');
+
+  const valuePredicate = evaluateQuery([
+    'from path($.<"params">.source)',
+    'where isValue(path($.<"params">.active))',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace);
+  assert.equal(valuePredicate.ok, true, JSON.stringify(valuePredicate.errors ?? []));
+  assert.deepEqual(valuePredicate.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
 });
 
 test('evaluates fallback over missing scalar values', () => {

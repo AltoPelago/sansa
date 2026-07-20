@@ -58,7 +58,7 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
-The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a JSON fixture mode for debugging the resolver shape directly.
+The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a params local-space editor mounted at `$.<"params">`, plus a JSON fixture mode for debugging the resolver shape directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload. Inspect mode renders a scan-friendly view of candidate addresses, projected values, selected binding addresses, and binding metadata.
 
@@ -80,7 +80,7 @@ where exists(.status) and isNullReason(.status, "notSet")
 
 NaN and infinity are explicit numeric special values. Use `isNaN(...)` and `isInfinity(...)` for literal-form tests; `NaN` is rejected by scalar comparison and ordering.
 
-`isValue(...)` is a missing-aware ordinary scalar guard. It returns true for exactly one string, Boolean, or finite number binding. It returns false for missing bindings, non-scalar bindings, explicit null, NaN, and infinity, while multiple bindings remain a cardinality error.
+`isValue(...)` is a missing-aware ordinary scalar guard. It returns true for one string, Boolean, or finite number expression result. It can inspect scalar expressions directly or a Binding Set produced by resolution or `path(...)`. It returns false for missing bindings, non-scalar bindings, explicit null, NaN, and infinity, while multiple bindings remain a cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean equality, and infinity as a numeric bound. It rejects mixed-type comparisons, Boolean ordering, explicit null comparison, and NaN comparison.
 

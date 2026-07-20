@@ -92,6 +92,7 @@ function handleQueryApi(request, response) {
           sourceKind: payload.sourceKind === 'json' ? 'json' : 'aeon',
           source: String(payload.source ?? ''),
           query: String(payload.query ?? ''),
+          paramsSource: String(payload.paramsSource ?? ''),
         });
       writeJson(response, result.ok ? 200 : 400, result);
     })

@@ -298,6 +298,21 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[1] = {"sku":"B-200","active":true}',
         },
       },
+      {
+        name: 'paramsPath',
+        label: 'Params path',
+        query: lines(
+          'from path($.<"params">.source)',
+          'where isValue(path($.<"params">.statusField))',
+          'order by path($.<"params">.sortField) asc',
+          'select path($.<"params">.field)',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[1].sku = "B-200"',
+        },
+      },
     ],
   },
   {

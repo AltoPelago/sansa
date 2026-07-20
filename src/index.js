@@ -812,24 +812,34 @@ function evaluateSpecialValuePredicate(expression, currentBinding, namespace, op
 }
 
 function evaluateIsValuePredicate(argument, currentBinding, namespace, options) {
-  const resolution = unwrapResolutionExpression(argument);
-  if (!resolution) {
-    return {
-      ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'isValue' expects a resolution expression"),
-    };
+  const evaluated = evaluateQueryExpressionValue(argument, currentBinding, namespace, options);
+  if (!evaluated.ok) {
+    if (evaluated.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') return scalarBoolean(false);
+    return evaluated;
   }
-  const evaluated = evaluateResolutionExpression(resolution, currentBinding, namespace, options);
-  if (!evaluated.ok) return evaluated;
-  if (evaluated.value.bindings.length === 0) return scalarBoolean(false);
-  if (evaluated.value.bindings.length > 1) {
+  return evaluateIsValueQueryValue(evaluated.value, namespace);
+}
+
+function evaluateIsValueQueryValue(value, namespace) {
+  if (value.type === 'scalar') {
+    return scalarBoolean(isOrdinaryValueScalar({
+      value: value.value,
+      ...(value[QUERY_VALUE_METADATA_PROPERTY]?.kind === undefined ? {} : { kind: value[QUERY_VALUE_METADATA_PROPERTY].kind }),
+    }));
+  }
+  if (value.type === 'object') return scalarBoolean(false);
+  if (value.type !== 'bindingSet') {
+    return scalarBoolean(false);
+  }
+  if (value.bindings.length === 0) return scalarBoolean(false);
+  if (value.bindings.length > 1) {
     return {
       ok: false,
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'isValue' expected one binding but resolved multiple bindings"),
     };
   }
 
-  const scalar = getBindingScalarInfo(namespace, evaluated.value.bindings[0]);
+  const scalar = getBindingScalarInfo(namespace, value.bindings[0]);
   if (!scalar.ok) {
     if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') return scalarBoolean(false);
     return scalar;

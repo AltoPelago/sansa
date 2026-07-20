@@ -1,10 +1,12 @@
 import { firstQueryExampleName, queryExampleGroups, queryExamples } from './examples.mjs';
 
 const fixtureInput = document.querySelector('#fixtureInput');
+const paramsInput = document.querySelector('#paramsInput');
 const sourceLabel = document.querySelector('#sourceLabel');
 const queryInput = document.querySelector('#queryInput');
 const resultOutput = document.querySelector('#resultOutput');
 const fixtureStatus = document.querySelector('#fixtureStatus');
+const paramsStatus = document.querySelector('#paramsStatus');
 const queryStatus = document.querySelector('#queryStatus');
 const resultStatus = document.querySelector('#resultStatus');
 const exampleSelect = document.querySelector('#exampleSelect');
@@ -15,6 +17,7 @@ const runButton = document.querySelector('#runButton');
 let defaultFixtureSource = '';
 let defaultJsonSource = '';
 let defaultAeonSource = '';
+let defaultParamsSource = '';
 let lastAction = 'evaluate';
 
 await loadDefaultSources();
@@ -29,8 +32,10 @@ exampleSelect.addEventListener('change', () => {
 
 resetButton.addEventListener('click', () => {
   fixtureInput.value = sourceKind() === 'json' ? defaultJsonSource : defaultAeonSource;
+  paramsInput.value = defaultParamsSource;
   setExample(exampleSelect.value);
   fixtureStatus.textContent = sourceKind() === 'json' ? 'default json' : 'default aeon';
+  paramsStatus.textContent = 'default params';
   void runQuery();
 });
 
@@ -60,6 +65,10 @@ document.querySelectorAll('input[name="sourceKind"]').forEach((input) => {
 
 fixtureInput.addEventListener('input', () => {
   fixtureStatus.textContent = 'edited fixture';
+});
+
+paramsInput.addEventListener('input', () => {
+  paramsStatus.textContent = paramsInput.value.trim().length === 0 ? 'not mounted' : 'edited params';
 });
 
 queryInput.addEventListener('keydown', (event) => {
@@ -96,9 +105,17 @@ async function loadDefaultSources() {
     '}',
   ].join('\n'));
   defaultJsonSource = await fetchText('/fixtures/query-inventory.json', '{\n  "root": {\n    "address": "$",\n    "children": []\n  }\n}');
+  defaultParamsSource = [
+    'source:sansa = $.inventory.items.*',
+    'field:sansa = ?.sku',
+    'statusField:sansa = ?.status',
+    'sortField:sansa = ?.qty',
+  ].join('\n');
   defaultFixtureSource = defaultAeonSource;
   fixtureInput.value = defaultFixtureSource;
+  paramsInput.value = defaultParamsSource;
   fixtureStatus.textContent = 'default aeon';
+  paramsStatus.textContent = 'default params';
 }
 
 async function fetchText(path, fallback) {
@@ -131,6 +148,7 @@ async function runQuery() {
     action: 'evaluate',
     sourceKind: sourceKind(),
     source: fixtureInput.value,
+    paramsSource: paramsInput.value,
     query: queryInput.value,
   });
   queryStatus.textContent = payload.ok ? 'run ok' : 'run failed';
