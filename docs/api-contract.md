@@ -238,7 +238,7 @@ limit
 select
 ```
 
-`from` is required and must contain one valid SANSA address expression. `select` is required and terminal. `where`, `select`, and order-key expression bodies carry both a canonical source string and an expression AST. `order by` is split into top-level keys, each with an `asc` or `desc` direction; omitted directions canonicalize to `asc`. `offset` and `limit` accept non-negative integers without leading zeroes.
+`from` is required and must contain either one valid SANSA address expression or a `path(...)` source expression. `select` is required and terminal. `where`, `select`, and order-key expression bodies carry both a canonical source string and an expression AST. `order by` is split into top-level keys, each with an `asc` or `desc` direction; omitted directions canonicalize to `asc`. `offset` and `limit` accept non-negative integers without leading zeroes.
 
 Query comments are lexical trivia:
 
@@ -252,7 +252,8 @@ Comments are removed from canonical query rendering.
 Query clause nodes:
 
 ```js
-{ type: "fromClause", address }
+{ type: "fromClause", source: "address", address }
+{ type: "fromClause", source: "expression", expression, ast }
 { type: "whereClause", expression, ast }
 { type: "orderByClause", keys }
 { type: "offsetClause", value }
@@ -323,7 +324,7 @@ The evaluator scaffold is intentionally narrower than the query grammar. It exis
 
 Currently evaluated:
 
-- `from` through SANSA Resolve
+- `from` through SANSA Resolve or `path(...)` source activation
 - `where` expressions that produce explicit Boolean values
 - `order by` over string and number scalar keys
 - `offset`
