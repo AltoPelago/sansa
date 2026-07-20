@@ -346,7 +346,7 @@ Membership uses comparison-style syntax but explicitly consumes the right operan
 where "admin" in .roles.*
 ```
 
-The left operand is consumed in scalar context. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Empty Binding Sets and non-matching sets evaluate to false. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
+The left operand is consumed in scalar context. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Empty Binding Sets and non-matching sets evaluate to false. Membership does not skip incompatible bindings: explicit null, NaN, missing scalar, cardinality, and mixed-type comparison failures surface as diagnostics. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
 
 Existence predicates inspect binding presence rather than scalar value:
 

@@ -521,6 +521,54 @@ test('evaluates scalar membership over binding sets', () => {
   ].join('\n'), namespace);
   assert.equal(invalidRight.ok, false);
   assert.equal(invalidRight.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const emptyRight = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where "admin" in .roles.*',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(emptyRight.ok, true, JSON.stringify(emptyRight.errors ?? []));
+  assert.deepEqual(emptyRight.results, []);
+
+  const missingLeft = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .deletedAt in .roles.*',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(missingLeft.ok, false);
+  assert.equal(missingLeft.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+
+  const multipleLeft = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where .roles.* in .roles.*',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(multipleLeft.ok, false);
+  assert.equal(multipleLeft.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const nullRight = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where "admin" in .status',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nullRight.ok, false);
+  assert.equal(nullRight.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const nanRight = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where 8 in .metric',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nanRight.ok, false);
+  assert.equal(nanRight.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const infinityRight = evaluateQuery([
+    'from $.inventory.items[3]',
+    'where .ceiling in .ceiling',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infinityRight.ok, true, JSON.stringify(infinityRight.errors ?? []));
+  assert.deepEqual(infinityRight.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
 });
 
 test('evaluates built-in string functions', () => {

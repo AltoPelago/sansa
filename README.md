@@ -86,6 +86,8 @@ Membership tests a scalar against the scalar values exposed by a Binding Set:
 where "admin" in .roles.*
 ```
 
+The left operand must resolve to one scalar. The right operand must be a Binding Set; empty and non-matching sets evaluate to false. Each right-side binding is compared using equality comparison rules, so incompatible values, explicit nulls, and NaN fail instead of being skipped.
+
 Ordinary string functions consume single scalar string arguments. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
