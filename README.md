@@ -2,7 +2,7 @@
 
 Shared SANSA address, resolve, and query parser/evaluator model.
 
-This package is the first implementation slice for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, can resolve those expressions against a host-supplied namespace adapter, can parse the SANSA.Query clause and expression surfaces, and includes an initial evaluator scaffold. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
+This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
 ## Current Scope
 
@@ -17,10 +17,10 @@ This package is the first implementation slice for SANSA Address, SANSA Resolve,
 - qualified address literals with top-level qualifier unions
 - structural resolve over host bindings with exact selectors, expansion selectors, name patterns, semantic type filters, and representation kind filters
 - deterministic preorder descendant expansion with explicit attribute and local address-space traversal
-- Stage 0 SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
+- SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
 - query comment stripping, clause-order validation, and canonical query rendering
-- Stage 1 SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, cardinality operators, function-call shape, and projection shape
-- Stage 2 SANSA.Query evaluator scaffold for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, cardinality predicates, built-in string functions, function-like operators, and projection expressions
+- SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, membership, cardinality operators, function-call shape, and projection shape
+- SANSA.Query evaluation for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, membership, cardinality predicates, built-in string functions, function-like operators, and projection expressions
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -28,7 +28,7 @@ Host implementations also decide which address spaces they expose during resolut
 
 The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
 
-The CTS runner covers address parsing, resolve behavior, and the query parser scaffold:
+The CTS runner covers address parsing, resolve behavior, query parsing, and query evaluation:
 
 ```bash
 npm run cts

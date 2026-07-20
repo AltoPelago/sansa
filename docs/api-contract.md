@@ -1,8 +1,8 @@
 # SANSA Parser API Contract
 
-Status: initial implementation contract for the Stage 2 parser/model, Stage 3 resolve, Stage 4 query clause parser/model, Stage 5 query expression parser/model, Stage 6 query evaluator scaffold, and standalone query tool slices.
+Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, and standalone query tooling slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator scaffold applies a restricted query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
 ## Entry Points
 
@@ -318,9 +318,9 @@ and
 or
 ```
 
-## Query Evaluator Scaffold
+## Query Evaluator
 
-The evaluator scaffold is intentionally narrower than the query grammar. It exists to prove the parser, resolver, and expression model can execute together over host-neutral bindings.
+The evaluator is intentionally narrower than the query grammar. It exists to prove the parser, resolver, and expression model can execute together over host-neutral bindings.
 
 Currently evaluated:
 
@@ -459,7 +459,7 @@ Query values:
 
 Bindings expose scalar values through `namespace.value(binding)`, `binding.value`, or `binding.scalar`.
 
-The evaluator scaffold does not execute host-supplied functions. Function support is limited to the built-ins listed above.
+The evaluator does not execute host-supplied functions. Function support is limited to the built-ins listed above.
 
 ## Qualifier Model
 
