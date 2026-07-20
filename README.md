@@ -60,6 +60,8 @@ The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-invento
 
 In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload.
 
+Workbench examples live in [tools/query-web/examples.mjs](tools/query-web/examples.mjs). The browser UI renders the grouped example menu from that catalog, and the runtime tests execute the same examples against the default `.aeon` fixture.
+
 Boolean `and` and `or` evaluate left to right and short-circuit, so guard predicates can protect later scalar comparisons from missing or incompatible bindings.
 
 Existence predicates inspect whether a resolution expression resolves any bindings. `exists(...)` returns true when one or more bindings are present, and `absent(...)` returns true when no bindings are present.

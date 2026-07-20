@@ -1,77 +1,4 @@
-const examples = {
-  skuFilter: [
-    'from $.inventory.items.*',
-    'where contains(.sku, "B")',
-    'select .sku',
-  ].join('\n'),
-  itemAttributes: [
-    'from $.inventory.items.*',
-    'where .@.lane == "primary"',
-    'select { sku = .sku lane = .@.lane }',
-  ].join('\n'),
-  fieldAttributes: [
-    'from $.inventory.items.*',
-    'where .sku.@.origin == "catalog"',
-    'select { sku = .sku origin = .sku.@.origin }',
-  ].join('\n'),
-  directExpansion: [
-    'from $.inventory.items',
-    'select .*',
-  ].join('\n'),
-  descendantStrings: [
-    'from $',
-    'select $.inventory.items.**#string',
-  ].join('\n'),
-  descendantNumbers: [
-    'from $',
-    'select $.inventory.items.**%number',
-  ].join('\n'),
-  namePattern: [
-    'from $.inventory.items.*',
-    'select .("s*")',
-  ].join('\n'),
-  adminRoles: [
-    'from $.inventory.items.*',
-    'where any(.roles.* == "admin")',
-    'select { sku = .sku name = .name }',
-  ].join('\n'),
-  emptyRoles: [
-    'from $.inventory.items.*',
-    'where exists(.roles) and absent(.roles.*)',
-    'select { sku = .sku name = .name }',
-  ].join('\n'),
-  numericIdGuard: [
-    'from $.inventory.items.*',
-    'where exists(.id#number) and .id > 2',
-    'select { sku = .sku name = .name }',
-  ].join('\n'),
-  nullReason: [
-    'from $.inventory.items.*',
-    'where exists(.status) and isNullReason(.status, "notSet")',
-    'select { sku = .sku name = .name }',
-  ].join('\n'),
-  numericSpecials: [
-    'from $.inventory.items.*',
-    'where (exists(.metric) and isNaN(.metric)) or (exists(.ceiling) and isInfinity(.ceiling))',
-    'select { sku = .sku name = .name }',
-  ].join('\n'),
-  inactiveOrder: [
-    'from $.inventory.items.*',
-    'where .active == false',
-    'order by .qty desc, .sku asc',
-    'select { sku = .sku qty = .qty }',
-  ].join('\n'),
-  parseProjection: [
-    'from $.inventory.items.*',
-    'where .qty >= 2',
-    'select { sku = .sku active = .active }',
-  ].join('\n'),
-  diagnosticWhere: [
-    'from $.inventory.items.*',
-    'where .sku',
-    'select .sku',
-  ].join('\n'),
-};
+import { firstQueryExampleName, queryExampleGroups, queryExamples } from './examples.mjs';
 
 const fixtureInput = document.querySelector('#fixtureInput');
 const sourceLabel = document.querySelector('#sourceLabel');
@@ -91,7 +18,8 @@ let defaultAeonSource = '';
 let lastAction = 'evaluate';
 
 await loadDefaultSources();
-setExample(exampleSelect.value);
+renderExampleSelect();
+setExample(exampleSelect.value || firstQueryExampleName());
 await runQuery();
 
 exampleSelect.addEventListener('change', () => {
@@ -142,8 +70,23 @@ queryInput.addEventListener('keydown', (event) => {
 });
 
 function setExample(name) {
-  queryInput.value = examples[name] ?? examples.skuFilter;
+  queryInput.value = queryExamples[name]?.query ?? queryExamples[firstQueryExampleName()]?.query ?? '';
   queryStatus.textContent = 'example loaded';
+}
+
+function renderExampleSelect() {
+  exampleSelect.replaceChildren(...queryExampleGroups.map((group) => {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    optgroup.append(...group.examples.map((example) => {
+      const option = document.createElement('option');
+      option.value = example.name;
+      option.textContent = example.label;
+      return option;
+    }));
+    return optgroup;
+  }));
+  exampleSelect.value = firstQueryExampleName();
 }
 
 async function loadDefaultSources() {

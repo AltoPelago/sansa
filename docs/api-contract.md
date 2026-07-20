@@ -107,6 +107,8 @@ The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` 
 
 Workbench responses include `text` for successful results and diagnostics. Text mode is intended for quick inspection; JSON mode exposes the structured result or diagnostic payload.
 
+Workbench example queries are defined as grouped catalog data in [tools/query-web/examples.mjs](../tools/query-web/examples.mjs). The UI renders its example menu from that module, and tests use the same catalog to keep labels, queries, and expected behavior in sync.
+
 ## Address Model
 
 ```js

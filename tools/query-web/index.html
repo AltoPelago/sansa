@@ -13,33 +13,7 @@
           <h1>SANSA Query Workbench</h1>
         </div>
         <div class="topbar-actions">
-          <select id="exampleSelect" aria-label="Example query">
-            <optgroup label="Resolution">
-              <option value="directExpansion">Direct expansion</option>
-              <option value="descendantStrings">Descendant #string</option>
-              <option value="descendantNumbers">Descendant %number</option>
-              <option value="namePattern">Name pattern</option>
-            </optgroup>
-            <optgroup label="Attributes">
-              <option value="itemAttributes">Item attributes</option>
-              <option value="fieldAttributes">Field attributes</option>
-            </optgroup>
-            <optgroup label="Predicates">
-              <option value="skuFilter">SKU contains B</option>
-              <option value="adminRoles">Any admin role</option>
-              <option value="emptyRoles">Empty roles</option>
-              <option value="numericIdGuard">Numeric id guard</option>
-              <option value="nullReason">Null reason</option>
-              <option value="numericSpecials">NaN or infinity</option>
-            </optgroup>
-            <optgroup label="Pipeline">
-              <option value="inactiveOrder">Inactive ordered by quantity</option>
-              <option value="parseProjection">Projection parse check</option>
-            </optgroup>
-            <optgroup label="Diagnostics">
-              <option value="diagnosticWhere">Where scalar error</option>
-            </optgroup>
-          </select>
+          <select id="exampleSelect" aria-label="Example query"></select>
           <button id="resetButton" type="button">Reset</button>
           <button id="parseButton" type="button">Parse</button>
           <button id="runButton" type="button">Run</button>
