@@ -176,6 +176,20 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
         },
       },
+      {
+        name: 'missingStatus',
+        label: 'Missing status',
+        query: lines(
+          'from $.inventory.items.*',
+          'where not exists(.status)',
+          'select { sku = .sku name = .name }',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[2] = {"sku":"C-300","name":"Coupler"}',
+        },
+      },
     ],
   },
   {

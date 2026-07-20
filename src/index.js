@@ -129,7 +129,7 @@ export function evaluateQuery(input, namespace, options = {}) {
           })],
         };
       }
-      const boolean = expectBooleanQueryValue(evaluated.value);
+      const boolean = expectBooleanQueryValue(evaluated.value, namespace);
       if (!boolean.ok) {
         return {
           ok: false,
@@ -359,7 +359,7 @@ function evaluateResolutionExpression(expression, currentBinding, namespace, opt
 function evaluateUnaryExpression(expression, currentBinding, namespace, options) {
   const evaluated = evaluateQueryExpressionValue(expression.argument, currentBinding, namespace, options);
   if (!evaluated.ok) return evaluated;
-  const boolean = expectBooleanQueryValue(evaluated.value);
+  const boolean = expectBooleanQueryValue(evaluated.value, namespace);
   if (!boolean.ok) return boolean;
   return {
     ok: true,
@@ -390,7 +390,7 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
 function evaluateBooleanBinaryExpression(expression, currentBinding, namespace, options) {
   const left = evaluateQueryExpressionValue(expression.left, currentBinding, namespace, options);
   if (!left.ok) return left;
-  const leftBoolean = expectBooleanQueryValue(left.value);
+  const leftBoolean = expectBooleanQueryValue(left.value, namespace);
   if (!leftBoolean.ok) return leftBoolean;
 
   if (expression.operator === 'and' && leftBoolean.value === false) {
@@ -402,7 +402,7 @@ function evaluateBooleanBinaryExpression(expression, currentBinding, namespace, 
 
   const right = evaluateQueryExpressionValue(expression.right, currentBinding, namespace, options);
   if (!right.ok) return right;
-  const rightBoolean = expectBooleanQueryValue(right.value);
+  const rightBoolean = expectBooleanQueryValue(right.value, namespace);
   if (!rightBoolean.ok) return rightBoolean;
   return {
     ok: true,
@@ -820,9 +820,14 @@ function compareQueryScalars(operator, left, right) {
   return { ok: true, value: { type: 'scalar', value } };
 }
 
-function expectBooleanQueryValue(value) {
+function expectBooleanQueryValue(value, namespace) {
   if (value.type === 'scalar' && typeof value.value === 'boolean') {
     return { ok: true, value: value.value };
+  }
+  if (value.type === 'bindingSet') {
+    const scalar = expectScalarQueryValue(value, namespace);
+    if (!scalar.ok) return scalar;
+    if (typeof scalar.value === 'boolean') return { ok: true, value: scalar.value };
   }
   return {
     ok: false,

@@ -337,7 +337,7 @@ Currently evaluated:
 - built-in value predicates: `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
-Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
+Boolean context accepts explicit Boolean scalar values and single resolved bindings that expose a Boolean scalar. It does not apply host-language truthiness to strings, numbers, nulls, objects, or Binding Sets. Boolean `not` evaluates its operand in Boolean context and returns the negated value. Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
 
 Existence predicates inspect binding presence rather than scalar value:
 

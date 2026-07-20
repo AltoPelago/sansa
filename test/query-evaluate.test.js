@@ -462,6 +462,35 @@ test('short-circuits boolean evaluation', () => {
   assert.deepEqual(orResult.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 });
 
+test('evaluates unary not over boolean expressions', () => {
+  const directBoolean = evaluateQuery([
+    'from $.inventory.items.*',
+    'where not .active',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(directBoolean.ok, true, JSON.stringify(directBoolean.errors ?? []));
+  assert.deepEqual(directBoolean.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
+
+  const groupedComparison = evaluateQuery([
+    'from $.inventory.items.*',
+    'where not (.qty >= 4)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(groupedComparison.ok, true, JSON.stringify(groupedComparison.errors ?? []));
+  assert.deepEqual(groupedComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
+  const missingStatus = evaluateQuery([
+    'from $.inventory.items.*',
+    'where not exists(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(missingStatus.ok, true, JSON.stringify(missingStatus.errors ?? []));
+  assert.deepEqual(missingStatus.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+});
+
 test('evaluates built-in string functions', () => {
   const filtered = evaluateQuery([
     'from $.inventory.items.*',
