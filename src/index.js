@@ -489,6 +489,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (isSpecialValuePredicateName(expression.name)) {
     return evaluateSpecialValuePredicate(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'path') {
+    return evaluatePathExpression(expression, currentBinding, namespace, options);
+  }
   if (expression.name === 'fallback') {
     return evaluateFallbackExpression(expression, currentBinding, namespace, options);
   }
@@ -528,6 +531,85 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluatePathExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'path' expects 1 argument"),
+    };
+  }
+
+  const evaluated = evaluateQueryExpressionValue(expression.arguments[0], currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  const scalar = expectScalarQueryValue(evaluated.value, namespace);
+  if (!scalar.ok) return scalar;
+
+  const activated = activateAddressLiteral(scalar.value, options.parse?.address);
+  if (!activated.ok) return activated;
+
+  const resolved = resolveAddress(activated.address, namespace, {
+    ...(options.resolve ?? {}),
+    contextualRoot: currentBinding,
+  });
+  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  return {
+    ok: true,
+    value: {
+      type: 'bindingSet',
+      bindings: resolved.bindings,
+    },
+  };
+}
+
+function activateAddressLiteral(value, parseOptions) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', "Function 'path' expects a SANSA Address Literal value"),
+    };
+  }
+
+  if (value.type === 'SansaAddress' && value.root && Array.isArray(value.selectors)) {
+    return { ok: true, address: value };
+  }
+
+  if (value.type !== 'SansaAddressLiteral') {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', "Function 'path' expects a SANSA Address Literal value"),
+    };
+  }
+
+  if (value.address && typeof value.address === 'object') {
+    return { ok: true, address: value.address };
+  }
+
+  const source = typeof value.canonical === 'string'
+    ? value.canonical
+    : typeof value.source === 'string'
+      ? value.source
+      : typeof value.address === 'string'
+        ? value.address
+        : null;
+  if (source === null) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', "Function 'path' expects a structured address literal"),
+    };
+  }
+
+  const parsed = parseAddress(source, parseOptions);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', "Function 'path' received an invalid SANSA Address Literal", {
+        cause: parsed.errors[0],
+      }),
+    };
+  }
+  return { ok: true, address: parsed.address };
 }
 
 function evaluateFallbackExpression(expression, currentBinding, namespace, options) {

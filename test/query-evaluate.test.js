@@ -12,6 +12,7 @@ function binding({
   nullReason,
   value,
   children = [],
+  localSpaces,
 }) {
   return {
     address,
@@ -22,6 +23,7 @@ function binding({
     ...(scalarKind === undefined ? {} : { scalarKind }),
     ...(nullReason === undefined ? {} : { nullReason }),
     ...(value === undefined ? {} : { value }),
+    ...(localSpaces === undefined ? {} : { localSpaces }),
     children,
   };
 }
@@ -113,9 +115,61 @@ const item3 = binding({
   ],
 });
 
+const params = binding({
+  address: '$.<"params">',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'field',
+      address: '$.<"params">.field',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '?.sku' },
+    }),
+    binding({
+      name: 'active',
+      address: '$.<"params">.active',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '?.active' },
+    }),
+    binding({
+      name: 'sort',
+      address: '$.<"params">.sort',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '?.qty' },
+    }),
+    binding({
+      name: 'label',
+      address: '$.<"params">.label',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.inventory.categoryLabels.tooling' },
+    }),
+    binding({
+      name: 'fieldText',
+      address: '$.<"params">.fieldText',
+      semanticType: 'string',
+      representationKind: 'string',
+      value: '?.sku',
+    }),
+    binding({
+      name: 'badPath',
+      address: '$.<"params">.badPath',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.items[01]' },
+    }),
+  ],
+});
+
 const root = binding({
   address: '$',
   representationKind: 'object',
+  localSpaces: {
+    params,
+  },
   children: [
     binding({
       name: 'inventory',
@@ -145,6 +199,7 @@ const root = binding({
 const namespace = {
   root,
   children: (entry) => entry.children,
+  localSpace: (entry, name) => entry.localSpaces?.[name],
 };
 
 test('evaluates query projection over filtered bindings', () => {
@@ -663,6 +718,67 @@ test('evaluates lookup over addressable containers', () => {
   ].join('\n'), namespace);
   assert.equal(invalidBase.ok, false);
   assert.equal(invalidBase.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
+test('evaluates path over structured address literal values', () => {
+  const selected = evaluateQuery([
+    'from $.inventory.items[1]',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace);
+  assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
+  assert.deepEqual(selected.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[1].sku']);
+
+  const projected = evaluateQuery([
+    'from $.inventory.items.*',
+    'where path($.<"params">.active) == false',
+    'order by path($.<"params">.sort) desc',
+    'select { sku = path($.<"params">.field) qty = .qty }',
+  ].join('\n'), namespace);
+  assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
+  assert.deepEqual(projected.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'C-300',
+        qty: 8,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'D-250',
+        qty: 4,
+      },
+    },
+  ]);
+
+  const absolute = evaluateQuery([
+    'from $',
+    'select path($.<"params">.label)',
+  ].join('\n'), namespace);
+  assert.equal(absolute.ok, true, JSON.stringify(absolute.errors ?? []));
+  assert.deepEqual(absolute.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.categoryLabels.tooling']);
+
+  const stringValue = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.fieldText)',
+  ].join('\n'), namespace);
+  assert.equal(stringValue.ok, false);
+  assert.equal(stringValue.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
+
+  const invalidAddressLiteral = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.badPath)',
+  ].join('\n'), namespace);
+  assert.equal(invalidAddressLiteral.ok, false);
+  assert.equal(invalidAddressLiteral.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
+
+  const invalidArity = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.field, $.<"params">.sort)',
+  ].join('\n'), namespace);
+  assert.equal(invalidArity.ok, false);
+  assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates fallback over missing scalar values', () => {

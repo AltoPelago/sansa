@@ -6,6 +6,71 @@
   "root": {
     "address": "$",
     "representationKind": "object",
+    "localSpaces": {
+      "params": {
+        "address": "$.<\"params\">",
+        "representationKind": "object",
+        "children": [
+          {
+            "name": "field",
+            "address": "$.<\"params\">.field",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "?.sku"
+            }
+          },
+          {
+            "name": "active",
+            "address": "$.<\"params\">.active",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "?.active"
+            }
+          },
+          {
+            "name": "sort",
+            "address": "$.<\"params\">.sort",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "?.qty"
+            }
+          },
+          {
+            "name": "label",
+            "address": "$.<\"params\">.label",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "$.inventory.categoryLabels.tooling"
+            }
+          },
+          {
+            "name": "fieldText",
+            "address": "$.<\"params\">.fieldText",
+            "semanticType": "string",
+            "representationKind": "string",
+            "value": "?.sku"
+          },
+          {
+            "name": "badPath",
+            "address": "$.<\"params\">.badPath",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "$.items[01]"
+            }
+          }
+        ]
+      }
+    },
     "children": [
       {
         "name": "inventory",

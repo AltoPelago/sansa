@@ -67,6 +67,18 @@ test('query web runtime renders AEON-style text values', async () => {
   ].join('\n'));
 });
 
+test('query web runtime activates structured address literals from JSON fixtures', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.json', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from $.inventory.items[1] select path($.<"params">.field)',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
+});
+
 test('query web example catalog is grouped and uniquely keyed', () => {
   assert.equal(firstQueryExampleName(), 'directExpansion');
   assert.deepEqual(queryExampleGroups.map((group) => group.label), [

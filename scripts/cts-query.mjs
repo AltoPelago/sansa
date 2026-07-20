@@ -155,6 +155,7 @@ function buildNamespaces(entries) {
       namespace: {
         root: entry.root,
         children: (binding) => binding.children ?? [],
+        localSpace: (binding, name) => binding.localSpaces?.[name],
         value: valueFromBinding,
       },
     });

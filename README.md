@@ -92,6 +92,8 @@ The left operand must resolve to one scalar. The right operand must be a Binding
 
 Ordinary string functions consume single scalar string arguments. The current built-ins are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
+`path(value)` activates a structured SANSA Address Literal value in expression positions such as `select`, `where`, and `order by`. It does not parse plain strings as addresses. Dynamic `from path(...)` is reserved for a later source-clause slice.
+
 `fallback(primary, replacement)` handles missing primary values only. The replacement expression is evaluated only when the primary expression resolves no scalar value; explicit null, cardinality, type, and comparison errors remain fail-fast.
 
 `lookup(base, key)` resolves a dynamic member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable.

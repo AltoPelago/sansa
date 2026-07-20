@@ -39,6 +39,17 @@ test('query tool renders AEON-style text values', () => {
   ].join('\n'));
 });
 
+test('query tool activates structured address literals with path', () => {
+  const result = runTool([
+    '--query',
+    'from $.inventory.items[1] select path($.<"params">.field)',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), '$.inventory.items[1].sku = "B-200"');
+});
+
 test('query tool emits compact JSON for parse mode', () => {
   const result = runTool([
     '--mode',
