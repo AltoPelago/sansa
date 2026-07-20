@@ -223,6 +223,19 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[3] = {"sku":"D-250","category":"Tooling"}',
         },
       },
+      {
+        name: 'fallbackStatus',
+        label: 'Fallback status',
+        query: lines(
+          'from $.inventory.items.*',
+          'select { sku = .sku status = fallback(.status, "missing") }',
+        ),
+        expected: {
+          ok: true,
+          count: 4,
+          includes: '$.inventory.items[2] = {"sku":"C-300","status":"missing"}',
+        },
+      },
     ],
   },
   {

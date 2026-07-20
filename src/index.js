@@ -477,6 +477,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (isSpecialValuePredicateName(expression.name)) {
     return evaluateSpecialValuePredicate(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'fallback') {
+    return evaluateFallbackExpression(expression, currentBinding, namespace, options);
+  }
   if (expression.name === 'lookup') {
     return evaluateLookupExpression(expression, currentBinding, namespace, options);
   }
@@ -511,6 +514,68 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateFallbackExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length !== 2) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fallback' expects 2 arguments"),
+    };
+  }
+
+  const primary = evaluateQueryExpressionValue(expression.arguments[0], currentBinding, namespace, options);
+  if (!primary.ok) {
+    if (primary.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') {
+      return evaluateFallbackReplacement(expression.arguments[1], currentBinding, namespace, options);
+    }
+    return primary;
+  }
+
+  const primaryValue = consumeFallbackOperand(primary.value, namespace);
+  if (primaryValue.ok) return primaryValue;
+  if (primaryValue.missing) {
+    return evaluateFallbackReplacement(expression.arguments[1], currentBinding, namespace, options);
+  }
+  return primaryValue;
+}
+
+function evaluateFallbackReplacement(expression, currentBinding, namespace, options) {
+  const replacement = evaluateQueryExpressionValue(expression, currentBinding, namespace, options);
+  if (!replacement.ok) return replacement;
+  const replacementValue = consumeFallbackOperand(replacement.value, namespace);
+  if (replacementValue.ok) return replacementValue;
+  if (replacementValue.missing) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', "Function 'fallback' replacement resolved no scalar value"),
+    };
+  }
+  return replacementValue;
+}
+
+function consumeFallbackOperand(value, namespace) {
+  if (value.type !== 'bindingSet') {
+    return { ok: true, value };
+  }
+  if (value.bindings.length === 0) {
+    return { ok: false, missing: true };
+  }
+  if (value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'fallback' expected one binding but resolved multiple bindings"),
+    };
+  }
+  const scalar = getBindingScalarValue(namespace, value.bindings[0]);
+  if (!scalar.ok) return scalar;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: scalar.value,
+    },
+  };
 }
 
 function evaluateLookupExpression(expression, currentBinding, namespace, options) {

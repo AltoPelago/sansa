@@ -665,6 +665,87 @@ test('evaluates lookup over addressable containers', () => {
   assert.equal(invalidBase.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
+test('evaluates fallback over missing scalar values', () => {
+  const projected = evaluateQuery([
+    'from $.inventory.items.*',
+    'select { sku = .sku status = fallback(.status, "missing") }',
+  ].join('\n'), namespace);
+  assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
+  assert.deepEqual(projected.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'A-100',
+        status: null,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'B-200',
+        status: 'active',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'C-300',
+        status: 'missing',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'D-250',
+        status: null,
+      },
+    },
+  ]);
+
+  const missingFunctionPrimary = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select fallback(lower(.deletedAt), "none")',
+  ].join('\n'), namespace);
+  assert.equal(missingFunctionPrimary.ok, true, JSON.stringify(missingFunctionPrimary.errors ?? []));
+  assert.equal(missingFunctionPrimary.results[0].value.value, 'none');
+
+  const lazyReplacement = evaluateQuery([
+    'from $.inventory.items[1]',
+    'select fallback(.status, .deletedAt)',
+  ].join('\n'), namespace);
+  assert.equal(lazyReplacement.ok, true, JSON.stringify(lazyReplacement.errors ?? []));
+  assert.equal(lazyReplacement.results[0].value.value, 'active');
+
+  const containsMissing = evaluateQuery([
+    'from $.inventory.items.*',
+    'where contains(fallback(.description, ""), "developer")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(containsMissing.ok, true, JSON.stringify(containsMissing.errors ?? []));
+  assert.deepEqual(containsMissing.results, []);
+
+  const multiplePrimary = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select fallback(.roles.*, "none")',
+  ].join('\n'), namespace);
+  assert.equal(multiplePrimary.ok, false);
+  assert.equal(multiplePrimary.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const missingReplacement = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select fallback(.deletedAt, .alsoDeletedAt)',
+  ].join('\n'), namespace);
+  assert.equal(missingReplacement.ok, false);
+  assert.equal(missingReplacement.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+
+  const invalidArity = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select fallback(.status)',
+  ].join('\n'), namespace);
+  assert.equal(invalidArity.ok, false);
+  assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
 test('evaluates built-in string functions', () => {
   const filtered = evaluateQuery([
     'from $.inventory.items.*',
