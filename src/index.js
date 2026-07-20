@@ -380,11 +380,51 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
   const right = evaluateQueryExpressionValue(expression.right, currentBinding, namespace, options);
   if (!right.ok) return right;
 
+  if (expression.operator === 'in') {
+    return evaluateMembershipExpression(left.value, right.value, namespace);
+  }
+
   const leftScalar = expectScalarQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
   const rightScalar = expectScalarQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
   return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value);
+}
+
+function evaluateMembershipExpression(leftValue, rightValue, namespace) {
+  const leftScalar = expectScalarQueryValue(leftValue, namespace);
+  if (!leftScalar.ok) return leftScalar;
+
+  if (rightValue.type !== 'bindingSet') {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Membership right operand must evaluate to a Binding Set'),
+    };
+  }
+
+  for (const binding of rightValue.bindings) {
+    const rightScalar = getBindingScalarValue(namespace, binding);
+    if (!rightScalar.ok) return rightScalar;
+    const compared = compareQueryScalars('==', leftScalar.value, rightScalar.value);
+    if (!compared.ok) return compared;
+    if (compared.value.value) {
+      return {
+        ok: true,
+        value: {
+          type: 'scalar',
+          value: true,
+        },
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: false,
+    },
+  };
 }
 
 function evaluateBooleanBinaryExpression(expression, currentBinding, namespace, options) {
@@ -1804,6 +1844,7 @@ class QueryExpressionParser {
 
   matchComparisonOperator() {
     this.skipLayout();
+    if (this.matchKeyword('in')) return 'in';
     for (const operator of ['==', '!=', '<=', '>=', '<', '>']) {
       if (this.input.startsWith(operator, this.index)) {
         this.index += operator.length;

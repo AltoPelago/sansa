@@ -90,6 +90,11 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(boolean.operator, 'or');
   assert.equal(renderQueryExpression(boolean), 'not .active or .role == "admin"');
 
+  const membership = parseExpressionOk('"admin" in .roles.*');
+  assert.equal(membership.type, 'binaryExpression');
+  assert.equal(membership.operator, 'in');
+  assert.equal(renderQueryExpression(membership), '"admin" in .roles.*');
+
   const cardinality = parseExpressionOk('any(.roles.* == "admin")');
   assert.equal(cardinality.type, 'cardinalityExpression');
   assert.equal(cardinality.operator, 'any');

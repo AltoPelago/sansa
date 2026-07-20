@@ -491,6 +491,38 @@ test('evaluates unary not over boolean expressions', () => {
   assert.deepEqual(missingStatus.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
 });
 
+test('evaluates scalar membership over binding sets', () => {
+  const adminRole = evaluateQuery([
+    'from $.inventory.items.*',
+    'where "admin" in .roles.*',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(adminRole.ok, true, JSON.stringify(adminRole.errors ?? []));
+  assert.deepEqual(adminRole.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[3]',
+  ]);
+
+  const notAdminRole = evaluateQuery([
+    'from $.inventory.items.*',
+    'where not ("admin" in .roles.*)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(notAdminRole.ok, true, JSON.stringify(notAdminRole.errors ?? []));
+  assert.deepEqual(notAdminRole.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+  ]);
+
+  const invalidRight = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where "admin" in "admin"',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(invalidRight.ok, false);
+  assert.equal(invalidRight.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
 test('evaluates built-in string functions', () => {
   const filtered = evaluateQuery([
     'from $.inventory.items.*',

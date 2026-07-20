@@ -285,7 +285,7 @@ export interface SansaQueryUnaryExpression {
 
 export interface SansaQueryBinaryExpression {
   readonly type: 'binaryExpression';
-  readonly operator: 'or' | 'and' | '==' | '!=' | '<' | '<=' | '>' | '>=';
+  readonly operator: 'or' | 'and' | '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in';
   readonly left: SansaQueryExpression;
   readonly right: SansaQueryExpression;
   readonly canonical: string;

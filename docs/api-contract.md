@@ -298,7 +298,7 @@ Recognized expression syntax:
 
 - resolution expressions: `.name`, `.roles.*`, `$.users.*`, `$.<"params">.username`
 - literals: double-quoted strings, numbers, `true`, `false`
-- comparisons: `==`, `!=`, `<`, `<=`, `>`, `>=`
+- comparisons and membership: `==`, `!=`, `<`, `<=`, `>`, `>=`, `in`
 - Boolean operators: `not`, `and`, `or`
 - parenthesized groups
 - cardinality operators: `any(...)`, `all(...)`, `none(...)`
@@ -330,6 +330,7 @@ Currently evaluated:
 - scalar literals
 - resolution expressions
 - comparisons between same-type scalar values
+- membership over Binding Sets with `in`
 - Boolean `not`, `and`, `or`
 - existence predicates over resolution expressions: `exists`, `absent`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
@@ -338,6 +339,14 @@ Currently evaluated:
 - projection expressions
 
 Boolean context accepts explicit Boolean scalar values and single resolved bindings that expose a Boolean scalar. It does not apply host-language truthiness to strings, numbers, nulls, objects, or Binding Sets. Boolean `not` evaluates its operand in Boolean context and returns the negated value. Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
+
+Membership uses comparison-style syntax but explicitly consumes the right operand as a Binding Set:
+
+```text
+where "admin" in .roles.*
+```
+
+The left operand is consumed in scalar context. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Empty Binding Sets and non-matching sets evaluate to false. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
 
 Existence predicates inspect binding presence rather than scalar value:
 

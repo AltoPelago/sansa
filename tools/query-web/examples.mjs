@@ -121,6 +121,20 @@ export const queryExampleGroups = [
         },
       },
       {
+        name: 'roleMembership',
+        label: 'Role membership',
+        query: lines(
+          'from $.inventory.items.*',
+          'where "admin" in .roles.*',
+          'select { sku = .sku name = .name }',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
+        },
+      },
+      {
         name: 'emptyRoles',
         label: 'Empty roles',
         query: lines(
