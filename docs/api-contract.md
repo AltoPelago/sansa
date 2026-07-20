@@ -430,6 +430,35 @@ where any(.roles.* == "admin") and all(.roles.* == "admin")
 
 `only(...)` is not currently recognized by the parser or evaluator. It is reserved as a possible future shorthand for the non-empty all-match pattern.
 
+## Query Recipes
+
+Recipes are non-normative examples that exercise multiple query features together. They are useful as implementation and workbench smoke tests.
+
+Dynamic address literals can parameterize source, predicate, ordering, and projection:
+
+```text
+from path($.<"params">.source)
+where isValue(path($.<"params">.statusField)) and path($.<"params">.statusField) == "active"
+order by path($.<"params">.sortField) asc
+select path($.<"params">.field)
+```
+
+`isValue(...)`, `exists(...)`, and explicit null predicates can distinguish ordinary values, explicit nulls, and missing bindings:
+
+```text
+from $.inventory.items.*
+where isValue(.status) or (exists(.status) and isNull(.status))
+select { sku = .sku status = fallback(.status, "missing") }
+```
+
+`lookup(...)` and `fallback(...)` can compose inside projections:
+
+```text
+from $.inventory.items.*
+where .qty >= 4
+select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+```
+
 Currently rejected with explicit diagnostics:
 
 - unsupported function names

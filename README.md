@@ -116,6 +116,27 @@ where any(.roles.* == "admin") and all(.roles.* == "admin")
 
 The name `only(...)` is not part of the current query surface; it remains a possible future shorthand for this non-empty-all pattern.
 
+Common recipe patterns:
+
+```text
+from path($.<"params">.source)
+where isValue(path($.<"params">.statusField)) and path($.<"params">.statusField) == "active"
+order by path($.<"params">.sortField) asc
+select path($.<"params">.field)
+```
+
+```text
+from $.inventory.items.*
+where isValue(.status) or (exists(.status) and isNull(.status))
+select { sku = .sku status = fallback(.status, "missing") }
+```
+
+```text
+from $.inventory.items.*
+where .qty >= 4
+select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+```
+
 ## API
 
 ```js
