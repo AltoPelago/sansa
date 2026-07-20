@@ -118,8 +118,9 @@ function runTest(test, namespaces) {
   if (typeof expected.canonical === 'string' && query.canonical !== expected.canonical) {
     failures.push(`canonical mismatch: expected ${JSON.stringify(expected.canonical)}, got ${JSON.stringify(query.canonical)}`);
   }
-  if (typeof expected.from === 'string' && query.from.address.canonical !== expected.from) {
-    failures.push(`from mismatch: expected ${expected.from}, got ${query.from.address.canonical}`);
+  const from = queryFromSource(query);
+  if (typeof expected.from === 'string' && from !== expected.from) {
+    failures.push(`from mismatch: expected ${expected.from}, got ${from}`);
   }
   if (typeof expected.where === 'string' && query.where?.expression !== expected.where) {
     failures.push(`where mismatch: expected ${expected.where}, got ${query.where?.expression ?? null}`);
@@ -146,6 +147,12 @@ function runTest(test, namespaces) {
   }
 
   return failures;
+}
+
+function queryFromSource(query) {
+  return query.from.source === 'expression'
+    ? query.from.expression
+    : query.from.address.canonical;
 }
 
 function buildNamespaces(entries) {

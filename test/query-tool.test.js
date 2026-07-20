@@ -50,6 +50,21 @@ test('query tool activates structured address literals with path', () => {
   assert.equal(result.stdout.trim(), '$.inventory.items[1].sku = "B-200"');
 });
 
+test('query tool activates dynamic from sources with path', () => {
+  const result = runTool([
+    '--query',
+    'from path($.<"params">.source) where .qty >= 4 select .sku',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), [
+    '$.inventory.items[1].sku = "B-200"',
+    '$.inventory.items[2].sku = "C-300"',
+    '$.inventory.items[3].sku = "D-250"',
+  ].join('\n'));
+});
+
 test('query tool emits compact JSON for parse mode', () => {
   const result = runTool([
     '--mode',

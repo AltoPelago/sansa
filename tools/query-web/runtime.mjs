@@ -348,7 +348,7 @@ function renderTextResults(results) {
 function renderQueryInspect(query) {
   return [
     `canonical: ${query.canonical}`,
-    `from: ${query.from.address.canonical}`,
+    `from: ${summarizeQueryFrom(query.from)}`,
     ...(query.where ? [`where: ${query.where.expression}`] : []),
     ...(query.orderBy ? query.orderBy.keys.map((key, index) => (
       `order[${index}]: ${key.expression} ${key.direction}`
@@ -472,7 +472,7 @@ function summarizeQuery(query) {
   return {
     canonical: query.canonical,
     clauses: query.clauses,
-    from: query.from.address.canonical,
+    from: summarizeQueryFrom(query.from),
     ...(query.where ? { where: query.where.expression } : {}),
     ...(query.orderBy ? {
       orderBy: query.orderBy.keys.map((key) => ({
@@ -484,6 +484,12 @@ function summarizeQuery(query) {
     ...(query.limit ? { limit: query.limit.value } : {}),
     select: query.select.expression,
   };
+}
+
+function summarizeQueryFrom(from) {
+  return from.source === 'expression'
+    ? from.expression
+    : from.address.canonical;
 }
 
 function summarizeQueryValue(value) {

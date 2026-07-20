@@ -52,11 +52,28 @@
             }
           },
           {
+            "name": "source",
+            "address": "$.<\"params\">.source",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "$.inventory.items.*"
+            }
+          },
+          {
             "name": "fieldText",
             "address": "$.<\"params\">.fieldText",
             "semanticType": "string",
             "representationKind": "string",
             "value": "?.sku"
+          },
+          {
+            "name": "sourceText",
+            "address": "$.<\"params\">.sourceText",
+            "semanticType": "string",
+            "representationKind": "string",
+            "value": "$.inventory.items.*"
           },
           {
             "name": "badPath",

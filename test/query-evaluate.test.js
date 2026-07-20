@@ -148,11 +148,25 @@ const params = binding({
       value: { type: 'SansaAddressLiteral', address: '$.inventory.categoryLabels.tooling' },
     }),
     binding({
+      name: 'source',
+      address: '$.<"params">.source',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.inventory.items.*' },
+    }),
+    binding({
       name: 'fieldText',
       address: '$.<"params">.fieldText',
       semanticType: 'string',
       representationKind: 'string',
       value: '?.sku',
+    }),
+    binding({
+      name: 'sourceText',
+      address: '$.<"params">.sourceText',
+      semanticType: 'string',
+      representationKind: 'string',
+      value: '$.inventory.items.*',
     }),
     binding({
       name: 'badPath',
@@ -779,6 +793,33 @@ test('evaluates path over structured address literal values', () => {
   ].join('\n'), namespace);
   assert.equal(invalidArity.ok, false);
   assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
+test('evaluates dynamic from path source expressions', () => {
+  const selected = evaluateQuery([
+    'from path($.<"params">.source)',
+    'where .qty >= 4',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
+  assert.deepEqual(selected.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
+  assert.deepEqual(selected.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.inventory.items[1].sku'],
+    ['$.inventory.items[2].sku'],
+    ['$.inventory.items[3].sku'],
+  ]);
+
+  const stringSource = evaluateQuery([
+    'from path($.<"params">.sourceText)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(stringSource.ok, false);
+  assert.equal(stringSource.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
+  assert.equal(stringSource.errors[0].phase, 'from');
 });
 
 test('evaluates fallback over missing scalar values', () => {

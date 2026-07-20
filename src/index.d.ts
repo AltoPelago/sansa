@@ -31,6 +31,7 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_UNTERMINATED_BLOCK_COMMENT'
   | 'SANSA_QUERY_EXPECTED_FROM_ADDRESS'
   | 'SANSA_QUERY_INVALID_FROM_ADDRESS'
+  | 'SANSA_QUERY_INVALID_FROM_SOURCE'
   | 'SANSA_QUERY_EXPECTED_WHERE_EXPRESSION'
   | 'SANSA_QUERY_EXPECTED_SELECT_EXPRESSION'
   | 'SANSA_QUERY_EXPECTED_ORDER_EXPRESSION'
@@ -91,6 +92,7 @@ export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_EVALUATE_MISSING_SCALAR'
   | 'SANSA_QUERY_EVALUATE_CARDINALITY'
   | 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON'
+  | 'SANSA_QUERY_EVALUATE_INVALID_FROM_SOURCE'
   | 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL'
   | 'SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT'
   | 'SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT';
@@ -218,9 +220,19 @@ export interface SansaQuery {
 
 export type SansaQueryClauseName = 'from' | 'where' | 'order' | 'offset' | 'limit' | 'select';
 
-export interface SansaQueryFromClause {
+export type SansaQueryFromClause = SansaQueryAddressFromClause | SansaQueryExpressionFromClause;
+
+export interface SansaQueryAddressFromClause {
   readonly type: 'fromClause';
+  readonly source: 'address';
   readonly address: SansaAddress;
+}
+
+export interface SansaQueryExpressionFromClause {
+  readonly type: 'fromClause';
+  readonly source: 'expression';
+  readonly expression: string;
+  readonly ast: SansaQueryExpression;
 }
 
 export interface SansaQueryExpressionClause {

@@ -27,14 +27,30 @@ function parseExpressionBad(source, code) {
   assert.equal(result.errors[0].code, code);
 }
 
+function queryFromSource(query) {
+  return query.from.source === 'expression'
+    ? query.from.expression
+    : query.from.address.canonical;
+}
+
 test('parses minimal query clauses', () => {
   const query = parseOk('from $.users.*\nselect .name');
+  assert.equal(query.from.source, 'address');
   assert.equal(query.from.address.canonical, '$.users.*');
   assert.equal(query.select.expression, '.name');
   assert.equal(query.select.ast.type, 'resolutionExpression');
   assert.equal(query.select.ast.scope, 'current');
   assert.deepEqual(query.clauses, ['from', 'select']);
   assert.equal(renderQuery(query), query.canonical);
+});
+
+test('parses dynamic path source clauses', () => {
+  const query = parseOk('from path($.<"params">.source)\nselect .sku');
+  assert.equal(query.from.source, 'expression');
+  assert.equal(query.from.expression, 'path($.<"params">.source)');
+  assert.equal(query.from.ast.type, 'functionCallExpression');
+  assert.equal(query.from.ast.name, 'path');
+  assert.equal(query.canonical, 'from path($.<"params">.source)\nselect .sku');
 });
 
 test('parses all stage-zero clauses', () => {
@@ -139,7 +155,7 @@ test('query CTS cases match parser behavior', () => {
       continue;
     }
     assert.equal(result.query.canonical, entry.expected.canonical, entry.id);
-    assert.equal(result.query.from.address.canonical, entry.expected.from, entry.id);
+    assert.equal(queryFromSource(result.query), entry.expected.from, entry.id);
     assert.equal(result.query.select.expression, entry.expected.select, entry.id);
     assert.deepEqual(result.query.clauses, entry.expected.clauses, entry.id);
   }

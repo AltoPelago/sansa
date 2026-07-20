@@ -264,7 +264,7 @@ function summarizeQuery(query) {
   return {
     canonical: query.canonical,
     clauses: query.clauses,
-    from: query.from.address.canonical,
+    from: summarizeQueryFrom(query.from),
     ...(query.where ? { where: query.where.expression } : {}),
     ...(query.orderBy ? {
       orderBy: query.orderBy.keys.map((key) => ({
@@ -276,6 +276,12 @@ function summarizeQuery(query) {
     ...(query.limit ? { limit: query.limit.value } : {}),
     select: query.select.expression,
   };
+}
+
+function summarizeQueryFrom(from) {
+  return from.source === 'expression'
+    ? from.expression
+    : from.address.canonical;
 }
 
 function summarizeBinding(binding) {

@@ -79,6 +79,26 @@ test('query web runtime activates structured address literals from JSON fixtures
   assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
 });
 
+test('query web runtime activates dynamic from path sources from JSON fixtures', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.json', import.meta.url), 'utf8');
+  const parsed = parseQueryForWorkbench('from path($.<"params">.source) where .qty >= 4 select .sku');
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.errors ?? []));
+  assert.match(parsed.inspect, /from: path\(\$\.<"params">\.source\)/);
+
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from path($.<"params">.source) where .qty >= 4 select .sku',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, [
+    '$.inventory.items[1].sku = "B-200"',
+    '$.inventory.items[2].sku = "C-300"',
+    '$.inventory.items[3].sku = "D-250"',
+  ].join('\n'));
+});
+
 test('query web example catalog is grouped and uniquely keyed', () => {
   assert.equal(firstQueryExampleName(), 'directExpansion');
   assert.deepEqual(queryExampleGroups.map((group) => group.label), [

@@ -108,7 +108,7 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const query = parsed.query;
-  const from = resolveAddress(query.from.address, namespace, options.resolve);
+  const from = evaluateQueryFromClause(query.from, namespace, options);
   if (!from.ok) {
     return {
       ok: false,
@@ -253,7 +253,7 @@ export function renderAddress(address) {
 }
 
 export function renderQuery(query) {
-  const lines = [`from ${renderAddress(query.from.address)}`];
+  const lines = [`from ${renderQueryFromClause(query.from)}`];
   if (query.where) lines.push(`where ${renderQueryExpression(query.where.ast)}`);
   if (query.orderBy) {
     lines.push(`order by ${query.orderBy.keys.map((key) => `${renderQueryExpression(key.ast)} ${key.direction}`).join(', ')}`);
@@ -262,6 +262,12 @@ export function renderQuery(query) {
   if (query.limit) lines.push(`limit ${query.limit.value}`);
   lines.push(`select ${renderQueryExpression(query.select.ast)}`);
   return lines.join('\n');
+}
+
+function renderQueryFromClause(from) {
+  return from.source === 'expression'
+    ? renderQueryExpression(from.ast)
+    : renderAddress(from.address);
 }
 
 export function renderQueryExpression(expression) {
@@ -307,6 +313,31 @@ function resolveRoot(root, namespace, options) {
   const rootBinding = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
   if (rootBinding) return { ok: true, binding: rootBinding };
   return { ok: false, error: resolveError('SANSA_RESOLVE_MISSING_ROOT', 'SANSA resolve namespace does not expose a root binding') };
+}
+
+function evaluateQueryFromClause(from, namespace, options) {
+  if (from.source !== 'expression') {
+    return resolveAddress(from.address, namespace, options.resolve);
+  }
+
+  const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+  if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+
+  const evaluated = evaluateQueryExpressionValue(from.ast, rootResult.binding, namespace, options);
+  if (!evaluated.ok) return { ok: false, bindings: [], errors: [evaluated.error] };
+  if (evaluated.value.type !== 'bindingSet') {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [
+        queryEvaluateError(
+          'SANSA_QUERY_EVALUATE_INVALID_FROM_SOURCE',
+          "Dynamic 'from' source expression must evaluate to a Binding Set",
+        ),
+      ],
+    };
+  }
+  return { ok: true, bindings: evaluated.value.bindings, diagnostics: [] };
 }
 
 function evaluateQueryExpressionValue(expression, currentBinding, namespace, options) {
@@ -1712,15 +1743,23 @@ class QueryParser {
     if (expression.length === 0) {
       this.fail("Expected SANSA address after 'from'", 'SANSA_QUERY_EXPECTED_FROM_ADDRESS', clause.bodyStart);
     }
-    if (/\s/.test(expression)) {
-      this.fail("Expected a single SANSA address after 'from'", 'SANSA_QUERY_INVALID_FROM_ADDRESS', clause.bodyStart);
+    if (expression.startsWith('$') || expression.startsWith('?')) {
+      if (/\s/.test(expression)) {
+        this.fail("Expected a single SANSA address after 'from'", 'SANSA_QUERY_INVALID_FROM_ADDRESS', clause.bodyStart);
+      }
+      const result = parseAddress(expression, this.options.address);
+      if (!result.ok) {
+        const first = result.errors[0];
+        this.fail(first.message, first.code, clause.bodyStart + first.index);
+      }
+      return { type: 'fromClause', source: 'address', address: result.address };
     }
-    const result = parseAddress(expression, this.options.address);
-    if (!result.ok) {
-      const first = result.errors[0];
-      this.fail(first.message, first.code, clause.bodyStart + first.index);
+
+    const ast = this.parseClauseExpression(expression, clause.bodyStart);
+    if (ast.type !== 'functionCallExpression' || ast.name !== 'path') {
+      this.fail("Expected SANSA address or path(...) after 'from'", 'SANSA_QUERY_INVALID_FROM_SOURCE', clause.bodyStart);
     }
-    return { type: 'fromClause', address: result.address };
+    return { type: 'fromClause', source: 'expression', expression: renderQueryExpression(ast), ast };
   }
 
   parseExpressionClause(clause, name) {
