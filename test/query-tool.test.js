@@ -65,6 +65,41 @@ test('query tool activates dynamic from sources with path', () => {
   ].join('\n'));
 });
 
+test('query tool mounts JSON params as a local address space', () => {
+  const params = JSON.stringify({
+    source: {
+      type: 'SansaAddressLiteral',
+      address: '$.inventory.items[3]',
+    },
+    field: {
+      type: 'SansaAddressLiteral',
+      address: '?.sku',
+    },
+  });
+  const result = runTool([
+    '--params',
+    params,
+    '--query',
+    'from path($.<"params">.source) select path($.<"params">.field)',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), '$.inventory.items[3].sku = "D-250"');
+});
+
+test('query tool reports malformed JSON params', () => {
+  const result = runTool([
+    '--params',
+    '{',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /could not read params/);
+});
+
 test('query tool emits compact JSON for parse mode', () => {
   const result = runTool([
     '--mode',

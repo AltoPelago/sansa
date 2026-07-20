@@ -26,6 +26,10 @@ if (!querySource.trim()) {
 const fixturePath = resolve(args.fixture ?? defaultFixturePath);
 const fixture = readJson(fixturePath);
 const namespace = buildNamespace(fixture);
+const paramsBinding = readParamsBinding(args);
+if (paramsBinding) {
+  mountParamsLocalSpace(namespace.root, paramsBinding);
+}
 const mode = args.mode ?? 'evaluate';
 const format = args.format ?? 'text';
 
@@ -62,6 +66,10 @@ function parseArgs(raw) {
       output.queryFile = requireValue(raw, ++index, arg);
     } else if (arg === '--fixture' || arg === '-f') {
       output.fixture = requireValue(raw, ++index, arg);
+    } else if (arg === '--params') {
+      output.params = requireValue(raw, ++index, arg);
+    } else if (arg === '--params-file') {
+      output.paramsFile = requireValue(raw, ++index, arg);
     } else if (arg === '--format') {
       output.format = requireValue(raw, ++index, arg);
     } else if (arg === '--mode') {
@@ -97,6 +105,142 @@ function readJson(path) {
     console.error(`SANSA Query tool error: could not read fixture '${path}': ${error.message}`);
     process.exit(2);
   }
+}
+
+function readParamsBinding(options) {
+  if (typeof options.params === 'string' && typeof options.paramsFile === 'string') {
+    console.error('SANSA Query tool error: use either --params or --params-file, not both.');
+    process.exit(2);
+  }
+  try {
+    const source = typeof options.params === 'string'
+      ? options.params
+      : typeof options.paramsFile === 'string'
+        ? readFileSync(resolve(options.paramsFile), 'utf8')
+        : undefined;
+    if (source === undefined) return undefined;
+    return normalizeParamsPayload(JSON.parse(source));
+  } catch (error) {
+    const origin = typeof options.paramsFile === 'string'
+      ? ` from '${resolve(options.paramsFile)}'`
+      : '';
+    console.error(`SANSA Query tool error: could not read params${origin}: ${error.message}`);
+    process.exit(2);
+  }
+}
+
+function normalizeParamsPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('expected a JSON object.');
+  }
+  if (Array.isArray(payload.children)) {
+    return normalizeFixtureBinding(payload, '$.<"params">');
+  }
+  return {
+    address: '$.<"params">',
+    representationKind: 'object',
+    children: Object.entries(payload).map(([name, value]) => normalizeParamEntry(name, value)),
+  };
+}
+
+function normalizeParamEntry(name, value) {
+  const address = `$.<"params">.${renderParamMember(name)}`;
+  if (isSansaAddressLiteralValue(value)) {
+    return {
+      name,
+      address,
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value,
+    };
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value) && isFixtureBindingShape(value)) {
+    return normalizeFixtureBinding({ ...value, name: value.name ?? name }, address);
+  }
+  return {
+    name,
+    address,
+    semanticType: semanticTypeForParamValue(value),
+    representationKind: representationKindForParamValue(value),
+    value,
+  };
+}
+
+function normalizeFixtureBinding(binding, fallbackAddress) {
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+    throw new Error('expected params binding objects.');
+  }
+  const normalized = {
+    ...binding,
+    address: binding.address ?? fallbackAddress,
+  };
+  if (Array.isArray(binding.children)) {
+    normalized.children = binding.children.map((child, index) => {
+      const childAddress = child && typeof child === 'object' && typeof child.name === 'string'
+        ? `${normalized.address}.${renderParamMember(child.name)}`
+        : child && typeof child === 'object' && Number.isInteger(child.index)
+          ? `${normalized.address}[${child.index}]`
+          : `${normalized.address}[${index}]`;
+      const explicitAddress = child && typeof child === 'object' && !Array.isArray(child)
+        ? child.address
+        : undefined;
+      return normalizeFixtureBinding(child, explicitAddress ?? childAddress);
+    });
+  }
+  return normalized;
+}
+
+function isFixtureBindingShape(value) {
+  return (
+    Object.hasOwn(value, 'value') ||
+    Object.hasOwn(value, 'scalar') ||
+    Object.hasOwn(value, 'children') ||
+    Object.hasOwn(value, 'attributeSpace') ||
+    Object.hasOwn(value, 'attributes') ||
+    Object.hasOwn(value, 'localSpaces') ||
+    Object.hasOwn(value, 'semanticType') ||
+    Object.hasOwn(value, 'representationKind')
+  );
+}
+
+function isSansaAddressLiteralValue(value) {
+  return (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    value.type === 'SansaAddressLiteral' &&
+    typeof value.address === 'string'
+  );
+}
+
+function renderParamMember(name) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+    ? name
+    : `[${JSON.stringify(name)}]`;
+}
+
+function semanticTypeForParamValue(value) {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return 'string';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (Array.isArray(value)) return 'list';
+  return 'object';
+}
+
+function representationKindForParamValue(value) {
+  return semanticTypeForParamValue(value);
+}
+
+function mountParamsLocalSpace(rootBinding, paramsBinding) {
+  if (!rootBinding || typeof rootBinding !== 'object') {
+    console.error('SANSA Query tool error: params require a fixture root binding object.');
+    process.exit(2);
+  }
+  rootBinding.localSpaces = {
+    ...(rootBinding.localSpaces ?? {}),
+    params: paramsBinding,
+  };
 }
 
 function buildNamespace(fixture) {
@@ -318,6 +462,8 @@ Options:
   -q, --query <source>      Query source.
       --query-file <path>   Read query source from a file.
   -f, --fixture <path>      JSON namespace fixture. Defaults to fixtures/query-inventory.json.
+      --params <json>       Mount JSON params at $.<"params">.
+      --params-file <path>  Read JSON params and mount them at $.<"params">.
       --mode <mode>         evaluate or parse. Defaults to evaluate.
       --format <format>     text or json. Defaults to text.
   -h, --help                Show this help.

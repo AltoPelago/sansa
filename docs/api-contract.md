@@ -85,6 +85,7 @@ The package exposes `sansa-query` and the local `npm run query` script. The tool
 ```bash
 npm run query -- --query 'from $.inventory.items.* where .qty >= 2 select .sku'
 npm run query -- --mode parse --format json --query 'from $.inventory.items.* select .sku'
+npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
 Evaluate-mode text output renders values in an AEON-like display form. Strings remain quoted, constructed objects render compactly, and explicit null bindings with a surfaced `nullReason` render as `!reason`, for example `!notSet`. JSON output is unchanged and remains the stable structured result envelope for tooling.
@@ -94,10 +95,14 @@ Options:
 - `--query`, `-q`: query source
 - `--query-file`: read query source from a file
 - `--fixture`, `-f`: JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
+- `--params`: JSON params mounted at `$.<"params">`
+- `--params-file`: read JSON params from a file and mount them at `$.<"params">`
 - `--mode`: `evaluate` or `parse`
 - `--format`: `text` or `json`
 
 Fixture bindings are host-neutral objects. The built-in adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+
+Params may be supplied either as a full local-space fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }`; these are preserved as `sansa` bindings so query expressions can activate them with `path(...)`.
 
 The package also includes a browser workbench:
 
