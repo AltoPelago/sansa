@@ -399,6 +399,69 @@ test('distinguishes missing bindings from explicit null values', () => {
   assert.equal(unguardedMissingStatus.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
 });
 
+test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
+  const ordinaryStatuses = evaluateQuery([
+    'from $.inventory.items.*',
+    'where isValue(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(ordinaryStatuses.ok, true, JSON.stringify(ordinaryStatuses.errors ?? []));
+  assert.deepEqual(ordinaryStatuses.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
+
+  const ordinaryNumbers = evaluateQuery([
+    'from $.inventory.items.*',
+    'where isValue(.qty)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(ordinaryNumbers.ok, true, JSON.stringify(ordinaryNumbers.errors ?? []));
+  assert.deepEqual(ordinaryNumbers.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+    '$.inventory.items[3]',
+  ]);
+
+  const missingValue = evaluateQuery([
+    'from $.inventory.items[2]',
+    'where isValue(.status)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(missingValue.ok, true, JSON.stringify(missingValue.errors ?? []));
+  assert.deepEqual(missingValue.results, []);
+
+  const specialValues = evaluateQuery([
+    'from $.inventory.items.*',
+    'where isValue(.metric) or isValue(.ceiling)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(specialValues.ok, true, JSON.stringify(specialValues.errors ?? []));
+  assert.deepEqual(specialValues.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
+  const containerValue = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where isValue(.roles)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(containerValue.ok, true, JSON.stringify(containerValue.errors ?? []));
+  assert.deepEqual(containerValue.results, []);
+
+  const multipleValues = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where isValue(.roles.*)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(multipleValues.ok, false);
+  assert.equal(multipleValues.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const invalidArgument = evaluateQuery([
+    'from $.inventory.items[0]',
+    'where isValue("sku")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(invalidArgument.ok, false);
+  assert.equal(invalidArgument.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
 test('evaluates NaN and Infinity predicates explicitly', () => {
   const nanMetric = evaluateQuery([
     'from $.inventory.items.*',

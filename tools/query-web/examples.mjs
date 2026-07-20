@@ -177,6 +177,20 @@ export const queryExampleGroups = [
         },
       },
       {
+        name: 'ordinaryStatus',
+        label: 'Ordinary status',
+        query: lines(
+          'from $.inventory.items.*',
+          'where isValue(.status)',
+          'select { sku = .sku status = .status }',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[1] = {"sku":"B-200","status":"active"}',
+        },
+      },
+      {
         name: 'numericSpecials',
         label: 'NaN or infinity',
         query: lines(

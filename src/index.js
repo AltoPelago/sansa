@@ -764,7 +764,7 @@ function evaluateLookupExpression(expression, currentBinding, namespace, options
 }
 
 function isSpecialValuePredicateName(name) {
-  return ['isNull', 'isNullReason', 'isNaN', 'isInfinity'].includes(name);
+  return ['isValue', 'isNull', 'isNullReason', 'isNaN', 'isInfinity'].includes(name);
 }
 
 function evaluateSpecialValuePredicate(expression, currentBinding, namespace, options) {
@@ -774,6 +774,10 @@ function evaluateSpecialValuePredicate(expression, currentBinding, namespace, op
       ok: false,
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${expression.name}' expects ${arity} argument${arity === 1 ? '' : 's'}`),
     };
+  }
+
+  if (expression.name === 'isValue') {
+    return evaluateIsValuePredicate(expression.arguments[0], currentBinding, namespace, options);
   }
 
   const bindingInfo = evaluateSingleBindingArgument(expression.name, expression.arguments[0], currentBinding, namespace, options);
@@ -805,6 +809,32 @@ function evaluateSpecialValuePredicate(expression, currentBinding, namespace, op
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateIsValuePredicate(argument, currentBinding, namespace, options) {
+  const resolution = unwrapResolutionExpression(argument);
+  if (!resolution) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'isValue' expects a resolution expression"),
+    };
+  }
+  const evaluated = evaluateResolutionExpression(resolution, currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  if (evaluated.value.bindings.length === 0) return scalarBoolean(false);
+  if (evaluated.value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'isValue' expected one binding but resolved multiple bindings"),
+    };
+  }
+
+  const scalar = getBindingScalarInfo(namespace, evaluated.value.bindings[0]);
+  if (!scalar.ok) {
+    if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') return scalarBoolean(false);
+    return scalar;
+  }
+  return scalarBoolean(isOrdinaryValueScalar(scalar));
 }
 
 function evaluateSingleBindingArgument(name, argument, currentBinding, namespace, options) {
@@ -844,6 +874,12 @@ function isNanScalar(info) {
 
 function isInfinityScalar(info) {
   return info.kind === 'infinity' || info.value === Infinity || info.value === -Infinity;
+}
+
+function isOrdinaryValueScalar(info) {
+  if (isExplicitNullScalar(info) || isNanScalar(info) || isInfinityScalar(info)) return false;
+  if (typeof info.value === 'number') return Number.isFinite(info.value);
+  return typeof info.value === 'string' || typeof info.value === 'boolean';
 }
 
 function scalarBoolean(value) {

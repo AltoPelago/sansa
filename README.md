@@ -80,6 +80,8 @@ where exists(.status) and isNullReason(.status, "notSet")
 
 NaN and infinity are explicit numeric special values. Use `isNaN(...)` and `isInfinity(...)` for literal-form tests; `NaN` is rejected by scalar comparison and ordering.
 
+`isValue(...)` is a missing-aware ordinary scalar guard. It returns true for exactly one string, Boolean, or finite number binding. It returns false for missing bindings, non-scalar bindings, explicit null, NaN, and infinity, while multiple bindings remain a cardinality error.
+
 The current evaluator allows same-type number and string comparisons, Boolean equality, and infinity as a numeric bound. It rejects mixed-type comparisons, Boolean ordering, explicit null comparison, and NaN comparison.
 
 Membership tests a scalar against the scalar values exposed by a Binding Set:

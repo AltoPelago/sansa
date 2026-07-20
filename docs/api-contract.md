@@ -341,7 +341,7 @@ Currently evaluated:
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - lookup over addressable containers with `lookup`
-- built-in value predicates: `isNull`, `isNullReason`, `isNaN`, `isInfinity`
+- built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
 Boolean context accepts explicit Boolean scalar values and single resolved bindings that expose a Boolean scalar. It does not apply host-language truthiness to strings, numbers, nulls, objects, or Binding Sets. Boolean `not` evaluates its operand in Boolean context and returns the negated value. Boolean `and` and `or` short-circuit from left to right. `a and b` does not evaluate `b` when `a` is false; `a or b` does not evaluate `b` when `a` is true.
@@ -373,11 +373,14 @@ Missing bindings, explicit null values, and special numeric values are distinct:
 
 ```text
 absent(.status) == true when .status resolves zero bindings
+isValue(.status) == true when .status resolves one ordinary scalar binding
 isNull(.status) == true when .status resolves one explicit null binding
 isNullReason(.status, "notSet") == true when the null reason matches
 isNaN(.metric) == true when the scalar is explicit NaN
 isInfinity(.limit) == true when the scalar is positive or negative infinity
 ```
+
+`isValue(...)` is a missing-aware ordinary scalar guard. It returns true when its operand resolves exactly one string, Boolean, or finite number binding. It returns false for zero bindings, non-scalar bindings, explicit null, NaN, and infinity. More than one binding remains a cardinality error.
 
 `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
 
@@ -403,7 +406,7 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 | multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
 | unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
 
-The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Special value predicates such as `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 
