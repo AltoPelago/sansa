@@ -90,6 +90,8 @@ The left operand must resolve to one scalar. The right operand must be a Binding
 
 Ordinary string functions consume single scalar string arguments. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
+`lookup(base, key)` resolves a dynamic member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable.
+
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
 ```text

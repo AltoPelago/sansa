@@ -63,6 +63,13 @@
                     "value": "Adapter"
                   },
                   {
+                    "name": "category",
+                    "address": "$.inventory.items[0].category",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "hardware"
+                  },
+                  {
                     "name": "status",
                     "address": "$.inventory.items[0].status",
                     "semanticType": "null<string>",
@@ -161,6 +168,13 @@
                     "value": "Bracket"
                   },
                   {
+                    "name": "category",
+                    "address": "$.inventory.items[1].category",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "hardware"
+                  },
+                  {
                     "name": "status",
                     "address": "$.inventory.items[1].status",
                     "semanticType": "string",
@@ -250,6 +264,13 @@
                     "value": "Coupler"
                   },
                   {
+                    "name": "category",
+                    "address": "$.inventory.items[2].category",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "hardware"
+                  },
+                  {
                     "name": "metric",
                     "address": "$.inventory.items[2].metric",
                     "semanticType": "nan<number>",
@@ -324,6 +345,13 @@
                     "value": "Driver"
                   },
                   {
+                    "name": "category",
+                    "address": "$.inventory.items[3].category",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "tooling"
+                  },
+                  {
                     "name": "status",
                     "address": "$.inventory.items[3].status",
                     "semanticType": "null<string>",
@@ -383,6 +411,27 @@
                     ]
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "name": "categoryLabels",
+            "address": "$.inventory.categoryLabels",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "hardware",
+                "address": "$.inventory.categoryLabels.hardware",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "Hardware"
+              },
+              {
+                "name": "tooling",
+                "address": "$.inventory.categoryLabels.tooling",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "Tooling"
               }
             ]
           }

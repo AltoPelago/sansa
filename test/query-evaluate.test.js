@@ -33,6 +33,7 @@ const item0 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string', value: 'A-100' }),
     binding({ name: 'name', address: '$.inventory.items[0].name', semanticType: 'string', representationKind: 'string', value: 'Adapter' }),
+    binding({ name: 'category', address: '$.inventory.items[0].category', semanticType: 'string', representationKind: 'string', value: 'hardware' }),
     binding({ name: 'status', address: '$.inventory.items[0].status', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notSet', value: null }),
     binding({ name: 'metric', address: '$.inventory.items[0].metric', semanticType: 'number', representationKind: 'number', value: 10 }),
     binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number', value: 1 }),
@@ -56,6 +57,7 @@ const item1 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
     binding({ name: 'name', address: '$.inventory.items[1].name', semanticType: 'string', representationKind: 'string', value: 'Bracket' }),
+    binding({ name: 'category', address: '$.inventory.items[1].category', semanticType: 'string', representationKind: 'string', value: 'hardware' }),
     binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'string', representationKind: 'string', value: 'active' }),
     binding({ name: 'id', address: '$.inventory.items[1].id', semanticType: 'string', representationKind: 'string', value: '4' }),
     binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number', value: 4 }),
@@ -78,6 +80,7 @@ const item2 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[2].sku', semanticType: 'string', representationKind: 'string', value: 'C-300' }),
     binding({ name: 'name', address: '$.inventory.items[2].name', semanticType: 'string', representationKind: 'string', value: 'Coupler' }),
+    binding({ name: 'category', address: '$.inventory.items[2].category', semanticType: 'string', representationKind: 'string', value: 'hardware' }),
     binding({ name: 'metric', address: '$.inventory.items[2].metric', semanticType: 'nan<number>', representationKind: 'nan', scalarKind: 'nan', value: Number.NaN }),
     binding({ name: 'qty', address: '$.inventory.items[2].qty', semanticType: 'number', representationKind: 'number', value: 8 }),
     binding({ name: 'active', address: '$.inventory.items[2].active', semanticType: 'boolean', representationKind: 'boolean', value: false }),
@@ -92,6 +95,7 @@ const item3 = binding({
   children: [
     binding({ name: 'sku', address: '$.inventory.items[3].sku', semanticType: 'string', representationKind: 'string', value: 'D-250' }),
     binding({ name: 'name', address: '$.inventory.items[3].name', semanticType: 'string', representationKind: 'string', value: 'Driver' }),
+    binding({ name: 'category', address: '$.inventory.items[3].category', semanticType: 'string', representationKind: 'string', value: 'tooling' }),
     binding({ name: 'status', address: '$.inventory.items[3].status', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notApplicable', value: null }),
     binding({ name: 'id', address: '$.inventory.items[3].id', semanticType: 'number', representationKind: 'number', value: 3 }),
     binding({ name: 'ceiling', address: '$.inventory.items[3].ceiling', semanticType: 'infinity<number>', representationKind: 'infinity', scalarKind: 'infinity', value: Infinity }),
@@ -123,6 +127,15 @@ const root = binding({
           address: '$.inventory.items',
           representationKind: 'list',
           children: [item0, item1, item2, item3],
+        }),
+        binding({
+          name: 'categoryLabels',
+          address: '$.inventory.categoryLabels',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'hardware', address: '$.inventory.categoryLabels.hardware', semanticType: 'string', representationKind: 'string', value: 'Hardware' }),
+            binding({ name: 'tooling', address: '$.inventory.categoryLabels.tooling', semanticType: 'string', representationKind: 'string', value: 'Tooling' }),
+          ],
         }),
       ],
     }),
@@ -569,6 +582,87 @@ test('evaluates scalar membership over binding sets', () => {
   ].join('\n'), namespace);
   assert.equal(infinityRight.ok, true, JSON.stringify(infinityRight.errors ?? []));
   assert.deepEqual(infinityRight.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+});
+
+test('evaluates lookup over addressable containers', () => {
+  const projected = evaluateQuery([
+    'from $.inventory.items.*',
+    'where .qty >= 4',
+    'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) }',
+  ].join('\n'), namespace);
+  assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
+  assert.deepEqual(projected.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'B-200',
+        category: 'Hardware',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'C-300',
+        category: 'Hardware',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'D-250',
+        category: 'Tooling',
+      },
+    },
+  ]);
+
+  const position = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup(.roles, 1)',
+  ].join('\n'), namespace);
+  assert.equal(position.ok, true, JSON.stringify(position.errors ?? []));
+  assert.deepEqual(position.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[0].roles[1]']);
+
+  const missingTarget = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup($.inventory.categoryLabels, "unknown")',
+  ].join('\n'), namespace);
+  assert.equal(missingTarget.ok, true, JSON.stringify(missingTarget.errors ?? []));
+  assert.deepEqual(missingTarget.results[0].value.bindings, []);
+
+  const missingTargetInProjection = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select { category = lookup($.inventory.categoryLabels, "unknown") }',
+  ].join('\n'), namespace);
+  assert.equal(missingTargetInProjection.ok, false);
+  assert.equal(missingTargetInProjection.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+
+  const multipleBase = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup($.inventory.items.*, .category)',
+  ].join('\n'), namespace);
+  assert.equal(multipleBase.ok, false);
+  assert.equal(multipleBase.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const multipleKey = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup($.inventory.categoryLabels, .roles.*)',
+  ].join('\n'), namespace);
+  assert.equal(multipleKey.ok, false);
+  assert.equal(multipleKey.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const invalidKey = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup($.inventory.categoryLabels, true)',
+  ].join('\n'), namespace);
+  assert.equal(invalidKey.ok, false);
+  assert.equal(invalidKey.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const invalidBase = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup("labels", .category)',
+  ].join('\n'), namespace);
+  assert.equal(invalidBase.ok, false);
+  assert.equal(invalidBase.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates built-in string functions', () => {

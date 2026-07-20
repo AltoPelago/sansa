@@ -1,34 +1,38 @@
 inventory:object = {
   items:list<object> = [
-    @{lane:string = "primary"}:object = {
+      @{lane:string = "primary"}:object = {
       sku@{origin:string = "catalog"}:string = "A-100"
       name:string = "Adapter"
+      category:string = "hardware"
       status:null<string> = !notSet
       metric:number = 10
       qty:number = 1
       active:boolean = true
       roles:list<string> = ["admin", "user"]
     },
-    @{lane:string = "primary"}:object = {
+      @{lane:string = "primary"}:object = {
       sku@{origin:string = "catalog"}:string = "B-200"
       name:string = "Bracket"
+      category:string = "hardware"
       status:string = "active"
       id:string = "4"
       qty:number = 4
       active:boolean = true
       roles:list<string> = ["user"]
     },
-    @{lane:string = "overflow"}:object = {
+      @{lane:string = "overflow"}:object = {
       sku@{origin:string = "manual"}:string = "C-300"
       name:string = "Coupler"
+      category:string = "hardware"
       metric:nan<number> = NaN
       qty:number = 8
       active:boolean = false
       roles:list<string> = []
     },
-    @{lane:string = "overflow"}:object = {
+      @{lane:string = "overflow"}:object = {
       sku@{origin:string = "catalog"}:string = "D-250"
       name:string = "Driver"
+      category:string = "tooling"
       status:null<string> = !notApplicable
       id:number = 3
       ceiling:infinity<number> = Infinity
@@ -37,4 +41,8 @@ inventory:object = {
       roles:list<string> = ["admin", "admin"]
     }
   ]
+  categoryLabels:object = {
+    hardware:string = "Hardware"
+    tooling:string = "Tooling"
+  }
 }

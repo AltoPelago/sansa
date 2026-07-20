@@ -477,6 +477,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (isSpecialValuePredicateName(expression.name)) {
     return evaluateSpecialValuePredicate(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'lookup') {
+    return evaluateLookupExpression(expression, currentBinding, namespace, options);
+  }
 
   const evaluatedArgs = [];
   for (const argument of expression.arguments) {
@@ -508,6 +511,70 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateLookupExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length !== 2) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects 2 arguments"),
+    };
+  }
+
+  const baseResolution = unwrapResolutionExpression(expression.arguments[0]);
+  if (!baseResolution) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects a resolution expression base"),
+    };
+  }
+
+  const base = evaluateResolutionExpression(baseResolution, currentBinding, namespace, options);
+  if (!base.ok) return base;
+  if (base.value.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', "Function 'lookup' expected one base binding but resolved none"),
+    };
+  }
+  if (base.value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'lookup' expected one base binding but resolved multiple bindings"),
+    };
+  }
+
+  const key = evaluateQueryExpressionValue(expression.arguments[1], currentBinding, namespace, options);
+  if (!key.ok) return key;
+  const keyScalar = expectScalarQueryValue(key.value, namespace);
+  if (!keyScalar.ok) return keyScalar;
+
+  let bindings;
+  if (typeof keyScalar.value === 'string') {
+    bindings = selectMember(namespace, base.value.bindings[0], keyScalar.value);
+  } else if (Number.isInteger(keyScalar.value) && keyScalar.value >= 0) {
+    bindings = selectPosition(namespace, base.value.bindings[0], keyScalar.value);
+  } else {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects a string member key or non-negative integer position key"),
+    };
+  }
+
+  if (bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'lookup' target resolved multiple bindings"),
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: 'bindingSet',
+      bindings,
+    },
+  };
 }
 
 function isSpecialValuePredicateName(name) {

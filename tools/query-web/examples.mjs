@@ -207,6 +207,25 @@ export const queryExampleGroups = [
     ],
   },
   {
+    label: 'Functions',
+    examples: [
+      {
+        name: 'categoryLookup',
+        label: 'Category lookup',
+        query: lines(
+          'from $.inventory.items.*',
+          'where .qty >= 4',
+          'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) }',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.inventory.items[3] = {"sku":"D-250","category":"Tooling"}',
+        },
+      },
+    ],
+  },
+  {
     label: 'Pipeline',
     examples: [
       {
