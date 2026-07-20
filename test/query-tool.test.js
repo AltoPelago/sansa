@@ -88,6 +88,19 @@ test('query tool mounts JSON params as a local address space', () => {
   assert.equal(result.stdout.trim(), '$.inventory.items[3].sku = "D-250"');
 });
 
+test('query tool mounts JSON params from a file', () => {
+  const result = runTool([
+    '--params-file',
+    'fixtures/query-params-single.json',
+    '--query',
+    'from path($.<"params">.source) select path($.<"params">.field)',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), '$.inventory.items[0].name = "Adapter"');
+});
+
 test('query tool reports malformed JSON params', () => {
   const result = runTool([
     '--params',
@@ -98,6 +111,20 @@ test('query tool reports malformed JSON params', () => {
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /could not read params/);
+});
+
+test('query tool rejects conflicting params inputs', () => {
+  const result = runTool([
+    '--params',
+    '{}',
+    '--params-file',
+    'fixtures/query-params-single.json',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /use either --params or --params-file/);
 });
 
 test('query tool emits compact JSON for parse mode', () => {

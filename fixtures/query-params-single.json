@@ -1,0 +1,10 @@
+{
+  "source": {
+    "type": "SansaAddressLiteral",
+    "address": "$.inventory.items[0]"
+  },
+  "field": {
+    "type": "SansaAddressLiteral",
+    "address": "?.name"
+  }
+}
