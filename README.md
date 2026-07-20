@@ -20,7 +20,7 @@ This package is the first implementation slice for SANSA Address, SANSA Resolve,
 - Stage 0 SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
 - query comment stripping, clause-order validation, and canonical query rendering
 - Stage 1 SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, cardinality operators, function-call shape, and projection shape
-- Stage 2 SANSA.Query evaluator scaffold for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, cardinality predicates, built-in string functions, and projection expressions
+- Stage 2 SANSA.Query evaluator scaffold for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, cardinality predicates, built-in string functions, function-like operators, and projection expressions
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -90,7 +90,7 @@ where "admin" in .roles.*
 
 The left operand must resolve to one scalar. The right operand must be a Binding Set; empty and non-matching sets evaluate to false. Each right-side binding is compared using equality comparison rules, so incompatible values, explicit nulls, and NaN fail instead of being skipped.
 
-Ordinary string functions consume single scalar string arguments. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
+Ordinary string functions consume single scalar string arguments. The current built-ins are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
 `fallback(primary, replacement)` handles missing primary values only. The replacement expression is evaluated only when the primary expression resolves no scalar value; explicit null, cardinality, type, and comparison errors remain fail-fast.
 

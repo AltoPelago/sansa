@@ -336,7 +336,7 @@ Currently evaluated:
 - Boolean `not`, `and`, `or`
 - existence predicates over resolution expressions: `exists`, `absent`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
-- built-in string functions: `contains`, `startsWith`, `lower`, `concat`
+- built-in string functions: `contains`, `startsWith`, `endsWith`, `lower`, `concat`
 - missing-aware fallback with `fallback`
 - lookup over addressable containers with `lookup`
 - built-in value predicates: `isNull`, `isNullReason`, `isNaN`, `isInfinity`
@@ -401,7 +401,7 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 | multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
 | unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
 
-The current built-in string functions require string arguments. They reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Special value predicates such as `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Special value predicates such as `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `fallback(primary, replacement)` is a function-like operator with lazy missing handling. The primary operand is consumed in scalar value context. If it resolves zero bindings, or raises a missing-scalar diagnostic, the replacement operand is evaluated and consumed in the same scalar value context. If the primary operand succeeds, the replacement operand is not evaluated. Explicit null values, cardinality errors, type errors, comparison errors, and unsupported-function errors do not trigger fallback.
 

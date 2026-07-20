@@ -777,6 +777,39 @@ test('evaluates built-in string functions', () => {
       },
     },
   ]);
+
+  const suffixFiltered = evaluateQuery([
+    'from $.inventory.items.*',
+    'where endsWith(.sku, "00")',
+    'select { sku = .sku code = lower(.sku) label = concat("item:", .sku) }',
+  ].join('\n'), namespace);
+  assert.equal(suffixFiltered.ok, true, JSON.stringify(suffixFiltered.errors ?? []));
+  assert.deepEqual(suffixFiltered.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        sku: 'A-100',
+        code: 'a-100',
+        label: 'item:A-100',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'B-200',
+        code: 'b-200',
+        label: 'item:B-200',
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        sku: 'C-300',
+        code: 'c-300',
+        label: 'item:C-300',
+      },
+    },
+  ]);
 });
 
 test('applies ordinary function argument semantics', () => {
@@ -817,7 +850,7 @@ test('applies ordinary function argument semantics', () => {
 });
 
 test('rejects unsupported and invalid function calls explicitly', () => {
-  const unsupported = evaluateQuery('from $.inventory.items.*\nselect endsWith(.sku, "B")', namespace);
+  const unsupported = evaluateQuery('from $.inventory.items.*\nselect matches(.sku, "B")', namespace);
   assert.equal(unsupported.ok, false);
   assert.equal(unsupported.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
 

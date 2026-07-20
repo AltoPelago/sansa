@@ -510,6 +510,8 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
       return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
     case 'startsWith':
       return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.startsWith(search));
+    case 'endsWith':
+      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
     case 'lower':
       return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
     case 'concat':
