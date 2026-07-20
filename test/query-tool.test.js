@@ -23,6 +23,22 @@ test('query tool evaluates a query against the default fixture', () => {
   assert.equal(result.stdout.trim(), '$.inventory.items[1].sku = "B-200"');
 });
 
+test('query tool renders AEON-style text values', () => {
+  const result = runTool([
+    '--query',
+    'from $.inventory.items.* select { sku = .sku status = fallback(.status, "missing") }',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), [
+    '$.inventory.items[0] = {"sku":"A-100","status":!notSet}',
+    '$.inventory.items[1] = {"sku":"B-200","status":"active"}',
+    '$.inventory.items[2] = {"sku":"C-300","status":"missing"}',
+    '$.inventory.items[3] = {"sku":"D-250","status":!notApplicable}',
+  ].join('\n'));
+});
+
 test('query tool emits compact JSON for parse mode', () => {
   const result = runTool([
     '--mode',

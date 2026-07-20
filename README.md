@@ -46,6 +46,8 @@ npm run query -- --format json --query 'from $.inventory.items.* where any(.role
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 ```
 
+Text output uses an AEON-like value renderer for readability, including explicit null reasons such as `!notSet`. JSON output remains the structured machine-readable result envelope.
+
 The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json). Fixtures expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
 
 For browser-based testing against `.aeon` source, run the technical workbench:

@@ -1,6 +1,8 @@
 import { evaluateQuery, parseQuery } from '../../src/index.js';
 
 const aeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
+const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
+const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
 
 export function parseQueryForWorkbench(querySource) {
   const result = parseQuery(querySource);
@@ -384,19 +386,53 @@ function renderDiagnosticText(errors) {
 function renderQueryValueLines(value, sourceBinding) {
   switch (value.type) {
     case 'scalar':
+      return [`${sourceBinding.address ?? '<binding>'} = ${renderAeonValue(value.value, value[QUERY_VALUE_METADATA_PROPERTY])}`];
     case 'object':
-      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(value.value))}`];
+      return [`${sourceBinding.address ?? '<binding>'} = ${renderAeonValue(value.value, undefined, value.value?.[QUERY_OBJECT_FIELD_METADATA_PROPERTY])}`];
     case 'bindingSet':
       if (value.bindings.length === 0) return [`${sourceBinding.address ?? '<binding>'} -> (empty)`];
       return value.bindings.map((binding) => {
         const scalar = scalarFromBinding(binding);
         return scalar.ok
-          ? `${binding.address ?? '<binding>'} = ${JSON.stringify(sanitizeJsonValue(scalar.value))}`
+          ? `${binding.address ?? '<binding>'} = ${renderAeonValue(scalar.value, scalarMetadataFromBinding(binding))}`
           : `${binding.address ?? '<binding>'}`;
       });
     default:
-      return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(value)}`];
+      return [`${sourceBinding.address ?? '<binding>'} = ${renderAeonValue(value)}`];
   }
+}
+
+function renderAeonValue(value, metadata, fieldMetadata) {
+  if ((metadata?.kind === 'null' || value === null) && typeof metadata?.nullReason === 'string') {
+    return `!${metadata.nullReason}`;
+  }
+  if (metadata?.kind === 'nan' || (typeof value === 'number' && Number.isNaN(value))) return 'NaN';
+  if (metadata?.kind === 'infinity' || value === Infinity) return 'Infinity';
+  if (value === -Infinity) return '-Infinity';
+  if (value === null) return 'null';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => renderAeonValue(entry)).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value).map(([key, entry]) => (
+      `${JSON.stringify(key)}:${renderAeonValue(entry, fieldMetadata?.[key])}`
+    )).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function scalarMetadataFromBinding(binding) {
+  const metadata = {};
+  const kind = binding.scalarKind ?? binding.valueKind ?? binding.literalKind ?? binding.representationKind ?? binding.kind ?? binding.type;
+  if (typeof kind === 'string') metadata.kind = lowerFirst(kind);
+  if (binding.nullReason !== undefined) metadata.nullReason = binding.nullReason;
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function lowerFirst(value) {
+  return value ? value[0].toLowerCase() + value.slice(1) : value;
 }
 
 function renderQueryValueInspectLines(value) {

@@ -50,6 +50,23 @@ test('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+test('query web runtime renders AEON-style text values', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items.* select { sku = .sku status = fallback(.status, "missing") }',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, [
+    '$.inventory.items[0] = {"sku":"A-100","status":!notSet}',
+    '$.inventory.items[1] = {"sku":"B-200","status":"active"}',
+    '$.inventory.items[2] = {"sku":"C-300","status":"missing"}',
+    '$.inventory.items[3] = {"sku":"D-250","status":!notApplicable}',
+  ].join('\n'));
+});
+
 test('query web example catalog is grouped and uniquely keyed', () => {
   assert.equal(firstQueryExampleName(), 'directExpansion');
   assert.deepEqual(queryExampleGroups.map((group) => group.label), [

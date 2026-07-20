@@ -1,6 +1,9 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
 
+const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
+const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
+
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
     super(message);
@@ -457,12 +460,21 @@ function evaluateBooleanBinaryExpression(expression, currentBinding, namespace, 
 
 function evaluateProjectionExpression(expression, currentBinding, namespace, options) {
   const value = {};
+  const fieldMetadata = {};
   for (const field of expression.fields) {
     const evaluated = evaluateQueryExpressionValue(field.expression, currentBinding, namespace, options);
     if (!evaluated.ok) return evaluated;
+    const metadata = queryValueMetadata(evaluated.value, namespace);
     const unwrapped = unwrapQueryValue(evaluated.value, namespace);
     if (!unwrapped.ok) return unwrapped;
     value[field.name] = unwrapped.value;
+    if (metadata) fieldMetadata[field.name] = metadata;
+  }
+  if (Object.keys(fieldMetadata).length > 0) {
+    Object.defineProperty(value, QUERY_OBJECT_FIELD_METADATA_PROPERTY, {
+      value: fieldMetadata,
+      enumerable: false,
+    });
   }
   return {
     ok: true,
@@ -569,13 +581,7 @@ function consumeFallbackOperand(value, namespace) {
   }
   const scalar = getBindingScalarValue(namespace, value.bindings[0]);
   if (!scalar.ok) return scalar;
-  return {
-    ok: true,
-    value: {
-      type: 'scalar',
-      value: scalar.value,
-    },
-  };
+  return scalarQueryValue(scalar.value, scalar.metadata);
 }
 
 function evaluateLookupExpression(expression, currentBinding, namespace, options) {
@@ -726,12 +732,23 @@ function isInfinityScalar(info) {
 }
 
 function scalarBoolean(value) {
+  return scalarQueryValue(value);
+}
+
+function scalarQueryValue(value, metadata) {
+  const output = {
+    type: 'scalar',
+    value,
+  };
+  if (metadata) {
+    Object.defineProperty(output, QUERY_VALUE_METADATA_PROPERTY, {
+      value: metadata,
+      enumerable: false,
+    });
+  }
   return {
     ok: true,
-    value: {
-      type: 'scalar',
-      value,
-    },
+    value: output,
   };
 }
 
@@ -1041,7 +1058,7 @@ function unwrapQueryValue(value, namespace) {
 function getBindingScalarValue(namespace, binding) {
   const info = getBindingScalarInfo(namespace, binding);
   if (!info.ok) return info;
-  return { ok: true, value: info.value };
+  return { ok: true, value: info.value, metadata: scalarMetadataFromInfo(info) };
 }
 
 function getBindingScalarInfo(namespace, binding) {
@@ -1071,6 +1088,20 @@ function getBindingScalarKind(namespace, binding) {
 function getBindingNullReason(namespace, binding) {
   if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
   return binding.nullReason;
+}
+
+function queryValueMetadata(value, namespace) {
+  if (value.type === 'scalar') return value[QUERY_VALUE_METADATA_PROPERTY];
+  if (value.type !== 'bindingSet' || value.bindings.length !== 1) return undefined;
+  const info = getBindingScalarInfo(namespace, value.bindings[0]);
+  return info.ok ? scalarMetadataFromInfo(info) : undefined;
+}
+
+function scalarMetadataFromInfo(info) {
+  const metadata = {};
+  if (info.kind !== undefined) metadata.kind = info.kind;
+  if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function applyResolveSelector(selector, bindings, namespace, selectorIndex) {

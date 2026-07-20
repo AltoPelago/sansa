@@ -87,6 +87,8 @@ npm run query -- --query 'from $.inventory.items.* where .qty >= 2 select .sku'
 npm run query -- --mode parse --format json --query 'from $.inventory.items.* select .sku'
 ```
 
+Evaluate-mode text output renders values in an AEON-like display form. Strings remain quoted, constructed objects render compactly, and explicit null bindings with a surfaced `nullReason` render as `!reason`, for example `!notSet`. JSON output is unchanged and remains the stable structured result envelope for tooling.
+
 Options:
 
 - `--query`, `-q`: query source
