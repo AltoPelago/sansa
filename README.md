@@ -58,7 +58,7 @@ Then open `http://127.0.0.1:4173/tools/query-web/`.
 
 The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a JSON fixture mode for debugging the resolver shape directly.
 
-In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload.
+In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload. Inspect mode renders a scan-friendly view of candidate addresses, projected values, selected binding addresses, and binding metadata.
 
 Workbench examples live in [tools/query-web/examples.mjs](tools/query-web/examples.mjs). The browser UI renders the grouped example menu from that catalog, and the runtime tests execute the same examples against the default `.aeon` fixture.
 

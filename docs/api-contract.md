@@ -105,7 +105,7 @@ npm run query:web
 
 The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. JSON fixture mode remains available for direct resolver-shape debugging.
 
-Workbench responses include `text` for successful results and diagnostics. Text mode is intended for quick inspection; JSON mode exposes the structured result or diagnostic payload.
+Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 
 Workbench example queries are defined as grouped catalog data in [tools/query-web/examples.mjs](../tools/query-web/examples.mjs). The UI renders its example menu from that module, and tests use the same catalog to keep labels, queries, and expected behavior in sync.
 

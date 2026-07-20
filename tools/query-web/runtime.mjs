@@ -18,6 +18,7 @@ export function parseQueryForWorkbench(querySource) {
     ok: true,
     mode: 'parse',
     text: result.query.canonical,
+    inspect: renderQueryInspect(result.query),
     query: summarizeQuery(result.query),
   };
 }
@@ -50,6 +51,7 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query }) {
     sourceKind,
     count: result.results.length,
     text: renderTextResults(result.results),
+    inspect: renderInspectResults(result.results),
     results: result.results.map((entry) => ({
       type: entry.type,
       ...(entry.address === undefined ? {} : { address: entry.address }),
@@ -341,6 +343,30 @@ function renderTextResults(results) {
   return results.flatMap((entry) => renderQueryValueLines(entry.value, entry.binding)).join('\n');
 }
 
+function renderQueryInspect(query) {
+  return [
+    `canonical: ${query.canonical}`,
+    `from: ${query.from.address.canonical}`,
+    ...(query.where ? [`where: ${query.where.expression}`] : []),
+    ...(query.orderBy ? query.orderBy.keys.map((key, index) => (
+      `order[${index}]: ${key.expression} ${key.direction}`
+    )) : []),
+    ...(query.offset ? [`offset: ${query.offset.value}`] : []),
+    ...(query.limit ? [`limit: ${query.limit.value}`] : []),
+    `select: ${query.select.expression}`,
+  ].join('\n');
+}
+
+function renderInspectResults(results) {
+  if (results.length === 0) return '(no results)';
+  return results.map((entry, index) => [
+    `Result ${index + 1}`,
+    `candidate: ${entry.address ?? entry.binding.address ?? '<binding>'}`,
+    ...renderBindingInspectLines(entry.binding, 'candidate'),
+    ...renderQueryValueInspectLines(entry.value),
+  ].join('\n')).join('\n\n');
+}
+
 function renderDiagnosticText(errors) {
   if (errors.length === 0) return '(no diagnostics)';
   return errors.map((error) => {
@@ -371,6 +397,39 @@ function renderQueryValueLines(value, sourceBinding) {
     default:
       return [`${sourceBinding.address ?? '<binding>'} = ${JSON.stringify(value)}`];
   }
+}
+
+function renderQueryValueInspectLines(value) {
+  switch (value.type) {
+    case 'scalar':
+      return [`value: scalar ${JSON.stringify(sanitizeJsonValue(value.value))}`];
+    case 'object':
+      return [`value: object ${JSON.stringify(sanitizeJsonValue(value.value))}`];
+    case 'bindingSet':
+      if (value.bindings.length === 0) return ['value: bindingSet (0 bindings)'];
+      return [
+        `value: bindingSet (${value.bindings.length} binding${value.bindings.length === 1 ? '' : 's'})`,
+        ...value.bindings.flatMap((binding) => [
+          `- ${binding.address ?? '<binding>'}`,
+          ...renderBindingInspectLines(binding, '  binding'),
+        ]),
+      ];
+    default:
+      return [`value: ${JSON.stringify(sanitizeJsonValue(value))}`];
+  }
+}
+
+function renderBindingInspectLines(binding, label) {
+  const summary = summarizeBinding(binding);
+  return [
+    ...(summary.name === undefined ? [] : [`${label}.name: ${summary.name}`]),
+    ...(summary.index === undefined ? [] : [`${label}.index: ${summary.index}`]),
+    ...(summary.semanticType === undefined ? [] : [`${label}.semanticType: ${summary.semanticType}`]),
+    ...(summary.representationKind === undefined ? [] : [`${label}.representationKind: ${summary.representationKind}`]),
+    ...(summary.scalarKind === undefined ? [] : [`${label}.scalarKind: ${summary.scalarKind}`]),
+    ...(summary.nullReason === undefined ? [] : [`${label}.nullReason: ${summary.nullReason}`]),
+    ...(summary.value === undefined ? [] : [`${label}.value: ${JSON.stringify(summary.value)}`]),
+  ];
 }
 
 function summarizeQuery(query) {

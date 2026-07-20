@@ -121,7 +121,7 @@ async function parseOnly() {
   resultStatus.textContent = payload.ok
     ? 'parse summary'
     : `${payload.errors.length} error${payload.errors.length === 1 ? '' : 's'}`;
-  renderValue(formatOutputMode() === 'json' ? payload : formatPayloadText(payload));
+  renderValue(formatPayloadOutput(payload));
 }
 
 async function runQuery() {
@@ -137,7 +137,7 @@ async function runQuery() {
   resultStatus.textContent = payload.ok
     ? `${payload.count} result${payload.count === 1 ? '' : 's'}`
     : `${payload.errors.length} error${payload.errors.length === 1 ? '' : 's'}`;
-  renderValue(formatOutputMode() === 'json' ? payload : formatPayloadText(payload));
+  renderValue(formatPayloadOutput(payload));
 }
 
 async function queryApi(payload) {
@@ -173,6 +173,17 @@ function formatPayloadText(payload) {
   if (typeof payload.text === 'string') return payload.text;
   if (Array.isArray(payload.errors)) return formatDiagnostics(payload.errors);
   return JSON.stringify(payload, null, 2);
+}
+
+function formatPayloadOutput(payload) {
+  switch (formatOutputMode()) {
+    case 'json':
+      return payload;
+    case 'inspect':
+      return typeof payload.inspect === 'string' ? payload.inspect : formatPayloadText(payload);
+    default:
+      return formatPayloadText(payload);
+  }
 }
 
 function formatDiagnostics(errors) {

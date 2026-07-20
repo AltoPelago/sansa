@@ -14,6 +14,8 @@ test('query web runtime parses query summaries', () => {
     from: '$.inventory.items.*',
     select: '.sku',
   });
+  assert.match(result.inspect, /canonical: from \$\.inventory\.items\.\*\nselect \.sku/);
+  assert.match(result.inspect, /select: \.sku/);
 });
 
 test('query web runtime evaluates against AEON source', async () => {
@@ -27,6 +29,14 @@ test('query web runtime evaluates against AEON source', async () => {
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   assert.equal(result.count, 1);
   assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
+  assert.match(result.inspect, /Result 1/);
+  assert.match(result.inspect, /candidate: \$\.inventory\.items\[1\]/);
+  assert.match(result.inspect, /candidate\.representationKind: object/);
+  assert.match(result.inspect, /value: bindingSet \(1 binding\)/);
+  assert.match(result.inspect, /- \$\.inventory\.items\[1\]\.sku/);
+  assert.match(result.inspect, /binding\.semanticType: string/);
+  assert.match(result.inspect, /binding\.representationKind: string/);
+  assert.match(result.inspect, /binding\.value: "B-200"/);
   assert.equal(result.results[0].type, 'queryResult');
   assert.equal(result.results[0].address, '$.inventory.items[1]');
   assert.deepEqual(result.results[0].value.bindings, [
