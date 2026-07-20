@@ -152,6 +152,7 @@ test('query web example catalog is grouped and uniquely keyed', () => {
     'Predicates',
     'Functions',
     'Pipeline',
+    'Recipes',
     'Diagnostics',
   ]);
 

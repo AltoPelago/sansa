@@ -316,6 +316,54 @@ export const queryExampleGroups = [
     ],
   },
   {
+    label: 'Recipes',
+    examples: [
+      {
+        name: 'dynamicPathRecipe',
+        label: 'Dynamic path pipeline',
+        query: lines(
+          'from path($.<"params">.source)',
+          'where isValue(path($.<"params">.statusField)) and path($.<"params">.statusField) == "active"',
+          'order by path($.<"params">.sortField) asc',
+          'select path($.<"params">.field)',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[1].sku = "B-200"',
+        },
+      },
+      {
+        name: 'statusPresenceRecipe',
+        label: 'Status presence',
+        query: lines(
+          'from $.inventory.items.*',
+          'where isValue(.status) or (exists(.status) and isNull(.status))',
+          'select { sku = .sku status = fallback(.status, "missing") }',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.inventory.items[3] = {"sku":"D-250","status":!notApplicable}',
+        },
+      },
+      {
+        name: 'lookupFallbackRecipe',
+        label: 'Lookup fallback',
+        query: lines(
+          'from $.inventory.items.*',
+          'where .qty >= 4',
+          'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.inventory.items[2] = {"sku":"C-300","category":"Hardware","status":"missing"}',
+        },
+      },
+    ],
+  },
+  {
     label: 'Diagnostics',
     examples: [
       {
