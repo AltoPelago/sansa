@@ -26,6 +26,16 @@ function runTool(args) {
   });
 }
 
+test('query tool help documents fixture kind support', () => {
+  const result = runTool(['--help']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.aeon/);
+  assert.match(result.stdout, /--fixture-kind <kind>/);
+  assert.match(result.stdout, /Force fixture kind: aeon or json/);
+});
+
 test('query tool evaluates a query against the default fixture', () => {
   const result = runTool([
     '--query',
@@ -133,6 +143,30 @@ test('query tool evaluates table and label examples against JSON fixtures', () =
 });
 
 test('query tool honors explicit fixture kind and reports fixture kind errors', () => {
+  const explicitJson = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
+    '--fixture-kind',
+    'json',
+    '--query',
+    'from $.inventory.items[0] select .sku',
+  ]);
+
+  assert.equal(explicitJson.status, 0, explicitJson.stderr);
+  assert.equal(explicitJson.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
+
+  const explicitAeon = runTool([
+    '--fixture',
+    'fixtures/query-inventory.aeon',
+    '--fixture-kind',
+    'aeon',
+    '--query',
+    'from $.inventory.items[0] select .sku',
+  ]);
+
+  assert.equal(explicitAeon.status, 0, explicitAeon.stderr);
+  assert.equal(explicitAeon.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
+
   const forcedJson = runTool([
     '--fixture',
     'fixtures/query-inventory.aeon',
