@@ -264,6 +264,19 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[2] = {"sku":"C-300","code":"c-300","name":"COUPLER","label":"item:C-300"}',
         },
       },
+      {
+        name: 'objectFromRows',
+        label: 'Object from rows',
+        query: lines(
+          'from $.table.content.*',
+          'select objectFrom($.table.header.*, .*)',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.table.content[1] = {"name":"Alice","age":31}',
+        },
+      },
     ],
   },
   {

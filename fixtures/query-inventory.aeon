@@ -46,3 +46,11 @@ inventory:object = {
     tooling:string = "Tooling"
   }
 }
+
+table:object = {
+  header:list<string> = ["name", "age"]
+  content:list = [
+    ("Bob", 22)
+    ("Alice", 31)
+  ]
+}
