@@ -969,6 +969,36 @@ test('evaluates objectFrom over paired binding sets', () => {
     },
   ]);
 
+  const ageOnly = evaluateQuery([
+    'from $.table.content.*',
+    'select objectFrom($.table.header[1], .[1])',
+  ].join('\n'), namespace);
+  assert.equal(ageOnly.ok, true, JSON.stringify(ageOnly.errors ?? []));
+  assert.deepEqual(ageOnly.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        age: 22,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        age: 31,
+      },
+    },
+  ]);
+
+  const ageValues = evaluateQuery([
+    'from $.table.content.*',
+    'select .[1]',
+  ].join('\n'), namespace);
+  assert.equal(ageValues.ok, true, JSON.stringify(ageValues.errors ?? []));
+  assert.deepEqual(ageValues.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.table.content[0][1]'],
+    ['$.table.content[1][1]'],
+  ]);
+
   const mismatched = evaluateQuery([
     'from $.table.content[0]',
     'select objectFrom($.table.header[0..0], .*)',

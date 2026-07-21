@@ -398,7 +398,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
 function evaluateResolutionExpression(expression, currentBinding, namespace, options) {
   const resolveOptions = {
     ...(options.resolve ?? {}),
-    ...(expression.scope === 'current' ? { contextualRoot: currentBinding } : {}),
+    ...(['current', 'contextual'].includes(expression.scope) ? { contextualRoot: currentBinding } : {}),
   };
   const resolved = resolveAddress(expression.address, namespace, resolveOptions);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
@@ -2304,7 +2304,12 @@ class QueryExpressionParser {
         canonical: '.',
       };
     }
-    const parseSource = source.startsWith('.') ? `?${source}` : source;
+    const positionalCurrentShorthand = isQueryCurrentPositionalShorthand(source);
+    const parseSource = positionalCurrentShorthand
+      ? `?${source.slice(1)}`
+      : source.startsWith('.')
+        ? `?${source}`
+        : source;
     const result = parseAddress(parseSource, this.options.address);
     if (!result.ok) {
       const first = result.errors[0];
@@ -2314,7 +2319,9 @@ class QueryExpressionParser {
     const scope = source.startsWith('.')
       ? 'current'
       : result.address.root.kind;
-    const canonical = source.startsWith('.')
+    const canonical = positionalCurrentShorthand
+      ? `.${renderAddress(result.address).slice(1)}`
+      : source.startsWith('.')
       ? renderAddress(result.address).slice(1)
       : renderAddress(result.address);
     return {
@@ -2692,6 +2699,10 @@ function normalizeQueryExpression(source) {
     output += char;
   }
   return output.trim();
+}
+
+function isQueryCurrentPositionalShorthand(source) {
+  return source.startsWith('.[') && source[2] !== '"';
 }
 
 function splitTopLevelQueryList(source) {
