@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateQuery, parseQuery } from '../src/index.js';
+import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const defaultFixturePath = resolve(root, 'fixtures', 'query-inventory.json');
+const defaultFixturePath = resolve(root, 'fixtures', 'query-inventory.aeon');
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
 
@@ -23,15 +24,9 @@ if (!querySource.trim()) {
   process.exit(2);
 }
 
-const fixturePath = resolve(args.fixture ?? defaultFixturePath);
-const fixture = readJson(fixturePath);
-const namespace = buildNamespace(fixture);
-const paramsBinding = readParamsBinding(args);
-if (paramsBinding) {
-  mountParamsLocalSpace(namespace.root, paramsBinding);
-}
 const mode = args.mode ?? 'evaluate';
 const format = args.format ?? 'text';
+const fixturePath = resolve(args.fixture ?? defaultFixturePath);
 
 if (!['evaluate', 'parse'].includes(mode)) {
   console.error(`SANSA Query tool error: unsupported --mode '${mode}'. Expected 'evaluate' or 'parse'.`);
@@ -42,9 +37,20 @@ if (!['text', 'json'].includes(format)) {
   process.exit(2);
 }
 
-const result = mode === 'parse'
-  ? parseQuery(querySource)
-  : evaluateQuery(querySource, namespace);
+let result;
+if (mode === 'parse') {
+  result = parseQuery(querySource);
+} else {
+  const loaded = await readNamespaceFixture(fixturePath, args.fixtureKind);
+  if (!loaded.ok) process.exit(2);
+
+  const paramsBinding = readParamsBinding(args);
+  if (paramsBinding) {
+    mountParamsLocalSpace(loaded.namespace.root, paramsBinding);
+  }
+
+  result = evaluateQuery(querySource, loaded.namespace);
+}
 
 if (format === 'json') {
   console.log(JSON.stringify(formatJsonResult(result, mode, fixturePath), null, 2));
@@ -66,6 +72,8 @@ function parseArgs(raw) {
       output.queryFile = requireValue(raw, ++index, arg);
     } else if (arg === '--fixture' || arg === '-f') {
       output.fixture = requireValue(raw, ++index, arg);
+    } else if (arg === '--fixture-kind') {
+      output.fixtureKind = requireValue(raw, ++index, arg);
     } else if (arg === '--params') {
       output.params = requireValue(raw, ++index, arg);
     } else if (arg === '--params-file') {
@@ -98,13 +106,44 @@ function readQuerySource(options) {
   return '';
 }
 
-function readJson(path) {
+async function readNamespaceFixture(path, explicitKind) {
+  const kind = inferFixtureKind(path, explicitKind);
+  let source;
   try {
-    return JSON.parse(readFileSync(path, 'utf8'));
+    source = readFileSync(path, 'utf8');
   } catch (error) {
     console.error(`SANSA Query tool error: could not read fixture '${path}': ${error.message}`);
+    return { ok: false };
+  }
+
+  if (kind === 'json') {
+    try {
+      return { ok: true, namespace: buildNamespace(JSON.parse(source)) };
+    } catch (error) {
+      console.error(`SANSA Query tool error: could not parse JSON fixture '${path}': ${error.message}`);
+      return { ok: false };
+    }
+  }
+
+  const result = await namespaceFromAeonSource(source);
+  if (!result.ok) {
+    console.error(`SANSA Query tool error: could not compile AEON fixture '${path}':`);
+    console.error(result.text);
+    return { ok: false };
+  }
+  return { ok: true, namespace: result.namespace };
+}
+
+function inferFixtureKind(path, explicitKind) {
+  if (explicitKind !== undefined) {
+    if (explicitKind === 'json' || explicitKind === 'aeon') return explicitKind;
+    console.error(`SANSA Query tool error: unsupported --fixture-kind '${explicitKind}'. Expected 'json' or 'aeon'.`);
     process.exit(2);
   }
+  if (path.endsWith('.json')) return 'json';
+  if (path.endsWith('.aeon')) return 'aeon';
+  console.error(`SANSA Query tool error: could not infer fixture kind from '${path}'. Use --fixture-kind json or --fixture-kind aeon.`);
+  process.exit(2);
 }
 
 function readParamsBinding(options) {
@@ -455,13 +494,15 @@ function printHelp() {
 
 Usage:
   npm run query -- --query "from $.inventory.items.*\\nselect .sku"
+  npm run query -- --query-file query.sansaq --fixture fixture.aeon
   npm run query -- --query-file query.sansaq --fixture fixture.json
   npm run query -- --mode parse --query "from $.inventory.items.*\\nselect .sku"
 
 Options:
   -q, --query <source>      Query source.
       --query-file <path>   Read query source from a file.
-  -f, --fixture <path>      JSON namespace fixture. Defaults to fixtures/query-inventory.json.
+  -f, --fixture <path>      AEON or JSON namespace fixture. Defaults to fixtures/query-inventory.aeon.
+      --fixture-kind <kind> Force fixture kind: aeon or json. Inferred from extension by default.
       --params <json>       Mount JSON params at $.<"params">.
       --params-file <path>  Read JSON params and mount them at $.<"params">.
       --mode <mode>         evaluate or parse. Defaults to evaluate.

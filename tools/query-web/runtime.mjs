@@ -77,7 +77,7 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query, par
   };
 }
 
-function namespaceFromJsonSource(source) {
+export function namespaceFromJsonSource(source) {
   try {
     const fixture = JSON.parse(source);
     const root = fixture.root ?? fixture;
@@ -108,7 +108,7 @@ function namespaceFromJsonSource(source) {
   }
 }
 
-async function namespaceFromAeonSource(source) {
+export async function namespaceFromAeonSource(source) {
   let aeonCore;
   try {
     aeonCore = await import(aeonCoreUrl.href);
@@ -268,6 +268,7 @@ function buildNamespaceFromEvents(events, formatPath) {
     children: [],
   };
   const byAddress = new Map([['$', root]]);
+  const parents = new Map([[root, null]]);
 
   for (const event of events) {
     const address = formatPath(event.path);
@@ -291,11 +292,12 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (scalar.ok) binding.value = scalar.value;
 
     if (event.annotations?.size) {
-      binding.attributeSpace = buildAttributeSpace(address, event.annotations);
+      binding.attributeSpace = buildAttributeSpace(address, event.annotations, parents, binding);
     }
 
     if (!byAddress.has(address)) {
       byAddress.set(address, binding);
+      parents.set(binding, parent);
       parent.children.push(binding);
     }
   }
@@ -305,6 +307,7 @@ function buildNamespaceFromEvents(events, formatPath) {
     children: (binding) => binding.children ?? [],
     attributeSpace: (binding) => binding.attributeSpace,
     localSpace: (binding, name) => binding.localSpaces?.[name],
+    parent: (binding) => parents.get(binding) ?? binding.parent,
   };
 }
 
@@ -313,29 +316,33 @@ function parentPathAddress(path, formatPath) {
   return formatPath({ segments: path.segments.slice(0, -1) });
 }
 
-function buildAttributeSpace(ownerAddress, annotations) {
-  return {
+function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
+  const attributeSpace = {
     address: `${ownerAddress}.@`,
     representationKind: 'attributeSpace',
-    children: [...annotations.entries()].map(([name, entry]) => {
-      const binding = {
-        name,
-        address: appendMember(`${ownerAddress}.@`, name),
-        semanticType: entry.datatype ?? semanticTypeFromValue(entry.value),
-        representationKind: representationKindFromValue(entry.value),
-        scalarKind: scalarKindFromValue(entry.value),
-        children: [],
-      };
-      const nullReason = nullReasonFromValue(entry.value);
-      if (nullReason !== undefined) binding.nullReason = nullReason;
-      const scalar = scalarFromAeonValue(entry.value);
-      if (scalar.ok) binding.value = scalar.value;
-      if (entry.annotations?.size) {
-        binding.attributeSpace = buildAttributeSpace(binding.address, entry.annotations);
-      }
-      return binding;
-    }),
+    children: [],
   };
+  parents.set(attributeSpace, parent);
+  attributeSpace.children = [...annotations.entries()].map(([name, entry]) => {
+    const binding = {
+      name,
+      address: appendMember(`${ownerAddress}.@`, name),
+      semanticType: entry.datatype ?? semanticTypeFromValue(entry.value),
+      representationKind: representationKindFromValue(entry.value),
+      scalarKind: scalarKindFromValue(entry.value),
+      children: [],
+    };
+    const nullReason = nullReasonFromValue(entry.value);
+    if (nullReason !== undefined) binding.nullReason = nullReason;
+    const scalar = scalarFromAeonValue(entry.value);
+    if (scalar.ok) binding.value = scalar.value;
+    if (entry.annotations?.size) {
+      binding.attributeSpace = buildAttributeSpace(binding.address, entry.annotations, parents, binding);
+    }
+    parents.set(binding, attributeSpace);
+    return binding;
+  });
+  return attributeSpace;
 }
 
 function appendMember(base, name) {

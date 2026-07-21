@@ -54,6 +54,19 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[1].sku = "B-200"',
         },
       },
+      {
+        name: 'parentTraversal',
+        label: 'Parent traversal',
+        query: lines(
+          'from $.inventory.items[1].sku',
+          'select .^.qty',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[1].qty = 4',
+        },
+      },
     ],
   },
   {

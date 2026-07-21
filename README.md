@@ -39,18 +39,19 @@ npm run cts:query
 
 ## Query Tool
 
-The package includes a standalone query tool for exercising SANSA.Query against a host-neutral JSON namespace fixture:
+The package includes a standalone query tool for exercising SANSA.Query against AEON source or a host-neutral JSON namespace fixture:
 
 ```bash
 npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
 npm run query -- --format json --query 'from $.inventory.items.* where any(.roles.* == "admin") select { sku = .sku name = .name }'
+npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.aeon
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
 Text output uses an AEON-like value renderer for readability, including explicit null reasons such as `!notSet`. JSON output remains the structured machine-readable result envelope.
 
-The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json). Fixtures expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
+The default fixture is [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon). `.aeon` fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. `.json` fixtures remain supported for direct resolver-shape debugging; they expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
 
 The CLI can also mount JSON params at `$.<"params">` using `--params` or `--params-file`. Params may be supplied as a full fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }` and become usable through `path(...)`.
 

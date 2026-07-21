@@ -94,13 +94,14 @@ Options:
 
 - `--query`, `-q`: query source
 - `--query-file`: read query source from a file
-- `--fixture`, `-f`: JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
+- `--fixture`, `-f`: AEON or JSON namespace fixture, defaulting to `fixtures/query-inventory.aeon`
+- `--fixture-kind`: force fixture kind as `aeon` or `json`; otherwise inferred from the file extension
 - `--params`: JSON params mounted at `$.<"params">`
 - `--params-file`: read JSON params from a file and mount them at `$.<"params">`
 - `--mode`: `evaluate` or `parse`
 - `--format`: `text` or `json`
 
-Fixture bindings are host-neutral objects. The built-in adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+AEON fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
 
 Params may be supplied either as a full local-space fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }`; these are preserved as `sansa` bindings so query expressions can activate them with `path(...)`.
 

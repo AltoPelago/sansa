@@ -4,6 +4,20 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const toolPath = fileURLToPath(new URL('../scripts/query.mjs', import.meta.url));
+const defaultParams = JSON.stringify({
+  source: {
+    type: 'SansaAddressLiteral',
+    address: '$.inventory.items.*',
+  },
+  field: {
+    type: 'SansaAddressLiteral',
+    address: '?.sku',
+  },
+  active: {
+    type: 'SansaAddressLiteral',
+    address: '?.active',
+  },
+});
 
 function runTool(args) {
   return spawnSync(process.execPath, [toolPath, ...args], {
@@ -41,6 +55,8 @@ test('query tool renders AEON-style text values', () => {
 
 test('query tool activates structured address literals with path', () => {
   const result = runTool([
+    '--params',
+    defaultParams,
     '--query',
     'from $.inventory.items[1] select path($.<"params">.field)',
   ]);
@@ -52,6 +68,8 @@ test('query tool activates structured address literals with path', () => {
 
 test('query tool activates dynamic from sources with path', () => {
   const result = runTool([
+    '--params',
+    defaultParams,
     '--query',
     'from path($.<"params">.source) where .qty >= 4 select .sku',
   ]);
@@ -62,6 +80,20 @@ test('query tool activates dynamic from sources with path', () => {
     '$.inventory.items[1].sku = "B-200"',
     '$.inventory.items[2].sku = "C-300"',
     '$.inventory.items[3].sku = "D-250"',
+  ].join('\n'));
+});
+
+test('query tool evaluates objectFrom against the default AEON fixture', () => {
+  const result = runTool([
+    '--query',
+    'from $.table.content.* select objectFrom($.table.header.*, .*)',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout.trim(), [
+    '$.table.content[0] = {"name":"Bob","age":22}',
+    '$.table.content[1] = {"name":"Alice","age":31}',
   ].join('\n'));
 });
 
@@ -168,6 +200,8 @@ test('query tool reports evaluator diagnostics as JSON', () => {
 
 test('query tool emits stable JSON result envelope', () => {
   const result = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
     '--format',
     'json',
     '--query',
