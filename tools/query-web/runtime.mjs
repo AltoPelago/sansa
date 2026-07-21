@@ -395,9 +395,11 @@ function representationKindFromValue(value) {
     case 'SansaAddressLiteral':
       return 'string';
     case 'NumberLiteral':
-    case 'InfinityLiteral':
-    case 'NaNLiteral':
       return 'number';
+    case 'InfinityLiteral':
+      return 'infinity';
+    case 'NaNLiteral':
+      return 'nan';
     case 'BooleanLiteral':
       return 'boolean';
     case 'NullLiteral':

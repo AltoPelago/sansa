@@ -285,6 +285,8 @@ export function renderQueryExpression(expression) {
   switch (expression.type) {
     case 'literalExpression':
       return expression.kind === 'string' ? quotePayload(expression.value) : String(expression.value);
+    case 'currentBindingExpression':
+      return '.';
     case 'resolutionExpression':
       return expression.canonical;
     case 'groupExpression':
@@ -359,6 +361,14 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
         value: {
           type: 'scalar',
           value: expression.value,
+        },
+      };
+    case 'currentBindingExpression':
+      return {
+        ok: true,
+        value: {
+          type: 'bindingSet',
+          bindings: [currentBinding],
         },
       };
     case 'resolutionExpression':
@@ -543,6 +553,12 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (expression.name === 'objectFrom') {
     return evaluateObjectFromExpression(expression, currentBinding, namespace, options);
   }
+  if (!isOrdinaryFunctionName(expression.name)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+    };
+  }
 
   const evaluatedArgs = [];
   for (const argument of expression.arguments) {
@@ -553,17 +569,25 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     evaluatedArgs.push(scalar.value);
   }
 
-  switch (expression.name) {
+  return evaluateOrdinaryFunction(expression.name, evaluatedArgs);
+}
+
+function isOrdinaryFunctionName(name) {
+  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat'].includes(name);
+}
+
+function evaluateOrdinaryFunction(name, evaluatedArgs) {
+  switch (name) {
     case 'contains':
-      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
+      return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
     case 'startsWith':
-      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.startsWith(search));
+      return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.startsWith(search));
     case 'endsWith':
-      return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
+      return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
     case 'lower':
-      return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
     case 'upper':
-      return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toUpperCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toUpperCase());
     case 'concat':
       if (evaluatedArgs.length === 0) {
         return {
@@ -571,11 +595,11 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
           error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'concat' expects at least one argument"),
         };
       }
-      return evaluateStringFunction(expression.name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
+      return evaluateStringFunction(name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
     default:
       return {
         ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${name}' is not supported by this evaluator slice`),
       };
   }
 }
@@ -1088,6 +1112,10 @@ function evaluateCardinalityBooleans(expression, currentBinding, namespace, opti
     return { ok: true, values };
   }
 
+  if (expression.type === 'functionCallExpression') {
+    return evaluateCardinalityFunctionBooleans(expression, currentBinding, namespace, options);
+  }
+
   if (expression.type !== 'binaryExpression' || ['and', 'or'].includes(expression.operator)) {
     return {
       ok: false,
@@ -1125,6 +1153,61 @@ function evaluateCardinalityBooleans(expression, currentBinding, namespace, opti
       : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value);
     if (!compared.ok) return compared;
     values.push(compared.value.value);
+  }
+  return { ok: true, values };
+}
+
+function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespace, options) {
+  if (!isOrdinaryFunctionName(expression.name)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${expression.name}' is not supported by this evaluator slice`),
+    };
+  }
+
+  const evaluatedArgs = [];
+  for (const argument of expression.arguments) {
+    const evaluated = evaluateQueryExpressionValue(argument, currentBinding, namespace, options);
+    if (!evaluated.ok) return evaluated;
+    evaluatedArgs.push(evaluated.value);
+  }
+
+  const bindingSetArgs = evaluatedArgs
+    .map((value, index) => ({ value, index }))
+    .filter((entry) => entry.value.type === 'bindingSet');
+  if (bindingSetArgs.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT', 'Cardinality function predicates require exactly one binding-set argument'),
+    };
+  }
+
+  const scalarArgs = [];
+  for (let index = 0; index < evaluatedArgs.length; index += 1) {
+    if (index === bindingSetArgs[0].index) {
+      scalarArgs.push(null);
+      continue;
+    }
+    const scalar = expectScalarQueryValue(evaluatedArgs[index], namespace);
+    if (!scalar.ok) return scalar;
+    scalarArgs.push(scalar.value);
+  }
+
+  const values = [];
+  for (const binding of bindingSetArgs[0].value.bindings) {
+    const bindingScalar = getBindingScalarValue(namespace, binding);
+    if (!bindingScalar.ok) return bindingScalar;
+    const args = scalarArgs.slice();
+    args[bindingSetArgs[0].index] = bindingScalar.value;
+    const evaluated = evaluateOrdinaryFunction(expression.name, args);
+    if (!evaluated.ok) return evaluated;
+    if (evaluated.value.type !== 'scalar' || typeof evaluated.value.value !== 'boolean') {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN', 'Cardinality function predicates must evaluate to Boolean scalar values'),
+      };
+    }
+    values.push(evaluated.value.value);
   }
   return { ok: true, values };
 }
@@ -2215,6 +2298,12 @@ class QueryExpressionParser {
   parseResolution() {
     const start = this.index;
     const source = this.readResolutionSource();
+    if (source === '.') {
+      return {
+        type: 'currentBindingExpression',
+        canonical: '.',
+      };
+    }
     const parseSource = source.startsWith('.') ? `?${source}` : source;
     const result = parseAddress(parseSource, this.options.address);
     if (!result.ok) {
@@ -2305,7 +2394,7 @@ class QueryExpressionParser {
       }
     }
     const source = this.input.slice(start, this.index);
-    if (source.length === 0 || source === '.') {
+    if (source.length === 0) {
       this.fail('Expected SANSA resolution expression', 'SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION', start);
     }
     return source;

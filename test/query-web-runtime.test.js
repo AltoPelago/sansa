@@ -57,6 +57,107 @@ test('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+test('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const numbers = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $\nselect $.inventory.items.**%number',
+  });
+
+  assert.equal(numbers.ok, true, JSON.stringify(numbers.errors ?? []));
+  assert.equal(numbers.text, [
+    '$.inventory.items[0].metric = 10',
+    '$.inventory.items[0].qty = 1',
+    '$.inventory.items[1].qty = 4',
+    '$.inventory.items[2].qty = 8',
+    '$.inventory.items[3].id = 3',
+    '$.inventory.items[3].qty = 4',
+  ].join('\n'));
+  assert.doesNotMatch(numbers.text, /NaN|Infinity/);
+
+  const specials = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $\nselect $.inventory.items.**%nan',
+  });
+
+  assert.equal(specials.ok, true, JSON.stringify(specials.errors ?? []));
+  assert.equal(specials.text, '$.inventory.items[2].metric = NaN');
+
+  const infinity = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $\nselect $.inventory.items.**%infinity',
+  });
+
+  assert.equal(infinity.ok, true, JSON.stringify(infinity.errors ?? []));
+  assert.equal(infinity.text, '$.inventory.items[3].ceiling = Infinity');
+});
+
+test('query web runtime evaluates parent traversal against AEON source', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items[1].sku\nselect .^.qty',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, '$.inventory.items[1].qty = 4');
+});
+
+test('query web runtime evaluates objectFrom against AEON source', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.table.content.*\nselect objectFrom($.table.header.*, .*)',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, [
+    '$.table.content[0] = {"name":"Bob","age":22}',
+    '$.table.content[1] = {"name":"Alice","age":31}',
+  ].join('\n'));
+});
+
+test('query web runtime evaluates contains over binding sets and the current binding', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const itemResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: [
+      'from $.inventory.items.*',
+      'where any(contains(.roles.*, "min"))',
+      'select { sku = .sku name = .name }',
+    ].join('\n'),
+  });
+
+  assert.equal(itemResult.ok, true, JSON.stringify(itemResult.errors ?? []));
+  assert.equal(itemResult.text, [
+    '$.inventory.items[0] = {"sku":"A-100","name":"Adapter"}',
+    '$.inventory.items[3] = {"sku":"D-250","name":"Driver"}',
+  ].join('\n'));
+
+  const roleResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: [
+      'from $.inventory.items.*.roles.*',
+      'where contains(., "min")',
+      'select .',
+    ].join('\n'),
+  });
+
+  assert.equal(roleResult.ok, true, JSON.stringify(roleResult.errors ?? []));
+  assert.equal(roleResult.text, [
+    '$.inventory.items[0].roles[0] = "admin"',
+    '$.inventory.items[3].roles[0] = "admin"',
+    '$.inventory.items[3].roles[1] = "admin"',
+  ].join('\n'));
+});
+
 test('query web runtime renders AEON-style text values', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({

@@ -143,6 +143,10 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(parentResolution.scope, 'current');
   assert.equal(renderQueryExpression(parentResolution), '.^.sibling');
 
+  const currentBinding = parseExpressionOk('.');
+  assert.equal(currentBinding.type, 'currentBindingExpression');
+  assert.equal(renderQueryExpression(currentBinding), '.');
+
   const cardinality = parseExpressionOk('any(.roles.* == "admin")');
   assert.equal(cardinality.type, 'cardinalityExpression');
   assert.equal(cardinality.operator, 'any');

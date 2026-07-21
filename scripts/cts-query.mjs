@@ -158,16 +158,28 @@ function queryFromSource(query) {
 function buildNamespaces(entries) {
   const output = new Map();
   for (const entry of entries) {
+    const parents = new Map();
+    indexBindingTree(entry.root, parents);
     output.set(entry.id, {
       namespace: {
         root: entry.root,
         children: (binding) => binding.children ?? [],
         localSpace: (binding, name) => binding.localSpaces?.[name],
+        ...(entry.supportsParentTraversal === true
+          ? { parent: (binding) => parents.get(binding) }
+          : {}),
         value: valueFromBinding,
       },
     });
   }
   return output;
+}
+
+function indexBindingTree(binding, parents, parent = null) {
+  parents.set(binding, parent);
+  for (const child of binding.children ?? []) indexBindingTree(child, parents, binding);
+  if (binding.attributeSpace) indexBindingTree(binding.attributeSpace, parents, binding);
+  for (const localSpace of Object.values(binding.localSpaces ?? {})) indexBindingTree(localSpace, parents, binding);
 }
 
 function valueFromBinding(binding) {

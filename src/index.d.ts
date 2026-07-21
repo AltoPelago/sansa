@@ -276,6 +276,7 @@ export interface SansaQueryIntegerClause {
 
 export type SansaQueryExpression =
   | SansaQueryLiteralExpression
+  | SansaQueryCurrentBindingExpression
   | SansaQueryResolutionExpression
   | SansaQueryGroupExpression
   | SansaQueryUnaryExpression
@@ -289,6 +290,11 @@ export interface SansaQueryLiteralExpression {
   readonly type: 'literalExpression';
   readonly kind: 'string' | 'number' | 'boolean';
   readonly value: string | number | boolean;
+  readonly canonical: string;
+}
+
+export interface SansaQueryCurrentBindingExpression {
+  readonly type: 'currentBindingExpression';
   readonly canonical: string;
 }
 

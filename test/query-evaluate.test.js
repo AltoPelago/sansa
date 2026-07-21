@@ -453,6 +453,17 @@ test('evaluates any all and none cardinality predicates', () => {
     '$.inventory.items[1]',
     '$.inventory.items[2]',
   ]);
+
+  const anyContains = evaluateQuery([
+    'from $.inventory.items.*',
+    'where any(contains(.roles.*, "min"))',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(anyContains.ok, true, JSON.stringify(anyContains.errors ?? []));
+  assert.deepEqual(anyContains.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[3]',
+  ]);
 });
 
 test('evaluates exists and absent presence predicates', () => {
@@ -1228,6 +1239,23 @@ test('evaluates built-in string functions', () => {
       },
     },
   ]);
+
+  const currentRole = evaluateQuery([
+    'from $.inventory.items.*.roles.*',
+    'where contains(., "min")',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(currentRole.ok, true, JSON.stringify(currentRole.errors ?? []));
+  assert.deepEqual(currentRole.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0].roles[0]',
+    '$.inventory.items[3].roles[0]',
+    '$.inventory.items[3].roles[1]',
+  ]);
+  assert.deepEqual(currentRole.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.inventory.items[0].roles[0]'],
+    ['$.inventory.items[3].roles[0]'],
+    ['$.inventory.items[3].roles[1]'],
+  ]);
 });
 
 test('applies ordinary function argument semantics', () => {
@@ -1271,6 +1299,10 @@ test('rejects unsupported and invalid function calls explicitly', () => {
   const unsupported = evaluateQuery('from $.inventory.items.*\nselect matches(.sku, "B")', namespace);
   assert.equal(unsupported.ok, false);
   assert.equal(unsupported.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
+
+  const unsupportedWithBindingSetArgs = evaluateQuery('from $.table.content.*\nselect objectfrom($.table.header.*, .*)', namespace);
+  assert.equal(unsupportedWithBindingSetArgs.ok, false);
+  assert.equal(unsupportedWithBindingSetArgs.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
 
   const invalidArity = evaluateQuery('from $.inventory.items.*\nselect lower(.sku, "x")', namespace);
   assert.equal(invalidArity.ok, false);
