@@ -248,7 +248,7 @@ limit
 select
 ```
 
-`from` is required and must contain either one valid SANSA address expression or a `path(...)` source expression. `select` is required and terminal. `where`, `select`, and order-key expression bodies carry both a canonical source string and an expression AST. `order by` is split into top-level keys, each with an `asc` or `desc` direction; omitted directions canonicalize to `asc`. `offset` and `limit` accept non-negative integers without leading zeroes.
+`from` is required and must contain either one valid SANSA address expression or a `path(...)` source expression. `select` is required and terminal. `where`, `select`, and order-key expression bodies carry both a canonical source string and an expression AST. `order by` is split into top-level keys, each with an `asc` or `desc` direction; omitted directions canonicalize to `asc`. `offset` and `limit` accept non-negative integers without leading zeroes up to this implementation's query integer cap, `9007199254740991`.
 
 Query comments are lexical trivia:
 

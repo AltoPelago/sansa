@@ -445,6 +445,7 @@ export class SansaParseError extends Error {
 }
 
 export declare const SANSA_MAX_POSITION_INDEX: number;
+export declare const SANSA_MAX_QUERY_INTEGER: number;
 
 export function parseAddress(input: string, options?: SansaParseOptions): SansaParseResult;
 export function parseAddressOrThrow(input: string, options?: SansaParseOptions): SansaAddress;

@@ -1,6 +1,7 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
 export const SANSA_MAX_POSITION_INDEX = 1_000_000;
+export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
@@ -1996,6 +1997,9 @@ class QueryParser {
     if (!/^(0|[1-9][0-9]*)$/.test(value)) {
       this.fail(`Expected non-negative integer after '${name}'`, code, clause.bodyStart);
     }
+    if (exceedsUnsignedDecimal(value, SANSA_MAX_QUERY_INTEGER)) {
+      this.fail(`Query '${name}' must be less than or equal to ${SANSA_MAX_QUERY_INTEGER}`, code, clause.bodyStart);
+    }
     return { type: `${name}Clause`, value: Number(value) };
   }
 
@@ -2514,6 +2518,11 @@ function matchQueryClauseKeyword(source, index) {
     }
   }
   return null;
+}
+
+function exceedsUnsignedDecimal(raw, max) {
+  const maxRaw = String(max);
+  return raw.length > maxRaw.length || (raw.length === maxRaw.length && raw > maxRaw);
 }
 
 function isQueryClauseBoundaryBefore(source, index) {

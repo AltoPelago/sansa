@@ -94,6 +94,12 @@ test('parses all stage-zero clauses', () => {
   ].join('\n'));
 });
 
+test('accepts query offset and limit at the local safe-integer boundary', () => {
+  const query = parseOk('from $.users.*\noffset 9007199254740991\nlimit 9007199254740991\nselect .name');
+  assert.equal(query.offset.value, 9007199254740991);
+  assert.equal(query.limit.value, 9007199254740991);
+});
+
 test('strips query comments as trivia', () => {
   const query = parseOk('/* lead */ from $.items.* // rows\nwhere .qty >= 1 /* available */\nselect .sku');
   assert.equal(query.canonical, 'from $.items.*\nwhere .qty >= 1\nselect .sku');
@@ -106,6 +112,8 @@ test('rejects incomplete and invalid query forms', () => {
   parseBad('from $.users.*\nselect .name\nwhere .active == true', 'SANSA_QUERY_SELECT_MUST_BE_TERMINAL');
   parseBad('from $.items[01]\nselect .name', 'SANSA_LEADING_ZERO_INDEX');
   parseBad('from $.users.*\nlimit 01\nselect .name', 'SANSA_QUERY_INVALID_LIMIT');
+  parseBad('from $.users.*\noffset 9007199254740992\nselect .name', 'SANSA_QUERY_INVALID_OFFSET');
+  parseBad('from $.users.*\nlimit 9007199254740992\nselect .name', 'SANSA_QUERY_INVALID_LIMIT');
 });
 
 test('parses query expressions into canonical AST nodes', () => {
