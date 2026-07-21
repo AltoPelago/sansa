@@ -1203,9 +1203,24 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
 }
 
 function compareOrderKeyValues(left, right) {
-  if (typeof left === 'string') return left.localeCompare(right);
+  if (typeof left === 'string') return compareStringsByUnicodeScalarValue(left, right);
   if (left < right) return -1;
   if (left > right) return 1;
+  return 0;
+}
+
+function compareStringsByUnicodeScalarValue(left, right) {
+  const leftScalars = Array.from(left);
+  const rightScalars = Array.from(right);
+  const length = Math.min(leftScalars.length, rightScalars.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftCodePoint = leftScalars[index].codePointAt(0);
+    const rightCodePoint = rightScalars[index].codePointAt(0);
+    if (leftCodePoint < rightCodePoint) return -1;
+    if (leftCodePoint > rightCodePoint) return 1;
+  }
+  if (leftScalars.length < rightScalars.length) return -1;
+  if (leftScalars.length > rightScalars.length) return 1;
   return 0;
 }
 
@@ -1239,10 +1254,10 @@ function compareQueryScalars(operator, left, right) {
     switch (operator) {
       case '==': return left === right;
       case '!=': return left !== right;
-      case '<': return left < right;
-      case '<=': return left <= right;
-      case '>': return left > right;
-      case '>=': return left >= right;
+      case '<': return compareOrderKeyValues(left, right) < 0;
+      case '<=': return compareOrderKeyValues(left, right) <= 0;
+      case '>': return compareOrderKeyValues(left, right) > 0;
+      case '>=': return compareOrderKeyValues(left, right) >= 0;
       default: return false;
     }
   })();

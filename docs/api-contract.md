@@ -402,12 +402,14 @@ Current comparison policy:
 | Operands | Equality | Ordering | Result |
 | --- | --- | --- | --- |
 | number and number | allowed | allowed | numeric comparison |
-| string and string | allowed | allowed | string comparison |
+| string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
 | explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
 | NaN | error | error | use `isNaN(...)` |
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
+
+Until the shared value-semantics string-ordering profile is locked, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults for query comparison or `order by`.
 
 Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:
 

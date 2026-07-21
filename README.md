@@ -99,6 +99,8 @@ The left operand must resolve to one scalar. The right operand must be a Binding
 
 Ordinary string functions consume single scalar string arguments. The current built-ins are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
+String comparison and `order by` use deterministic Unicode scalar-value ordering in this implementation slice. They do not use host locale or process locale collation.
+
 `path(value)` activates a structured SANSA Address Literal value. In expression positions such as `select`, `where`, and `order by`, it resolves in the current candidate context and returns a Binding Set. In `from path(...)`, it supplies the source Binding Set for the query. It does not parse plain strings as addresses.
 
 `fallback(primary, replacement)` handles missing primary values only. The replacement expression is evaluated only when the primary expression resolves no scalar value; explicit null, cardinality, type, and comparison errors remain fail-fast.

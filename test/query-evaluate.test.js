@@ -270,6 +270,49 @@ const namespace = {
   localSpace: (entry, name) => entry.localSpaces?.[name],
 };
 
+const stringOrderingRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'labels',
+      address: '$.labels',
+      representationKind: 'list',
+      children: [
+        binding({
+          index: 0,
+          address: '$.labels[0]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[0].value', semanticType: 'string', representationKind: 'string', value: 'z' }),
+          ],
+        }),
+        binding({
+          index: 1,
+          address: '$.labels[1]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[1].value', semanticType: 'string', representationKind: 'string', value: 'ä' }),
+          ],
+        }),
+        binding({
+          index: 2,
+          address: '$.labels[2]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[2].value', semanticType: 'string', representationKind: 'string', value: 'a' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+
+const stringOrderingNamespace = {
+  root: stringOrderingRoot,
+  children: (entry) => entry.children,
+};
+
 test('evaluates query projection over filtered bindings', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',
@@ -343,6 +386,30 @@ test('evaluates stable order by before offset and limit', () => {
     ['$.inventory.items[1].sku'],
     ['$.inventory.items[3].sku'],
   ]);
+});
+
+test('evaluates string ordering by Unicode scalar value', () => {
+  const ordered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace);
+
+  assert.equal(ordered.ok, true, JSON.stringify(ordered.errors ?? []));
+  assert.deepEqual(ordered.results.map((entry) => entry.binding.address), [
+    '$.labels[2]',
+    '$.labels[0]',
+    '$.labels[1]',
+  ]);
+
+  const compared = evaluateQuery([
+    'from $.labels.*',
+    'where .value > "z"',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace);
+
+  assert.equal(compared.ok, true, JSON.stringify(compared.errors ?? []));
+  assert.deepEqual(compared.results.map((entry) => entry.binding.address), ['$.labels[1]']);
 });
 
 test('rejects non-boolean where expressions', () => {
