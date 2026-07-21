@@ -47,13 +47,26 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_INVALID_PROJECTION'
   | 'SANSA_PARSE_ERROR';
 
+export type SansaWarningCode =
+  | 'SANSA_NON_PORTABLE_POSITION_INDEX';
+
 export interface SansaDiagnostic {
   readonly code: SansaParseErrorCode;
   readonly message: string;
   readonly index: number;
 }
 
-export interface SansaParseOptions {}
+export interface SansaWarning {
+  readonly code: SansaWarningCode;
+  readonly message: string;
+  readonly index: number;
+  readonly observed?: number;
+  readonly portableFloor?: number;
+}
+
+export interface SansaParseOptions {
+  readonly maxPositionIndex?: number;
+}
 
 export interface SansaQueryExpressionParseOptions {
   readonly address?: SansaParseOptions;
@@ -65,15 +78,15 @@ export interface SansaQueryParseOptions {
 }
 
 export type SansaParseResult =
-  | { readonly ok: true; readonly address: SansaAddress }
+  | { readonly ok: true; readonly address: SansaAddress; readonly warnings: readonly SansaWarning[] }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaQueryParseResult =
-  | { readonly ok: true; readonly query: SansaQuery }
+  | { readonly ok: true; readonly query: SansaQuery; readonly warnings: readonly SansaWarning[] }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaQueryExpressionParseResult =
-  | { readonly ok: true; readonly expression: SansaQueryExpression }
+  | { readonly ok: true; readonly expression: SansaQueryExpression; readonly warnings: readonly SansaWarning[] }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaResolveErrorCode =

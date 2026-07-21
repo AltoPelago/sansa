@@ -139,6 +139,15 @@ test('rejects position indexes above the local configured limit', () => {
   parseBad('$.items[1000001..]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
 });
 
+test('warns when a raised local limit accepts non-portable position indexes', () => {
+  const result = parseAddress('$.items[1000001]', { maxPositionIndex: 10_000_000 });
+  assert.equal(result.ok, true);
+  assert.equal(result.address.canonical, '$.items[1000001]');
+  assert.deepEqual(result.warnings.map((warning) => warning.code), ['SANSA_NON_PORTABLE_POSITION_INDEX']);
+  assert.equal(result.warnings[0].observed, 1000001);
+  assert.equal(result.warnings[0].portableFloor, 1000000);
+});
+
 test('rejects empty position ranges', () => {
   parseBad('$.items[..]', 'SANSA_EMPTY_POSITION_RANGE');
 });

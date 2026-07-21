@@ -18,7 +18,8 @@ export class SansaParseError extends Error {
 export function parseAddress(input, options = {}) {
   try {
     const parser = new AddressParser(input, options);
-    return { ok: true, address: parser.parse() };
+    const address = parser.parse();
+    return { ok: true, address, warnings: parser.warnings };
   } catch (error) {
     if (error instanceof SansaParseError) {
       return {
@@ -46,7 +47,8 @@ export function parseAddressOrThrow(input, options = {}) {
 export function parseQuery(input, options = {}) {
   try {
     const parser = new QueryParser(input, options);
-    return { ok: true, query: parser.parse() };
+    const query = parser.parse();
+    return { ok: true, query, warnings: parser.warnings };
   } catch (error) {
     if (error instanceof SansaParseError) {
       return {
@@ -74,7 +76,8 @@ export function parseQueryOrThrow(input, options = {}) {
 export function parseQueryExpression(input, options = {}) {
   try {
     const parser = new QueryExpressionParser(input, options);
-    return { ok: true, expression: parser.parse() };
+    const expression = parser.parse();
+    return { ok: true, expression, warnings: parser.warnings };
   } catch (error) {
     if (error instanceof SansaParseError) {
       return {
@@ -1579,10 +1582,12 @@ function renderQualifierArgument(argument) {
 }
 
 class AddressParser {
-  constructor(input, options) {
+  constructor(input, options = {}) {
     this.input = input;
     this.options = options;
     this.index = 0;
+    this.warnings = [];
+    this.maxPositionIndex = normalizeMaxPositionIndex(options.maxPositionIndex);
   }
 
   parse() {
@@ -1693,12 +1698,27 @@ class AddressParser {
     if (raw.length > 1 && raw.startsWith('0')) {
       this.fail('Positional indexes must not contain leading zeroes', 'SANSA_LEADING_ZERO_INDEX', start);
     }
-    const value = Number(raw);
-    if (!Number.isSafeInteger(value) || value > SANSA_MAX_POSITION_INDEX) {
+    if (exceedsUnsignedDecimal(raw, this.maxPositionIndex)) {
       this.fail(
-        `Position indexes must be less than or equal to ${SANSA_MAX_POSITION_INDEX}`,
+        `Position indexes must be less than or equal to ${this.maxPositionIndex}`,
         'SANSA_POSITION_INDEX_LIMIT_EXCEEDED',
         start,
+      );
+    }
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value)) {
+      this.fail(
+        `Position indexes must be less than or equal to ${this.maxPositionIndex}`,
+        'SANSA_POSITION_INDEX_LIMIT_EXCEEDED',
+        start,
+      );
+    }
+    if (value > SANSA_MAX_POSITION_INDEX) {
+      this.warn(
+        `Position index ${value} exceeds the SANSA v1 portable support floor ${SANSA_MAX_POSITION_INDEX}`,
+        'SANSA_NON_PORTABLE_POSITION_INDEX',
+        start,
+        { observed: value, portableFloor: SANSA_MAX_POSITION_INDEX },
       );
     }
     return value;
@@ -1864,12 +1884,17 @@ class AddressParser {
   fail(message, code, index = this.index) {
     throw new SansaParseError(message, index, code);
   }
+
+  warn(message, code, index = this.index, extra = {}) {
+    this.warnings.push({ code, message, index, ...extra });
+  }
 }
 
 class QueryParser {
-  constructor(input, options) {
+  constructor(input, options = {}) {
     this.input = input;
     this.options = options;
+    this.warnings = [];
   }
 
   parse() {
@@ -1953,6 +1978,7 @@ class QueryParser {
         const first = result.errors[0];
         this.fail(first.message, first.code, clause.bodyStart + first.index);
       }
+      this.warnings.push(...result.warnings);
       return { type: 'fromClause', source: 'address', address: result.address };
     }
 
@@ -2004,14 +2030,13 @@ class QueryParser {
   }
 
   parseClauseExpression(expression, offset) {
-    try {
-      return parseQueryExpressionOrThrow(expression, this.options.expression);
-    } catch (error) {
-      if (error instanceof SansaParseError) {
-        this.fail(error.message, error.code, offset + error.index);
-      }
-      throw error;
+    const result = parseQueryExpression(expression, this.options.expression);
+    if (!result.ok) {
+      const first = result.errors[0];
+      this.fail(first.message, first.code, offset + first.index);
     }
+    this.warnings.push(...result.warnings);
+    return result.expression;
   }
 
   fail(message, code, index) {
@@ -2020,10 +2045,11 @@ class QueryParser {
 }
 
 class QueryExpressionParser {
-  constructor(input, options) {
+  constructor(input, options = {}) {
     this.input = normalizeQueryExpression(stripQueryComments(String(input)));
     this.options = options;
     this.index = 0;
+    this.warnings = [];
   }
 
   parse() {
@@ -2195,6 +2221,7 @@ class QueryExpressionParser {
       const first = result.errors[0];
       this.fail(first.message, first.code, start + first.index - (source.startsWith('.') ? 1 : 0));
     }
+    this.warnings.push(...result.warnings);
     const scope = source.startsWith('.')
       ? 'current'
       : result.address.root.kind;
@@ -2318,6 +2345,7 @@ class QueryExpressionParser {
   parseQuotedPayload() {
     const parser = new AddressParser(this.input.slice(this.index), this.options.address);
     const value = parser.parseQuotedPayload();
+    this.warnings.push(...parser.warnings);
     this.index += parser.index;
     return value;
   }
@@ -2523,6 +2551,14 @@ function matchQueryClauseKeyword(source, index) {
 function exceedsUnsignedDecimal(raw, max) {
   const maxRaw = String(max);
   return raw.length > maxRaw.length || (raw.length === maxRaw.length && raw > maxRaw);
+}
+
+function normalizeMaxPositionIndex(value) {
+  if (value === undefined) return SANSA_MAX_POSITION_INDEX;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    return SANSA_MAX_POSITION_INDEX;
+  }
+  return value;
 }
 
 function isQueryClauseBoundaryBefore(source, index) {

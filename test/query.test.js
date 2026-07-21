@@ -100,6 +100,17 @@ test('accepts query offset and limit at the local safe-integer boundary', () => 
   assert.equal(query.limit.value, 9007199254740991);
 });
 
+test('surfaces SANSA address portability warnings from query parsing', () => {
+  const result = parseQuery('from $.users[1000001]\nselect .name', {
+    address: { maxPositionIndex: 10_000_000 },
+  });
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(
+    result.warnings.map((warning) => warning.code),
+    ['SANSA_NON_PORTABLE_POSITION_INDEX'],
+  );
+});
+
 test('strips query comments as trivia', () => {
   const query = parseOk('/* lead */ from $.items.* // rows\nwhere .qty >= 1 /* available */\nselect .sku');
   assert.equal(query.canonical, 'from $.items.*\nwhere .qty >= 1\nselect .sku');
