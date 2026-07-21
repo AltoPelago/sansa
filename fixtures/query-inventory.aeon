@@ -54,3 +54,15 @@ table:object = {
     ("Alice", 31)
   ]
 }
+
+labels:list<object> = [
+  {
+    value:string = "z"
+  }
+  {
+    value:string = "ä"
+  }
+  {
+    value:string = "a"
+  }
+]

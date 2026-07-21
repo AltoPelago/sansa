@@ -311,6 +311,21 @@ export const queryExampleGroups = [
         },
       },
       {
+        name: 'unicodeScalarOrder',
+        label: 'Unicode scalar order',
+        query: lines(
+          'from $.labels.*',
+          'where .value >= "z"',
+          'order by .value asc',
+          'select .value',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.labels[1].value = "ä"',
+        },
+      },
+      {
         name: 'parseProjection',
         label: 'Projection parse check',
         query: lines(
