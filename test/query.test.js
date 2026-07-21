@@ -101,7 +101,7 @@ test('accepts query offset and limit at the local safe-integer boundary', () => 
 });
 
 test('surfaces SANSA address portability warnings from query parsing', () => {
-  const result = parseQuery('from $.users[1000001]\nselect .name', {
+  const result = parseQuery('from $.users[1000000]\nselect .name', {
     address: { maxPositionIndex: 10_000_000 },
   });
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));

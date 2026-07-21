@@ -71,6 +71,6 @@ $.key:string<int><int>
 ---
 ?.name
 ---
-$.items[1000000]
+$.items[999999]
 ---
-$.items[0..1000000]
+$.items[0..999999]

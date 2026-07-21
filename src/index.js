@@ -1,6 +1,6 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
-export const SANSA_MAX_POSITION_INDEX = 1_000_000;
+export const SANSA_MAX_POSITION_INDEX = 999_999;
 export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
@@ -1715,7 +1715,7 @@ class AddressParser {
     }
     if (value > SANSA_MAX_POSITION_INDEX) {
       this.warn(
-        `Position index ${value} exceeds the SANSA v1 portable support floor ${SANSA_MAX_POSITION_INDEX}`,
+        `Position index ${value} exceeds the SANSA v1 portable index ceiling ${SANSA_MAX_POSITION_INDEX}`,
         'SANSA_NON_PORTABLE_POSITION_INDEX',
         start,
         { observed: value, portableFloor: SANSA_MAX_POSITION_INDEX },

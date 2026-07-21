@@ -132,20 +132,20 @@ test('rejects leading-zero indexes', () => {
 });
 
 test('rejects position indexes above the local configured limit', () => {
-  assert.equal(parseOk('$.items[1000000]').canonical, '$.items[1000000]');
-  assert.equal(parseOk('$.items[0..1000000]').canonical, '$.items[0..1000000]');
-  parseBad('$.items[1000001]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
-  parseBad('$.items[0..1000001]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
-  parseBad('$.items[1000001..]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+  assert.equal(parseOk('$.items[999999]').canonical, '$.items[999999]');
+  assert.equal(parseOk('$.items[0..999999]').canonical, '$.items[0..999999]');
+  parseBad('$.items[1000000]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+  parseBad('$.items[0..1000000]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+  parseBad('$.items[1000000..]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
 });
 
 test('warns when a raised local limit accepts non-portable position indexes', () => {
-  const result = parseAddress('$.items[1000001]', { maxPositionIndex: 10_000_000 });
+  const result = parseAddress('$.items[1000000]', { maxPositionIndex: 10_000_000 });
   assert.equal(result.ok, true);
-  assert.equal(result.address.canonical, '$.items[1000001]');
+  assert.equal(result.address.canonical, '$.items[1000000]');
   assert.deepEqual(result.warnings.map((warning) => warning.code), ['SANSA_NON_PORTABLE_POSITION_INDEX']);
-  assert.equal(result.warnings[0].observed, 1000001);
-  assert.equal(result.warnings[0].portableFloor, 1000000);
+  assert.equal(result.warnings[0].observed, 1000000);
+  assert.equal(result.warnings[0].portableFloor, 999999);
 });
 
 test('rejects empty position ranges', () => {
