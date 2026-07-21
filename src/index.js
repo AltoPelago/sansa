@@ -219,6 +219,9 @@ export function renderAddress(address) {
       case 'position':
         output += `[${selector.index}]`;
         break;
+      case 'positionRange':
+        output += `[${selector.start ?? ''}..${selector.end ?? ''}]`;
+        break;
       case 'attributeSpace':
         output += '.@';
         break;
@@ -1273,6 +1276,8 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
       return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
     case 'position':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPosition(namespace, binding, selector.index)) };
+    case 'positionRange':
+      return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
     case 'directExpansion':
       return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
     case 'descendantExpansion':
@@ -1324,6 +1329,18 @@ function selectPosition(namespace, binding, index) {
   const indexed = children.find((child) => getBindingIndex(namespace, child) === index);
   if (indexed) return [indexed];
   return children[index] ? [children[index]] : [];
+}
+
+function selectPositionRange(namespace, binding, start, end) {
+  const lower = start ?? 0;
+  const upper = end ?? Number.POSITIVE_INFINITY;
+  if (lower > upper) return [];
+
+  return getChildren(namespace, binding).filter((child, ordinal) => {
+    const explicitIndex = getBindingIndex(namespace, child);
+    const position = Number.isInteger(explicitIndex) ? explicitIndex : ordinal;
+    return position >= lower && position <= upper;
+  });
 }
 
 function selectAttributeSpaces(namespace, bindings, selectorIndex) {
@@ -1540,15 +1557,31 @@ class AddressParser {
 
   parsePositionSelector() {
     this.consume('[');
+    const selectorStart = this.index;
+    const start = this.parseOptionalPositionIndex();
+    if (this.input.startsWith('..', this.index)) {
+      this.index += 2;
+      const end = this.parseOptionalPositionIndex();
+      if (start === null && end === null) {
+        this.fail('Position ranges must include a start or end index', 'SANSA_EMPTY_POSITION_RANGE', selectorStart);
+      }
+      this.consume(']');
+      return { type: 'positionRange', start, end };
+    }
+    if (start === null) this.fail('Expected positional index', 'SANSA_EXPECTED_INDEX');
+    this.consume(']');
+    return { type: 'position', index: start };
+  }
+
+  parseOptionalPositionIndex() {
     const start = this.index;
     while (isDigit(this.peek())) this.index += 1;
-    if (this.index === start) this.fail('Expected positional index', 'SANSA_EXPECTED_INDEX');
+    if (this.index === start) return null;
     const raw = this.input.slice(start, this.index);
     if (raw.length > 1 && raw.startsWith('0')) {
       this.fail('Positional indexes must not contain leading zeroes', 'SANSA_LEADING_ZERO_INDEX', start);
     }
-    this.consume(']');
-    return { type: 'position', index: Number(raw) };
+    return Number(raw);
   }
 
   parseQualifierExpression(stopChar = '') {

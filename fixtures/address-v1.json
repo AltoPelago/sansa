@@ -83,6 +83,30 @@
       "selectors": ["member", "directExpansion"]
     },
     {
+      "id": "position-range-bounded",
+      "source": "$.items[2..5]",
+      "valid": true,
+      "canonical": "$.items[2..5]",
+      "exact": false,
+      "selectors": ["member", "positionRange"]
+    },
+    {
+      "id": "position-range-open-end",
+      "source": "$.items[2..]",
+      "valid": true,
+      "canonical": "$.items[2..]",
+      "exact": false,
+      "selectors": ["member", "positionRange"]
+    },
+    {
+      "id": "position-range-open-start",
+      "source": "$.items[..5]",
+      "valid": true,
+      "canonical": "$.items[..5]",
+      "exact": false,
+      "selectors": ["member", "positionRange"]
+    },
+    {
       "id": "descendant-expansion-only",
       "source": "$.items.**",
       "valid": true,
@@ -169,6 +193,18 @@
     {
       "id": "reject-leading-zero-index",
       "source": "$.items[01]",
+      "valid": false,
+      "error": "SANSA_LEADING_ZERO_INDEX"
+    },
+    {
+      "id": "reject-empty-position-range",
+      "source": "$.items[..]",
+      "valid": false,
+      "error": "SANSA_EMPTY_POSITION_RANGE"
+    },
+    {
+      "id": "reject-leading-zero-range-end",
+      "source": "$.items[1..02]",
       "valid": false,
       "error": "SANSA_LEADING_ZERO_INDEX"
     },

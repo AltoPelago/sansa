@@ -238,6 +238,23 @@ test('evaluates query projection over filtered bindings', () => {
   ]);
 });
 
+test('evaluates query sources with position range selectors', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[1..2]',
+    'select .sku',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+  ]);
+  assert.deepEqual(result.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.inventory.items[1].sku'],
+    ['$.inventory.items[2].sku'],
+  ]);
+});
+
 test('evaluates offset and limit after filtering', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',

@@ -34,6 +34,21 @@ test('parses exact structural selectors', () => {
   assert.equal(renderAddress(address), address.canonical);
 });
 
+test('parses position range selectors as non-exact selectors', () => {
+  const bounded = parseOk('$.items[2..5]');
+  assert.equal(bounded.isExact, false);
+  assert.deepEqual(bounded.selectors.at(-1), { type: 'positionRange', start: 2, end: 5 });
+  assert.equal(bounded.canonical, '$.items[2..5]');
+
+  const openEnd = parseOk('$.items[2..]');
+  assert.deepEqual(openEnd.selectors.at(-1), { type: 'positionRange', start: 2, end: null });
+  assert.equal(openEnd.canonical, '$.items[2..]');
+
+  const openStart = parseOk('$.items[..5]');
+  assert.deepEqual(openStart.selectors.at(-1), { type: 'positionRange', start: null, end: 5 });
+  assert.equal(openStart.canonical, '$.items[..5]');
+});
+
 test('canonicalizes identifier-safe quoted member names', () => {
   const address = parseOk('$.["name"]');
   assert.equal(address.canonical, '$.name');
@@ -94,6 +109,12 @@ test('rejects whitespace outside quoted payloads', () => {
 
 test('rejects leading-zero indexes', () => {
   parseBad('$.items[01]', 'SANSA_LEADING_ZERO_INDEX');
+  parseBad('$.items[01..2]', 'SANSA_LEADING_ZERO_INDEX');
+  parseBad('$.items[1..02]', 'SANSA_LEADING_ZERO_INDEX');
+});
+
+test('rejects empty position ranges', () => {
+  parseBad('$.items[..]', 'SANSA_EMPTY_POSITION_RANGE');
 });
 
 test('rejects raw comma in qualifier arguments', () => {

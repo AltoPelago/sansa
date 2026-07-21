@@ -8,14 +8,14 @@ This package is the first implementation package for SANSA Address, SANSA Resolv
 
 - root selectors: `$`, `?`
 - member selectors: `.name`, `.["quoted.name"]`
-- positional selectors: `[0]`
+- positional selectors: `[0]`, `[2..5]`, `[2..]`, `[..5]`
 - attribute address-space selector: `.@`
 - local address-space selector: `.<"namespace">`
 - expansion selectors: `.*`, `.**`
 - filters: `#type`, `%kind`
 - name pattern selector: `.("pattern")`
 - qualified address literals with top-level qualifier unions
-- structural resolve over host bindings with exact selectors, expansion selectors, name patterns, semantic type filters, and representation kind filters
+- structural resolve over host bindings with exact selectors, position ranges, expansion selectors, name patterns, semantic type filters, and representation kind filters
 - deterministic preorder descendant expansion with explicit attribute and local address-space traversal
 - SANSA.Query parsing for `from`, `where`, `order by`, `offset`, `limit`, and `select`
 - query comment stripping, clause-order validation, and canonical query rendering

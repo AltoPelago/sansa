@@ -44,6 +44,14 @@ test('parses minimal query clauses', () => {
   assert.equal(renderQuery(query), query.canonical);
 });
 
+test('parses position ranges in query resolution expressions', () => {
+  const query = parseOk('from $.inventory.items[0..1]\nselect .roles[0..]');
+  assert.equal(query.from.source, 'address');
+  assert.equal(query.from.address.canonical, '$.inventory.items[0..1]');
+  assert.equal(query.select.expression, '.roles[0..]');
+  assert.equal(query.canonical, 'from $.inventory.items[0..1]\nselect .roles[0..]');
+});
+
 test('parses dynamic path source clauses', () => {
   const query = parseOk('from path($.<"params">.source)\nselect .sku');
   assert.equal(query.from.source, 'expression');

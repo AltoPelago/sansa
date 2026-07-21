@@ -101,6 +101,20 @@ test('resolves direct and descendant expansion selectors', () => {
   assert.deepEqual(addresses(resolveAddress('$.**.unit', namespace)), []);
 });
 
+test('resolves inclusive position range selectors', () => {
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items[0..1]', namespace)), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items[1..]', namespace)), [
+    '$.inventory.items[1]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items[..0]', namespace)), [
+    '$.inventory.items[0]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items[2..1]', namespace)), []);
+});
+
 test('resolves name pattern selectors against direct child binding names', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items.*.("s?u")', namespace)), [
     '$.inventory.items[0].sku',

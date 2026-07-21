@@ -345,6 +345,7 @@ export interface RootSelector {
 export type SansaSelector =
   | MemberSelector
   | PositionSelector
+  | PositionRangeSelector
   | AttributeSpaceSelector
   | LocalSpaceSelector
   | DirectExpansionSelector
@@ -362,6 +363,12 @@ export interface MemberSelector {
 export interface PositionSelector {
   readonly type: 'position';
   readonly index: number;
+}
+
+export interface PositionRangeSelector {
+  readonly type: 'positionRange';
+  readonly start: number | null;
+  readonly end: number | null;
 }
 
 export interface AttributeSpaceSelector {
