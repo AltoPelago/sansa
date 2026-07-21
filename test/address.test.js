@@ -131,6 +131,14 @@ test('rejects leading-zero indexes', () => {
   parseBad('$.items[1..02]', 'SANSA_LEADING_ZERO_INDEX');
 });
 
+test('rejects position indexes above the local configured limit', () => {
+  assert.equal(parseOk('$.items[1000000]').canonical, '$.items[1000000]');
+  assert.equal(parseOk('$.items[0..1000000]').canonical, '$.items[0..1000000]');
+  parseBad('$.items[1000001]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+  parseBad('$.items[0..1000001]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+  parseBad('$.items[1000001..]', 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED');
+});
+
 test('rejects empty position ranges', () => {
   parseBad('$.items[..]', 'SANSA_EMPTY_POSITION_RANGE');
 });

@@ -12,6 +12,7 @@ export type SansaParseErrorCode =
   | 'SANSA_EMPTY_MEMBER_NAME'
   | 'SANSA_EMPTY_LOCAL_SPACE_NAME'
   | 'SANSA_LEADING_ZERO_INDEX'
+  | 'SANSA_POSITION_INDEX_LIMIT_EXCEEDED'
   | 'SANSA_INVALID_QUALIFIER'
   | 'SANSA_INVALID_QUALIFIER_ARGUMENT'
   | 'SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR'
@@ -442,6 +443,8 @@ export class SansaParseError extends Error {
   readonly index: number;
   constructor(message: string, index: number, code?: SansaParseErrorCode);
 }
+
+export declare const SANSA_MAX_POSITION_INDEX: number;
 
 export function parseAddress(input: string, options?: SansaParseOptions): SansaParseResult;
 export function parseAddressOrThrow(input: string, options?: SansaParseOptions): SansaAddress;

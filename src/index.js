@@ -1,5 +1,6 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
+export const SANSA_MAX_POSITION_INDEX = 1_000_000;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
@@ -1691,7 +1692,15 @@ class AddressParser {
     if (raw.length > 1 && raw.startsWith('0')) {
       this.fail('Positional indexes must not contain leading zeroes', 'SANSA_LEADING_ZERO_INDEX', start);
     }
-    return Number(raw);
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value > SANSA_MAX_POSITION_INDEX) {
+      this.fail(
+        `Position indexes must be less than or equal to ${SANSA_MAX_POSITION_INDEX}`,
+        'SANSA_POSITION_INDEX_LIMIT_EXCEEDED',
+        start,
+      );
+    }
+    return value;
   }
 
   parseQualifierExpression(stopChar = '') {

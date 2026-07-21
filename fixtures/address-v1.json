@@ -225,6 +225,34 @@
       "error": "SANSA_LEADING_ZERO_INDEX"
     },
     {
+      "id": "max-position-index",
+      "source": "$.items[1000000]",
+      "valid": true,
+      "canonical": "$.items[1000000]",
+      "exact": true,
+      "selectors": ["member", "position"]
+    },
+    {
+      "id": "max-position-range-endpoint",
+      "source": "$.items[0..1000000]",
+      "valid": true,
+      "canonical": "$.items[0..1000000]",
+      "exact": false,
+      "selectors": ["member", "positionRange"]
+    },
+    {
+      "id": "reject-position-index-above-limit",
+      "source": "$.items[1000001]",
+      "valid": false,
+      "error": "SANSA_POSITION_INDEX_LIMIT_EXCEEDED"
+    },
+    {
+      "id": "reject-position-range-endpoint-above-limit",
+      "source": "$.items[0..1000001]",
+      "valid": false,
+      "error": "SANSA_POSITION_INDEX_LIMIT_EXCEEDED"
+    },
+    {
       "id": "reject-empty-quoted-member",
       "source": "$.[\"\"]",
       "valid": false,
