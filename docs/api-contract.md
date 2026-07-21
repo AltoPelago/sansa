@@ -138,7 +138,7 @@ Workbench example queries are defined as grouped catalog data in [tools/query-we
 - `attributeSpace`
 - `localSpace`
 
-Position ranges, expansion selectors, filters, and name patterns make the address expression non-exact.
+Parent traversal, position ranges, expansion selectors, filters, and name patterns make the address expression non-exact.
 
 ## Selector Nodes
 
@@ -146,6 +146,7 @@ Position ranges, expansion selectors, filters, and name patterns make the addres
 { type: "member", name, quoted }
 { type: "position", index }
 { type: "positionRange", start, end }
+{ type: "parent" }
 { type: "attributeSpace" }
 { type: "localSpace", name }
 { type: "directExpansion" }
@@ -166,6 +167,7 @@ Resolve is host-adapted. A namespace must expose a root binding:
   root,
   contextualRoot?,
   children?(binding),
+  parent?(binding),
   member?(binding, name),
   position?(binding, index),
   attributeSpace?(binding),
@@ -200,6 +202,7 @@ For simple hosts, bindings may expose fields directly:
   value,
   scalar,
   children,
+  parent,
   attributeSpace,
   attributes
 }
@@ -207,7 +210,7 @@ For simple hosts, bindings may expose fields directly:
 
 `scalarKind`, `valueKind`, or `literalKind` may be used by host-neutral fixtures to preserve scalar forms that JSON cannot express directly, such as `nan`, `infinity`, and explicit `null`. `nullReason` carries the surfaced AEON null reason, such as `notSet` or `notApplicable`.
 
-Exact member and position selectors select direct children. Position ranges select inclusive positional children exposed by the host binding; open start means position `0`, open end means through the final exposed positional child, and reversed ranges resolve to an empty binding set. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
+Exact member and position selectors select direct children. Position ranges select inclusive positional children exposed by the host binding; open start means position `0`, open end means through the final exposed positional child, and reversed ranges resolve to an empty binding set. `.^` selects an exposed parent binding, resolves empty at the effective resolution root, and fails explicitly when parent traversal is unsupported. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
 
@@ -542,6 +545,7 @@ Canonical rendering:
 - preserves `$` and `?` root kind
 - renders identifier-safe members as `.name`
 - renders other member names as `.["..."]`
+- renders parent traversal as `.^`
 - renders local spaces as `.<"...">`
 - renders name patterns as `.("...")`
 - renders quoted payload escapes using AEON double-quoted string escape forms
@@ -619,4 +623,5 @@ Evaluation diagnostics may also include `phase` and `candidateAddress` fields. T
 - `SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT`
 - `SANSA_RESOLVE_UNSUPPORTED_ATTRIBUTE_SPACE`
 - `SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE`
+- `SANSA_RESOLVE_UNSUPPORTED_PARENT`
 - `SANSA_RESOLVE_UNSUPPORTED_SELECTOR`

@@ -94,13 +94,17 @@ function buildNamespaces(entries) {
   const output = new Map();
   for (const entry of entries) {
     const byAddress = new Map();
-    indexBindingTree(entry.root, byAddress);
+    const parents = new Map();
+    indexBindingTree(entry.root, byAddress, parents);
     output.set(entry.id, {
       byAddress,
       namespace: {
         root: entry.root,
         children: (binding) => binding.children ?? [],
         attributeSpace: (binding) => binding.attributeSpace,
+        ...(entry.supportsParentTraversal === true
+          ? { parent: (binding) => parents.get(binding) }
+          : {}),
         ...(entry.supportsLocalSpaces === true
           ? { localSpace: (binding, name) => binding.localSpaces?.[name] }
           : {}),
@@ -110,11 +114,12 @@ function buildNamespaces(entries) {
   return output;
 }
 
-function indexBindingTree(binding, output) {
+function indexBindingTree(binding, output, parents, parent = null) {
   output.set(binding.address, binding);
-  for (const child of binding.children ?? []) indexBindingTree(child, output);
-  if (binding.attributeSpace) indexBindingTree(binding.attributeSpace, output);
-  for (const localSpace of Object.values(binding.localSpaces ?? {})) indexBindingTree(localSpace, output);
+  parents.set(binding, parent);
+  for (const child of binding.children ?? []) indexBindingTree(child, output, parents, binding);
+  if (binding.attributeSpace) indexBindingTree(binding.attributeSpace, output, parents, binding);
+  for (const localSpace of Object.values(binding.localSpaces ?? {})) indexBindingTree(localSpace, output, parents, binding);
 }
 
 function compareArray(expected, actual, label, failures) {

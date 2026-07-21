@@ -119,6 +119,11 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(membership.operator, 'in');
   assert.equal(renderQueryExpression(membership), '"admin" in .roles.*');
 
+  const parentResolution = parseExpressionOk('.^.sibling');
+  assert.equal(parentResolution.type, 'resolutionExpression');
+  assert.equal(parentResolution.scope, 'current');
+  assert.equal(renderQueryExpression(parentResolution), '.^.sibling');
+
   const cardinality = parseExpressionOk('any(.roles.* == "admin")');
   assert.equal(cardinality.type, 'cardinalityExpression');
   assert.equal(cardinality.operator, 'any');

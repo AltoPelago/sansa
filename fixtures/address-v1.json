@@ -107,6 +107,22 @@
       "selectors": ["member", "positionRange"]
     },
     {
+      "id": "parent-selector",
+      "source": "$.items[1].^.sku",
+      "valid": true,
+      "canonical": "$.items[1].^.sku",
+      "exact": false,
+      "selectors": ["member", "position", "parent", "member"]
+    },
+    {
+      "id": "quoted-caret-member",
+      "source": "$.[\"^\"]",
+      "valid": true,
+      "canonical": "$.[\"^\"]",
+      "exact": true,
+      "selectors": ["member"]
+    },
+    {
       "id": "descendant-expansion-only",
       "source": "$.items.**",
       "valid": true,
