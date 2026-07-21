@@ -342,7 +342,7 @@ Currently evaluated:
 - Boolean `not`, `and`, `or`
 - existence predicates over resolution expressions: `exists`, `absent`
 - cardinality predicates over resolved binding sets: `any`, `all`, `none`
-- built-in string functions: `contains`, `startsWith`, `endsWith`, `lower`, `concat`
+- built-in string functions: `contains`, `startsWith`, `endsWith`, `lower`, `upper`, `concat`
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - lookup over addressable containers with `lookup`
@@ -411,7 +411,7 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 | multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
 | unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
 
-The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, and `concat`. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 

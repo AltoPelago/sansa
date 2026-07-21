@@ -256,12 +256,12 @@ export const queryExampleGroups = [
         query: lines(
           'from $.inventory.items.*',
           'where endsWith(.sku, "00")',
-          'select { sku = .sku code = lower(.sku) label = concat("item:", .sku) }',
+          'select { sku = .sku code = lower(.sku) name = upper(.name) label = concat("item:", .sku) }',
         ),
         expected: {
           ok: true,
           count: 3,
-          includes: '$.inventory.items[2] = {"sku":"C-300","code":"c-300","label":"item:C-300"}',
+          includes: '$.inventory.items[2] = {"sku":"C-300","code":"c-300","name":"COUPLER","label":"item:C-300"}',
         },
       },
     ],

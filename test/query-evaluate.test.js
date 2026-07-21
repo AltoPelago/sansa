@@ -991,7 +991,7 @@ test('evaluates built-in string functions', () => {
   const projected = evaluateQuery([
     'from $.inventory.items.*',
     'where startsWith(.sku, "A") or startsWith(.sku, "B")',
-    'select { code = lower(.sku) label = concat("item:", .sku) }',
+    'select { code = lower(.sku) name = upper(.name) label = concat("item:", .sku) }',
   ].join('\n'), namespace);
   assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
   assert.deepEqual(projected.results.map((entry) => entry.value), [
@@ -999,6 +999,7 @@ test('evaluates built-in string functions', () => {
       type: 'object',
       value: {
         code: 'a-100',
+        name: 'ADAPTER',
         label: 'item:A-100',
       },
     },
@@ -1006,6 +1007,7 @@ test('evaluates built-in string functions', () => {
       type: 'object',
       value: {
         code: 'b-200',
+        name: 'BRACKET',
         label: 'item:B-200',
       },
     },

@@ -548,6 +548,8 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
       return evaluateStringFunction(expression.name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
     case 'lower':
       return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
+    case 'upper':
+      return evaluateStringFunction(expression.name, evaluatedArgs, 1, ([value]) => value.toUpperCase());
     case 'concat':
       if (evaluatedArgs.length === 0) {
         return {
