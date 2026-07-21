@@ -178,6 +178,59 @@ const params = binding({
   ],
 });
 
+const tableHeader = binding({
+  name: 'header',
+  address: '$.table.header',
+  representationKind: 'list',
+  children: [
+    binding({ index: 0, address: '$.table.header[0]', semanticType: 'string', representationKind: 'string', value: 'name' }),
+    binding({ index: 1, address: '$.table.header[1]', semanticType: 'string', representationKind: 'string', value: 'age' }),
+  ],
+});
+
+const tableDuplicateHeader = binding({
+  name: 'duplicateHeader',
+  address: '$.table.duplicateHeader',
+  representationKind: 'list',
+  children: [
+    binding({ index: 0, address: '$.table.duplicateHeader[0]', semanticType: 'string', representationKind: 'string', value: 'name' }),
+    binding({ index: 1, address: '$.table.duplicateHeader[1]', semanticType: 'string', representationKind: 'string', value: 'name' }),
+  ],
+});
+
+const tableContent = binding({
+  name: 'content',
+  address: '$.table.content',
+  representationKind: 'list',
+  children: [
+    binding({
+      index: 0,
+      address: '$.table.content[0]',
+      representationKind: 'tuple',
+      children: [
+        binding({ index: 0, address: '$.table.content[0][0]', semanticType: 'string', representationKind: 'string', value: 'Bob' }),
+        binding({ index: 1, address: '$.table.content[0][1]', semanticType: 'number', representationKind: 'number', value: 22 }),
+      ],
+    }),
+    binding({
+      index: 1,
+      address: '$.table.content[1]',
+      representationKind: 'tuple',
+      children: [
+        binding({ index: 0, address: '$.table.content[1][0]', semanticType: 'string', representationKind: 'string', value: 'Alice' }),
+        binding({ index: 1, address: '$.table.content[1][1]', semanticType: 'number', representationKind: 'number', value: 31 }),
+      ],
+    }),
+  ],
+});
+
+const table = binding({
+  name: 'table',
+  address: '$.table',
+  representationKind: 'object',
+  children: [tableHeader, tableDuplicateHeader, tableContent],
+});
+
 const root = binding({
   address: '$',
   representationKind: 'object',
@@ -207,6 +260,7 @@ const root = binding({
         }),
       ],
     }),
+    table,
   ],
 });
 
@@ -812,6 +866,51 @@ test('evaluates lookup over addressable containers', () => {
   ].join('\n'), namespace);
   assert.equal(invalidBase.ok, false);
   assert.equal(invalidBase.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
+test('evaluates objectFrom over paired binding sets', () => {
+  const projected = evaluateQuery([
+    'from $.table.content.*',
+    'select objectFrom($.table.header.*, .*)',
+  ].join('\n'), namespace);
+  assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
+  assert.deepEqual(projected.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        name: 'Bob',
+        age: 22,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        name: 'Alice',
+        age: 31,
+      },
+    },
+  ]);
+
+  const mismatched = evaluateQuery([
+    'from $.table.content[0]',
+    'select objectFrom($.table.header[0..0], .*)',
+  ].join('\n'), namespace);
+  assert.equal(mismatched.ok, false);
+  assert.equal(mismatched.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
+
+  const duplicateKey = evaluateQuery([
+    'from $.table.content[0]',
+    'select objectFrom($.table.duplicateHeader.*, .*)',
+  ].join('\n'), namespace);
+  assert.equal(duplicateKey.ok, false);
+  assert.equal(duplicateKey.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const invalidArgument = evaluateQuery([
+    'from $.table.content[0]',
+    'select objectFrom("name", .*)',
+  ].join('\n'), namespace);
+  assert.equal(invalidArgument.ok, false);
+  assert.equal(invalidArgument.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates path over structured address literal values', () => {

@@ -104,6 +104,8 @@ Ordinary string functions consume single scalar string arguments. The current bu
 
 `lookup(base, key)` resolves a dynamic member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable.
 
+`objectFrom(keys, values)` pairs two ordered Binding Sets by position and constructs a derived object. Key bindings must expose unique string scalar values, value bindings must expose scalar values, and mismatched lengths fail with a cardinality diagnostic.
+
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
 ```text
@@ -139,6 +141,11 @@ select { sku = .sku status = fallback(.status, "missing") }
 from $.inventory.items.*
 where .qty >= 4
 select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+```
+
+```text
+from $.table.content.*
+select objectFrom($.table.header.*, .*)
 ```
 
 ## API

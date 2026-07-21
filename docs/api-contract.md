@@ -350,6 +350,7 @@ Currently evaluated:
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - lookup over addressable containers with `lookup`
+- ordered binding-set object construction with `objectFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
@@ -423,6 +424,8 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `lookup(base, key)` is a function-like operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one binding. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing lookup target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics.
 
+`objectFrom(keys, values)` is a function-like projection helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics.
+
 Cardinality predicates follow conventional quantified logic:
 
 ```text
@@ -466,6 +469,13 @@ select { sku = .sku status = fallback(.status, "missing") }
 from $.inventory.items.*
 where .qty >= 4
 select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+```
+
+`objectFrom(...)` can construct row-shaped objects from table-like positional data:
+
+```text
+from $.table.content.*
+select objectFrom($.table.header.*, .*)
 ```
 
 Currently rejected with explicit diagnostics:
