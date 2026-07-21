@@ -132,6 +132,42 @@ test('query tool evaluates table and label examples against JSON fixtures', () =
   ].join('\n'));
 });
 
+test('query tool honors explicit fixture kind and reports fixture kind errors', () => {
+  const forcedJson = runTool([
+    '--fixture',
+    'fixtures/query-inventory.aeon',
+    '--fixture-kind',
+    'json',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(forcedJson.status, 2);
+  assert.match(forcedJson.stderr, /could not parse JSON fixture/);
+
+  const forcedAeon = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
+    '--fixture-kind',
+    'aeon',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(forcedAeon.status, 2);
+  assert.match(forcedAeon.stderr, /could not compile AEON fixture/);
+
+  const unknownKind = runTool([
+    '--fixture',
+    'fixtures/query-inventory.fixture',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(unknownKind.status, 2);
+  assert.match(unknownKind.stderr, /could not infer fixture kind/);
+});
+
 test('query tool mounts JSON params as a local address space', () => {
   const params = JSON.stringify({
     source: {
