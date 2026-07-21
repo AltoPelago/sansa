@@ -97,6 +97,41 @@ test('query tool evaluates objectFrom against the default AEON fixture', () => {
   ].join('\n'));
 });
 
+test('query tool evaluates table and label examples against JSON fixtures', () => {
+  const objectFrom = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
+    '--query',
+    'from $.table.content.* select objectFrom($.table.header.*, .*)',
+  ]);
+
+  assert.equal(objectFrom.status, 0, objectFrom.stderr);
+  assert.equal(objectFrom.stderr, '');
+  assert.equal(objectFrom.stdout.trim(), [
+    '$.table.content[0] = {"name":"Bob","age":22}',
+    '$.table.content[1] = {"name":"Alice","age":31}',
+  ].join('\n'));
+
+  const unicodeOrder = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
+    '--query',
+    [
+      'from $.labels.*',
+      'where .value >= "z"',
+      'order by .value asc',
+      'select .value',
+    ].join('\n'),
+  ]);
+
+  assert.equal(unicodeOrder.status, 0, unicodeOrder.stderr);
+  assert.equal(unicodeOrder.stderr, '');
+  assert.equal(unicodeOrder.stdout.trim(), [
+    '$.labels[0].value = "z"',
+    '$.labels[1].value = "ä"',
+  ].join('\n'));
+});
+
 test('query tool mounts JSON params as a local address space', () => {
   const params = JSON.stringify({
     source: {
