@@ -49,6 +49,24 @@ test('parses position range selectors as non-exact selectors', () => {
   assert.equal(openStart.canonical, '$.items[..5]');
 });
 
+test('parses parent selectors as non-exact selectors', () => {
+  const address = parseOk('$.inventory.items[1].^.sku');
+  assert.equal(address.isExact, false);
+  assert.deepEqual(address.selectors.map((selector) => selector.type), [
+    'member',
+    'member',
+    'position',
+    'parent',
+    'member',
+  ]);
+  assert.equal(address.canonical, '$.inventory.items[1].^.sku');
+
+  const quotedCaret = parseOk('$.["^"]');
+  assert.equal(quotedCaret.isExact, true);
+  assert.deepEqual(quotedCaret.selectors.at(-1), { type: 'member', name: '^', quoted: true });
+  assert.equal(quotedCaret.canonical, '$.["^"]');
+});
+
 test('canonicalizes identifier-safe quoted member names', () => {
   const address = parseOk('$.["name"]');
   assert.equal(address.canonical, '$.name');

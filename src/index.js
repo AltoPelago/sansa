@@ -222,6 +222,9 @@ export function renderAddress(address) {
       case 'positionRange':
         output += `[${selector.start ?? ''}..${selector.end ?? ''}]`;
         break;
+      case 'parent':
+        output += '.^';
+        break;
       case 'attributeSpace':
         output += '.@';
         break;
@@ -1278,6 +1281,8 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
       return { ok: true, bindings: bindings.flatMap((binding) => selectPosition(namespace, binding, selector.index)) };
     case 'positionRange':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
+    case 'parent':
+      return selectParents(namespace, bindings, selectorIndex);
     case 'directExpansion':
       return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
     case 'descendantExpansion':
@@ -1341,6 +1346,24 @@ function selectPositionRange(namespace, binding, start, end) {
     const position = Number.isInteger(explicitIndex) ? explicitIndex : ordinal;
     return position >= lower && position <= upper;
   });
+}
+
+function selectParents(namespace, bindings, selectorIndex) {
+  if (typeof namespace.parent === 'function') {
+    return { ok: true, bindings: bindings.map((binding) => namespace.parent(binding)).filter(Boolean) };
+  }
+  if (bindings.some((binding) => Object.prototype.hasOwnProperty.call(binding, 'parent'))) {
+    return { ok: true, bindings: bindings.map((binding) => binding.parent).filter(Boolean) };
+  }
+  if (bindings.length === 0) return { ok: true, bindings: [] };
+  return {
+    ok: false,
+    error: resolveError(
+      'SANSA_RESOLVE_UNSUPPORTED_PARENT',
+      'The namespace does not expose parent traversal',
+      selectorIndex,
+    ),
+  };
 }
 
 function selectAttributeSpaces(namespace, bindings, selectorIndex) {
@@ -1531,6 +1554,7 @@ class AddressParser {
   parseDotSelector() {
     this.consume('.');
     if (this.match('@')) return { type: 'attributeSpace' };
+    if (this.match('^')) return { type: 'parent' };
     if (this.match('*')) {
       if (this.match('*')) return { type: 'descendantExpansion' };
       return { type: 'directExpansion' };

@@ -71,6 +71,30 @@ const localSpaceNamespace = {
   localSpace: (entry, name) => entry.localSpaces?.[name],
 };
 
+const parents = new Map([
+  [root, null],
+  [inventory, root],
+  [items, inventory],
+  [item0, items],
+  [sku0, item0],
+  [qty0, item0],
+  [item1, items],
+  [sku1, item1],
+  [qty1, item1],
+  [status1, item1],
+  [itemA1, inventory],
+  [itemB2, inventory],
+  [archive, inventory],
+  [reading, root],
+  [readingAttributes, reading],
+  [readingUnit, readingAttributes],
+]);
+
+const parentNamespace = {
+  ...namespace,
+  parent: (entry) => parents.get(entry),
+};
+
 test('resolves exact absolute addresses to zero or one binding', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku', namespace)), ['$.inventory.items[1].sku']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2].sku', namespace)), []);
@@ -113,6 +137,16 @@ test('resolves inclusive position range selectors', () => {
     '$.inventory.items[0]',
   ]);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2..1]', namespace)), []);
+});
+
+test('resolves parent selectors only when the host exposes parent traversal', () => {
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku.^.qty', parentNamespace)), ['$.inventory.items[1].qty']);
+  assert.deepEqual(addresses(resolveAddress('$.^', parentNamespace)), []);
+
+  const unsupported = resolveAddress('$.inventory.^', namespace);
+  assert.equal(unsupported.ok, false);
+  assert.equal(unsupported.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_PARENT');
+  assert.equal(unsupported.errors[0].selectorIndex, 1);
 });
 
 test('resolves name pattern selectors against direct child binding names', () => {

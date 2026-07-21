@@ -130,6 +130,7 @@ export interface SansaResolveBinding {
   readonly value?: unknown;
   readonly scalar?: unknown;
   readonly children?: readonly SansaResolveBinding[];
+  readonly parent?: SansaResolveBinding | null;
   readonly attributeSpace?: SansaResolveBinding;
   readonly attributes?: SansaResolveBinding;
 }
@@ -138,6 +139,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly root: TBinding | (() => TBinding | undefined);
   readonly contextualRoot?: TBinding | (() => TBinding | undefined);
   readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
+  readonly parent?: (binding: TBinding) => TBinding | undefined;
   readonly member?: (binding: TBinding, name: string) => TBinding | undefined;
   readonly position?: (binding: TBinding, index: number) => TBinding | undefined;
   readonly attributeSpace?: (binding: TBinding) => TBinding | undefined;
@@ -346,6 +348,7 @@ export type SansaSelector =
   | MemberSelector
   | PositionSelector
   | PositionRangeSelector
+  | ParentSelector
   | AttributeSpaceSelector
   | LocalSpaceSelector
   | DirectExpansionSelector
@@ -369,6 +372,10 @@ export interface PositionRangeSelector {
   readonly type: 'positionRange';
   readonly start: number | null;
   readonly end: number | null;
+}
+
+export interface ParentSelector {
+  readonly type: 'parent';
 }
 
 export interface AttributeSpaceSelector {
