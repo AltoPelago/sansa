@@ -106,6 +106,38 @@ test('query web runtime activates dynamic from path sources from JSON fixtures',
   ].join('\n'));
 });
 
+test('query web runtime keeps JSON fixture parity for table and label examples', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.json', import.meta.url), 'utf8');
+  const objectFrom = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from $.table.content.* select objectFrom($.table.header.*, .*)',
+  });
+
+  assert.equal(objectFrom.ok, true, JSON.stringify(objectFrom.errors ?? []));
+  assert.equal(objectFrom.text, [
+    '$.table.content[0] = {"name":"Bob","age":22}',
+    '$.table.content[1] = {"name":"Alice","age":31}',
+  ].join('\n'));
+
+  const unicodeOrder = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: [
+      'from $.labels.*',
+      'where .value >= "z"',
+      'order by .value asc',
+      'select .value',
+    ].join('\n'),
+  });
+
+  assert.equal(unicodeOrder.ok, true, JSON.stringify(unicodeOrder.errors ?? []));
+  assert.equal(unicodeOrder.text, [
+    '$.labels[0].value = "z"',
+    '$.labels[1].value = "ä"',
+  ].join('\n'));
+});
+
 test('query web runtime mounts AEON params as a local address space', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({

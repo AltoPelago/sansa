@@ -518,6 +518,132 @@
             ]
           }
         ]
+      },
+      {
+        "name": "table",
+        "address": "$.table",
+        "representationKind": "object",
+        "children": [
+          {
+            "name": "header",
+            "address": "$.table.header",
+            "representationKind": "list",
+            "children": [
+              {
+                "index": 0,
+                "address": "$.table.header[0]",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "name"
+              },
+              {
+                "index": 1,
+                "address": "$.table.header[1]",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "age"
+              }
+            ]
+          },
+          {
+            "name": "content",
+            "address": "$.table.content",
+            "representationKind": "list",
+            "children": [
+              {
+                "index": 0,
+                "address": "$.table.content[0]",
+                "representationKind": "tuple",
+                "children": [
+                  {
+                    "index": 0,
+                    "address": "$.table.content[0][0]",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Bob"
+                  },
+                  {
+                    "index": 1,
+                    "address": "$.table.content[0][1]",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 22
+                  }
+                ]
+              },
+              {
+                "index": 1,
+                "address": "$.table.content[1]",
+                "representationKind": "tuple",
+                "children": [
+                  {
+                    "index": 0,
+                    "address": "$.table.content[1][0]",
+                    "semanticType": "string",
+                    "representationKind": "string",
+                    "value": "Alice"
+                  },
+                  {
+                    "index": 1,
+                    "address": "$.table.content[1][1]",
+                    "semanticType": "number",
+                    "representationKind": "number",
+                    "value": 31
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "labels",
+        "address": "$.labels",
+        "representationKind": "list",
+        "children": [
+          {
+            "index": 0,
+            "address": "$.labels[0]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.labels[0].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "z"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "address": "$.labels[1]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.labels[1].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "ä"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "address": "$.labels[2]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.labels[2].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "a"
+              }
+            ]
+          }
+        ]
       }
     ]
   }
