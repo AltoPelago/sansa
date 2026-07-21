@@ -546,6 +546,27 @@
             ]
           },
           {
+            "name": "duplicateHeader",
+            "address": "$.table.duplicateHeader",
+            "representationKind": "list",
+            "children": [
+              {
+                "index": 0,
+                "address": "$.table.duplicateHeader[0]",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "name"
+              },
+              {
+                "index": 1,
+                "address": "$.table.duplicateHeader[1]",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "name"
+              }
+            ]
+          },
+          {
             "name": "content",
             "address": "$.table.content",
             "representationKind": "list",

@@ -49,6 +49,7 @@ inventory:object = {
 
 table:object = {
   header:list<string> = ["name", "age"]
+  duplicateHeader:list<string> = ["name", "name"]
   content:list = [
     ("Bob", 22)
     ("Alice", 31)

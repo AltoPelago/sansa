@@ -136,6 +136,16 @@ test('query web runtime keeps JSON fixture parity for table and label examples',
     '$.labels[0].value = "z"',
     '$.labels[1].value = "ä"',
   ].join('\n'));
+
+  const duplicateHeader = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from $.table.content[0] select objectFrom($.table.duplicateHeader.*, .*)',
+  });
+
+  assert.equal(duplicateHeader.ok, false);
+  assert.equal(duplicateHeader.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+  assert.match(duplicateHeader.text, /duplicate key 'name'/);
 });
 
 test('query web runtime mounts AEON params as a local address space', async () => {

@@ -421,6 +421,19 @@ export const queryExampleGroups = [
           includes: 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN [where] at $.inventory.items[0]',
         },
       },
+      {
+        name: 'diagnosticObjectFromDuplicate',
+        label: 'Object duplicate key',
+        query: lines(
+          'from $.table.content[0]',
+          'select objectFrom($.table.duplicateHeader.*, .*)',
+        ),
+        expected: {
+          ok: false,
+          code: 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL',
+          includes: "Function 'objectFrom' received duplicate key 'name'",
+        },
+      },
     ],
   },
 ];

@@ -140,6 +140,16 @@ test('query tool evaluates table and label examples against JSON fixtures', () =
     '$.labels[0].value = "z"',
     '$.labels[1].value = "ä"',
   ].join('\n'));
+
+  const duplicateHeader = runTool([
+    '--fixture',
+    'fixtures/query-inventory.json',
+    '--query',
+    'from $.table.content[0] select objectFrom($.table.duplicateHeader.*, .*)',
+  ]);
+
+  assert.equal(duplicateHeader.status, 1);
+  assert.match(duplicateHeader.stderr, /duplicate key 'name'/);
 });
 
 test('query tool honors explicit fixture kind and reports fixture kind errors', () => {
