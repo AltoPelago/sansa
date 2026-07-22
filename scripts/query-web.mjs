@@ -93,6 +93,7 @@ function handleQueryApi(request, response) {
           source: String(payload.source ?? ''),
           query: String(payload.query ?? ''),
           paramsSource: String(payload.paramsSource ?? ''),
+          policy: payload.policy === 'validation' ? 'validation' : '',
         });
       writeJson(response, result.ok ? 200 : 400, result);
     })

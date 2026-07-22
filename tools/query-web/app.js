@@ -54,6 +54,11 @@ document.querySelectorAll('input[name="outputMode"]').forEach((input) => {
     }
   });
 });
+document.querySelectorAll('input[name="queryPolicy"]').forEach((input) => {
+  input.addEventListener('change', () => {
+    if (lastAction !== 'parse') void runQuery();
+  });
+});
 document.querySelectorAll('input[name="sourceKind"]').forEach((input) => {
   input.addEventListener('change', () => {
     fixtureInput.value = sourceKind() === 'json' ? defaultJsonSource : defaultAeonSource;
@@ -151,6 +156,7 @@ async function runQuery() {
     source: fixtureInput.value,
     paramsSource: paramsInput.value,
     query: queryInput.value,
+    policy: queryPolicy(),
   });
   queryStatus.textContent = payload.ok ? 'run ok' : 'run failed';
   resultStatus.textContent = payload.ok
@@ -225,4 +231,8 @@ function formatOutputMode() {
 
 function sourceKind() {
   return document.querySelector('input[name="sourceKind"]:checked')?.value ?? 'aeon';
+}
+
+function queryPolicy() {
+  return document.querySelector('input[name="queryPolicy"]:checked')?.value ?? '';
 }

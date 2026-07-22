@@ -396,6 +396,31 @@ test('query web runtime preserves query diagnostic context', async () => {
   );
 });
 
+test('query web runtime applies validation policy', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const safe = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    policy: 'validation',
+    query: 'from $.inventory.items.* where .qty >= 4 select .sku',
+  });
+
+  assert.equal(safe.ok, true, JSON.stringify(safe.errors ?? []));
+  assert.equal(safe.count, 3);
+
+  const rejected = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    policy: 'validation',
+    query: 'from $.inventory.items.* select { sku = .sku qty = .qty }',
+  });
+
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+  assert.equal(rejected.errors[0].phase, 'policy');
+  assert.match(rejected.text, /SANSA_QUERY_POLICY_VIOLATION \[policy\]/);
+});
+
 test('query web runtime formats parse diagnostics as text', () => {
   const result = parseQueryForWorkbench('from $.inventory.items.*');
 

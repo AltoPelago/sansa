@@ -25,7 +25,7 @@ export function parseQueryForWorkbench(querySource) {
   };
 }
 
-export async function evaluateQueryForWorkbench({ sourceKind, source, query, paramsSource = '' }) {
+export async function evaluateQueryForWorkbench({ sourceKind, source, query, paramsSource = '', policy = '' }) {
   const namespaceResult = sourceKind === 'json'
     ? namespaceFromJsonSource(source)
     : await namespaceFromAeonSource(source);
@@ -47,7 +47,8 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query, par
     ...(mounted.diagnostics ?? []),
   ];
 
-  const result = evaluateQuery(query, mounted.namespace);
+  const options = policy === 'validation' ? { policy: 'validation' } : {};
+  const result = evaluateQuery(query, mounted.namespace, options);
   if (!result.ok) {
     const errors = normalizeDiagnostics(result.errors);
     return {

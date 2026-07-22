@@ -27,6 +27,7 @@ if (!querySource.trim()) {
 const mode = args.mode ?? 'evaluate';
 const format = args.format ?? 'text';
 const fixturePath = resolve(args.fixture ?? defaultFixturePath);
+const policy = parsePolicy(args.policy);
 
 if (!['evaluate', 'parse'].includes(mode)) {
   console.error(`SANSA Query tool error: unsupported --mode '${mode}'. Expected 'evaluate' or 'parse'.`);
@@ -49,7 +50,7 @@ if (mode === 'parse') {
     mountParamsLocalSpace(loaded.namespace.root, paramsBinding);
   }
 
-  result = evaluateQuery(querySource, loaded.namespace);
+  result = evaluateQuery(querySource, loaded.namespace, policy ? { policy } : {});
 }
 
 if (format === 'json') {
@@ -82,12 +83,21 @@ function parseArgs(raw) {
       output.format = requireValue(raw, ++index, arg);
     } else if (arg === '--mode') {
       output.mode = requireValue(raw, ++index, arg);
+    } else if (arg === '--policy') {
+      output.policy = requireValue(raw, ++index, arg);
     } else {
       console.error(`SANSA Query tool error: unknown argument '${arg}'.`);
       process.exit(2);
     }
   }
   return output;
+}
+
+function parsePolicy(value) {
+  if (value === undefined) return undefined;
+  if (value === 'validation') return value;
+  console.error(`SANSA Query tool error: unsupported --policy '${value}'. Expected 'validation'.`);
+  process.exit(2);
 }
 
 function requireValue(raw, index, flag) {
@@ -507,6 +517,7 @@ Options:
       --params-file <path>  Read JSON params and mount them at $.<"params">.
       --mode <mode>         evaluate or parse. Defaults to evaluate.
       --format <format>     text or json. Defaults to text.
+      --policy <policy>     Optional query policy: validation.
   -h, --help                Show this help.
 `);
 }

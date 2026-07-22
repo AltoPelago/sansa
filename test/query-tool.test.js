@@ -34,6 +34,7 @@ test('query tool help documents fixture kind support', () => {
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.aeon/);
   assert.match(result.stdout, /--fixture-kind <kind>/);
   assert.match(result.stdout, /Force fixture kind: aeon or json/);
+  assert.match(result.stdout, /--policy <policy>/);
 });
 
 test('query tool evaluates a query against the default fixture', () => {
@@ -105,6 +106,42 @@ test('query tool evaluates objectFrom against the default AEON fixture', () => {
     '$.table.content[0] = {"name":"Bob","age":22}',
     '$.table.content[1] = {"name":"Alice","age":31}',
   ].join('\n'));
+});
+
+test('query tool applies validation policy', () => {
+  const safe = runTool([
+    '--policy',
+    'validation',
+    '--query',
+    'from $.inventory.items.* where .qty >= 4 select .sku',
+  ]);
+
+  assert.equal(safe.status, 0, safe.stderr);
+  assert.equal(safe.stdout.trim(), [
+    '$.inventory.items[1].sku = "B-200"',
+    '$.inventory.items[2].sku = "C-300"',
+    '$.inventory.items[3].sku = "D-250"',
+  ].join('\n'));
+
+  const rejected = runTool([
+    '--policy',
+    'validation',
+    '--query',
+    'from $.inventory.items.* select { sku = .sku qty = .qty }',
+  ]);
+
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /SANSA_QUERY_POLICY_VIOLATION \[policy\]/);
+
+  const invalidPolicy = runTool([
+    '--policy',
+    'reporting',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(invalidPolicy.status, 2);
+  assert.match(invalidPolicy.stderr, /unsupported --policy 'reporting'/);
 });
 
 test('query tool evaluates table and label examples against JSON fixtures', () => {
