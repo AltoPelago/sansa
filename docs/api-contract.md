@@ -82,6 +82,14 @@ evaluateQuery(query, namespace, { enabledExtensions: ["sansa.transform.objectFro
 
 A disabled advertised extension fails with `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION` and includes the extension id in the diagnostic.
 
+The proposal-stage validation policy can be enabled with:
+
+```js
+evaluateQuery(query, namespace, { policy: "validation" })
+```
+
+This policy rejects presentation and transform behavior before evaluation: `order by`, `offset`, `limit`, object projection expressions, and transform-library helpers. Rejections use `SANSA_QUERY_POLICY_VIOLATION` with `phase: "policy"`.
+
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
 ```js

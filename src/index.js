@@ -117,6 +117,15 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const query = parsed.query;
+  const policy = enforceQueryPolicy(query, options);
+  if (!policy.ok) {
+    return {
+      ok: false,
+      results: [],
+      errors: [annotateQueryDiagnostic(policy.error, { phase: 'policy' })],
+    };
+  }
+
   const from = evaluateQueryFromClause(query.from, namespace, options);
   if (!from.ok) {
     return {
@@ -194,6 +203,80 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   return { ok: true, results, diagnostics: [] };
+}
+
+function enforceQueryPolicy(query, options) {
+  if (!isValidationQueryPolicy(options.policy)) return { ok: true };
+
+  if (query.orderBy) return queryPolicyViolation('Validation query policy does not allow order by clauses');
+  if (query.offset) return queryPolicyViolation('Validation query policy does not allow offset clauses');
+  if (query.limit) return queryPolicyViolation('Validation query policy does not allow limit clauses');
+  if (query.select.ast.type === 'projectionExpression') {
+    return queryPolicyViolation('Validation query policy does not allow object projection expressions');
+  }
+
+  const expressions = [
+    ...(query.from.source === 'expression' ? [query.from.ast] : []),
+    ...(query.where ? [query.where.ast] : []),
+    ...(query.orderBy ? query.orderBy.keys.map((key) => key.ast) : []),
+    query.select.ast,
+  ];
+  const disallowedFunction = expressions
+    .map((expression) => findExpression(expression, (entry) => entry.type === 'functionCallExpression'
+      && TRANSFORM_EXTENSION_FUNCTIONS.has(entry.name)))
+    .find(Boolean);
+  if (disallowedFunction) {
+    return queryPolicyViolation(
+      `Validation query policy does not allow transform extension function '${disallowedFunction.name}'`,
+      { extension: TRANSFORM_EXTENSION_FUNCTIONS.get(disallowedFunction.name) },
+    );
+  }
+
+  return { ok: true };
+}
+
+function isValidationQueryPolicy(policy) {
+  return policy === 'validation'
+    || policy?.mode === 'validation'
+    || policy?.validation === true;
+}
+
+function queryPolicyViolation(message, details = {}) {
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_POLICY_VIOLATION', message, details),
+  };
+}
+
+function findExpression(expression, predicate) {
+  if (predicate(expression)) return expression;
+
+  switch (expression.type) {
+    case 'groupExpression':
+      return findExpression(expression.expression, predicate);
+    case 'unaryExpression':
+      return findExpression(expression.argument, predicate);
+    case 'binaryExpression':
+      return findExpression(expression.left, predicate)
+        ?? findExpression(expression.right, predicate);
+    case 'functionCallExpression':
+      for (const argument of expression.arguments) {
+        const found = findExpression(argument, predicate);
+        if (found) return found;
+      }
+      return null;
+    case 'existenceExpression':
+    case 'cardinalityExpression':
+      return findExpression(expression.argument, predicate);
+    case 'projectionExpression':
+      for (const field of expression.fields) {
+        const found = findExpression(field.expression, predicate);
+        if (found) return found;
+      }
+      return null;
+    default:
+      return null;
+  }
 }
 
 export function resolveAddress(input, namespace, options = {}) {

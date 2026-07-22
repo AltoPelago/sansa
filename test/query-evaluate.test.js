@@ -1164,6 +1164,52 @@ test('gates experimental transform extensions explicitly', () => {
   ]);
 });
 
+test('applies validation query policy restrictions before evaluation', () => {
+  const safe = evaluateQuery([
+    'from $.inventory.items.*',
+    'where .qty >= 4',
+    'select .sku',
+  ].join('\n'), namespace, { policy: 'validation' });
+  assert.equal(safe.ok, true, JSON.stringify(safe.errors ?? []));
+  assert.deepEqual(safe.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.inventory.items[1].sku'],
+    ['$.inventory.items[2].sku'],
+    ['$.inventory.items[3].sku'],
+  ]);
+
+  const ordered = evaluateQuery([
+    'from $.inventory.items.*',
+    'order by .sku asc',
+    'select .sku',
+  ].join('\n'), namespace, { policy: { mode: 'validation' } });
+  assert.equal(ordered.ok, false);
+  assert.equal(ordered.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+  assert.equal(ordered.errors[0].phase, 'policy');
+
+  const limited = evaluateQuery([
+    'from $.inventory.items.*',
+    'limit 1',
+    'select .sku',
+  ].join('\n'), namespace, { policy: { validation: true } });
+  assert.equal(limited.ok, false);
+  assert.equal(limited.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+
+  const projected = evaluateQuery([
+    'from $.inventory.items.*',
+    'select { sku = .sku qty = .qty }',
+  ].join('\n'), namespace, { policy: 'validation' });
+  assert.equal(projected.ok, false);
+  assert.equal(projected.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+
+  const transform = evaluateQuery([
+    'from $.table.content[0]',
+    'select objectFrom($.table.header.*, .*)',
+  ].join('\n'), namespace, { policy: 'validation' });
+  assert.equal(transform.ok, false);
+  assert.equal(transform.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+  assert.equal(transform.errors[0].extension, 'sansa.transform.objectFrom');
+});
+
 test('evaluates path over structured address literal values', () => {
   const scalarParam = evaluateQuery([
     'from $.inventory.items.*',
