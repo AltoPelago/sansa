@@ -4,7 +4,7 @@ Shared SANSA address, resolve, and query parser/evaluator model.
 
 This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `SANSA.Addressing`, `SANSA.Resolve`, and `SANSA.Query`, plus the experimental `sansa.query.fieldsFrom` library extension.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
 
 ## Current Scope
 
@@ -112,9 +112,9 @@ String comparison and `order by` use deterministic Unicode scalar-value ordering
 
 `resolveChild(base, key)` resolves a dynamic direct member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable. It does not parse traversal strings or perform collection joins.
 
-`objectFrom(keys, values)` pairs two ordered Binding Sets by position and constructs a derived object. Key bindings must expose unique string scalar values, value bindings must expose scalar values, and mismatched lengths fail with a cardinality diagnostic.
+`objectFrom(keys, values)` is an experimental transform-library helper. It pairs two ordered Binding Sets by position and constructs a derived object. Key bindings must expose unique string scalar values, value bindings must expose scalar values, and mismatched lengths fail with a cardinality diagnostic.
 
-`fieldsFrom(keys, values, field, ...)` is optional and experimental. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields.
+`fieldsFrom(keys, values, field, ...)` is an experimental transform-library helper. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields.
 
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
@@ -172,6 +172,8 @@ select objectFrom($.table.header.*, .*)
 from $.table.content.*
 select fieldsFrom($.table.header.*, .*, "age")
 ```
+
+The table-row helpers above are experimental `SANSA.Transform` extensions, not required SANSA.Query core behavior.
 
 ## API
 

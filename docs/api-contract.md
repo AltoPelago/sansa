@@ -4,7 +4,7 @@ Status: implementation contract for the address parser/model, resolver, query cl
 
 The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `SANSA.Addressing`, `SANSA.Resolve`, and `SANSA.Query`, plus explicitly documented experimental extensions.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` extensions.
 
 CTS lanes:
 
@@ -363,8 +363,8 @@ Currently evaluated:
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - dynamic direct-child resolution over addressable containers with `resolveChild`
-- ordered binding-set object construction with `objectFrom`
-- experimental ordered field projection with `fieldsFrom`
+- experimental transform-library object construction with `objectFrom`
+- experimental transform-library field projection with `fieldsFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
@@ -440,9 +440,9 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `resolveChild(base, key)` is a function-like structural operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one addressable container. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics. It does not parse traversal strings, scan collections, or perform join semantics.
 
-`objectFrom(keys, values)` is a function-like projection helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics.
+`objectFrom(keys, values)` is an experimental transform-library helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics. It is not part of the required SANSA.Query v1 core surface.
 
-`fieldsFrom(keys, values, field, ...)` is an experimental library extension. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields. It is implemented for workbench and conformance experimentation, but is not part of the required SANSA.Query v1 core surface.
+`fieldsFrom(keys, values, field, ...)` is an experimental transform-library helper. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields. It is implemented for workbench and conformance experimentation, but is not part of the required SANSA.Query v1 core surface.
 
 Cardinality predicates follow conventional quantified logic:
 
@@ -489,14 +489,14 @@ where .qty >= 4
 select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
 ```
 
-`objectFrom(...)` can construct row-shaped objects from table-like positional data:
+Experimental `SANSA.Transform` helpers can construct row-shaped objects from table-like positional data. `objectFrom(...)` pairs all fields:
 
 ```text
 from $.table.content.*
 select objectFrom($.table.header.*, .*)
 ```
 
-`fieldsFrom(...)` can experimentally select a subset of row-shaped fields:
+`fieldsFrom(...)` selects a subset of row-shaped fields:
 
 ```text
 from $.table.content.*
