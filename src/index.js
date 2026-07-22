@@ -1198,9 +1198,7 @@ function isInfinityScalar(info) {
 }
 
 function isOrdinaryValueScalar(info) {
-  if (isExplicitNullScalar(info) || isNanScalar(info) || isInfinityScalar(info)) return false;
-  if (typeof info.value === 'number') return Number.isFinite(info.value);
-  return typeof info.value === 'string' || typeof info.value === 'boolean';
+  return isOrdinaryValueDescriptor(scalarInfoToValueDescriptor(info));
 }
 
 function scalarBoolean(value) {
@@ -1552,14 +1550,11 @@ function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescript
   if (!sameMinimumEqualityDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
   }
-  const compared = compareQueryScalars(operation === 'equal' ? '==' : '!=', left.value, right.value);
-  if (!compared.ok) {
-    return valueSemanticsDiagnostic('not_equality_comparable', compared.error.message);
-  }
+  const value = compareMinimumEquality(operation, left, right);
   return {
     ok: true,
     outcome: 'value',
-    value: compared.value.value,
+    value,
   };
 }
 
@@ -1578,7 +1573,7 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
   if (!sameMinimumOrderingDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
   }
-  const comparison = compareOrderKeyValues(left.value, right.value);
+  const comparison = compareMinimumOrdering(left, right);
   return {
     ok: true,
     outcome: 'value',
@@ -1621,6 +1616,41 @@ function valueDescriptorToScalarInfo(descriptor) {
   }
 }
 
+function scalarInfoToValueDescriptor(info) {
+  if (isExplicitNullScalar(info)) {
+    return { category: 'explicitNull', reason: info.nullReason };
+  }
+  if (isExplicitAbsenceScalar(info)) {
+    return { category: 'explicitAbsence', reason: info.nullReason };
+  }
+  if (isNanScalar(info)) {
+    return { category: 'nan' };
+  }
+  if (isInfinityScalar(info)) {
+    return info.value === -Infinity
+      ? { category: 'negativeInfinity' }
+      : { category: 'positiveInfinity' };
+  }
+  if (typeof info.value === 'number') {
+    return Number.isFinite(info.value)
+      ? { category: 'finiteNumber', value: String(info.value) }
+      : { category: 'nan' };
+  }
+  if (typeof info.value === 'string') {
+    return { category: 'string', value: info.value };
+  }
+  if (typeof info.value === 'boolean') {
+    return { category: 'boolean', value: info.value };
+  }
+  if (info.kind === 'missing' || info.category === 'missing') {
+    return { category: 'missing' };
+  }
+  if (info.kind === 'bindingSet' || info.category === 'bindingSet') {
+    return { category: 'bindingSet', count: info.count };
+  }
+  return { category: 'container', value: info.value };
+}
+
 function sameMinimumEqualityDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
   return left.category === right.category && ['string', 'boolean'].includes(left.category);
@@ -1633,6 +1663,23 @@ function sameMinimumOrderingDomain(left, right) {
 
 function isValueSemanticsNumeric(info) {
   return info.category === 'finiteNumber' || info.category === 'positiveInfinity' || info.category === 'negativeInfinity';
+}
+
+function compareMinimumEquality(operation, left, right) {
+  if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
+    return operation === 'equal' ? left.value === right.value : left.value !== right.value;
+  }
+  const equals = Object.is(left.value, right.value);
+  return operation === 'equal' ? equals : !equals;
+}
+
+function compareMinimumOrdering(left, right) {
+  return compareOrderKeyValues(left.value, right.value);
+}
+
+function isOrdinaryValueDescriptor(descriptor) {
+  const info = valueDescriptorToScalarInfo(descriptor);
+  return info.category === 'finiteNumber' || info.category === 'string' || info.category === 'boolean';
 }
 
 function isExplicitAbsenceScalar(info) {
@@ -1653,43 +1700,36 @@ function valueSemanticsDiagnostic(reason, message) {
 }
 
 function compareQueryScalars(operator, left, right) {
-  if (typeof left !== typeof right) {
+  const leftDescriptor = scalarInfoToValueDescriptor({ value: left });
+  const rightDescriptor = scalarInfoToValueDescriptor({ value: right });
+  const operation = ['==', '!='].includes(operator) ? (operator === '==' ? 'equal' : 'notEqual') : 'compare';
+  const evaluated = evaluateValueSemanticsOperation(operation, {
+    left: leftDescriptor,
+    right: rightDescriptor,
+  });
+  if (!evaluated.ok) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Cross-type comparison is not supported by this evaluator slice'),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', queryComparisonMessage(evaluated.reason, operator)),
     };
   }
-  if (!['string', 'number', 'boolean'].includes(typeof left)) {
-    return {
-      ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', `Unsupported comparison value type '${typeof left}'`),
-    };
-  }
-  if (typeof left === 'number' && (Number.isNaN(left) || Number.isNaN(right))) {
-    return {
-      ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'NaN is not comparable; use isNaN(...) for explicit NaN tests'),
-    };
-  }
-  if (['<', '<=', '>', '>='].includes(operator) && typeof left === 'boolean') {
-    return {
-      ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Ordering comparison is not defined for Boolean values'),
-    };
-  }
-
   const value = (() => {
-    switch (operator) {
-      case '==': return left === right;
-      case '!=': return left !== right;
-      case '<': return compareOrderKeyValues(left, right) < 0;
-      case '<=': return compareOrderKeyValues(left, right) <= 0;
-      case '>': return compareOrderKeyValues(left, right) > 0;
-      case '>=': return compareOrderKeyValues(left, right) >= 0;
-      default: return false;
-    }
+    if (operator === '==') return evaluated.value;
+    if (operator === '!=') return evaluated.value;
+    if (operator === '<') return evaluated.relation === 'less';
+    if (operator === '<=') return evaluated.relation === 'less' || evaluated.relation === 'equal';
+    if (operator === '>') return evaluated.relation === 'greater';
+    if (operator === '>=') return evaluated.relation === 'greater' || evaluated.relation === 'equal';
+    return false;
   })();
   return { ok: true, value: { type: 'scalar', value } };
+}
+
+function queryComparisonMessage(reason, operator) {
+  if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
+  if (reason === 'not_equality_comparable') return 'NaN, null, absence, and non-scalar values are not equality-comparable in this evaluator slice';
+  if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
+  return 'Invalid scalar comparison';
 }
 
 function expectBooleanQueryValue(value, namespace) {
