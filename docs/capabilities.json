@@ -1,0 +1,35 @@
+{
+  "implementation": "@altopelago/sansa",
+  "version": "0.1.0",
+  "profiles": [
+    "addressing",
+    "resolve",
+    "query"
+  ],
+  "capabilities": [
+    "SANSA.Addressing",
+    "SANSA.Resolve",
+    "SANSA.Query"
+  ],
+  "core": {
+    "addressing": true,
+    "resolve": true,
+    "query": true
+  },
+  "extensions": [
+    {
+      "id": "sansa.query.fieldsFrom",
+      "name": "fieldsFrom",
+      "capability": "SANSA.Query",
+      "category": "library",
+      "maturity": "experimental"
+    }
+  ],
+  "limits": {
+    "portablePositionIndexMax": 999999,
+    "defaultPositionIndexMax": 999999
+  },
+  "portabilityWarnings": [
+    "SANSA_NON_PORTABLE_POSITION_INDEX"
+  ]
+}

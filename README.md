@@ -4,6 +4,8 @@ Shared SANSA address, resolve, and query parser/evaluator model.
 
 This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `SANSA.Addressing`, `SANSA.Resolve`, and `SANSA.Query`, plus the experimental `sansa.query.fieldsFrom` library extension.
+
 ## Current Scope
 
 - root selectors: `$`, `?`
@@ -35,7 +37,10 @@ The CTS runner covers address parsing, resolve behavior, query parsing, and quer
 npm run cts
 npm run cts:resolve
 npm run cts:query
+npm run cts:query:experimental
 ```
+
+The default Query CTS lane runs core conformance and skips experimental extension cases. `cts:query:experimental` includes experimental extension coverage.
 
 ## Query Tool
 

@@ -34,6 +34,7 @@
     "cts:address": "node scripts/cts-address.mjs",
     "cts:resolve": "node scripts/cts-resolve.mjs",
     "cts:query": "node scripts/cts-query.mjs",
+    "cts:query:experimental": "node scripts/cts-query.mjs --include-experimental",
     "query": "node scripts/query.mjs",
     "query:web": "node scripts/query-web.mjs",
     "stress": "node scripts/stress-addresses.mjs",

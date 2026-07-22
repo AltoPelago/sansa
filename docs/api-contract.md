@@ -4,6 +4,18 @@ Status: implementation contract for the address parser/model, resolver, query cl
 
 The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `SANSA.Addressing`, `SANSA.Resolve`, and `SANSA.Query`, plus explicitly documented experimental extensions.
+
+CTS lanes:
+
+```bash
+npm run cts
+npm run cts:query
+npm run cts:query:experimental
+```
+
+The default Query CTS lane is core conformance and skips experimental extension cases. The experimental lane includes those cases for implementations that advertise matching extensions.
+
 ## Entry Points
 
 ```js
@@ -352,6 +364,7 @@ Currently evaluated:
 - missing-aware fallback with `fallback`
 - lookup over addressable containers with `lookup`
 - ordered binding-set object construction with `objectFrom`
+- experimental ordered field projection with `fieldsFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
 - projection expressions
 
@@ -363,7 +376,7 @@ Membership uses comparison-style syntax but explicitly consumes the right operan
 where "admin" in .roles.*
 ```
 
-The left operand is consumed in scalar context. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Empty Binding Sets and non-matching sets evaluate to false. Membership does not skip incompatible bindings: explicit null, NaN, missing scalar, cardinality, and mixed-type comparison failures surface as diagnostics. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
+The left operand is consumed in scalar context. Right-side bindings are evaluated in Binding Set order. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Membership returns true on the first successful match and does not evaluate later bindings. Empty Binding Sets and fully evaluated non-matching sets evaluate to false. Membership does not skip incompatible bindings before a match: explicit null, NaN, missing scalar, cardinality, and mixed-type comparison failures surface as diagnostics. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
 
 Existence predicates inspect binding presence rather than scalar value:
 
@@ -429,6 +442,8 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `objectFrom(keys, values)` is a function-like projection helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics.
 
+`fieldsFrom(keys, values, field, ...)` is an experimental library extension. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields. It is implemented for workbench and conformance experimentation, but is not part of the required SANSA.Query v1 core surface.
+
 Cardinality predicates follow conventional quantified logic:
 
 ```text
@@ -479,6 +494,13 @@ select { sku = .sku category = lookup($.inventory.categoryLabels, .category) sta
 ```text
 from $.table.content.*
 select objectFrom($.table.header.*, .*)
+```
+
+`fieldsFrom(...)` can experimentally select a subset of row-shaped fields:
+
+```text
+from $.table.content.*
+select fieldsFrom($.table.header.*, .*, "age")
 ```
 
 Currently rejected with explicit diagnostics:

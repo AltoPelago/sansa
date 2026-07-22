@@ -10,12 +10,14 @@ const ctsRoot = process.env.AEONITE_CTS_ROOT
   ? resolve(process.env.AEONITE_CTS_ROOT)
   : resolve(root, '..', '..', 'aeonite-org', 'aeonite-cts', 'cts');
 const manifestPath = readArg('--cts') ?? resolve(ctsRoot, 'sansa', 'v1', 'sansa-query-parser-cts.v1.json');
+const includeExperimental = process.argv.includes('--include-experimental');
 
 const manifest = readJson(manifestPath);
 let pass = 0;
 let fail = 0;
+let skip = 0;
 
-console.log('Running SANSA query parser CTS against @altopelago/sansa');
+console.log(`Running SANSA query parser CTS against @altopelago/sansa${includeExperimental ? ' (including experimental)' : ' (core)'}`);
 
 for (const suiteRef of manifest.suites ?? []) {
   const suitePath = resolve(dirname(manifestPath), suiteRef.file);
@@ -24,6 +26,11 @@ for (const suiteRef of manifest.suites ?? []) {
   console.log(`\n--- Suite: ${suite.title} ---`);
 
   for (const test of suite.tests ?? []) {
+    if (isExperimental(test) && !includeExperimental) {
+      skip += 1;
+      console.log(`SKIP ${test.id} (experimental)`);
+      continue;
+    }
     const failures = runTest(test, namespaces);
     if (failures.length > 0) {
       fail += 1;
@@ -36,8 +43,13 @@ for (const suiteRef of manifest.suites ?? []) {
   }
 }
 
-console.log(`\nSummary: pass=${pass} fail=${fail}`);
+console.log(`\nSummary: pass=${pass} fail=${fail} skip=${skip}`);
 process.exit(fail > 0 ? 1 : 0);
+
+function isExperimental(test) {
+  if (test.conformance?.maturity === 'experimental') return true;
+  return Array.isArray(test.tags) && test.tags.includes('experimental');
+}
 
 function runTest(test, namespaces) {
   const failures = [];
