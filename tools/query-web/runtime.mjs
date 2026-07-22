@@ -25,7 +25,14 @@ export function parseQueryForWorkbench(querySource) {
   };
 }
 
-export async function evaluateQueryForWorkbench({ sourceKind, source, query, paramsSource = '', policy = '' }) {
+export async function evaluateQueryForWorkbench({
+  sourceKind,
+  source,
+  query,
+  paramsSource = '',
+  policy = '',
+  transformExtensions = true,
+}) {
   const namespaceResult = sourceKind === 'json'
     ? namespaceFromJsonSource(source)
     : await namespaceFromAeonSource(source);
@@ -47,7 +54,10 @@ export async function evaluateQueryForWorkbench({ sourceKind, source, query, par
     ...(mounted.diagnostics ?? []),
   ];
 
-  const options = policy === 'validation' ? { policy: 'validation' } : {};
+  const options = {
+    ...(policy === 'validation' ? { policy: 'validation' } : {}),
+    ...(transformExtensions === false ? { extensions: { transform: false } } : {}),
+  };
   const result = evaluateQuery(query, mounted.namespace, options);
   if (!result.ok) {
     const errors = normalizeDiagnostics(result.errors);
@@ -677,6 +687,7 @@ function normalizeDiagnostics(errors) {
     message: error.message,
     ...(typeof error.phase === 'string' ? { phase: error.phase } : {}),
     ...(typeof error.candidateAddress === 'string' ? { candidateAddress: error.candidateAddress } : {}),
+    ...(typeof error.extension === 'string' ? { extension: error.extension } : {}),
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),
     ...(Number.isInteger(error.selectorIndex) ? { selectorIndex: error.selectorIndex } : {}),
   }));

@@ -120,6 +120,7 @@ The package exposes `sansa-query` and the local `npm run query` script. The tool
 npm run query -- --query 'from $.inventory.items.* where .qty >= 2 select .sku'
 npm run query -- --mode parse --format json --query 'from $.inventory.items.* select .sku'
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
+npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
 npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
@@ -136,6 +137,7 @@ Options:
 - `--mode`: `evaluate` or `parse`
 - `--format`: `text` or `json`
 - `--policy`: optional query policy, currently `validation`
+- `--disable-transform`: disable experimental `SANSA.Transform` helpers during evaluation
 
 AEON fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
 
@@ -147,7 +149,7 @@ The package also includes a browser workbench:
 npm run query:web
 ```
 
-The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, and `/api/query` accepts `policy: "validation"` for evaluate requests.
+The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle and a Transform extension toggle. `/api/query` accepts `policy: "validation"` and `transformExtensions: false` for evaluate requests.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 

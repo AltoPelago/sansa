@@ -421,6 +421,21 @@ test('query web runtime applies validation policy', async () => {
   assert.match(rejected.text, /SANSA_QUERY_POLICY_VIOLATION \[policy\]/);
 });
 
+test('query web runtime can disable transform extensions', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    transformExtensions: false,
+    query: 'from $.table.content.* select objectFrom($.table.header.*, .*)',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION');
+  assert.equal(result.errors[0].extension, 'sansa.transform.objectFrom');
+  assert.match(result.text, /SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION \[select\]/);
+});
+
 test('query web runtime formats parse diagnostics as text', () => {
   const result = parseQueryForWorkbench('from $.inventory.items.*');
 

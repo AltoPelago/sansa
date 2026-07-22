@@ -13,6 +13,7 @@ const exampleSelect = document.querySelector('#exampleSelect');
 const resetButton = document.querySelector('#resetButton');
 const parseButton = document.querySelector('#parseButton');
 const runButton = document.querySelector('#runButton');
+const transformExtensionsInput = document.querySelector('#transformExtensions');
 
 let defaultFixtureSource = '';
 let defaultJsonSource = '';
@@ -58,6 +59,9 @@ document.querySelectorAll('input[name="queryPolicy"]').forEach((input) => {
   input.addEventListener('change', () => {
     if (lastAction !== 'parse') void runQuery();
   });
+});
+transformExtensionsInput.addEventListener('change', () => {
+  if (lastAction !== 'parse') void runQuery();
 });
 document.querySelectorAll('input[name="sourceKind"]').forEach((input) => {
   input.addEventListener('change', () => {
@@ -157,6 +161,7 @@ async function runQuery() {
     paramsSource: paramsInput.value,
     query: queryInput.value,
     policy: queryPolicy(),
+    transformExtensions: transformExtensionsInput.checked,
   });
   queryStatus.textContent = payload.ok ? 'run ok' : 'run failed';
   resultStatus.textContent = payload.ok

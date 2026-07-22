@@ -35,6 +35,7 @@ test('query tool help documents fixture kind support', () => {
   assert.match(result.stdout, /--fixture-kind <kind>/);
   assert.match(result.stdout, /Force fixture kind: aeon or json/);
   assert.match(result.stdout, /--policy <policy>/);
+  assert.match(result.stdout, /--disable-transform/);
 });
 
 test('query tool evaluates a query against the default fixture', () => {
@@ -142,6 +143,18 @@ test('query tool applies validation policy', () => {
 
   assert.equal(invalidPolicy.status, 2);
   assert.match(invalidPolicy.stderr, /unsupported --policy 'reporting'/);
+});
+
+test('query tool can disable transform extensions', () => {
+  const result = runTool([
+    '--disable-transform',
+    '--query',
+    'from $.table.content.* select objectFrom($.table.header.*, .*)',
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION/);
+  assert.match(result.stderr, /sansa.transform.objectFrom/);
 });
 
 test('query tool evaluates table and label examples against JSON fixtures', () => {

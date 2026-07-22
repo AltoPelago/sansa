@@ -52,6 +52,7 @@ npm run query -- --format json --query 'from $.inventory.items.* where any(.role
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.aeon
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
+npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
 npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
@@ -61,7 +62,7 @@ The default fixture is [fixtures/query-inventory.aeon](fixtures/query-inventory.
 
 The CLI can also mount JSON params at `$.<"params">` using `--params` or `--params-file`. Params may be supplied as a full fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }` and become usable through `path(...)`.
 
-Use `--policy validation` to exercise the proposal-stage validation policy from the CLI.
+Use `--policy validation` to exercise the proposal-stage validation policy from the CLI. Use `--disable-transform` to run normal Query evaluation with experimental `SANSA.Transform` helpers disabled.
 
 For browser-based testing against `.aeon` source, run the technical workbench:
 
@@ -71,7 +72,7 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
-The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a params local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle, plus a JSON fixture mode for debugging the resolver shape directly.
+The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a params local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle, a Transform extension toggle, plus a JSON fixture mode for debugging the resolver shape directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload. Inspect mode renders a scan-friendly view of candidate addresses, projected values, selected binding addresses, and binding metadata.
 
