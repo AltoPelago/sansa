@@ -359,6 +359,19 @@ test('evaluates query sources with position range selectors', () => {
   ]);
 });
 
+test('keeps multi-binding projections inside one candidate result record', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select .roles.*',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.results.map((entry) => entry.address), ['$.inventory.items[0]']);
+  assert.deepEqual(result.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
+    ['$.inventory.items[0].roles[0]', '$.inventory.items[0].roles[1]'],
+  ]);
+});
+
 test('evaluates offset and limit after filtering', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',
