@@ -129,6 +129,16 @@ The name `only(...)` is not part of the current query surface; it remains a poss
 
 Common recipe patterns:
 
+Scalar params mounted in the `params` local space can be compared directly. Local-space names use quoted selector syntax:
+
+```text
+from $.inventory.items.*
+where .name == $.<"params">.name
+select .sku
+```
+
+SANSA Address Literal params are activated with `path(...)` before resolution:
+
 ```text
 from path($.<"params">.source)
 where isValue(path($.<"params">.statusField)) and path($.<"params">.statusField) == "active"

@@ -169,6 +169,13 @@ const params = binding({
       value: '$.inventory.items.*',
     }),
     binding({
+      name: 'name',
+      address: '$.<"params">.name',
+      semanticType: 'string',
+      representationKind: 'string',
+      value: 'Adapter',
+    }),
+    binding({
       name: 'badPath',
       address: '$.<"params">.badPath',
       semanticType: 'sansa',
@@ -1087,6 +1094,14 @@ test('evaluates experimental fieldsFrom over paired binding sets', () => {
 });
 
 test('evaluates path over structured address literal values', () => {
+  const scalarParam = evaluateQuery([
+    'from $.inventory.items.*',
+    'where .name == $.<"params">.name',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(scalarParam.ok, true, JSON.stringify(scalarParam.errors ?? []));
+  assert.deepEqual(scalarParam.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[0].sku']);
+
   const selected = evaluateQuery([
     'from $.inventory.items[1]',
     'select path($.<"params">.field)',

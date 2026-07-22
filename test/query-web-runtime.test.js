@@ -9,6 +9,7 @@ const defaultParamsSource = [
   'field:sansa = ?.sku',
   'statusField:sansa = ?.status',
   'sortField:sansa = ?.qty',
+  'name:string = "Adapter"',
 ].join('\n');
 
 test('query web runtime parses query summaries', () => {
@@ -295,6 +296,20 @@ test('query web runtime mounts AEON params as a local address space', async () =
       message: 'Mounted $.<"params"> local space.',
     },
   ]);
+
+  const scalarParam = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    paramsSource: defaultParamsSource,
+    query: [
+      'from $.inventory.items.*',
+      'where .name == $.<"params">.name',
+      'select .sku',
+    ].join('\n'),
+  });
+
+  assert.equal(scalarParam.ok, true, JSON.stringify(scalarParam.errors ?? []));
+  assert.equal(scalarParam.text, '$.inventory.items[0].sku = "A-100"');
 });
 
 test('query web runtime reports params diagnostics', async () => {

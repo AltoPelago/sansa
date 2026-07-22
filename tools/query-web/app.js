@@ -110,6 +110,7 @@ async function loadDefaultSources() {
     'field:sansa = ?.sku',
     'statusField:sansa = ?.status',
     'sortField:sansa = ?.qty',
+    'name:string = "Adapter"',
   ].join('\n');
   defaultFixtureSource = defaultAeonSource;
   fixtureInput.value = defaultFixtureSource;

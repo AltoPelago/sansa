@@ -367,6 +367,20 @@ export const queryExampleGroups = [
           includes: '$.inventory.items[1].sku = "B-200"',
         },
       },
+      {
+        name: 'paramsScalar',
+        label: 'Params scalar',
+        query: lines(
+          'from $.inventory.items.*',
+          'where .name == $.<"params">.name',
+          'select .sku',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.inventory.items[0].sku = "A-100"',
+        },
+      },
     ],
   },
   {
