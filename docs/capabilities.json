@@ -2,17 +2,20 @@
   "implementation": "@altopelago/sansa",
   "version": "0.1.0",
   "profiles": [
+    "value-semantics-minimum-consumer",
     "addressing",
     "resolve",
     "query"
   ],
   "capabilities": [
+    "AEON.ValueSemantics",
     "SANSA.Addressing",
     "SANSA.Resolve",
     "SANSA.Query",
     "SANSA.Transform"
   ],
   "core": {
+    "valueSemanticsMinimumConsumer": true,
     "addressing": true,
     "resolve": true,
     "query": true

@@ -218,6 +218,61 @@ export interface SansaQueryObjectValue {
   readonly value: Record<string, unknown>;
 }
 
+export type AeonValueSemanticsOperation = 'equal' | 'notEqual' | 'compare' | 'isValue';
+
+export type AeonValueSemanticsCategory =
+  | 'finiteNumber'
+  | 'positiveInfinity'
+  | 'negativeInfinity'
+  | 'nan'
+  | 'string'
+  | 'boolean'
+  | 'explicitNull'
+  | 'explicitAbsence'
+  | 'missing'
+  | 'container'
+  | 'bindingSet';
+
+export interface AeonValueSemanticsValueDescriptor {
+  readonly category: AeonValueSemanticsCategory;
+  readonly value?: unknown;
+  readonly reason?: string;
+  readonly containerKind?: string;
+  readonly count?: number;
+}
+
+export type AeonValueSemanticsOperationInput =
+  | {
+      readonly left: AeonValueSemanticsValueDescriptor;
+      readonly right: AeonValueSemanticsValueDescriptor;
+    }
+  | {
+      readonly value: AeonValueSemanticsValueDescriptor;
+    };
+
+export type AeonValueSemanticsResult =
+  | {
+      readonly ok: true;
+      readonly outcome: 'value';
+      readonly value?: boolean;
+      readonly relation?: 'less' | 'equal' | 'greater';
+    }
+  | {
+      readonly ok: false;
+      readonly outcome: 'diagnostic';
+      readonly reason: string;
+      readonly error: {
+        readonly code: string;
+        readonly reason: string;
+        readonly message: string;
+      };
+    };
+
+export function evaluateValueSemanticsOperation(
+  operation: AeonValueSemanticsOperation,
+  input: AeonValueSemanticsOperationInput,
+): AeonValueSemanticsResult;
+
 export interface SansaAddress {
   readonly type: 'SansaAddress';
   readonly root: RootSelector;

@@ -30,7 +30,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "cts": "npm run cts:address && npm run cts:resolve && npm run cts:query",
+    "cts": "npm run cts:value-semantics && npm run cts:address && npm run cts:resolve && npm run cts:query",
+    "cts:value-semantics": "node scripts/cts-value-semantics.mjs",
     "cts:address": "node scripts/cts-address.mjs",
     "cts:resolve": "node scripts/cts-resolve.mjs",
     "cts:query": "node scripts/cts-query.mjs",

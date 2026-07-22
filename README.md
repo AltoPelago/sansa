@@ -2,9 +2,9 @@
 
 Shared SANSA address, resolve, and query parser/evaluator model.
 
-This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
+This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for ordinary scalar, equality, and ordering behavior. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
 
 ## Current Scope
 
@@ -35,6 +35,7 @@ The CTS runner covers address parsing, resolve behavior, query parsing, and quer
 
 ```bash
 npm run cts
+npm run cts:value-semantics
 npm run cts:resolve
 npm run cts:query
 npm run cts:query:experimental
@@ -182,7 +183,15 @@ The table-row helpers above are experimental `SANSA.Transform` extensions, not r
 ## API
 
 ```js
-import { evaluateQuery, parseAddress, parseQuery, parseQueryExpression, renderAddress, resolveAddress } from "@altopelago/sansa";
+import {
+  evaluateQuery,
+  evaluateValueSemanticsOperation,
+  parseAddress,
+  parseQuery,
+  parseQueryExpression,
+  renderAddress,
+  resolveAddress
+} from "@altopelago/sansa";
 
 const result = parseAddress('$.inventory:csv[","]');
 
@@ -227,6 +236,14 @@ const evaluated = evaluateQuery('from $.inventory.items.*\nselect .sku', { root 
 if (evaluated.ok) {
   console.log(evaluated.results.length);
   console.log(evaluated.results[0]?.address);
+}
+
+const ordinary = evaluateValueSemanticsOperation("isValue", {
+  value: { category: "finiteNumber", value: "42" }
+});
+
+if (ordinary.ok) {
+  console.log(ordinary.value);
 }
 ```
 

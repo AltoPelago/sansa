@@ -4,12 +4,13 @@ Status: implementation contract for the address parser/model, resolver, query cl
 
 The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` extensions.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` extensions.
 
 CTS lanes:
 
 ```bash
 npm run cts
+npm run cts:value-semantics
 npm run cts:query
 npm run cts:query:experimental
 ```
@@ -26,6 +27,7 @@ parseQueryOrThrow(input, options?)
 parseQueryExpression(input, options?)
 parseQueryExpressionOrThrow(input, options?)
 evaluateQuery(input, namespace, options?)
+evaluateValueSemanticsOperation(operation, input)
 resolveAddress(input, namespace, options?)
 renderAddress(address)
 renderQuery(query)
@@ -89,6 +91,26 @@ evaluateQuery(query, namespace, { policy: "validation" })
 ```
 
 This policy rejects presentation and transform behavior before evaluation: `order by`, `offset`, `limit`, object projection expressions, and transform-library helpers. Rejections use `SANSA_QUERY_POLICY_VIOLATION` with `phase: "policy"`.
+
+`evaluateValueSemanticsOperation` evaluates the Shared AEON Value Semantics minimum consumer operation shape used by the CTS scaffold:
+
+```js
+evaluateValueSemanticsOperation("equal", {
+  left: { category: "finiteNumber", value: "42" },
+  right: { category: "finiteNumber", value: "42" }
+})
+
+evaluateValueSemanticsOperation("compare", {
+  left: { category: "negativeInfinity" },
+  right: { category: "finiteNumber", value: "0" }
+})
+
+evaluateValueSemanticsOperation("isValue", {
+  value: { category: "string", value: "active" }
+})
+```
+
+The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 

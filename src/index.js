@@ -1515,6 +1515,143 @@ function compareStringsByUnicodeScalarValue(left, right) {
   return 0;
 }
 
+export function evaluateValueSemanticsOperation(operation, input = {}) {
+  try {
+    switch (operation) {
+      case 'equal':
+      case 'notEqual':
+        return evaluateValueSemanticsEquality(operation, input.left, input.right);
+      case 'compare':
+        return evaluateValueSemanticsOrdering(input.left, input.right);
+      case 'isValue':
+        return {
+          ok: true,
+          outcome: 'value',
+          value: isOrdinaryValueScalar(valueDescriptorToScalarInfo(input.value)),
+        };
+      default:
+        return valueSemanticsDiagnostic(
+          'unsupported_operation',
+          `Unsupported value-semantics operation '${String(operation)}'`,
+        );
+    }
+  } catch (error) {
+    return valueSemanticsDiagnostic('invalid_value_descriptor', error.message);
+  }
+}
+
+function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor) {
+  const left = valueDescriptorToScalarInfo(leftDescriptor);
+  const right = valueDescriptorToScalarInfo(rightDescriptor);
+  if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
+    return valueSemanticsDiagnostic('not_equality_comparable', 'Value category is not equality-comparable in the minimum profile');
+  }
+  if (left.category === 'missing' || right.category === 'missing' || left.category === 'container' || right.category === 'container' || left.category === 'bindingSet' || right.category === 'bindingSet') {
+    return valueSemanticsDiagnostic('not_equality_comparable', 'Evaluation state or non-scalar value is not equality-comparable');
+  }
+  if (!sameMinimumEqualityDomain(left, right)) {
+    return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
+  }
+  const compared = compareQueryScalars(operation === 'equal' ? '==' : '!=', left.value, right.value);
+  if (!compared.ok) {
+    return valueSemanticsDiagnostic('not_equality_comparable', compared.error.message);
+  }
+  return {
+    ok: true,
+    outcome: 'value',
+    value: compared.value.value,
+  };
+}
+
+function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
+  const left = valueDescriptorToScalarInfo(leftDescriptor);
+  const right = valueDescriptorToScalarInfo(rightDescriptor);
+  if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
+    return valueSemanticsDiagnostic('not_orderable', 'Value category is not orderable in the minimum profile');
+  }
+  if (left.category === 'missing' || right.category === 'missing' || left.category === 'container' || right.category === 'container' || left.category === 'bindingSet' || right.category === 'bindingSet') {
+    return valueSemanticsDiagnostic('not_orderable', 'Evaluation state or non-scalar value is not orderable');
+  }
+  if (typeof left.value === 'boolean' && typeof right.value === 'boolean') {
+    return valueSemanticsDiagnostic('not_orderable', 'Boolean ordering is not part of the minimum profile');
+  }
+  if (!sameMinimumOrderingDomain(left, right)) {
+    return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
+  }
+  const comparison = compareOrderKeyValues(left.value, right.value);
+  return {
+    ok: true,
+    outcome: 'value',
+    relation: comparison < 0 ? 'less' : comparison > 0 ? 'greater' : 'equal',
+  };
+}
+
+function valueDescriptorToScalarInfo(descriptor) {
+  if (!descriptor || typeof descriptor !== 'object') {
+    throw new Error('Value descriptor must be an object');
+  }
+  switch (descriptor.category) {
+    case 'finiteNumber': {
+      const value = Number(descriptor.value);
+      if (!Number.isFinite(value)) throw new Error('finiteNumber descriptor must contain a finite numeric value');
+      return { category: 'finiteNumber', value };
+    }
+    case 'positiveInfinity':
+      return { category: 'positiveInfinity', value: Infinity, kind: 'infinity' };
+    case 'negativeInfinity':
+      return { category: 'negativeInfinity', value: -Infinity, kind: 'infinity' };
+    case 'nan':
+      return { category: 'nan', value: Number.NaN, kind: 'nan' };
+    case 'string':
+      return { category: 'string', value: String(descriptor.value ?? '') };
+    case 'boolean':
+      return { category: 'boolean', value: Boolean(descriptor.value) };
+    case 'explicitNull':
+      return { category: 'explicitNull', value: null, kind: 'null', nullReason: descriptor.reason };
+    case 'explicitAbsence':
+      return { category: 'explicitAbsence', value: undefined, kind: 'absence', nullReason: descriptor.reason };
+    case 'missing':
+      return { category: 'missing', value: undefined, kind: 'missing' };
+    case 'container':
+      return { category: 'container', value: descriptor, kind: 'container' };
+    case 'bindingSet':
+      return { category: 'bindingSet', value: descriptor, kind: 'bindingSet' };
+    default:
+      throw new Error(`Unsupported value category '${String(descriptor.category)}'`);
+  }
+}
+
+function sameMinimumEqualityDomain(left, right) {
+  if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
+  return left.category === right.category && ['string', 'boolean'].includes(left.category);
+}
+
+function sameMinimumOrderingDomain(left, right) {
+  if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
+  return left.category === 'string' && right.category === 'string';
+}
+
+function isValueSemanticsNumeric(info) {
+  return info.category === 'finiteNumber' || info.category === 'positiveInfinity' || info.category === 'negativeInfinity';
+}
+
+function isExplicitAbsenceScalar(info) {
+  return info.kind === 'absence' || info.category === 'explicitAbsence';
+}
+
+function valueSemanticsDiagnostic(reason, message) {
+  return {
+    ok: false,
+    outcome: 'diagnostic',
+    reason,
+    error: {
+      code: `AEON_VALUE_SEMANTICS_${reason.toUpperCase()}`,
+      reason,
+      message,
+    },
+  };
+}
+
 function compareQueryScalars(operator, left, right) {
   if (typeof left !== typeof right) {
     return {
