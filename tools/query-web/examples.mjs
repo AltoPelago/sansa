@@ -290,6 +290,19 @@ export const queryExampleGroups = [
           includes: '$.table.content[1] = {"name":"Alice","age":31}',
         },
       },
+      {
+        name: 'fieldsFromRows',
+        label: 'Fields from rows',
+        query: lines(
+          'from $.table.content.*',
+          'select fieldsFrom($.table.header.*, .*, "age")',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.table.content[1] = {"age":31}',
+        },
+      },
     ],
   },
   {

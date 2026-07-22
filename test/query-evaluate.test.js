@@ -1021,6 +1021,71 @@ test('evaluates objectFrom over paired binding sets', () => {
   assert.equal(invalidArgument.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
+test('evaluates experimental fieldsFrom over paired binding sets', () => {
+  const ageOnly = evaluateQuery([
+    'from $.table.content.*',
+    'select fieldsFrom($.table.header.*, .*, "age")',
+  ].join('\n'), namespace);
+  assert.equal(ageOnly.ok, true, JSON.stringify(ageOnly.errors ?? []));
+  assert.deepEqual(ageOnly.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        age: 22,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        age: 31,
+      },
+    },
+  ]);
+
+  const bothFields = evaluateQuery([
+    'from $.table.content.*',
+    'select fieldsFrom($.table.header.*, .*, "name", "age")',
+  ].join('\n'), namespace);
+  assert.equal(bothFields.ok, true, JSON.stringify(bothFields.errors ?? []));
+  assert.deepEqual(bothFields.results.map((entry) => entry.value), [
+    {
+      type: 'object',
+      value: {
+        name: 'Bob',
+        age: 22,
+      },
+    },
+    {
+      type: 'object',
+      value: {
+        name: 'Alice',
+        age: 31,
+      },
+    },
+  ]);
+
+  const missingField = evaluateQuery([
+    'from $.table.content[0]',
+    'select fieldsFrom($.table.header.*, .*, "email")',
+  ].join('\n'), namespace);
+  assert.equal(missingField.ok, false);
+  assert.equal(missingField.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
+
+  const duplicateRequestedField = evaluateQuery([
+    'from $.table.content[0]',
+    'select fieldsFrom($.table.header.*, .*, "age", "age")',
+  ].join('\n'), namespace);
+  assert.equal(duplicateRequestedField.ok, false);
+  assert.equal(duplicateRequestedField.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const duplicateSourceHeader = evaluateQuery([
+    'from $.table.content[0]',
+    'select fieldsFrom($.table.duplicateHeader.*, .*, "name")',
+  ].join('\n'), namespace);
+  assert.equal(duplicateSourceHeader.ok, false);
+  assert.equal(duplicateSourceHeader.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
 test('evaluates path over structured address literal values', () => {
   const selected = evaluateQuery([
     'from $.inventory.items[1]',

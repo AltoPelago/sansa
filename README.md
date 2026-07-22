@@ -109,6 +109,8 @@ String comparison and `order by` use deterministic Unicode scalar-value ordering
 
 `objectFrom(keys, values)` pairs two ordered Binding Sets by position and constructs a derived object. Key bindings must expose unique string scalar values, value bindings must expose scalar values, and mismatched lengths fail with a cardinality diagnostic.
 
+`fieldsFrom(keys, values, field, ...)` is optional and experimental. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields.
+
 Semantic and representation filters can be used as comparison guards. This keeps mixed-type or missing bindings out of scalar comparisons:
 
 ```text
@@ -149,6 +151,11 @@ select { sku = .sku category = lookup($.inventory.categoryLabels, .category) sta
 ```text
 from $.table.content.*
 select objectFrom($.table.header.*, .*)
+```
+
+```text
+from $.table.content.*
+select fieldsFrom($.table.header.*, .*, "age")
 ```
 
 ## API

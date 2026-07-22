@@ -553,6 +553,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (expression.name === 'objectFrom') {
     return evaluateObjectFromExpression(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'fieldsFrom') {
+    return evaluateFieldsFromExpression(expression, currentBinding, namespace, options);
+  }
   if (!isOrdinaryFunctionName(expression.name)) {
     return {
       ok: false,
@@ -825,35 +828,98 @@ function evaluateObjectFromExpression(expression, currentBinding, namespace, opt
   const values = evaluateResolutionExpression(valueResolution, currentBinding, namespace, options);
   if (!values.ok) return values;
 
-  if (keys.value.bindings.length !== values.value.bindings.length) {
+  return objectFromBindingSets(keys.value.bindings, values.value.bindings, namespace, 'objectFrom');
+}
+
+function evaluateFieldsFromExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length < 3) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'objectFrom' expected key and value binding sets with equal length"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fieldsFrom' expects headers, values, and at least one field name"),
+    };
+  }
+
+  const keyResolution = unwrapResolutionExpression(expression.arguments[0]);
+  const valueResolution = unwrapResolutionExpression(expression.arguments[1]);
+  if (!keyResolution || !valueResolution) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fieldsFrom' expects resolution expression header and value arguments"),
+    };
+  }
+
+  const requested = [];
+  for (const argument of expression.arguments.slice(2)) {
+    const evaluated = evaluateQueryExpressionValue(argument, currentBinding, namespace, options);
+    if (!evaluated.ok) return evaluated;
+    const scalar = expectScalarQueryValue(evaluated.value, namespace);
+    if (!scalar.ok) return scalar;
+    if (typeof scalar.value !== 'string') {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fieldsFrom' expects string field names"),
+      };
+    }
+    if (requested.includes(scalar.value)) {
+      return {
+        ok: false,
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function 'fieldsFrom' received duplicate requested field '${scalar.value}'`),
+      };
+    }
+    requested.push(scalar.value);
+  }
+
+  const keys = evaluateResolutionExpression(keyResolution, currentBinding, namespace, options);
+  if (!keys.ok) return keys;
+  const values = evaluateResolutionExpression(valueResolution, currentBinding, namespace, options);
+  if (!values.ok) return values;
+
+  return objectFromBindingSets(keys.value.bindings, values.value.bindings, namespace, 'fieldsFrom', new Set(requested));
+}
+
+function objectFromBindingSets(keyBindings, valueBindings, namespace, functionName, requestedFields = null) {
+  if (keyBindings.length !== valueBindings.length) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', `Function '${functionName}' expected key and value binding sets with equal length`),
     };
   }
 
   const output = {};
   const fieldMetadata = {};
-  for (let index = 0; index < keys.value.bindings.length; index += 1) {
-    const keyScalar = getBindingScalarValue(namespace, keys.value.bindings[index]);
+  const observedRequestedFields = new Set();
+  for (let index = 0; index < keyBindings.length; index += 1) {
+    const keyScalar = getBindingScalarValue(namespace, keyBindings[index]);
     if (!keyScalar.ok) return keyScalar;
     if (typeof keyScalar.value !== 'string') {
       return {
         ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'objectFrom' expects string key bindings"),
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${functionName}' expects string key bindings`),
       };
     }
+    if (requestedFields && !requestedFields.has(keyScalar.value)) continue;
     if (Object.hasOwn(output, keyScalar.value)) {
       return {
         ok: false,
-        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function 'objectFrom' received duplicate key '${keyScalar.value}'`),
+        error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${functionName}' received duplicate key '${keyScalar.value}'`),
       };
     }
 
-    const valueScalar = getBindingScalarValue(namespace, values.value.bindings[index]);
+    const valueScalar = getBindingScalarValue(namespace, valueBindings[index]);
     if (!valueScalar.ok) return valueScalar;
     output[keyScalar.value] = valueScalar.value;
+    observedRequestedFields.add(keyScalar.value);
     if (valueScalar.metadata) fieldMetadata[keyScalar.value] = valueScalar.metadata;
+  }
+  if (requestedFields) {
+    for (const field of requestedFields) {
+      if (!observedRequestedFields.has(field)) {
+        return {
+          ok: false,
+          error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', `Function '${functionName}' could not find requested field '${field}'`),
+        };
+      }
+    }
   }
 
   if (Object.keys(fieldMetadata).length > 0) {

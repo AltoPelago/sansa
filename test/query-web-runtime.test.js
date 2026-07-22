@@ -132,6 +132,18 @@ test('query web runtime evaluates objectFrom against AEON source', async () => {
     '$.table.content[0] = {"age":22}',
     '$.table.content[1] = {"age":31}',
   ].join('\n'));
+
+  const fieldsFrom = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.table.content.*\nselect fieldsFrom($.table.header.*, .*, "age")',
+  });
+
+  assert.equal(fieldsFrom.ok, true, JSON.stringify(fieldsFrom.errors ?? []));
+  assert.equal(fieldsFrom.text, [
+    '$.table.content[0] = {"age":22}',
+    '$.table.content[1] = {"age":31}',
+  ].join('\n'));
 });
 
 test('query web runtime evaluates contains over binding sets and the current binding', async () => {
