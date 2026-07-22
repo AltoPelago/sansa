@@ -63,7 +63,7 @@ function runTest(test, namespaces) {
     return failures;
   }
   const result = isEvaluateCase
-    ? evaluateQuery(source, fixture.namespace)
+    ? evaluateQuery(source, fixture.namespace, test.input.options ?? {})
     : isExpressionCase
       ? parseQueryExpression(source)
       : parseQuery(source);
@@ -90,6 +90,12 @@ function runTest(test, namespaces) {
       const actualAddress = result.errors?.[0]?.candidateAddress ?? null;
       if (actualAddress !== expected.candidateAddress) {
         failures.push(`candidateAddress mismatch: expected ${expected.candidateAddress}, got ${actualAddress}`);
+      }
+    }
+    if (typeof expected.errorExtension === 'string') {
+      const actualExtension = result.errors?.[0]?.extension ?? null;
+      if (actualExtension !== expected.errorExtension) {
+        failures.push(`errorExtension mismatch: expected ${expected.errorExtension}, got ${actualExtension}`);
       }
     }
     return failures;

@@ -5,6 +5,10 @@ export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
+const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
+  ['objectFrom', 'sansa.transform.objectFrom'],
+  ['fieldsFrom', 'sansa.transform.fieldsFrom'],
+]);
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -571,9 +575,13 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     return evaluateResolveChildExpression(expression, currentBinding, namespace, options);
   }
   if (expression.name === 'objectFrom') {
+    const extension = expectEnabledExtension(expression.name, options);
+    if (!extension.ok) return extension;
     return evaluateObjectFromExpression(expression, currentBinding, namespace, options);
   }
   if (expression.name === 'fieldsFrom') {
+    const extension = expectEnabledExtension(expression.name, options);
+    if (!extension.ok) return extension;
     return evaluateFieldsFromExpression(expression, currentBinding, namespace, options);
   }
   if (!isOrdinaryFunctionName(expression.name)) {
@@ -593,6 +601,32 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   }
 
   return evaluateOrdinaryFunction(expression.name, evaluatedArgs);
+}
+
+function expectEnabledExtension(functionName, options) {
+  const extensionId = TRANSFORM_EXTENSION_FUNCTIONS.get(functionName);
+  if (!extensionId || isExtensionEnabled(extensionId, options)) return { ok: true };
+  return {
+    ok: false,
+    error: queryEvaluateError(
+      'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION',
+      `Function '${functionName}' requires disabled extension '${extensionId}'`,
+      { extension: extensionId },
+    ),
+  };
+}
+
+function isExtensionEnabled(extensionId, options) {
+  const enabledExtensions = options.enabledExtensions;
+  if (Array.isArray(enabledExtensions)) return enabledExtensions.includes(extensionId);
+
+  const extensions = options.extensions;
+  if (!extensions || typeof extensions !== 'object') return true;
+  if (extensions.transform === false) return false;
+  if (extensions.transform === true) return true;
+  if (extensionId === 'sansa.transform.objectFrom' && extensions.objectFrom === false) return false;
+  if (extensionId === 'sansa.transform.fieldsFrom' && extensions.fieldsFrom === false) return false;
+  return true;
 }
 
 function isOrdinaryFunctionName(name) {

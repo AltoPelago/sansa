@@ -1136,6 +1136,34 @@ test('evaluates experimental fieldsFrom over paired binding sets', () => {
   assert.equal(duplicateSourceHeader.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
+test('gates experimental transform extensions explicitly', () => {
+  const disabledObjectFrom = evaluateQuery([
+    'from $.table.content[0]',
+    'select objectFrom($.table.header.*, .*)',
+  ].join('\n'), namespace, { extensions: { transform: false } });
+  assert.equal(disabledObjectFrom.ok, false);
+  assert.equal(disabledObjectFrom.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION');
+  assert.equal(disabledObjectFrom.errors[0].extension, 'sansa.transform.objectFrom');
+
+  const disabledFieldsFrom = evaluateQuery([
+    'from $.table.content[0]',
+    'select fieldsFrom($.table.header.*, .*, "age")',
+  ].join('\n'), namespace, { enabledExtensions: ['sansa.transform.objectFrom'] });
+  assert.equal(disabledFieldsFrom.ok, false);
+  assert.equal(disabledFieldsFrom.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION');
+  assert.equal(disabledFieldsFrom.errors[0].extension, 'sansa.transform.fieldsFrom');
+
+  const explicitlyEnabled = evaluateQuery([
+    'from $.table.content.*',
+    'select objectFrom($.table.header[1], .[1])',
+  ].join('\n'), namespace, { enabledExtensions: ['sansa.transform.objectFrom'] });
+  assert.equal(explicitlyEnabled.ok, true, JSON.stringify(explicitlyEnabled.errors ?? []));
+  assert.deepEqual(explicitlyEnabled.results.map((entry) => entry.value.value), [
+    { age: 22 },
+    { age: 31 },
+  ]);
+});
+
 test('evaluates path over structured address literal values', () => {
   const scalarParam = evaluateQuery([
     'from $.inventory.items.*',

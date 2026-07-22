@@ -68,6 +68,20 @@ renderQualifierTerm(term)
 { ok: false, results: [], errors }
 ```
 
+Experimental extensions are enabled by default when the package advertises them. Callers can disable the transform-library surface with:
+
+```js
+evaluateQuery(query, namespace, { extensions: { transform: false } })
+```
+
+Callers can also provide an exact allow-list:
+
+```js
+evaluateQuery(query, namespace, { enabledExtensions: ["sansa.transform.objectFrom"] })
+```
+
+A disabled advertised extension fails with `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION` and includes the extension id in the diagnostic.
+
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
 ```js
