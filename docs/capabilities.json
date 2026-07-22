@@ -20,6 +20,14 @@
     "resolve": true,
     "query": true
   },
+  "policies": [
+    {
+      "id": "validation",
+      "capability": "SANSA.Query",
+      "category": "policy",
+      "maturity": "experimental"
+    }
+  ],
   "extensions": [
     {
       "id": "sansa.transform.objectFrom",

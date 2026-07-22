@@ -4,7 +4,7 @@ Shared SANSA address, resolve, and query parser/evaluator model.
 
 This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for ordinary scalar, equality, and ordering behavior. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, the experimental `validation` Query policy, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
 
 ## Current Scope
 

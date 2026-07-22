@@ -1207,6 +1207,14 @@ test('applies validation query policy restrictions before evaluation', () => {
   assert.equal(limited.ok, false);
   assert.equal(limited.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
 
+  const offset = evaluateQuery([
+    'from $.inventory.items.*',
+    'offset 1',
+    'select .sku',
+  ].join('\n'), namespace, { policy: 'validation' });
+  assert.equal(offset.ok, false);
+  assert.equal(offset.errors[0].code, 'SANSA_QUERY_POLICY_VIOLATION');
+
   const projected = evaluateQuery([
     'from $.inventory.items.*',
     'select { sku = .sku qty = .qty }',
