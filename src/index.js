@@ -567,8 +567,8 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (expression.name === 'fallback') {
     return evaluateFallbackExpression(expression, currentBinding, namespace, options);
   }
-  if (expression.name === 'lookup') {
-    return evaluateLookupExpression(expression, currentBinding, namespace, options);
+  if (expression.name === 'resolveChild') {
+    return evaluateResolveChildExpression(expression, currentBinding, namespace, options);
   }
   if (expression.name === 'objectFrom') {
     return evaluateObjectFromExpression(expression, currentBinding, namespace, options);
@@ -762,11 +762,11 @@ function consumeFallbackOperand(value, namespace) {
   return scalarQueryValue(scalar.value, scalar.metadata);
 }
 
-function evaluateLookupExpression(expression, currentBinding, namespace, options) {
+function evaluateResolveChildExpression(expression, currentBinding, namespace, options) {
   if (expression.arguments.length !== 2) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects 2 arguments"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'resolveChild' expects 2 arguments"),
     };
   }
 
@@ -774,7 +774,7 @@ function evaluateLookupExpression(expression, currentBinding, namespace, options
   if (!baseResolution) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects a resolution expression base"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'resolveChild' expects a resolution expression base"),
     };
   }
 
@@ -783,13 +783,13 @@ function evaluateLookupExpression(expression, currentBinding, namespace, options
   if (base.value.bindings.length === 0) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', "Function 'lookup' expected one base binding but resolved none"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', "Function 'resolveChild' expected one base binding but resolved none"),
     };
   }
   if (base.value.bindings.length > 1) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'lookup' expected one base binding but resolved multiple bindings"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'resolveChild' expected one base binding but resolved multiple bindings"),
     };
   }
 
@@ -806,14 +806,14 @@ function evaluateLookupExpression(expression, currentBinding, namespace, options
   } else {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'lookup' expects a string member key or non-negative integer position key"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'resolveChild' expects a string member key or non-negative integer position key"),
     };
   }
 
   if (bindings.length > 1) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'lookup' target resolved multiple bindings"),
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', "Function 'resolveChild' target resolved multiple bindings"),
     };
   }
 

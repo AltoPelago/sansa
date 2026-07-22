@@ -166,10 +166,10 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(existence.right.operator, 'absent');
   assert.equal(renderQueryExpression(existence), 'exists(.roles) and absent(.roles.*)');
 
-  const projection = parseExpressionOk('{ name = .name status = lookup($.statuses, .status) }');
+  const projection = parseExpressionOk('{ name = .name status = resolveChild($.statuses, .status) }');
   assert.equal(projection.type, 'projectionExpression');
   assert.deepEqual(projection.fields.map((field) => field.name), ['name', 'status']);
-  assert.equal(renderQueryExpression(projection), '{ name = .name status = lookup($.statuses, .status) }');
+  assert.equal(renderQueryExpression(projection), '{ name = .name status = resolveChild($.statuses, .status) }');
 });
 
 test('rejects invalid query expression forms', () => {

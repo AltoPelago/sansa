@@ -110,7 +110,7 @@ String comparison and `order by` use deterministic Unicode scalar-value ordering
 
 `fallback(primary, replacement)` handles missing primary values only. The replacement expression is evaluated only when the primary expression resolves no scalar value; explicit null, cardinality, type, and comparison errors remain fail-fast.
 
-`lookup(base, key)` resolves a dynamic member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable.
+`resolveChild(base, key)` resolves a dynamic direct member or position from one addressable base container. String keys select members; non-negative integer keys select positions. A missing target returns an empty Binding Set, and the consuming expression decides whether that is acceptable. It does not parse traversal strings or perform collection joins.
 
 `objectFrom(keys, values)` pairs two ordered Binding Sets by position and constructs a derived object. Key bindings must expose unique string scalar values, value bindings must expose scalar values, and mismatched lengths fail with a cardinality diagnostic.
 
@@ -160,7 +160,7 @@ select { sku = .sku status = fallback(.status, "missing") }
 ```text
 from $.inventory.items.*
 where .qty >= 4
-select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
 ```
 
 ```text

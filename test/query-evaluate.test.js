@@ -908,11 +908,11 @@ test('evaluates scalar membership over binding sets', () => {
   assert.deepEqual(infinityRight.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
 });
 
-test('evaluates lookup over addressable containers', () => {
+test('evaluates resolveChild over addressable containers', () => {
   const projected = evaluateQuery([
     'from $.inventory.items.*',
     'where .qty >= 4',
-    'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) }',
+    'select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) }',
   ].join('\n'), namespace);
   assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
   assert.deepEqual(projected.results.map((entry) => entry.value), [
@@ -941,52 +941,59 @@ test('evaluates lookup over addressable containers', () => {
 
   const position = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup(.roles, 1)',
+    'select resolveChild(.roles, 1)',
   ].join('\n'), namespace);
   assert.equal(position.ok, true, JSON.stringify(position.errors ?? []));
   assert.deepEqual(position.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[0].roles[1]']);
 
   const missingTarget = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup($.inventory.categoryLabels, "unknown")',
+    'select resolveChild($.inventory.categoryLabels, "unknown")',
   ].join('\n'), namespace);
   assert.equal(missingTarget.ok, true, JSON.stringify(missingTarget.errors ?? []));
   assert.deepEqual(missingTarget.results[0].value.bindings, []);
 
   const missingTargetInProjection = evaluateQuery([
     'from $.inventory.items[0]',
-    'select { category = lookup($.inventory.categoryLabels, "unknown") }',
+    'select { category = resolveChild($.inventory.categoryLabels, "unknown") }',
   ].join('\n'), namespace);
   assert.equal(missingTargetInProjection.ok, false);
   assert.equal(missingTargetInProjection.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
 
   const multipleBase = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup($.inventory.items.*, .category)',
+    'select resolveChild($.inventory.items.*, .category)',
   ].join('\n'), namespace);
   assert.equal(multipleBase.ok, false);
   assert.equal(multipleBase.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
 
   const multipleKey = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup($.inventory.categoryLabels, .roles.*)',
+    'select resolveChild($.inventory.categoryLabels, .roles.*)',
   ].join('\n'), namespace);
   assert.equal(multipleKey.ok, false);
   assert.equal(multipleKey.errors[0].code, 'SANSA_QUERY_EVALUATE_CARDINALITY');
 
   const invalidKey = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup($.inventory.categoryLabels, true)',
+    'select resolveChild($.inventory.categoryLabels, true)',
   ].join('\n'), namespace);
   assert.equal(invalidKey.ok, false);
   assert.equal(invalidKey.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 
   const invalidBase = evaluateQuery([
     'from $.inventory.items[0]',
-    'select lookup("labels", .category)',
+    'select resolveChild("labels", .category)',
   ].join('\n'), namespace);
   assert.equal(invalidBase.ok, false);
   assert.equal(invalidBase.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const oldName = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select lookup($.inventory.categoryLabels, .category)',
+  ].join('\n'), namespace);
+  assert.equal(oldName.ok, false);
+  assert.equal(oldName.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
 });
 
 test('evaluates objectFrom over paired binding sets', () => {

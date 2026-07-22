@@ -238,11 +238,11 @@ export const queryExampleGroups = [
     examples: [
       {
         name: 'categoryLookup',
-        label: 'Category lookup',
+        label: 'Category child resolution',
         query: lines(
           'from $.inventory.items.*',
           'where .qty >= 4',
-          'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) }',
+          'select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) }',
         ),
         expected: {
           ok: true,
@@ -416,12 +416,12 @@ export const queryExampleGroups = [
         },
       },
       {
-        name: 'lookupFallbackRecipe',
+        name: 'resolveChildFallbackRecipe',
         label: 'Lookup fallback',
         query: lines(
           'from $.inventory.items.*',
           'where .qty >= 4',
-          'select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }',
+          'select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }',
         ),
         expected: {
           ok: true,

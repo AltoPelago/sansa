@@ -362,7 +362,7 @@ Currently evaluated:
 - built-in string functions: `contains`, `startsWith`, `endsWith`, `lower`, `upper`, `concat`
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
-- lookup over addressable containers with `lookup`
+- dynamic direct-child resolution over addressable containers with `resolveChild`
 - ordered binding-set object construction with `objectFrom`
 - experimental ordered field projection with `fieldsFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
@@ -438,7 +438,7 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `fallback(primary, replacement)` is a function-like operator with lazy missing handling. The primary operand is consumed in scalar value context. If it resolves zero bindings, or raises a missing-scalar diagnostic, the replacement operand is evaluated and consumed in the same scalar value context. If the primary operand succeeds, the replacement operand is not evaluated. Explicit null values, cardinality errors, type errors, comparison errors, and unsupported-function errors do not trigger fallback.
 
-`lookup(base, key)` is a function-like operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one binding. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing lookup target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics.
+`resolveChild(base, key)` is a function-like structural operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one addressable container. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics. It does not parse traversal strings, scan collections, or perform join semantics.
 
 `objectFrom(keys, values)` is a function-like projection helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics.
 
@@ -481,12 +481,12 @@ where isValue(.status) or (exists(.status) and isNull(.status))
 select { sku = .sku status = fallback(.status, "missing") }
 ```
 
-`lookup(...)` and `fallback(...)` can compose inside projections:
+`resolveChild(...)` and `fallback(...)` can compose inside projections:
 
 ```text
 from $.inventory.items.*
 where .qty >= 4
-select { sku = .sku category = lookup($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
+select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }
 ```
 
 `objectFrom(...)` can construct row-shaped objects from table-like positional data:
