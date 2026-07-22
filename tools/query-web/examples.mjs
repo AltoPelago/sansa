@@ -292,7 +292,7 @@ export const queryExampleGroups = [
       },
       {
         name: 'fieldsFromRows',
-        label: 'Fields from rows',
+        label: 'Fields from rows (experimental)',
         query: lines(
           'from $.table.content.*',
           'select fieldsFrom($.table.header.*, .*, "age")',

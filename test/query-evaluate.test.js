@@ -804,6 +804,42 @@ test('evaluates scalar membership over binding sets', () => {
     '$.inventory.items[3]',
   ]);
 
+  const shortCircuitRoot = binding({
+    address: '$',
+    representationKind: 'object',
+    children: [
+      binding({
+        name: 'roles',
+        address: '$.roles',
+        representationKind: 'list',
+        children: [
+          binding({ index: 0, address: '$.roles[0]', semanticType: 'string', representationKind: 'string', value: 'admin' }),
+          binding({ index: 1, address: '$.roles[1]', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notSet', value: null }),
+        ],
+      }),
+      binding({
+        name: 'badRoles',
+        address: '$.badRoles',
+        representationKind: 'list',
+        children: [
+          binding({ index: 0, address: '$.badRoles[0]', semanticType: 'string', representationKind: 'string', value: 'user' }),
+          binding({ index: 1, address: '$.badRoles[1]', semanticType: 'null<string>', representationKind: 'null', scalarKind: 'null', nullReason: 'notSet', value: null }),
+        ],
+      }),
+    ],
+  });
+  const shortCircuitNamespace = {
+    root: shortCircuitRoot,
+    children: (entry) => entry.children,
+  };
+  const matchBeforeNull = evaluateQuery('from $ where "admin" in $.roles.* select $.roles', shortCircuitNamespace);
+  assert.equal(matchBeforeNull.ok, true, JSON.stringify(matchBeforeNull.errors ?? []));
+  assert.equal(matchBeforeNull.results.length, 1);
+
+  const nullBeforeMatch = evaluateQuery('from $ where "admin" in $.badRoles.* select $.badRoles', shortCircuitNamespace);
+  assert.equal(nullBeforeMatch.ok, false);
+  assert.equal(nullBeforeMatch.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
   const notAdminRole = evaluateQuery([
     'from $.inventory.items.*',
     'where not ("admin" in .roles.*)',
@@ -1252,6 +1288,20 @@ test('evaluates fallback over missing scalar values', () => {
   ].join('\n'), namespace);
   assert.equal(lazyReplacement.ok, true, JSON.stringify(lazyReplacement.errors ?? []));
   assert.equal(lazyReplacement.results[0].value.value, 'active');
+
+  const nanPrimary = evaluateQuery([
+    'from $.inventory.items[2]',
+    'select fallback(.metric, "missing")',
+  ].join('\n'), namespace);
+  assert.equal(nanPrimary.ok, true, JSON.stringify(nanPrimary.errors ?? []));
+  assert.equal(Number.isNaN(nanPrimary.results[0].value.value), true);
+
+  const infinityPrimary = evaluateQuery([
+    'from $.inventory.items[3]',
+    'select fallback(.ceiling, "missing")',
+  ].join('\n'), namespace);
+  assert.equal(infinityPrimary.ok, true, JSON.stringify(infinityPrimary.errors ?? []));
+  assert.equal(infinityPrimary.results[0].value.value, Infinity);
 
   const containsMissing = evaluateQuery([
     'from $.inventory.items.*',

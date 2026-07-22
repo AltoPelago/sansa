@@ -95,6 +95,10 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT'
   | 'SANSA_RESOLVE_UNSUPPORTED_ATTRIBUTE_SPACE'
   | 'SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE'
+  | 'SANSA_RESOLVE_UNSUPPORTED_PARENT'
+  | 'SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN'
+  | 'SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN'
+  | 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION'
   | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
 
 export type SansaQueryEvaluateErrorCode =
@@ -171,6 +175,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
   readonly parse?: SansaParseOptions;
   readonly contextualRoot?: TBinding;
+  readonly allowParentFromEffectiveRoot?: boolean;
 }
 
 export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =

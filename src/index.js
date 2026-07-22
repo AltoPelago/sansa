@@ -202,10 +202,29 @@ export function resolveAddress(input, namespace, options = {}) {
   let current = [rootResult.binding];
   for (let index = 0; index < parsed.address.selectors.length; index += 1) {
     const selector = parsed.address.selectors[index];
-    const selected = applyResolveSelector(selector, current, namespace, index);
+    const selected = applyResolveSelector(
+      selector,
+      current,
+      namespace,
+      index,
+      options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
+    );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
     current = selected.bindings;
     if (current.length === 0) break;
+  }
+
+  if (parsed.address.isExact && current.length > 1) {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [
+        resolveError(
+          'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION',
+          'Exact SANSA resolution produced more than one binding',
+        ),
+      ],
+    };
   }
 
   return { ok: true, bindings: current, diagnostics: [] };
@@ -399,6 +418,7 @@ function evaluateResolutionExpression(expression, currentBinding, namespace, opt
   const resolveOptions = {
     ...(options.resolve ?? {}),
     ...(['current', 'contextual'].includes(expression.scope) ? { contextualRoot: currentBinding } : {}),
+    ...(expression.scope === 'current' ? { allowParentFromEffectiveRoot: true } : {}),
   };
   const resolved = resolveAddress(expression.address, namespace, resolveOptions);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
@@ -1513,7 +1533,7 @@ function scalarMetadataFromInfo(info) {
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
-function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
+function applyResolveSelector(selector, bindings, namespace, selectorIndex, effectiveRoot) {
   switch (selector.type) {
     case 'member':
       return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
@@ -1522,7 +1542,7 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex) {
     case 'positionRange':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
     case 'parent':
-      return selectParents(namespace, bindings, selectorIndex);
+      return selectParents(namespace, bindings, selectorIndex, effectiveRoot);
     case 'directExpansion':
       return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
     case 'descendantExpansion':
@@ -1588,14 +1608,16 @@ function selectPositionRange(namespace, binding, start, end) {
   });
 }
 
-function selectParents(namespace, bindings, selectorIndex) {
+function selectParents(namespace, bindings, selectorIndex, effectiveRoot) {
+  const traversable = bindings.filter((binding) => binding !== effectiveRoot);
+  if (traversable.length === 0) return { ok: true, bindings: [] };
   if (typeof namespace.parent === 'function') {
-    return { ok: true, bindings: bindings.map((binding) => namespace.parent(binding)).filter(Boolean) };
+    return { ok: true, bindings: traversable.map((binding) => namespace.parent(binding)).filter(Boolean) };
   }
-  if (bindings.some((binding) => Object.prototype.hasOwnProperty.call(binding, 'parent'))) {
-    return { ok: true, bindings: bindings.map((binding) => binding.parent).filter(Boolean) };
+  if (traversable.some((binding) => Object.prototype.hasOwnProperty.call(binding, 'parent'))) {
+    return { ok: true, bindings: traversable.map((binding) => binding.parent).filter(Boolean) };
   }
-  if (bindings.length === 0) return { ok: true, bindings: [] };
+  if (traversable.length === 0) return { ok: true, bindings: [] };
   return {
     ok: false,
     error: resolveError(

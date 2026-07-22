@@ -95,9 +95,25 @@ const parentNamespace = {
   parent: (entry) => parents.get(entry),
 };
 
+const ambiguousRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({ name: 'duplicate', address: '$.duplicate', representationKind: 'string' }),
+    binding({ name: 'duplicate', address: '$.duplicate', representationKind: 'string' }),
+  ],
+});
+
 test('resolves exact absolute addresses to zero or one binding', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku', namespace)), ['$.inventory.items[1].sku']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2].sku', namespace)), []);
+
+  const ambiguous = resolveAddress('$.duplicate', {
+    root: ambiguousRoot,
+    children: (entry) => entry.children,
+  });
+  assert.equal(ambiguous.ok, false);
+  assert.equal(ambiguous.errors[0].code, 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION');
 });
 
 test('resolves direct and descendant expansion selectors', () => {
@@ -142,11 +158,27 @@ test('resolves inclusive position range selectors', () => {
 test('resolves parent selectors only when the host exposes parent traversal', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku.^.qty', parentNamespace)), ['$.inventory.items[1].qty']);
   assert.deepEqual(addresses(resolveAddress('$.^', parentNamespace)), []);
+  assert.deepEqual(addresses(resolveAddress('?.^', parentNamespace, { contextualRoot: item1 })), []);
+  assert.deepEqual(addresses(resolveAddress('?.sku.^', parentNamespace, { contextualRoot: item1 })), ['$.inventory.items[1]']);
 
   const unsupported = resolveAddress('$.inventory.^', namespace);
   assert.equal(unsupported.ok, false);
   assert.equal(unsupported.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_PARENT');
   assert.equal(unsupported.errors[0].selectorIndex, 1);
+});
+
+test('preserves branch order, misses, and duplicate traversal occurrences', () => {
+  assert.deepEqual(addresses(resolveAddress('$.inventory.*[0]', namespace)), [
+    '$.inventory.items[0]',
+  ]);
+
+  assert.deepEqual(addresses(resolveAddress('$.inventory.items.*.*.^', parentNamespace)), [
+    '$.inventory.items[0]',
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+    '$.inventory.items[1]',
+    '$.inventory.items[1]',
+  ]);
 });
 
 test('resolves name pattern selectors against direct child binding names', () => {
