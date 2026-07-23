@@ -31,6 +31,8 @@ Host implementations also decide which address spaces they expose during resolut
 
 Resolve returns ordered Binding Sets. Supported selectors that miss on one branch contribute no bindings for that branch; unsupported or forbidden operations fail explicitly. The resolver preserves duplicate traversal occurrences and does not deduplicate by address. Parent traversal from the effective resolution root resolves empty by default, but callers can request stricter policy diagnostics with `failOnParentFromEffectiveRoot: true` or forbid parent traversal entirely with `parentTraversal: "forbid"`.
 
+Name patterns use `?` for one Unicode code point and `*` for zero or more Unicode code points. Within the decoded pattern payload, `\?`, `\*`, and `\\` match literal question mark, asterisk, and backslash characters respectively.
+
 The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
 
 The CTS runner covers address parsing, resolve behavior, query parsing, and query evaluation:

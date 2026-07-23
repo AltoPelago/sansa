@@ -3321,7 +3321,14 @@ function lowerFirst(value) {
 
 function globPatternToRegExp(pattern) {
   let source = '^';
-  for (const char of pattern) {
+  const chars = Array.from(pattern);
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index];
+    if (char === '\\' && ['*', '?', '\\'].includes(chars[index + 1])) {
+      source += escapeRegExp(chars[index + 1]);
+      index += 1;
+      continue;
+    }
     if (char === '*') {
       source += '.*';
     } else if (char === '?') {

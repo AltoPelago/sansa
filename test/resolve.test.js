@@ -39,6 +39,8 @@ const item1 = binding({ index: 1, address: '$.inventory.items[1]', representatio
 const items = binding({ name: 'items', address: '$.inventory.items', representationKind: 'list', children: [item0, item1] });
 const itemA1 = binding({ name: 'itemA1', address: '$.inventory.itemA1', representationKind: 'object' });
 const itemB2 = binding({ name: 'itemB2', address: '$.inventory.itemB2', representationKind: 'object' });
+const itemStar = binding({ name: 'item*', address: '$.inventory.["item*"]', representationKind: 'object' });
+const itemQuestion = binding({ name: 'item?', address: '$.inventory.["item?"]', representationKind: 'object' });
 const archive = binding({ name: 'archive', address: '$.inventory.archive', representationKind: 'object' });
 const catalogSkuIndex = binding({ name: 'skuIndex', address: '$.inventory.<"catalog">.skuIndex', representationKind: 'object' });
 const catalogSpace = binding({ address: '$.inventory.<"catalog">', representationKind: 'object', children: [catalogSkuIndex] });
@@ -46,7 +48,7 @@ const inventory = binding({
   name: 'inventory',
   address: '$.inventory',
   representationKind: 'object',
-  children: [items, itemA1, itemB2, archive],
+  children: [items, itemA1, itemB2, itemStar, itemQuestion, archive],
   localSpaces: { catalog: catalogSpace },
 });
 const readingUnit = binding({ name: 'unit', address: '$.reading.@.unit', semanticType: 'string', representationKind: 'string' });
@@ -84,6 +86,8 @@ const parents = new Map([
   [status1, item1],
   [itemA1, inventory],
   [itemB2, inventory],
+  [itemStar, inventory],
+  [itemQuestion, inventory],
   [archive, inventory],
   [reading, root],
   [readingAttributes, reading],
@@ -132,6 +136,8 @@ test('resolves direct and descendant expansion selectors', () => {
     '$.inventory.items[1].status',
     '$.inventory.itemA1',
     '$.inventory.itemB2',
+    '$.inventory.["item*"]',
+    '$.inventory.["item?"]',
     '$.inventory.archive',
   ]);
   assert.deepEqual(addresses(resolveAddress('$.inventory.**.sku', namespace)), [
@@ -204,6 +210,13 @@ test('resolves name pattern selectors against direct child binding names', () =>
   assert.deepEqual(addresses(resolveAddress('$.inventory.items.*.("s?u")', namespace)), [
     '$.inventory.items[0].sku',
     '$.inventory.items[1].sku',
+  ]);
+
+  assert.deepEqual(addresses(resolveAddress('$.inventory.("item\\\\*")', namespace)), [
+    '$.inventory.["item*"]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.inventory.("item\\\\?")', namespace)), [
+    '$.inventory.["item?"]',
   ]);
 });
 
