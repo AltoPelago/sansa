@@ -112,7 +112,7 @@ where "admin" in .roles.*
 
 The left operand must resolve to one scalar. The right operand must be a Binding Set; empty and non-matching sets evaluate to false. Each right-side binding is compared using equality comparison rules, so incompatible values, explicit nulls, and NaN fail instead of being skipped.
 
-Ordinary string functions consume single scalar string arguments. The current built-ins are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
+Ordinary string functions consume single scalar string arguments. The current built-ins are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They fail on missing bindings, multiple bindings, explicit null, numeric specials, and other non-string values unless a specific function contract says otherwise.
 
 String comparison and `order by` use deterministic Unicode scalar-value ordering in this implementation slice. They do not use host locale or process locale collation.
 
