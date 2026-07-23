@@ -98,6 +98,24 @@ function runTest(test, namespaces) {
         failures.push(`errorExtension mismatch: expected ${expected.errorExtension}, got ${actualExtension}`);
       }
     }
+    if (typeof expected.errorBudget === 'string') {
+      const actualBudget = result.errors?.[0]?.budget ?? null;
+      if (actualBudget !== expected.errorBudget) {
+        failures.push(`errorBudget mismatch: expected ${expected.errorBudget}, got ${actualBudget}`);
+      }
+    }
+    if (Number.isSafeInteger(expected.errorLimit)) {
+      const actualLimit = result.errors?.[0]?.limit ?? null;
+      if (actualLimit !== expected.errorLimit) {
+        failures.push(`errorLimit mismatch: expected ${expected.errorLimit}, got ${actualLimit}`);
+      }
+    }
+    if (Number.isSafeInteger(expected.errorObserved)) {
+      const actualObserved = result.errors?.[0]?.observed ?? null;
+      if (actualObserved !== expected.errorObserved) {
+        failures.push(`errorObserved mismatch: expected ${expected.errorObserved}, got ${actualObserved}`);
+      }
+    }
     return failures;
   }
 
