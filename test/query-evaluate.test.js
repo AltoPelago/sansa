@@ -403,6 +403,44 @@ test('evaluates offset and limit after filtering', () => {
   ]);
 });
 
+test('reports query budget exhaustion without implicit truncation', () => {
+  const from = evaluateQuery('from $.inventory.items.*\nselect .sku', namespace, {
+    budget: { maxFromBindings: 3 },
+  });
+  assert.equal(from.ok, false);
+  assert.equal(from.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(from.errors[0].phase, 'from');
+  assert.equal(from.errors[0].budget, 'maxFromBindings');
+  assert.equal(from.errors[0].limit, 3);
+  assert.equal(from.errors[0].observed, 4);
+  assert.deepEqual(from.results, []);
+
+  const where = evaluateQuery('from $.inventory.items.*\nwhere .active == true\nselect .sku', namespace, {
+    budget: { maxWhereCandidates: 3 },
+  });
+  assert.equal(where.ok, false);
+  assert.equal(where.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(where.errors[0].phase, 'where');
+  assert.equal(where.errors[0].budget, 'maxWhereCandidates');
+
+  const order = evaluateQuery('from $.inventory.items.*\norder by .sku asc\nselect .sku', namespace, {
+    budget: { maxOrderCandidates: 3 },
+  });
+  assert.equal(order.ok, false);
+  assert.equal(order.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(order.errors[0].phase, 'order');
+  assert.equal(order.errors[0].budget, 'maxOrderCandidates');
+
+  const select = evaluateQuery('from $.inventory.items.*\nlimit 4\nselect .sku', namespace, {
+    budget: { maxResultRecords: 3 },
+  });
+  assert.equal(select.ok, false);
+  assert.equal(select.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(select.errors[0].phase, 'select');
+  assert.equal(select.errors[0].budget, 'maxResultRecords');
+  assert.deepEqual(select.results, []);
+});
+
 test('evaluates stable order by before offset and limit', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',

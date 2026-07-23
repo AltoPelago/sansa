@@ -32,6 +32,7 @@ export async function evaluateQueryForWorkbench({
   paramsSource = '',
   policy = '',
   transformExtensions = true,
+  budget = {},
 }) {
   const namespaceResult = sourceKind === 'json'
     ? namespaceFromJsonSource(source)
@@ -57,6 +58,7 @@ export async function evaluateQueryForWorkbench({
   const options = {
     ...(policy === 'validation' ? { policy: 'validation' } : {}),
     ...(transformExtensions === false ? { extensions: { transform: false } } : {}),
+    ...queryBudgetOption(budget),
   };
   const result = evaluateQuery(query, mounted.namespace, options);
   if (!result.ok) {
@@ -688,9 +690,22 @@ function normalizeDiagnostics(errors) {
     ...(typeof error.phase === 'string' ? { phase: error.phase } : {}),
     ...(typeof error.candidateAddress === 'string' ? { candidateAddress: error.candidateAddress } : {}),
     ...(typeof error.extension === 'string' ? { extension: error.extension } : {}),
+    ...(typeof error.budget === 'string' ? { budget: error.budget } : {}),
+    ...(Number.isSafeInteger(error.limit) ? { limit: error.limit } : {}),
+    ...(Number.isSafeInteger(error.observed) ? { observed: error.observed } : {}),
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),
     ...(Number.isInteger(error.selectorIndex) ? { selectorIndex: error.selectorIndex } : {}),
   }));
+}
+
+function queryBudgetOption(value) {
+  if (!value || typeof value !== 'object') return {};
+  const budget = {};
+  for (const key of ['maxFromBindings', 'maxWhereCandidates', 'maxOrderCandidates', 'maxResultRecords']) {
+    const limit = value[key];
+    if (Number.isSafeInteger(limit) && limit >= 0) budget[key] = limit;
+  }
+  return Object.keys(budget).length === 0 ? {} : { budget };
 }
 
 function normalizeAeonError(error) {

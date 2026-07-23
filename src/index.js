@@ -136,7 +136,24 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   let bindings = from.bindings;
+  const fromBudget = checkQueryBudget(options, 'maxFromBindings', bindings.length);
+  if (!fromBudget.ok) {
+    return {
+      ok: false,
+      results: [],
+      errors: [annotateQueryDiagnostic(fromBudget.error, { phase: 'from' })],
+    };
+  }
+
   if (query.where) {
+    const whereBudget = checkQueryBudget(options, 'maxWhereCandidates', bindings.length);
+    if (!whereBudget.ok) {
+      return {
+        ok: false,
+        results: [],
+        errors: [annotateQueryDiagnostic(whereBudget.error, { phase: 'where' })],
+      };
+    }
     const filtered = [];
     for (const binding of bindings) {
       const evaluated = evaluateQueryExpressionValue(query.where.ast, binding, namespace, options);
@@ -167,6 +184,14 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   if (query.orderBy) {
+    const orderBudget = checkQueryBudget(options, 'maxOrderCandidates', bindings.length);
+    if (!orderBudget.ok) {
+      return {
+        ok: false,
+        results: [],
+        errors: [annotateQueryDiagnostic(orderBudget.error, { phase: 'order' })],
+      };
+    }
     const ordered = orderQueryBindings(query.orderBy, bindings, namespace, options);
     if (!ordered.ok) {
       return {
@@ -180,6 +205,15 @@ export function evaluateQuery(input, namespace, options = {}) {
 
   if (query.offset) bindings = bindings.slice(query.offset.value);
   if (query.limit) bindings = bindings.slice(0, query.limit.value);
+
+  const resultBudget = checkQueryBudget(options, 'maxResultRecords', bindings.length);
+  if (!resultBudget.ok) {
+    return {
+      ok: false,
+      results: [],
+      errors: [annotateQueryDiagnostic(resultBudget.error, { phase: 'select' })],
+    };
+  }
 
   const results = [];
   for (const binding of bindings) {
@@ -250,6 +284,23 @@ function queryPolicyViolation(message, details = {}) {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_POLICY_VIOLATION', message, details),
   };
+}
+
+function checkQueryBudget(options, budget, observed) {
+  const limit = normalizeQueryBudgetLimit(options.budget?.[budget]);
+  if (limit === undefined || observed <= limit) return { ok: true };
+  return {
+    ok: false,
+    error: queryEvaluateError(
+      'SANSA_QUERY_BUDGET_EXCEEDED',
+      `Query budget '${budget}' exceeded: limit ${limit}, observed ${observed}`,
+      { budget, limit, observed },
+    ),
+  };
+}
+
+function normalizeQueryBudgetLimit(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
 function findExpression(expression, predicate) {

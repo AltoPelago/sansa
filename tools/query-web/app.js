@@ -14,6 +14,7 @@ const resetButton = document.querySelector('#resetButton');
 const parseButton = document.querySelector('#parseButton');
 const runButton = document.querySelector('#runButton');
 const transformExtensionsInput = document.querySelector('#transformExtensions');
+const budgetInputs = Array.from(document.querySelectorAll('.budget-row input'));
 
 let defaultFixtureSource = '';
 let defaultJsonSource = '';
@@ -62,6 +63,11 @@ document.querySelectorAll('input[name="queryPolicy"]').forEach((input) => {
 });
 transformExtensionsInput.addEventListener('change', () => {
   if (lastAction !== 'parse') void runQuery();
+});
+budgetInputs.forEach((input) => {
+  input.addEventListener('input', () => {
+    if (lastAction !== 'parse') void runQuery();
+  });
 });
 document.querySelectorAll('input[name="sourceKind"]').forEach((input) => {
   input.addEventListener('change', () => {
@@ -162,6 +168,7 @@ async function runQuery() {
     query: queryInput.value,
     policy: queryPolicy(),
     transformExtensions: transformExtensionsInput.checked,
+    budget: queryBudget(),
   });
   queryStatus.textContent = payload.ok ? 'run ok' : 'run failed';
   resultStatus.textContent = payload.ok
@@ -240,4 +247,20 @@ function sourceKind() {
 
 function queryPolicy() {
   return document.querySelector('input[name="queryPolicy"]:checked')?.value ?? '';
+}
+
+function queryBudget() {
+  const budget = {};
+  for (const input of budgetInputs) {
+    const value = parseBudgetInput(input.value);
+    if (value !== undefined) budget[input.id] = value;
+  }
+  return budget;
+}
+
+function parseBudgetInput(value) {
+  const trimmed = value.trim();
+  if (!/^(0|[1-9][0-9]*)$/.test(trimmed)) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }

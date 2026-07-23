@@ -28,7 +28,8 @@ const mode = args.mode ?? 'evaluate';
 const format = args.format ?? 'text';
 const fixturePath = resolve(args.fixture ?? defaultFixturePath);
 const policy = parsePolicy(args.policy);
-const evaluateOptions = buildEvaluateOptions({ policy, transformEnabled: args.disableTransform !== true });
+const budget = parseBudgetArgs(args);
+const evaluateOptions = buildEvaluateOptions({ policy, transformEnabled: args.disableTransform !== true, budget });
 
 if (!['evaluate', 'parse'].includes(mode)) {
   console.error(`SANSA Query tool error: unsupported --mode '${mode}'. Expected 'evaluate' or 'parse'.`);
@@ -88,6 +89,14 @@ function parseArgs(raw) {
       output.policy = requireValue(raw, ++index, arg);
     } else if (arg === '--disable-transform') {
       output.disableTransform = true;
+    } else if (arg === '--max-from-bindings') {
+      output.maxFromBindings = requireValue(raw, ++index, arg);
+    } else if (arg === '--max-where-candidates') {
+      output.maxWhereCandidates = requireValue(raw, ++index, arg);
+    } else if (arg === '--max-order-candidates') {
+      output.maxOrderCandidates = requireValue(raw, ++index, arg);
+    } else if (arg === '--max-result-records') {
+      output.maxResultRecords = requireValue(raw, ++index, arg);
     } else {
       console.error(`SANSA Query tool error: unknown argument '${arg}'.`);
       process.exit(2);
@@ -103,10 +112,38 @@ function parsePolicy(value) {
   process.exit(2);
 }
 
-function buildEvaluateOptions({ policy, transformEnabled }) {
+function parseBudgetArgs(options) {
+  const budget = {};
+  for (const [flag, key] of [
+    ['--max-from-bindings', 'maxFromBindings'],
+    ['--max-where-candidates', 'maxWhereCandidates'],
+    ['--max-order-candidates', 'maxOrderCandidates'],
+    ['--max-result-records', 'maxResultRecords'],
+  ]) {
+    if (options[key] === undefined) continue;
+    budget[key] = parseBudgetLimit(options[key], flag);
+  }
+  return Object.keys(budget).length === 0 ? undefined : budget;
+}
+
+function parseBudgetLimit(value, flag) {
+  if (!/^(0|[1-9][0-9]*)$/.test(value)) {
+    console.error(`SANSA Query tool error: ${flag} expects a non-negative integer.`);
+    process.exit(2);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    console.error(`SANSA Query tool error: ${flag} exceeds the JavaScript safe integer range.`);
+    process.exit(2);
+  }
+  return parsed;
+}
+
+function buildEvaluateOptions({ policy, transformEnabled, budget }) {
   return {
     ...(policy ? { policy } : {}),
     ...(transformEnabled ? {} : { extensions: { transform: false } }),
+    ...(budget ? { budget } : {}),
   };
 }
 
@@ -529,6 +566,14 @@ Options:
       --format <format>     text or json. Defaults to text.
       --policy <policy>     Optional query policy: validation.
       --disable-transform   Disable experimental SANSA.Transform helpers.
+      --max-from-bindings <n>
+                            Fail if the from source resolves more than n bindings.
+      --max-where-candidates <n>
+                            Fail if where would evaluate more than n candidates.
+      --max-order-candidates <n>
+                            Fail if order by would sort more than n candidates.
+      --max-result-records <n>
+                            Fail if select would produce more than n result records.
   -h, --help                Show this help.
 `);
 }

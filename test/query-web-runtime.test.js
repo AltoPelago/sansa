@@ -436,6 +436,24 @@ test('query web runtime can disable transform extensions', async () => {
   assert.match(result.text, /SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION \[select\]/);
 });
 
+test('query web runtime applies evaluation budgets', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    budget: { maxFromBindings: 3 },
+    query: 'from $.inventory.items.* select .sku',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(result.errors[0].phase, 'from');
+  assert.equal(result.errors[0].budget, 'maxFromBindings');
+  assert.equal(result.errors[0].limit, 3);
+  assert.equal(result.errors[0].observed, 4);
+  assert.match(result.text, /SANSA_QUERY_BUDGET_EXCEEDED \[from\]/);
+});
+
 test('query web runtime formats parse diagnostics as text', () => {
   const result = parseQueryForWorkbench('from $.inventory.items.*');
 

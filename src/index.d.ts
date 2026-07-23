@@ -103,6 +103,7 @@ export type SansaResolveErrorCode =
 
 export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_POLICY_VIOLATION'
+  | 'SANSA_QUERY_BUDGET_EXCEEDED'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION'
   | 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL'
@@ -132,6 +133,9 @@ export interface SansaQueryEvaluateDiagnostic {
   readonly index?: number;
   readonly selectorIndex?: number;
   readonly extension?: string;
+  readonly budget?: string;
+  readonly limit?: number;
+  readonly observed?: number;
 }
 
 export interface SansaResolveBinding {
@@ -197,6 +201,12 @@ export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolv
     readonly fieldsFrom?: boolean;
   };
   readonly enabledExtensions?: readonly string[];
+  readonly budget?: {
+    readonly maxFromBindings?: number;
+    readonly maxWhereCandidates?: number;
+    readonly maxOrderCandidates?: number;
+    readonly maxResultRecords?: number;
+  };
 }
 
 export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBinding> =

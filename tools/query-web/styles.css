@@ -114,7 +114,7 @@ button {
 }
 
 .query-panel {
-  grid-template-rows: auto minmax(140px, 0.55fr) auto auto minmax(180px, 0.45fr);
+  grid-template-rows: auto minmax(140px, 0.55fr) auto auto auto minmax(180px, 0.45fr);
 }
 
 .panel-head {
@@ -181,6 +181,7 @@ pre {
 }
 
 .mode-row,
+.budget-row,
 .source-mode-row {
   display: flex;
   align-items: center;
@@ -196,6 +197,7 @@ pre {
 }
 
 .mode-row label,
+.budget-row label,
 .source-mode-row label {
   display: inline-flex;
   align-items: center;
@@ -208,6 +210,24 @@ pre {
 .mode-row input,
 .source-mode-row input {
   accent-color: var(--accent);
+}
+
+.budget-row {
+  flex-wrap: wrap;
+}
+
+.budget-row label {
+  gap: 8px;
+}
+
+.budget-row input {
+  width: 96px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 0 8px;
 }
 
 @media (max-width: 860px) {

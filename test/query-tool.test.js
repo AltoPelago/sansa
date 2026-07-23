@@ -36,6 +36,7 @@ test('query tool help documents fixture kind support', () => {
   assert.match(result.stdout, /Force fixture kind: aeon or json/);
   assert.match(result.stdout, /--policy <policy>/);
   assert.match(result.stdout, /--disable-transform/);
+  assert.match(result.stdout, /--max-from-bindings <n>/);
 });
 
 test('query tool evaluates a query against the default fixture', () => {
@@ -155,6 +156,36 @@ test('query tool can disable transform extensions', () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION/);
   assert.match(result.stderr, /sansa.transform.objectFrom/);
+});
+
+test('query tool applies evaluation budgets', () => {
+  const result = runTool([
+    '--max-from-bindings',
+    '3',
+    '--format',
+    'json',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(result.status, 1);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.errors[0].code, 'SANSA_QUERY_BUDGET_EXCEEDED');
+  assert.equal(payload.errors[0].phase, 'from');
+  assert.equal(payload.errors[0].budget, 'maxFromBindings');
+  assert.equal(payload.errors[0].limit, 3);
+  assert.equal(payload.errors[0].observed, 4);
+
+  const invalid = runTool([
+    '--max-from-bindings',
+    '1.5',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /expects a non-negative integer/);
 });
 
 test('query tool evaluates table and label examples against JSON fixtures', () => {

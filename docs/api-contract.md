@@ -92,6 +92,23 @@ evaluateQuery(query, namespace, { policy: "validation" })
 
 This policy rejects presentation and transform behavior before evaluation: `order by`, `offset`, `limit`, object projection expressions, and transform-library helpers. Rejections use `SANSA_QUERY_POLICY_VIOLATION` with `phase: "policy"`.
 
+Query evaluation budgets are optional and fail closed:
+
+```js
+evaluateQuery(query, namespace, {
+  budget: {
+    maxFromBindings: 100000,
+    maxWhereCandidates: 100000,
+    maxOrderCandidates: 100000,
+    maxResultRecords: 10000
+  }
+})
+```
+
+Budget exhaustion returns `SANSA_QUERY_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It never implicitly truncates the Binding Set or returns partial results.
+
+The standalone query CLI exposes these budgets as `--max-from-bindings`, `--max-where-candidates`, `--max-order-candidates`, and `--max-result-records`. The browser workbench exposes the same four limits as optional evaluation budget fields.
+
 `evaluateValueSemanticsOperation` evaluates the Shared AEON Value Semantics minimum consumer operation shape used by the CTS scaffold:
 
 ```js
@@ -732,6 +749,7 @@ Canonical rendering:
 Evaluation diagnostics may also include `phase` and `candidateAddress` fields. These fields are context, not distinct error categories.
 
 - `SANSA_QUERY_POLICY_VIOLATION`
+- `SANSA_QUERY_BUDGET_EXCEEDED`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION`
 - `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL`
