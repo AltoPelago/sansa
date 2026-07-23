@@ -28,6 +28,32 @@
       "maturity": "experimental"
     }
   ],
+  "budgetOptions": [
+    {
+      "id": "maxFromBindings",
+      "capability": "SANSA.Query",
+      "category": "evaluation-budget",
+      "phase": "from"
+    },
+    {
+      "id": "maxWhereCandidates",
+      "capability": "SANSA.Query",
+      "category": "evaluation-budget",
+      "phase": "where"
+    },
+    {
+      "id": "maxOrderCandidates",
+      "capability": "SANSA.Query",
+      "category": "evaluation-budget",
+      "phase": "order"
+    },
+    {
+      "id": "maxResultRecords",
+      "capability": "SANSA.Query",
+      "category": "evaluation-budget",
+      "phase": "select"
+    }
+  ],
   "extensions": [
     {
       "id": "sansa.transform.objectFrom",

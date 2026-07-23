@@ -4,7 +4,7 @@ Status: implementation contract for the address parser/model, resolver, query cl
 
 The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, the experimental `validation` Query policy, and experimental `SANSA.Transform` extensions.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, and experimental `SANSA.Transform` extensions.
 
 CTS lanes:
 
@@ -179,11 +179,15 @@ Query evaluation diagnostics include query context when available:
   code,
   message,
   phase,
-  candidateAddress
+  candidateAddress,
+  extension,
+  budget,
+  limit,
+  observed
 }
 ```
 
-`phase` is one of `parse`, `policy`, `from`, `where`, `order`, or `select`. `candidateAddress` is present when the failure occurs while evaluating a specific candidate binding.
+`phase` is one of `parse`, `policy`, `from`, `where`, `order`, or `select`. `candidateAddress` is present when the failure occurs while evaluating a specific candidate binding. `extension` identifies disabled or unsupported extension surfaces. `budget`, `limit`, and `observed` identify budget exhaustion context.
 
 ## Command Line Tool
 
@@ -211,6 +215,10 @@ Options:
 - `--format`: `text` or `json`
 - `--policy`: optional query policy, currently `validation`
 - `--disable-transform`: disable experimental `SANSA.Transform` helpers during evaluation
+- `--max-from-bindings`: fail if the from source resolves more than this many bindings
+- `--max-where-candidates`: fail if where would evaluate more than this many candidates
+- `--max-order-candidates`: fail if order by would sort more than this many candidates
+- `--max-result-records`: fail if select would produce more than this many result records
 
 AEON fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
 
@@ -222,7 +230,7 @@ The package also includes a browser workbench:
 npm run query:web
 ```
 
-The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle and a Transform extension toggle. `/api/query` accepts `policy: "validation"` and `transformExtensions: false` for evaluate requests.
+The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 
