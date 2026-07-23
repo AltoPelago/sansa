@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../tools/query-web/examples.mjs';
-import { evaluateQueryForWorkbench, parseQueryForWorkbench } from '../tools/query-web/runtime.mjs';
+import {
+  evaluateQueryForWorkbench,
+  namespaceFromAeonSource,
+  parseQueryForWorkbench,
+} from '../tools/query-web/runtime.mjs';
 
 const defaultParamsSource = [
   'source:sansa = $.inventory.items.*',
@@ -11,6 +15,29 @@ const defaultParamsSource = [
   'sortField:sansa = ?.qty',
   'name:string = "Adapter"',
 ].join('\n');
+
+let aeonRuntimeProbe;
+
+async function hasAeonRuntime() {
+  if (aeonRuntimeProbe !== undefined) return aeonRuntimeProbe;
+  const result = await namespaceFromAeonSource('probe:string = "ok"');
+  aeonRuntimeProbe = result.ok
+    ? { ok: true }
+    : { ok: false, message: result.errors?.[0]?.message ?? 'AEON runtime unavailable' };
+  return aeonRuntimeProbe;
+}
+
+function testAeonRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasAeonRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
+
+    await fn(t);
+  });
+}
 
 test('query web runtime parses query summaries', () => {
   const result = parseQueryForWorkbench('from $.inventory.items.* select .sku');
@@ -26,7 +53,7 @@ test('query web runtime parses query summaries', () => {
   assert.match(result.inspect, /select: \.sku/);
 });
 
-test('query web runtime evaluates against AEON source', async () => {
+testAeonRuntime('query web runtime evaluates against AEON source', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -58,7 +85,7 @@ test('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
-test('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
+testAeonRuntime('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const numbers = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -96,7 +123,7 @@ test('query web runtime keeps numeric representation filters separate from numer
   assert.equal(infinity.text, '$.inventory.items[3].ceiling = Infinity');
 });
 
-test('query web runtime evaluates parent traversal against AEON source', async () => {
+testAeonRuntime('query web runtime evaluates parent traversal against AEON source', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -108,7 +135,7 @@ test('query web runtime evaluates parent traversal against AEON source', async (
   assert.equal(result.text, '$.inventory.items[1].qty = 4');
 });
 
-test('query web runtime evaluates objectFrom against AEON source', async () => {
+testAeonRuntime('query web runtime evaluates objectFrom against AEON source', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -147,7 +174,7 @@ test('query web runtime evaluates objectFrom against AEON source', async () => {
   ].join('\n'));
 });
 
-test('query web runtime evaluates contains over binding sets and the current binding', async () => {
+testAeonRuntime('query web runtime evaluates contains over binding sets and the current binding', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const itemResult = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -183,7 +210,7 @@ test('query web runtime evaluates contains over binding sets and the current bin
   ].join('\n'));
 });
 
-test('query web runtime renders AEON-style text values', async () => {
+testAeonRuntime('query web runtime renders AEON-style text values', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -274,7 +301,7 @@ test('query web runtime keeps JSON fixture parity for table and label examples',
   assert.match(duplicateHeader.text, /duplicate key 'name'/);
 });
 
-test('query web runtime mounts AEON params as a local address space', async () => {
+testAeonRuntime('query web runtime mounts AEON params as a local address space', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -312,7 +339,7 @@ test('query web runtime mounts AEON params as a local address space', async () =
   assert.equal(scalarParam.text, '$.inventory.items[0].sku = "A-100"');
 });
 
-test('query web runtime reports params diagnostics', async () => {
+testAeonRuntime('query web runtime reports params diagnostics', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -343,7 +370,7 @@ test('query web example catalog is grouped and uniquely keyed', () => {
   assert.deepEqual(Object.keys(queryExamples), names);
 });
 
-test('query web runtime exercises workbench examples', async () => {
+testAeonRuntime('query web runtime exercises workbench examples', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const cases = queryExampleGroups.flatMap((group) => group.examples)
     .filter((example) => example.expected);
@@ -366,7 +393,7 @@ test('query web runtime exercises workbench examples', async () => {
   }
 });
 
-test('query web runtime reports AEON source diagnostics', async () => {
+testAeonRuntime('query web runtime reports AEON source diagnostics', async () => {
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source: 'inventory = { items:list<object> = [] }',
@@ -378,7 +405,7 @@ test('query web runtime reports AEON source diagnostics', async () => {
   assert.match(result.text, /UNTYPED_VALUE_IN_STRICT_MODE:/);
 });
 
-test('query web runtime preserves query diagnostic context', async () => {
+testAeonRuntime('query web runtime preserves query diagnostic context', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -396,7 +423,7 @@ test('query web runtime preserves query diagnostic context', async () => {
   );
 });
 
-test('query web runtime applies validation policy', async () => {
+testAeonRuntime('query web runtime applies validation policy', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const safe = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -421,7 +448,7 @@ test('query web runtime applies validation policy', async () => {
   assert.match(rejected.text, /SANSA_QUERY_POLICY_VIOLATION \[policy\]/);
 });
 
-test('query web runtime can disable transform extensions', async () => {
+testAeonRuntime('query web runtime can disable transform extensions', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -436,7 +463,7 @@ test('query web runtime can disable transform extensions', async () => {
   assert.match(result.text, /SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION \[select\]/);
 });
 
-test('query web runtime applies evaluation budgets', async () => {
+testAeonRuntime('query web runtime applies evaluation budgets', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
