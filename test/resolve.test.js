@@ -252,6 +252,21 @@ test('resolves contextual roots when a contextual binding is provided', () => {
   assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT');
 });
 
+test('does not invoke callable contextualRoot namespace properties', () => {
+  let invoked = false;
+  const result = resolveAddress('?.sku', {
+    ...namespace,
+    contextualRoot: () => {
+      invoked = true;
+      return item0;
+    },
+  });
+
+  assert.equal(invoked, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT');
+});
+
 test('resolves local-space traversal only when the host exposes local spaces', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.<"catalog">.skuIndex', localSpaceNamespace)), [
     '$.inventory.<"catalog">.skuIndex',

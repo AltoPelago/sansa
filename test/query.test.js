@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { parseQuery, parseQueryExpression, renderQuery, renderQueryExpression } from '../src/index.js';
+
+const ctsRoot = process.env.AEONITE_CTS_ROOT
+  ? resolve(process.env.AEONITE_CTS_ROOT)
+  : fileURLToPath(new URL('../../../aeonite-org/aeonite-cts/cts/', import.meta.url));
 
 function parseOk(source) {
   const result = parseQuery(source);
@@ -184,7 +190,7 @@ test('rejects invalid query expression forms', () => {
 
 test('query CTS cases match parser behavior', () => {
   const suite = JSON.parse(readFileSync(
-    new URL('../../../aeonite-org/aeonite-cts/cts/sansa/v1/suites/04-query-parser.json', import.meta.url),
+    resolve(ctsRoot, 'sansa', 'v1', 'suites', '04-query-parser.json'),
     'utf8',
   ));
 

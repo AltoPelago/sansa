@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
 const toolPath = fileURLToPath(new URL('../scripts/query.mjs', import.meta.url));
 const defaultParams = JSON.stringify({
@@ -23,6 +24,36 @@ function runTool(args) {
   return spawnSync(process.execPath, [toolPath, ...args], {
     cwd: new URL('..', import.meta.url),
     encoding: 'utf8',
+  });
+}
+
+let aeonRuntimeProbe;
+
+async function hasAeonRuntime() {
+  if (aeonRuntimeProbe !== undefined) return aeonRuntimeProbe;
+  try {
+    const result = await namespaceFromAeonSource('probe:string = "ok"');
+    aeonRuntimeProbe = result.ok
+      ? { ok: true }
+      : { ok: false, message: result.errors?.[0]?.message ?? 'AEON runtime unavailable' };
+  } catch (error) {
+    aeonRuntimeProbe = {
+      ok: false,
+      message: error instanceof Error ? error.message : 'AEON runtime unavailable',
+    };
+  }
+  return aeonRuntimeProbe;
+}
+
+function testAeonRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasAeonRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
+
+    await fn(t);
   });
 }
 
@@ -246,18 +277,6 @@ test('query tool honors explicit fixture kind and reports fixture kind errors', 
   assert.equal(explicitJson.status, 0, explicitJson.stderr);
   assert.equal(explicitJson.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
 
-  const explicitAeon = runTool([
-    '--fixture',
-    'fixtures/query-inventory.aeon',
-    '--fixture-kind',
-    'aeon',
-    '--query',
-    'from $.inventory.items[0] select .sku',
-  ]);
-
-  assert.equal(explicitAeon.status, 0, explicitAeon.stderr);
-  assert.equal(explicitAeon.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
-
   const forcedJson = runTool([
     '--fixture',
     'fixtures/query-inventory.aeon',
@@ -291,6 +310,20 @@ test('query tool honors explicit fixture kind and reports fixture kind errors', 
 
   assert.equal(unknownKind.status, 2);
   assert.match(unknownKind.stderr, /could not infer fixture kind/);
+});
+
+testAeonRuntime('query tool honors explicit AEON fixture kind', () => {
+  const result = runTool([
+    '--fixture',
+    'fixtures/query-inventory.aeon',
+    '--fixture-kind',
+    'aeon',
+    '--query',
+    'from $.inventory.items[0] select .sku',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
 });
 
 test('query tool mounts JSON params as a local address space', () => {
