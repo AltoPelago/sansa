@@ -167,6 +167,25 @@ test('resolves parent selectors only when the host exposes parent traversal', ()
   assert.equal(unsupported.errors[0].selectorIndex, 1);
 });
 
+test('reports forbidden parent traversal separately from unsupported traversal', () => {
+  const forbidden = resolveAddress('$.inventory.^', parentNamespace, { parentTraversal: 'forbid' });
+  assert.equal(forbidden.ok, false);
+  assert.equal(forbidden.errors[0].code, 'SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN');
+  assert.equal(forbidden.errors[0].selectorIndex, 1);
+});
+
+test('can report parent traversal from the effective root as boundary escape', () => {
+  assert.deepEqual(addresses(resolveAddress('?.^', parentNamespace, { contextualRoot: item1 })), []);
+
+  const escaped = resolveAddress('?.^', parentNamespace, {
+    contextualRoot: item1,
+    failOnParentFromEffectiveRoot: true,
+  });
+  assert.equal(escaped.ok, false);
+  assert.equal(escaped.errors[0].code, 'SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN');
+  assert.equal(escaped.errors[0].selectorIndex, 0);
+});
+
 test('preserves branch order, misses, and duplicate traversal occurrences', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.*[0]', namespace)), [
     '$.inventory.items[0]',

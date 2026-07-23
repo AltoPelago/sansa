@@ -59,6 +59,12 @@ function runTest(test, namespaces) {
     }
     options.contextualRoot = contextualRoot;
   }
+  if (test.input?.parentTraversal === 'forbid') {
+    options.parentTraversal = 'forbid';
+  }
+  if (test.input?.failOnParentFromEffectiveRoot === true) {
+    options.failOnParentFromEffectiveRoot = true;
+  }
 
   const result = resolveAddress(source, fixture.namespace, options);
 

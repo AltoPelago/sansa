@@ -29,6 +29,8 @@ Host implementations decide which qualifier surface they accept. This parser acc
 
 Host implementations also decide which address spaces they expose during resolution. Attribute and local address-space traversal are entered explicitly with `.@` and `.<"namespace">`. They fail explicitly unless the host exposes those capabilities through the resolve namespace adapter or binding model.
 
+Resolve returns ordered Binding Sets. Supported selectors that miss on one branch contribute no bindings for that branch; unsupported or forbidden operations fail explicitly. The resolver preserves duplicate traversal occurrences and does not deduplicate by address. Parent traversal from the effective resolution root resolves empty by default, but callers can request stricter policy diagnostics with `failOnParentFromEffectiveRoot: true` or forbid parent traversal entirely with `parentTraversal: "forbid"`.
+
 The current API and AST contract is documented in [docs/api-contract.md](docs/api-contract.md).
 
 The CTS runner covers address parsing, resolve behavior, query parsing, and query evaluation:

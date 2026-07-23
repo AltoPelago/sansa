@@ -121,6 +121,40 @@ The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The 
 
 Parse errors are returned through the same `ok: false` shape. Normal no-match resolution returns `ok: true` with an empty `bindings` array.
 
+Resolve distinguishes a **resolution miss** from a **resolution failure**. A miss occurs when a valid, supported selector applies to the namespace but finds no exposed structure on one or more branches; that branch contributes no bindings. A failure occurs when resolution cannot safely or validly continue, such as an unsupported selector capability, missing contextual root, forbidden boundary escape, implementation limit failure, or exact-expression multiplicity violation.
+
+Resolve invariants:
+
+- Selectors are applied left to right.
+- Each selector consumes and produces an ordered Binding Set.
+- Current bindings are processed in Binding Set order.
+- Per-binding results are appended in deterministic local structural order.
+- Resolve does not implicitly deduplicate bindings; repeated traversal routes may produce repeated binding occurrences.
+- A supported selector that is structurally inapplicable to one input binding produces no bindings for that branch.
+- Unsupported or forbidden operations fail explicitly.
+- Every output binding is expected to retain a canonical address when the host adapter exposes one.
+- An exact expression must not produce more than one binding; multiplicity violations fail with `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`.
+- Resolve performs no value evaluation, predicate evaluation, projection, sorting, slicing, aggregation, or mutation.
+
+Parent traversal defaults to the conservative structural model: traversal from the effective resolution root resolves to an empty Binding Set. The effective resolution root is the root binding established by `$`, `?`, or the root of a dynamic resolution context for the current branch. Callers that need stricter boundary diagnostics can pass:
+
+```js
+resolveAddress('?.^', namespace, {
+  contextualRoot,
+  failOnParentFromEffectiveRoot: true
+})
+```
+
+This reports `SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN` instead of an empty Binding Set. Callers that forbid parent traversal entirely can pass:
+
+```js
+resolveAddress('$.items[0].^', namespace, {
+  parentTraversal: 'forbid'
+})
+```
+
+This reports `SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN`, distinct from `SANSA_RESOLVE_UNSUPPORTED_PARENT`, which means the namespace adapter does not expose parent traversal.
+
 Query evaluation diagnostics include query context when available:
 
 ```js
@@ -271,7 +305,7 @@ For simple hosts, bindings may expose fields directly:
 
 `scalarKind`, `valueKind`, or `literalKind` may be used by host-neutral fixtures to preserve scalar forms that JSON cannot express directly, such as `nan`, `infinity`, and explicit `null`. `nullReason` carries the surfaced AEON null reason, such as `notSet` or `notApplicable`.
 
-Exact member and position selectors select direct children. This implementation caps position indexes and position range endpoints at `999999`; SANSA v1 portability requires implementations to support at least one million addressable positions, expressed as indexes `0` through `999999` inclusive. Larger accepted values are implementation-defined and non-portable. Implementations that accept larger values should surface `SANSA_NON_PORTABLE_POSITION_INDEX` when their host API supports non-fatal diagnostics. Position ranges select inclusive positional children exposed by the host binding; open start means position `0`, open end means through the final exposed positional child, and reversed ranges resolve to an empty binding set. `.^` selects an exposed parent binding, resolves empty at the effective resolution root, and fails explicitly when parent traversal is unsupported. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one character and `*` matches zero or more characters.
+Exact member and position selectors select direct children. This implementation caps position indexes and position range endpoints at `999999`; SANSA v1 portability requires implementations to support at least one million addressable positions, expressed as indexes `0` through `999999` inclusive. Larger accepted values are implementation-defined and non-portable. Implementations that accept larger values should surface `SANSA_NON_PORTABLE_POSITION_INDEX` when their host API supports non-fatal diagnostics. Position ranges select inclusive positional children exposed by the host binding; open start means position `0`, open end means through the final exposed positional child, and reversed ranges resolve to an empty binding set. `.^` selects an exposed parent binding, resolves empty at the effective resolution root unless stricter policy is requested, and fails explicitly when parent traversal is unsupported or forbidden. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one Unicode code point and `*` matches zero or more Unicode code points. Pattern matching operates on the exact exposed binding name without normalization or locale-sensitive comparison.
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
 

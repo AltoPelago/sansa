@@ -294,7 +294,11 @@ export function resolveAddress(input, namespace, options = {}) {
       current,
       namespace,
       index,
-      options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
+      {
+        effectiveRoot: options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
+        parentTraversal: options.parentTraversal,
+        failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
+      },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
     current = selected.bindings;
@@ -1827,7 +1831,7 @@ function scalarMetadataFromInfo(info) {
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
-function applyResolveSelector(selector, bindings, namespace, selectorIndex, effectiveRoot) {
+function applyResolveSelector(selector, bindings, namespace, selectorIndex, policy = {}) {
   switch (selector.type) {
     case 'member':
       return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
@@ -1836,7 +1840,7 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex, effe
     case 'positionRange':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
     case 'parent':
-      return selectParents(namespace, bindings, selectorIndex, effectiveRoot);
+      return selectParents(namespace, bindings, selectorIndex, policy);
     case 'directExpansion':
       return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
     case 'descendantExpansion':
@@ -1902,8 +1906,31 @@ function selectPositionRange(namespace, binding, start, end) {
   });
 }
 
-function selectParents(namespace, bindings, selectorIndex, effectiveRoot) {
-  const traversable = bindings.filter((binding) => binding !== effectiveRoot);
+function selectParents(namespace, bindings, selectorIndex, policy) {
+  if (policy.parentTraversal === 'forbid') {
+    return {
+      ok: false,
+      error: resolveError(
+        'SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN',
+        'Parent traversal is forbidden by resolver policy',
+        selectorIndex,
+      ),
+    };
+  }
+
+  const rootBindings = bindings.filter((binding) => binding === policy.effectiveRoot);
+  if (rootBindings.length > 0 && policy.failOnParentFromEffectiveRoot) {
+    return {
+      ok: false,
+      error: resolveError(
+        'SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN',
+        'Parent traversal would escape the effective resolution root',
+        selectorIndex,
+      ),
+    };
+  }
+
+  const traversable = bindings.filter((binding) => binding !== policy.effectiveRoot);
   if (traversable.length === 0) return { ok: true, bindings: [] };
   if (typeof namespace.parent === 'function') {
     return { ok: true, bindings: traversable.map((binding) => namespace.parent(binding)).filter(Boolean) };

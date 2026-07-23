@@ -176,6 +176,8 @@ export interface SansaResolveOptions<TBinding extends object = SansaResolveBindi
   readonly parse?: SansaParseOptions;
   readonly contextualRoot?: TBinding;
   readonly allowParentFromEffectiveRoot?: boolean;
+  readonly parentTraversal?: 'allow' | 'forbid';
+  readonly failOnParentFromEffectiveRoot?: boolean;
 }
 
 export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
