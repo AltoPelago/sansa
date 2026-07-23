@@ -479,9 +479,8 @@ function resolveRoot(root, namespace, options) {
   }
 
   if (root.kind === 'contextual') {
-    const contextualRoot = options.contextualRoot ?? namespace.contextualRoot;
-    const binding = typeof contextualRoot === 'function' ? contextualRoot() : contextualRoot;
-    if (binding) return { ok: true, binding };
+    const binding = options.contextualRoot ?? namespace.contextualRoot;
+    if (isBindingObject(binding)) return { ok: true, binding };
     return {
       ok: false,
       error: resolveError('SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT', 'Contextual root requires a contextualRoot binding'),
@@ -491,6 +490,10 @@ function resolveRoot(root, namespace, options) {
   const rootBinding = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
   if (rootBinding) return { ok: true, binding: rootBinding };
   return { ok: false, error: resolveError('SANSA_RESOLVE_MISSING_ROOT', 'SANSA resolve namespace does not expose a root binding') };
+}
+
+function isBindingObject(value) {
+  return value !== null && typeof value === 'object';
 }
 
 function evaluateQueryFromClause(from, namespace, options) {

@@ -162,7 +162,7 @@ export interface SansaResolveBinding {
 
 export interface SansaResolveNamespace<TBinding extends object = SansaResolveBinding> {
   readonly root: TBinding | (() => TBinding | undefined);
-  readonly contextualRoot?: TBinding | (() => TBinding | undefined);
+  readonly contextualRoot?: TBinding;
   readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
   readonly parent?: (binding: TBinding) => TBinding | undefined;
   readonly member?: (binding: TBinding, name: string) => TBinding | undefined;
