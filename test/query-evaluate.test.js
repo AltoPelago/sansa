@@ -1615,6 +1615,10 @@ test('rejects unsupported and invalid function calls explicitly', () => {
   assert.equal(unsupported.ok, false);
   assert.equal(unsupported.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
 
+  const onlyReserved = evaluateQuery('from $.inventory.items.*\nwhere only(.roles.* == "admin")\nselect .sku', namespace);
+  assert.equal(onlyReserved.ok, false);
+  assert.equal(onlyReserved.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');
+
   const unsupportedWithBindingSetArgs = evaluateQuery('from $.table.content.*\nselect objectfrom($.table.header.*, .*)', namespace);
   assert.equal(unsupportedWithBindingSetArgs.ok, false);
   assert.equal(unsupportedWithBindingSetArgs.errors[0].code, 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION');

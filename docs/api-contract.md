@@ -565,7 +565,7 @@ none(empty) = true
 where any(.roles.* == "admin") and all(.roles.* == "admin")
 ```
 
-`only(...)` is not currently recognized by the parser or evaluator. It is reserved as a possible future shorthand for the non-empty all-match pattern.
+`only(...)` may parse as a generic function-call expression, but it is not part of the current evaluator surface. It is reserved as a possible future shorthand for the non-empty all-match pattern and currently evaluates as `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`.
 
 ## Query Recipes
 

@@ -140,7 +140,7 @@ To require a non-empty set where every binding matches, combine `any(...)` and `
 where any(.roles.* == "admin") and all(.roles.* == "admin")
 ```
 
-The name `only(...)` is not part of the current query surface; it remains a possible future shorthand for this non-empty-all pattern.
+The name `only(...)` is not part of the current evaluator surface; it remains a possible future shorthand for this non-empty-all pattern.
 
 Common recipe patterns:
 
