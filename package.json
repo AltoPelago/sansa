@@ -22,6 +22,10 @@
     "scripts",
     "tools",
     "stress-tests",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "SECURITY.md",
     "README.md",
     "LICENSE"
   ],
