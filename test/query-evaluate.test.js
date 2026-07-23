@@ -330,6 +330,9 @@ test('evaluates query projection over filtered bindings', () => {
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   assert.deepEqual(result.results.map((entry) => entry.type), ['queryResult']);
   assert.deepEqual(result.results.map((entry) => entry.address), ['$.inventory.items[1]']);
+  assert.deepEqual(result.results.map((entry) => entry.candidateAddress), ['$.inventory.items[1]']);
+  assert.deepEqual(result.results.map((entry) => entry.valueAddress), [undefined]);
+  assert.deepEqual(result.results.map((entry) => entry.kind), ['derived']);
   assert.deepEqual(result.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
   assert.deepEqual(result.results.map((entry) => entry.value), [
     {
@@ -353,6 +356,15 @@ test('evaluates query sources with position range selectors', () => {
     '$.inventory.items[1]',
     '$.inventory.items[2]',
   ]);
+  assert.deepEqual(result.results.map((entry) => entry.candidateAddress), [
+    '$.inventory.items[1]',
+    '$.inventory.items[2]',
+  ]);
+  assert.deepEqual(result.results.map((entry) => entry.valueAddress), [
+    '$.inventory.items[1].sku',
+    '$.inventory.items[2].sku',
+  ]);
+  assert.deepEqual(result.results.map((entry) => entry.kind), ['binding', 'binding']);
   assert.deepEqual(result.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
     ['$.inventory.items[1].sku'],
     ['$.inventory.items[2].sku'],
@@ -367,6 +379,9 @@ test('keeps multi-binding projections inside one candidate result record', () =>
 
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   assert.deepEqual(result.results.map((entry) => entry.address), ['$.inventory.items[0]']);
+  assert.deepEqual(result.results.map((entry) => entry.candidateAddress), ['$.inventory.items[0]']);
+  assert.deepEqual(result.results.map((entry) => entry.valueAddress), [undefined]);
+  assert.deepEqual(result.results.map((entry) => entry.kind), ['binding']);
   assert.deepEqual(result.results.map((entry) => entry.value.bindings.map((binding) => binding.address)), [
     ['$.inventory.items[0].roles[0]', '$.inventory.items[0].roles[1]'],
   ]);

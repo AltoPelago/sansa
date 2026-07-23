@@ -600,12 +600,19 @@ Query results:
 {
   type: "queryResult",
   address,
+  candidateAddress,
+  valueAddress,
+  kind,
   binding,
   value
 }
 ```
 
-`address` is optional and records the canonical source address of the candidate binding when the namespace exposes one. It is the address selected by `from`, after `where`, ordering, and slicing. Projection output remains in `value`; a `select` expression that resolves other addresses returns those selected bindings inside a `bindingSet` value.
+`address` is a backwards-compatible alias for `candidateAddress`. `candidateAddress` is optional and records the canonical source address of the candidate binding when the namespace exposes one. It is the address selected by `from`, after `where`, ordering, and slicing.
+
+`valueAddress` is present only when projection preserves one existing selected binding identity. For example, `from $.items.* select .sku` can carry `candidateAddress = $.items[0]` and `valueAddress = $.items[0].sku`. If the selected value is a multi-binding Binding Set, each binding retains its own address inside the value instead of collapsing to one `valueAddress`.
+
+`kind` is `binding` when the selected value is a Binding Set that preserves existing namespace binding identity. `valueAddress` is still present only for the single-binding case. `kind` is `derived` for constructed objects and scalar function results. Derived values do not become addressable namespace bindings.
 
 Query values:
 
@@ -706,6 +713,7 @@ Canonical rendering:
 - `SANSA_QUERY_UNTERMINATED_BLOCK_COMMENT`
 - `SANSA_QUERY_EXPECTED_FROM_ADDRESS`
 - `SANSA_QUERY_INVALID_FROM_ADDRESS`
+- `SANSA_QUERY_INVALID_FROM_SOURCE`
 - `SANSA_QUERY_EXPECTED_WHERE_EXPRESSION`
 - `SANSA_QUERY_EXPECTED_SELECT_EXPRESSION`
 - `SANSA_QUERY_EXPECTED_ORDER_EXPRESSION`
@@ -723,7 +731,9 @@ Canonical rendering:
 
 Evaluation diagnostics may also include `phase` and `candidateAddress` fields. These fields are context, not distinct error categories.
 
+- `SANSA_QUERY_POLICY_VIOLATION`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION`
+- `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION`
 - `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL`
 - `SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION`
 - `SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN`
@@ -731,6 +741,8 @@ Evaluation diagnostics may also include `phase` and `candidateAddress` fields. T
 - `SANSA_QUERY_EVALUATE_MISSING_SCALAR`
 - `SANSA_QUERY_EVALUATE_CARDINALITY`
 - `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`
+- `SANSA_QUERY_EVALUATE_INVALID_FROM_SOURCE`
+- `SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL`
 - `SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT`
 - `SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT`
 
@@ -742,4 +754,7 @@ Evaluation diagnostics may also include `phase` and `candidateAddress` fields. T
 - `SANSA_RESOLVE_UNSUPPORTED_ATTRIBUTE_SPACE`
 - `SANSA_RESOLVE_UNSUPPORTED_LOCAL_SPACE`
 - `SANSA_RESOLVE_UNSUPPORTED_PARENT`
+- `SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN`
+- `SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN`
+- `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`
 - `SANSA_RESOLVE_UNSUPPORTED_SELECTOR`

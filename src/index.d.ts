@@ -102,7 +102,9 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
 
 export type SansaQueryEvaluateErrorCode =
+  | 'SANSA_QUERY_POLICY_VIOLATION'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION'
+  | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION'
   | 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXPRESSION'
   | 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN'
@@ -125,10 +127,11 @@ export interface SansaResolveDiagnostic {
 export interface SansaQueryEvaluateDiagnostic {
   readonly code: SansaQueryEvaluateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
-  readonly phase?: 'parse' | 'from' | 'where' | 'order' | 'select';
+  readonly phase?: 'parse' | 'policy' | 'from' | 'where' | 'order' | 'select';
   readonly candidateAddress?: string;
   readonly index?: number;
   readonly selectorIndex?: number;
+  readonly extension?: string;
 }
 
 export interface SansaResolveBinding {
@@ -187,6 +190,13 @@ export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
 export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolveBinding> {
   readonly parse?: SansaQueryParseOptions;
   readonly resolve?: SansaResolveOptions<TBinding>;
+  readonly policy?: 'validation' | { readonly mode?: 'validation'; readonly validation?: boolean };
+  readonly extensions?: {
+    readonly transform?: boolean;
+    readonly objectFrom?: boolean;
+    readonly fieldsFrom?: boolean;
+  };
+  readonly enabledExtensions?: readonly string[];
 }
 
 export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBinding> =
@@ -195,7 +205,11 @@ export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBindi
 
 export interface SansaQueryResult<TBinding extends object = SansaResolveBinding> {
   readonly type: 'queryResult';
+  /** Canonical candidate address retained for backwards-compatible result consumers. */
   readonly address?: string;
+  readonly candidateAddress?: string;
+  readonly valueAddress?: string;
+  readonly kind: 'binding' | 'derived';
   readonly binding: TBinding;
   readonly value: SansaQueryValue<TBinding>;
 }

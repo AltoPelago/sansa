@@ -194,9 +194,13 @@ export function evaluateQuery(input, namespace, options = {}) {
         })],
       };
     }
+    const candidateAddress = getBindingAddress(binding);
+    const valueAddress = queryValueAddress(evaluated.value);
     results.push({
       type: 'queryResult',
-      ...(typeof binding.address === 'string' ? { address: binding.address } : {}),
+      ...(candidateAddress === undefined ? {} : { address: candidateAddress, candidateAddress }),
+      ...(valueAddress === undefined ? {} : { valueAddress }),
+      kind: evaluated.value.type === 'bindingSet' ? 'binding' : 'derived',
       binding,
       value: evaluated.value,
     });
@@ -1822,6 +1826,11 @@ function queryValueMetadata(value, namespace) {
   if (value.type !== 'bindingSet' || value.bindings.length !== 1) return undefined;
   const info = getBindingScalarInfo(namespace, value.bindings[0]);
   return info.ok ? scalarMetadataFromInfo(info) : undefined;
+}
+
+function queryValueAddress(value) {
+  if (value.type !== 'bindingSet' || value.bindings.length !== 1) return undefined;
+  return getBindingAddress(value.bindings[0]);
 }
 
 function scalarMetadataFromInfo(info) {
