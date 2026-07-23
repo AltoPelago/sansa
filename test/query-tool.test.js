@@ -31,10 +31,17 @@ let aeonRuntimeProbe;
 
 async function hasAeonRuntime() {
   if (aeonRuntimeProbe !== undefined) return aeonRuntimeProbe;
-  const result = await namespaceFromAeonSource('probe:string = "ok"');
-  aeonRuntimeProbe = result.ok
-    ? { ok: true }
-    : { ok: false, message: result.errors?.[0]?.message ?? 'AEON runtime unavailable' };
+  try {
+    const result = await namespaceFromAeonSource('probe:string = "ok"');
+    aeonRuntimeProbe = result.ok
+      ? { ok: true }
+      : { ok: false, message: result.errors?.[0]?.message ?? 'AEON runtime unavailable' };
+  } catch (error) {
+    aeonRuntimeProbe = {
+      ok: false,
+      message: error instanceof Error ? error.message : 'AEON runtime unavailable',
+    };
+  }
   return aeonRuntimeProbe;
 }
 
