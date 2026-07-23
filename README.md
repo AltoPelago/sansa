@@ -1,6 +1,6 @@
 # SANSA
 
-Shared SANSA address, resolve, and query parser/evaluator model.
+Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, and query parser/evaluator model.
 
 This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for ordinary scalar, equality, and ordering behavior. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
 
@@ -64,7 +64,9 @@ npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.
 
 Text output uses an AEON-like value renderer for readability, including explicit null reasons such as `!notSet`. JSON output remains the structured machine-readable result envelope.
 
-The default fixture is [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon). `.aeon` fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. `.json` fixtures remain supported for direct resolver-shape debugging; they expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
+The default CLI fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json), which keeps `sansa-query` self-contained after package install. `.aeon` fixtures are compiled with an optional AEON TypeScript Core runtime and adapted into a SANSA resolver namespace; JSON fixtures expose bindings with `address`, `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`, and scalar values through `value` or `scalar`.
+
+AEON fixture support is optional so SANSA can remain a lower-level package. For published-package use, install `@altopelago/aeon-core` in the calling project or set `SANSA_AEON_CORE_MODULE` to an AEON Core module path or specifier. Inside the aeon-family development workspace, the tool also falls back to the sibling AEON TypeScript build path.
 
 The CLI can also mount JSON params at `$.<"params">` using `--params` or `--params-file`. Params may be supplied as a full fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }` and become usable through `path(...)`.
 
@@ -80,7 +82,7 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
-The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the AEON TypeScript implementation, and runs SANSA.Query over that derived graph. It also includes a params local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle, a Transform extension toggle, optional budget limit inputs, plus a JSON fixture mode for debugging the resolver shape directly.
+The workbench defaults to [fixtures/query-inventory.aeon](fixtures/query-inventory.aeon), derives a SANSA resolver namespace from the optional AEON TypeScript Core runtime, and runs SANSA.Query over that derived graph. It also includes a params local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle, a Transform extension toggle, optional budget limit inputs, plus a JSON fixture mode for debugging the resolver shape directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines with phase and candidate context when available. JSON mode exposes the full diagnostic payload. Inspect mode renders a scan-friendly view of candidate addresses, projected values, selected binding addresses, and binding metadata.
 

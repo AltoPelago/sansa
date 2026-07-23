@@ -207,7 +207,7 @@ Options:
 
 - `--query`, `-q`: query source
 - `--query-file`: read query source from a file
-- `--fixture`, `-f`: AEON or JSON namespace fixture, defaulting to `fixtures/query-inventory.aeon`
+- `--fixture`, `-f`: AEON or JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
 - `--fixture-kind`: force fixture kind as `aeon` or `json`; otherwise inferred from the file extension
 - `--params`: JSON params mounted at `$.<"params">`
 - `--params-file`: read JSON params from a file and mount them at `$.<"params">`
@@ -220,7 +220,9 @@ Options:
 - `--max-order-candidates`: fail if order by would sort more than this many candidates
 - `--max-result-records`: fail if select would produce more than this many result records
 
-AEON fixtures are compiled with the AEON TypeScript implementation and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+The default CLI fixture is JSON so `sansa-query` can run without optional host integrations after package install. AEON fixtures are compiled with an optional AEON TypeScript Core runtime and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+
+AEON fixture support is optional. The tool resolves AEON Core from `SANSA_AEON_CORE_MODULE`, from an installed `@altopelago/aeon-core` visible to the calling project, or from the sibling aeon-family development workspace path. JSON fixtures and Query parsing do not require AEON Core.
 
 Params may be supplied either as a full local-space fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }`; these are preserved as `sansa` bindings so query expressions can activate them with `path(...)`.
 
@@ -230,7 +232,7 @@ The package also includes a browser workbench:
 npm run query:web
 ```
 
-The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
+The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 

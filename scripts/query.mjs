@@ -7,7 +7,7 @@ import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const defaultFixturePath = resolve(root, 'fixtures', 'query-inventory.aeon');
+const defaultFixturePath = resolve(root, 'fixtures', 'query-inventory.json');
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
 
@@ -558,7 +558,7 @@ Usage:
 Options:
   -q, --query <source>      Query source.
       --query-file <path>   Read query source from a file.
-  -f, --fixture <path>      AEON or JSON namespace fixture. Defaults to fixtures/query-inventory.aeon.
+  -f, --fixture <path>      AEON or JSON namespace fixture. Defaults to fixtures/query-inventory.json.
       --fixture-kind <kind> Force fixture kind: aeon or json. Inferred from extension by default.
       --params <json>       Mount JSON params at $.<"params">.
       --params-file <path>  Read JSON params and mount them at $.<"params">.

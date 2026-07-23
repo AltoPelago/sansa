@@ -31,7 +31,7 @@ test('query tool help documents fixture kind support', () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.aeon/);
+  assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
   assert.match(result.stdout, /--fixture-kind <kind>/);
   assert.match(result.stdout, /Force fixture kind: aeon or json/);
   assert.match(result.stdout, /--policy <policy>/);
@@ -96,7 +96,7 @@ test('query tool activates dynamic from sources with path', () => {
   ].join('\n'));
 });
 
-test('query tool evaluates objectFrom against the default AEON fixture', () => {
+test('query tool evaluates objectFrom against the default fixture', () => {
   const result = runTool([
     '--query',
     'from $.table.content.* select objectFrom($.table.header.*, .*)',

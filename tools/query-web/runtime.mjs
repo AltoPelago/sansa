@@ -1,6 +1,11 @@
+import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { resolve as resolvePath } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { evaluateQuery, parseQuery } from '../../src/index.js';
 
-const aeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
+const devAeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
+const requireFromCwd = createRequire(resolvePath(process.cwd(), 'package.json'));
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
 
@@ -122,13 +127,11 @@ export function namespaceFromJsonSource(source) {
 }
 
 export async function namespaceFromAeonSource(source) {
-  let aeonCore;
-  try {
-    aeonCore = await import(aeonCoreUrl.href);
-  } catch (error) {
+  const loaded = await loadAeonCore();
+  if (!loaded.ok) {
     const errors = [{
       code: 'SANSA_QUERY_WORKBENCH_AEON_RUNTIME_UNAVAILABLE',
-      message: `Could not load AEON TypeScript core build: ${error.message}`,
+      message: loaded.message,
     }];
     return {
       ok: false,
@@ -138,6 +141,7 @@ export async function namespaceFromAeonSource(source) {
       errors,
     };
   }
+  const aeonCore = loaded.module;
 
   const compiled = aeonCore.compile(source, {
     datatypePolicy: 'allow_custom',
@@ -168,13 +172,11 @@ async function mountParamsLocalSpace(namespace, paramsSource) {
     return { ok: true, namespace, diagnostics: [] };
   }
 
-  let aeonCore;
-  try {
-    aeonCore = await import(aeonCoreUrl.href);
-  } catch (error) {
+  const loaded = await loadAeonCore();
+  if (!loaded.ok) {
     const errors = [{
       code: 'SANSA_QUERY_WORKBENCH_AEON_RUNTIME_UNAVAILABLE',
-      message: `Could not load AEON TypeScript core build for params: ${error.message}`,
+      message: `Could not load AEON TypeScript core build for params: ${loaded.message}`,
     }];
     return {
       ok: false,
@@ -183,6 +185,7 @@ async function mountParamsLocalSpace(namespace, paramsSource) {
       errors,
     };
   }
+  const aeonCore = loaded.module;
 
   const compiled = aeonCore.compile(String(paramsSource), {
     datatypePolicy: 'allow_custom',
@@ -239,6 +242,68 @@ async function mountParamsLocalSpace(namespace, paramsSource) {
       message: 'Mounted $.<"params"> local space.',
     }],
   };
+}
+
+async function loadAeonCore() {
+  const candidates = aeonCoreCandidates();
+  const failures = [];
+  for (const candidate of candidates) {
+    try {
+      return { ok: true, module: await import(candidate.href) };
+    } catch (error) {
+      failures.push(`${candidate.label}: ${error.message}`);
+    }
+  }
+
+  return {
+    ok: false,
+    message: [
+      'Could not load an AEON TypeScript core runtime.',
+      'Install @altopelago/aeon-core in the calling project, set SANSA_AEON_CORE_MODULE to a module path or specifier, or run from the aeon-family development workspace.',
+      ...(failures.length === 0 ? [] : [`Tried: ${failures.join('; ')}`]),
+    ].join(' '),
+  };
+}
+
+function aeonCoreCandidates() {
+  const candidates = [];
+  if (process.env.SANSA_AEON_CORE_MODULE) {
+    candidates.push({
+      label: 'SANSA_AEON_CORE_MODULE',
+      href: moduleHref(process.env.SANSA_AEON_CORE_MODULE),
+    });
+  }
+
+  try {
+    candidates.push({
+      label: '@altopelago/aeon-core',
+      href: pathToFileURL(requireFromCwd.resolve('@altopelago/aeon-core')).href,
+    });
+  } catch {
+    // Optional integration. JSON fixtures and pure Query parsing do not need AEON Core.
+  }
+
+  const devPath = fileURLToPath(devAeonCoreUrl);
+  if (existsSync(devPath)) {
+    candidates.push({
+      label: 'aeon-family development path',
+      href: devAeonCoreUrl.href,
+    });
+  }
+
+  return candidates;
+}
+
+function moduleHref(specifier) {
+  if (specifier.startsWith('file:')) return specifier;
+  if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    return pathToFileURL(resolvePath(specifier)).href;
+  }
+  try {
+    return pathToFileURL(requireFromCwd.resolve(specifier)).href;
+  } catch {
+    return specifier;
+  }
 }
 
 function remapLocalSpaceBinding(binding, targetAddress) {

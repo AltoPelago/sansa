@@ -1,7 +1,7 @@
 {
   "name": "@altopelago/sansa",
   "version": "0.1.0",
-  "description": "Shared SANSA address parser and model.",
+  "description": "Semantic Address NameSpace Abstraction parser, resolver, and query toolkit.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.js",
@@ -29,6 +29,17 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AltoPelago/sansa.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AltoPelago/sansa/issues"
+  },
+  "homepage": "https://github.com/AltoPelago/sansa#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "cts": "npm run cts:value-semantics && npm run cts:address && npm run cts:resolve && npm run cts:query",
     "cts:value-semantics": "node scripts/cts-value-semantics.mjs",
@@ -44,7 +55,9 @@
   "keywords": [
     "sansa",
     "aeonite",
+    "aeon",
     "address",
+    "addressing",
     "resolve",
     "query",
     "parser"
