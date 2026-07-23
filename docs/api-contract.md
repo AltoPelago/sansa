@@ -746,7 +746,7 @@ Canonical rendering:
 
 ## Current Query Evaluate Error Codes
 
-Evaluation diagnostics may also include `phase` and `candidateAddress` fields. These fields are context, not distinct error categories.
+Evaluation diagnostics may also include context fields such as `phase`, `candidateAddress`, `extension`, `budget`, `limit`, and `observed`. These fields are context, not distinct error categories.
 
 - `SANSA_QUERY_POLICY_VIOLATION`
 - `SANSA_QUERY_BUDGET_EXCEEDED`
