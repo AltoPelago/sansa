@@ -363,6 +363,22 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(referenceFormKindIsNotCoerced.ok, true, JSON.stringify(referenceFormKindIsNotCoerced.errors ?? []));
   assert.equal(referenceFormKindIsNotCoerced.count, 0);
 
+  const cloneReferenceFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.*%cloneReference\nselect .',
+  });
+  assert.equal(cloneReferenceFilter.ok, true, JSON.stringify(cloneReferenceFilter.errors ?? []));
+  assert.equal(cloneReferenceFilter.text, '$.targetClone = ~target');
+
+  const pointerReferenceFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.*%pointerReference\nselect .',
+  });
+  assert.equal(pointerReferenceFilter.ok, true, JSON.stringify(pointerReferenceFilter.errors ?? []));
+  assert.equal(pointerReferenceFilter.text, '$.targetPointer = ~>target');
+
   const followedReference = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

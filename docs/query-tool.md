@@ -214,6 +214,11 @@ binding for read-only evaluation. Without `follow(...)`, reference forms compare
 by reference kind and canonical target path only. With `follow(...)`, the
 followed target value is consumed by ordinary value semantics:
 
+Concrete reference forms remain visible to representation filters such as
+`%cloneReference` and `%pointerReference`. These filters select the reference
+binding itself; they do not follow, clone, inline, or otherwise materialize the
+target.
+
 ```text
 from $.targetClone
 where follow(.) == 7

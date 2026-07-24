@@ -1192,6 +1192,20 @@ test('follows the comparison policy matrix', () => {
   assert.equal(referenceFormKindIsNotCoerced.ok, true, JSON.stringify(referenceFormKindIsNotCoerced.errors ?? []));
   assert.deepEqual(referenceFormKindIsNotCoerced.results.map((entry) => entry.binding.address), []);
 
+  const cloneReferenceFilter = evaluateQuery([
+    'from $.*%cloneReference',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(cloneReferenceFilter.ok, true, JSON.stringify(cloneReferenceFilter.errors ?? []));
+  assert.deepEqual(cloneReferenceFilter.results.map((entry) => entry.binding.address), ['$.targetClone']);
+
+  const pointerReferenceFilter = evaluateQuery([
+    'from $.*%pointerReference',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(pointerReferenceFilter.ok, true, JSON.stringify(pointerReferenceFilter.errors ?? []));
+  assert.deepEqual(pointerReferenceFilter.results.map((entry) => entry.binding.address), ['$.targetPointer']);
+
   const followedValueComparison = evaluateQuery([
     'from $.targetClone',
     'where follow(.) == 7',

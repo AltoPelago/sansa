@@ -598,6 +598,10 @@ canonical target path; with `follow(...)`, the target binding is consumed by the
 ordinary scalar, structural, or order context. `follow(...)` does not rewrite,
 inline, clone, alias, or erase the source reference.
 
+Concrete reference forms remain visible to representation filters such as
+`%cloneReference` and `%pointerReference`. These filters select the reference
+binding itself and do not imply `follow(...)` or materialization.
+
 `objectFrom(keys, values)` is an experimental transform-library helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics. It is not part of the required SANSA.Query v1 core surface.
 
 `fieldsFrom(keys, values, field, ...)` is an experimental transform-library helper. It uses the same ordered pairing model as `objectFrom`, then returns only the requested string-named fields. It is implemented for workbench and conformance experimentation, but is not part of the required SANSA.Query v1 core surface.
