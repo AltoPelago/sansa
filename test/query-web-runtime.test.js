@@ -164,6 +164,39 @@ test('query web runtime applies explicit value semantics profiles', async () => 
   assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
 });
 
+testAeonRuntime('query web runtime applies value semantics profiles to ordered function projections', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const query = 'from $.labels.*\norder by .value asc\nselect upper(.value)';
+
+  const codepointResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query,
+    valueSemantics: 'aeon.value.string.codepoint.v1',
+  });
+  assert.equal(codepointResult.ok, true, JSON.stringify(codepointResult.errors ?? []));
+  assert.equal(codepointResult.text, [
+    '$.labels[2] = "ADAPTER"',
+    '$.labels[0] = "ZEBRE"',
+    '$.labels[1] = "ÉCLAIR"',
+  ].join('\n'));
+  assert.equal(codepointResult.valueSemantics, 'aeon.value.string.codepoint.v1');
+
+  const frenchResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query,
+    valueSemantics: 'aeon.value.string.locale.fr.v1',
+  });
+  assert.equal(frenchResult.ok, true, JSON.stringify(frenchResult.errors ?? []));
+  assert.equal(frenchResult.text, [
+    '$.labels[2] = "ADAPTER"',
+    '$.labels[1] = "ÉCLAIR"',
+    '$.labels[0] = "ZEBRE"',
+  ].join('\n'));
+  assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
+});
+
 testAeonRuntime('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const numbers = await evaluateQueryForWorkbench({
