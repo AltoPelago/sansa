@@ -120,6 +120,40 @@ test('evaluates explicit value-semantics profiles', () => {
   assert.match(partialCustomOrder.error.message, /compareStrings, lowerString, and upperString together/);
 });
 
+test('evaluates same-family temporal value semantics', () => {
+  const dateOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'temporal', semanticType: 'date', value: '2026-07-25' },
+    right: { category: 'temporal', semanticType: 'date', value: '2025-01-01' },
+  });
+  assert.equal(dateOrder.ok, true);
+  assert.equal(dateOrder.relation, 'greater');
+
+  const dateEquality = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'temporal', semanticType: 'date', value: '2026-07-25' },
+    right: { category: 'temporal', semanticType: 'date', value: '2026-07-25' },
+  });
+  assert.equal(dateEquality.ok, true);
+  assert.equal(dateEquality.value, true);
+
+  const crossFamily = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'temporal', semanticType: 'datetime', value: '2026-07-25T09:30:00Z' },
+    right: { category: 'temporal', semanticType: 'date', value: '2026-07-25' },
+  });
+  assert.equal(crossFamily.ok, false);
+  assert.equal(crossFamily.reason, 'mixed_categories');
+
+  const temporalOnlyProfile = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'temporal', semanticType: 'date', value: '2026-07-25' },
+    right: { category: 'temporal', semanticType: 'date', value: '2025-01-01' },
+  }, {
+    valueSemantics: {
+      compareTemporal: () => -1,
+    },
+  });
+  assert.equal(temporalOnlyProfile.ok, true);
+  assert.equal(temporalOnlyProfile.relation, 'less');
+});
+
 test('evaluates minimum structural and reference-form equality', () => {
   const objects = evaluateValueSemanticsOperation('equal', {
     left: { category: 'container', containerKind: 'object', value: { a: 1, b: 'x' } },

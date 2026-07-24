@@ -533,9 +533,9 @@ isInfinity(.limit) == true when the scalar is positive or negative infinity
 Query source can express selected AEON scalar literal families directly:
 `#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
 temporal-looking literals such as `2026-07-25`. These literals preserve their
-family metadata for comparison; temporal literals still require an active
-temporal profile to compare or order, and explicit null literals are tested
-through null predicates rather than equality.
+family metadata for comparison. Same-family temporal literals compare through
+the active temporal profile; the default profile uses canonical payload order.
+Explicit null literals are tested through null predicates rather than equality.
 
 Current comparison policy:
 
@@ -552,7 +552,7 @@ Current comparison policy:
 | encoding and encoding | allowed | allowed | naïve payload order over preserved encoded payload characters |
 | separator and separator | allowed | allowed | naïve whole-payload order; no splitting on separator specs |
 | SANSA address and SANSA address | allowed | allowed | canonical address-expression identity and naïve address-expression order |
-| temporal and temporal | profile-defined | profile-defined | no comparison without an active temporal profile |
+| temporal and temporal | allowed within same family | allowed within same family | default profile uses canonical temporal payload order; cross-family comparison fails without explicit compatibility |
 | reference form and reference form | allowed | error | reference-kind and canonical target-path identity; no implicit follow |
 | explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
 | NaN | error | error | use `isNaN(...)` |

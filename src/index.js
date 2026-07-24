@@ -13,6 +13,7 @@ const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
+const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
 const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'toggle',
   'hex',
@@ -132,8 +133,10 @@ export function parseQueryExpressionOrThrow(input, options = {}) {
 export const aeonValueSemanticsDefaultProfile = Object.freeze({
   id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
   stringOrder: CODEPOINT_STRING_PROFILE_ID,
+  temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
   caseMapping: 'unicode-default',
   compareStrings: compareStringsByUnicodeScalarValue,
+  compareTemporal: compareTemporalByCanonicalValue,
   lowerString: (value) => value.toLowerCase(),
   upperString: (value) => value.toUpperCase(),
 });
@@ -151,8 +154,10 @@ export function createIntlValueSemanticsProfile(options = {}) {
     id: options.id ?? `aeon.value.string.intl.${Array.isArray(locale) ? locale.join('-') : locale}.v1`,
     locale,
     stringOrder: 'intl-collator',
+    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
     caseMapping: 'intl-locale',
     compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
+    compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
     lowerString: (value) => value.toLocaleLowerCase(locale),
     upperString: (value) => value.toLocaleUpperCase(locale),
   });
@@ -170,9 +175,11 @@ export function createNaturalAsciiValueSemanticsProfile(options = {}) {
   return Object.freeze({
     id: NATURAL_ASCII_STRING_PROFILE_ID,
     stringOrder: NATURAL_ASCII_STRING_PROFILE_ID,
+    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
     caseMapping: 'unicode-default',
     ...options,
     compareStrings: compareStringsByNaturalAsciiOrder,
+    compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
     lowerString: (value) => value.toLowerCase(),
     upperString: (value) => value.toUpperCase(),
   });
@@ -1641,15 +1648,40 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
           ),
         };
       }
-      keys.push({ value: scalar.value, direction: key.direction });
+      const descriptor = scalarInfoToValueDescriptor(queryScalarToInfo({
+        value: scalar.value,
+        metadata: scalar.metadata,
+      }));
+      const orderable = evaluateValueSemanticsOperation('compare', {
+        left: descriptor,
+        right: descriptor,
+      }, {
+        valueSemantics: options.valueSemantics,
+      });
+      if (!orderable.ok) {
+        return {
+          ok: false,
+          error: queryEvaluateError(
+            'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+            queryComparisonMessage(orderable.reason, '<'),
+            { candidateAddress: getBindingAddress(binding) },
+          ),
+        };
+      }
+      keys.push({ value: scalar.value, descriptor, direction: key.direction });
     }
     keyed.push({ binding, keys, index });
   }
 
   for (let keyIndex = 0; keyIndex < orderBy.keys.length; keyIndex += 1) {
-    const expectedType = keyed[0] ? typeof keyed[0].keys[keyIndex].value : null;
-    const mismatched = expectedType
-      ? keyed.find((entry) => typeof entry.keys[keyIndex].value !== expectedType)
+    const expected = keyed[0]?.keys[keyIndex].descriptor;
+    const mismatched = expected
+      ? keyed.find((entry) => !evaluateValueSemanticsOperation('compare', {
+        left: expected,
+        right: entry.keys[keyIndex].descriptor,
+      }, {
+        valueSemantics: options.valueSemantics,
+      }).ok)
       : undefined;
     if (mismatched) {
       return {
@@ -1665,7 +1697,7 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
 
   keyed.sort((left, right) => {
     for (let index = 0; index < left.keys.length; index += 1) {
-      const comparison = compareOrderKeyValues(left.keys[index].value, right.keys[index].value, options.valueSemantics);
+      const comparison = compareOrderKeyScalars(left.keys[index], right.keys[index], options.valueSemantics);
       if (comparison !== 0) {
         return left.keys[index].direction === 'desc' ? -comparison : comparison;
       }
@@ -1679,7 +1711,20 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
   };
 }
 
-function compareOrderKeyValues(left, right, valueSemantics) {
+function compareOrderKeyScalars(left, right, valueSemantics) {
+  const compared = evaluateValueSemanticsOperation('compare', {
+    left: left.descriptor,
+    right: right.descriptor,
+  }, {
+    valueSemantics,
+  });
+  if (!compared.ok) return 0;
+  if (compared.relation === 'less') return -1;
+  if (compared.relation === 'greater') return 1;
+  return 0;
+}
+
+function comparePrimitiveOrderValues(left, right, valueSemantics) {
   if (typeof left === 'string') return getValueSemanticsProfile(valueSemantics).compareStrings(left, right);
   if (left < right) return -1;
   if (left > right) return 1;
@@ -1710,14 +1755,26 @@ function getValueSemanticsProfile(valueSemantics) {
   const hasCompareStrings = typeof valueSemantics.compareStrings === 'function';
   const hasLowerString = typeof valueSemantics.lowerString === 'function';
   const hasUpperString = typeof valueSemantics.upperString === 'function';
+  const hasCompareTemporal = typeof valueSemantics.compareTemporal === 'function';
   if (hasCompareStrings && hasLowerString && hasUpperString) {
     return {
+      ...aeonValueSemanticsDefaultProfile,
       ...valueSemantics,
       compareStrings: (left, right) => normalizeComparison(valueSemantics.compareStrings(left, right)),
+      compareTemporal: typeof valueSemantics.compareTemporal === 'function'
+        ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
+        : aeonValueSemanticsDefaultProfile.compareTemporal,
     };
   }
   if (hasCompareStrings || hasLowerString || hasUpperString) {
     throw new Error('Custom value-semantics profiles must define compareStrings, lowerString, and upperString together.');
+  }
+  if (hasCompareTemporal) {
+    return {
+      ...aeonValueSemanticsDefaultProfile,
+      ...valueSemantics,
+      compareTemporal: (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right)),
+    };
   }
   if (
     valueSemantics.locale
@@ -1791,6 +1848,10 @@ function compareAsciiDigitRuns(left, right) {
   if (left.length < right.length) return -1;
   if (left.length > right.length) return 1;
   return 0;
+}
+
+function compareTemporalByCanonicalValue(left, right) {
+  return compareStringsByUnicodeScalarValue(String(left.payload ?? ''), String(right.payload ?? ''));
 }
 
 function isAsciiDigitCodePoint(codePoint) {
@@ -1996,6 +2057,11 @@ function sameMinimumEqualityDomain(left, right) {
       && right.category === 'container'
       && (left.containerKind ?? 'container') === (right.containerKind ?? 'container');
   }
+  if (left.category === 'temporal' || right.category === 'temporal') {
+    return left.category === 'temporal'
+      && right.category === 'temporal'
+      && sameTemporalDomain(left, right);
+  }
   return left.category === right.category && [
     'string',
     'boolean',
@@ -2011,11 +2077,24 @@ function sameMinimumEqualityDomain(left, right) {
 
 function sameMinimumOrderingDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
+  if (left.category === 'temporal' || right.category === 'temporal') {
+    return left.category === 'temporal'
+      && right.category === 'temporal'
+      && sameTemporalDomain(left, right);
+  }
   return left.category === right.category && ['string', 'encoding', 'separator', 'sansaAddress'].includes(left.category);
 }
 
 function isValueSemanticsNumeric(info) {
   return info.category === 'finiteNumber' || info.category === 'positiveInfinity' || info.category === 'negativeInfinity';
+}
+
+function sameTemporalDomain(left, right) {
+  return temporalSemanticType(left) === temporalSemanticType(right);
+}
+
+function temporalSemanticType(info) {
+  return String(info.value?.semanticType ?? info.semanticType ?? 'temporal');
 }
 
 function compareMinimumEquality(operation, left, right, profile) {
@@ -2024,6 +2103,7 @@ function compareMinimumEquality(operation, left, right, profile) {
   }
   const equals = (() => {
     if (left.category === 'string' && right.category === 'string') return profile.compareStrings(left.value, right.value) === 0;
+    if (left.category === 'temporal' && right.category === 'temporal') return profile.compareTemporal(left.value, right.value) === 0;
     if (left.category === 'container' && right.category === 'container') return structurallyEqualContainers(left, right, profile);
     return structurallyEqualValues(left.value, right.value, profile);
   })();
@@ -2031,10 +2111,13 @@ function compareMinimumEquality(operation, left, right, profile) {
 }
 
 function compareMinimumOrdering(left, right, profile) {
+  if (left.category === 'temporal' && right.category === 'temporal') {
+    return profile.compareTemporal(left.value, right.value);
+  }
   if (left.category !== 'string' && ['encoding', 'separator', 'sansaAddress'].includes(left.category)) {
     return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
   }
-  return compareOrderKeyValues(left.value, right.value, profile);
+  return comparePrimitiveOrderValues(left.value, right.value, profile);
 }
 
 function normalizeValueSemanticsCategory(category) {

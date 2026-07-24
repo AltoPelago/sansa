@@ -125,9 +125,12 @@ hex, radix, encoding, and separator values, exact reference-form equality, and
 infinity as a numeric bound. Query source can express the same AEON scalar
 literal families directly, for example `#ff00aa`, `%ff00aa`,
 `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
-`2026-07-25`. It rejects mixed-type comparisons, toggle-to-Boolean coercion,
-hex-to-radix coercion, temporal comparison without an active temporal profile,
-Boolean ordering, explicit null comparison, and NaN comparison.
+`2026-07-25`. Same-family temporal values compare through the active temporal
+value-semantics profile; the default profile uses canonical payload order for
+`date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
+comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
+temporal comparison, Boolean ordering, explicit null comparison, and NaN
+comparison.
 
 ```text
 where .consent == yes

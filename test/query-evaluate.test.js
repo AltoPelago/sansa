@@ -248,6 +248,17 @@ const root = binding({
     binding({ name: 'consent', address: '$.consent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'yes' }),
     binding({ name: 'fallbackConsent', address: '$.fallbackConsent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'on' }),
     binding({
+      name: 'types',
+      address: '$.types',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'archiveDate', address: '$.types.archiveDate', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2024-12-31' }),
+        binding({ name: 'released', address: '$.types.released', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2026-07-25' }),
+        binding({ name: 'window', address: '$.types.window', semanticType: 'time', representationKind: 'time', scalarKind: 'time', value: '09:30:00Z' }),
+        binding({ name: 'stamp', address: '$.types.stamp', semanticType: 'datetime', representationKind: 'datetime', scalarKind: 'datetime', value: '2026-07-25T09:30:00Z' }),
+      ],
+    }),
+    binding({
       name: 'inventory',
       address: '$.inventory',
       representationKind: 'object',
@@ -946,6 +957,33 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(toggleBooleanComparison.ok, false);
   assert.equal(toggleBooleanComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const temporalLiteralComparison = evaluateQuery([
+    'from $.types.*#date',
+    'where . > 2025-01-01',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalLiteralComparison.ok, true, JSON.stringify(temporalLiteralComparison.errors ?? []));
+  assert.deepEqual(temporalLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.released']);
+
+  const temporalOrder = evaluateQuery([
+    'from $.types.*#date',
+    'order by . desc',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalOrder.ok, true, JSON.stringify(temporalOrder.errors ?? []));
+  assert.deepEqual(temporalOrder.results.map((entry) => entry.binding.address), [
+    '$.types.released',
+    '$.types.archiveDate',
+  ]);
+
+  const temporalCrossFamilyComparison = evaluateQuery([
+    'from $.types.stamp',
+    'where . > $.types.released',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalCrossFamilyComparison.ok, false);
+  assert.equal(temporalCrossFamilyComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items[3]',

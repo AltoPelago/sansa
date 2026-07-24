@@ -42,6 +42,13 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_UNEXPECTED_EXPRESSION_TOKEN'
   | 'SANSA_QUERY_UNTERMINATED_EXPRESSION'
   | 'SANSA_QUERY_INVALID_NUMBER_LITERAL'
+  | 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD'
+  | 'SANSA_QUERY_INVALID_HEX_LITERAL'
+  | 'SANSA_QUERY_INVALID_RADIX_LITERAL'
+  | 'SANSA_QUERY_INVALID_ENCODING_LITERAL'
+  | 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL'
+  | 'SANSA_QUERY_INVALID_NULL_LITERAL'
+  | 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL'
   | 'SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION'
   | 'SANSA_QUERY_INVALID_FUNCTION_CALL'
   | 'SANSA_QUERY_INVALID_PROJECTION'
@@ -255,6 +262,8 @@ export type AeonValueSemanticsCategory =
   | 'string'
   | 'boolean'
   | 'toggle'
+  | 'hex'
+  | 'radix'
   | 'encoding'
   | 'separator'
   | 'sansaAddress'
@@ -271,10 +280,17 @@ export interface AeonValueSemanticsProfile {
   readonly id?: string;
   readonly locale?: string | readonly string[];
   readonly stringOrder?: string;
+  readonly temporalOrder?: string;
   readonly caseMapping?: string;
   readonly compareStrings: (left: string, right: string) => number;
+  readonly compareTemporal: (left: AeonTemporalSemanticValue, right: AeonTemporalSemanticValue) => number;
   readonly lowerString: (value: string) => string;
   readonly upperString: (value: string) => string;
+}
+
+export interface AeonTemporalSemanticValue {
+  readonly payload: string;
+  readonly semanticType?: string;
 }
 
 export interface AeonValueSemanticsProfileOptions {
@@ -285,6 +301,7 @@ export interface AeonValueSemanticsProfileOptions {
   readonly ignorePunctuation?: boolean;
   readonly numeric?: boolean;
   readonly caseFirst?: 'upper' | 'lower' | 'false';
+  readonly compareTemporal?: (left: AeonTemporalSemanticValue, right: AeonTemporalSemanticValue) => number;
 }
 
 export type AeonValueSemanticsProfileInput =
@@ -298,6 +315,7 @@ export interface AeonValueSemanticsValueDescriptor {
   readonly category: AeonValueSemanticsCategory;
   readonly value?: unknown;
   readonly reason?: string;
+  readonly semanticType?: string;
   readonly containerKind?: string;
   readonly count?: number;
 }

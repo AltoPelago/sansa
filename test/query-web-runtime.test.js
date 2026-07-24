@@ -190,16 +190,24 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
     source,
     query: 'from $.types.released\nwhere . == $.types.released\nselect .',
   });
-  assert.equal(temporalComparison.ok, false);
-  assert.equal(temporalComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+  assert.equal(temporalComparison.ok, true, JSON.stringify(temporalComparison.errors ?? []));
+  assert.equal(temporalComparison.text, '$.types.released = 2026-07-25');
 
   const temporalLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
-    query: 'from $.types.released\nwhere . == 2026-07-25\nselect .',
+    query: 'from $.types.*#date\nwhere . > 2025-01-01\nselect .',
   });
-  assert.equal(temporalLiteralComparison.ok, false);
-  assert.equal(temporalLiteralComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+  assert.equal(temporalLiteralComparison.ok, true, JSON.stringify(temporalLiteralComparison.errors ?? []));
+  assert.equal(temporalLiteralComparison.text, '$.types.released = 2026-07-25');
+
+  const temporalCrossFamilyComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.stamp\nwhere . > $.types.released\nselect .',
+  });
+  assert.equal(temporalCrossFamilyComparison.ok, false);
+  assert.equal(temporalCrossFamilyComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 
   const nullLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
