@@ -157,6 +157,10 @@ Container datatype labels remain visible to semantic filters, including
 `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select
 bindings; they do not change structural comparison or introduce container
 ordering.
+Container representation filters such as `%object`, `%list`, `%tuple`, and
+`%node` select by exposed shape instead of datatype claim. For example,
+`%object` can select both `obj` and `envelope` bindings when both expose object
+representation.
 
 ```text
 where .consent == yes

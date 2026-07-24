@@ -650,6 +650,41 @@ testAeonRuntime('query web runtime evaluates objectFrom against AEON source', as
   assert.equal(nodeFilter.ok, true, JSON.stringify(nodeFilter.errors ?? []));
   assert.equal(nodeFilter.text, '$.containers.nodeValue');
 
+  const objectRepresentationFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*%object\nselect .',
+  });
+  assert.equal(objectRepresentationFilter.ok, true, JSON.stringify(objectRepresentationFilter.errors ?? []));
+  assert.equal(objectRepresentationFilter.text, [
+    '$.containers.record',
+    '$.containers.packet',
+  ].join('\n'));
+
+  const listRepresentationFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*%list\nselect .',
+  });
+  assert.equal(listRepresentationFilter.ok, true, JSON.stringify(listRepresentationFilter.errors ?? []));
+  assert.equal(listRepresentationFilter.text, '$.containers.series');
+
+  const tupleRepresentationFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*%tuple\nselect .',
+  });
+  assert.equal(tupleRepresentationFilter.ok, true, JSON.stringify(tupleRepresentationFilter.errors ?? []));
+  assert.equal(tupleRepresentationFilter.text, '$.containers.pair');
+
+  const nodeRepresentationFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*%node\nselect .',
+  });
+  assert.equal(nodeRepresentationFilter.ok, true, JSON.stringify(nodeRepresentationFilter.errors ?? []));
+  assert.equal(nodeRepresentationFilter.text, '$.containers.nodeValue');
+
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

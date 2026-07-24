@@ -1324,6 +1324,37 @@ test('follows the comparison policy matrix', () => {
   assert.equal(nodeSemanticFilter.ok, true, JSON.stringify(nodeSemanticFilter.errors ?? []));
   assert.deepEqual(nodeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.nodeValue']);
 
+  const objectRepresentationFilter = evaluateQuery([
+    'from $.containers.*%object',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectRepresentationFilter.ok, true, JSON.stringify(objectRepresentationFilter.errors ?? []));
+  assert.deepEqual(objectRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.containers.record',
+    '$.containers.packet',
+  ]);
+
+  const listRepresentationFilter = evaluateQuery([
+    'from $.containers.*%list',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(listRepresentationFilter.ok, true, JSON.stringify(listRepresentationFilter.errors ?? []));
+  assert.deepEqual(listRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.series']);
+
+  const tupleRepresentationFilter = evaluateQuery([
+    'from $.containers.*%tuple',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(tupleRepresentationFilter.ok, true, JSON.stringify(tupleRepresentationFilter.errors ?? []));
+  assert.deepEqual(tupleRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.pair']);
+
+  const nodeRepresentationFilter = evaluateQuery([
+    'from $.containers.*%node',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(nodeRepresentationFilter.ok, true, JSON.stringify(nodeRepresentationFilter.errors ?? []));
+  assert.deepEqual(nodeRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.nodeValue']);
+
   const nodeComparisonNamespace = {
     root: {
       address: '$',

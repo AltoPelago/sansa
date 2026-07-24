@@ -503,6 +503,8 @@ Equality and inequality comparison may also consume one resolved container bindi
 
 Container datatype labels remain visible to semantic filters. This includes `#object`, object aliases such as `#obj` and `#envelope`, generic bases such as `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select bindings only; they do not normalize aliases for equality, change structural comparison, or introduce container ordering.
 
+Container representation filters such as `%object`, `%list`, `%tuple`, and `%node` select by exposed shape instead of datatype claim. For example, `%object` can select both `obj` and `envelope` bindings when both expose object representation.
+
 Existence predicates inspect binding presence rather than scalar value:
 
 ```text
