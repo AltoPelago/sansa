@@ -102,11 +102,13 @@ NaN and infinity are explicit numeric special values. Use `isNaN(...)` and
 `isInfinity(...)` for literal-form tests; `NaN` is rejected by scalar comparison
 and ordering.
 
-`isValue(...)` is a missing-aware ordinary scalar guard. It returns true for one
-string, Boolean, or finite number expression result. It can inspect scalar
-expressions directly or a Binding Set produced by resolution or `path(...)`. It
-returns false for missing bindings, non-scalar bindings, explicit null, NaN, and
-infinity, while multiple bindings remain a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true for one
+concrete value, including finite numbers, infinities, strings, Booleans,
+lexical structured scalars, SANSA address literals, legal reference forms, and
+containers. It can inspect scalar expressions directly or a Binding Set produced
+by resolution or `path(...)`. It returns false for missing bindings, explicit
+null, explicit absence values, and NaN, while multiple bindings remain a
+cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
 equality, and infinity as a numeric bound. It rejects mixed-type comparisons,
@@ -130,8 +132,8 @@ bindings, multiple bindings, explicit null, numeric specials, and other
 non-string values unless a specific function contract says otherwise.
 
 String comparison and `order by` use deterministic Unicode scalar-value
-ordering in this implementation slice. They do not use host locale or process
-locale collation.
+ordering by default. They do not use host locale or process locale collation
+unless an embedding caller supplies an explicit value-semantics profile.
 
 `path(value)` activates a structured SANSA Address Literal value. In expression
 positions such as `select`, `where`, and `order by`, it resolves in the current

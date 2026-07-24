@@ -9,6 +9,8 @@ const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
   ['objectFrom', 'sansa.transform.objectFrom'],
   ['fieldsFrom', 'sansa.transform.fieldsFrom'],
 ]);
+const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
+const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -106,7 +108,48 @@ export function parseQueryExpressionOrThrow(input, options = {}) {
   return result.expression;
 }
 
+export const aeonValueSemanticsDefaultProfile = Object.freeze({
+  id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
+  stringOrder: CODEPOINT_STRING_PROFILE_ID,
+  caseMapping: 'unicode-default',
+  compareStrings: compareStringsByUnicodeScalarValue,
+  lowerString: (value) => value.toLowerCase(),
+  upperString: (value) => value.toUpperCase(),
+});
+
+export function createIntlValueSemanticsProfile(options = {}) {
+  const locale = options.locale ?? 'und';
+  const collator = new Intl.Collator(locale, {
+    usage: options.usage ?? 'sort',
+    sensitivity: options.sensitivity ?? 'variant',
+    ignorePunctuation: options.ignorePunctuation ?? false,
+    numeric: options.numeric ?? false,
+    caseFirst: options.caseFirst ?? 'false',
+  });
+  return Object.freeze({
+    id: options.id ?? `aeon.value.string.intl.${Array.isArray(locale) ? locale.join('-') : locale}.v1`,
+    locale,
+    stringOrder: 'intl-collator',
+    caseMapping: 'intl-locale',
+    compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
+    lowerString: (value) => value.toLocaleLowerCase(locale),
+    upperString: (value) => value.toLocaleUpperCase(locale),
+  });
+}
+
+export function createFrenchValueSemanticsProfile(options = {}) {
+  return createIntlValueSemanticsProfile({
+    id: 'aeon.value.string.locale.fr.v1',
+    locale: 'fr',
+    ...options,
+  });
+}
+
 export function evaluateQuery(input, namespace, options = {}) {
+  options = {
+    ...options,
+    valueSemantics: getValueSemanticsProfile(options.valueSemantics),
+  };
   const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
   if (!parsed.ok) {
     return {
@@ -605,17 +648,17 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
   if (!right.ok) return right;
 
   if (expression.operator === 'in') {
-    return evaluateMembershipExpression(left.value, right.value, namespace);
+    return evaluateMembershipExpression(left.value, right.value, namespace, options);
   }
 
   const leftScalar = expectScalarQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
   const rightScalar = expectScalarQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
-  return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value);
+  return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value, options);
 }
 
-function evaluateMembershipExpression(leftValue, rightValue, namespace) {
+function evaluateMembershipExpression(leftValue, rightValue, namespace, options) {
   const leftScalar = expectScalarQueryValue(leftValue, namespace);
   if (!leftScalar.ok) return leftScalar;
 
@@ -629,7 +672,7 @@ function evaluateMembershipExpression(leftValue, rightValue, namespace) {
   for (const binding of rightValue.bindings) {
     const rightScalar = getBindingScalarValue(namespace, binding);
     if (!rightScalar.ok) return rightScalar;
-    const compared = compareQueryScalars('==', leftScalar.value, rightScalar.value);
+    const compared = compareQueryScalars('==', leftScalar.value, rightScalar.value, options);
     if (!compared.ok) return compared;
     if (compared.value.value) {
       return {
@@ -745,7 +788,7 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     evaluatedArgs.push(scalar.value);
   }
 
-  return evaluateOrdinaryFunction(expression.name, evaluatedArgs);
+  return evaluateOrdinaryFunction(expression.name, evaluatedArgs, options);
 }
 
 function expectEnabledExtension(functionName, options) {
@@ -778,7 +821,8 @@ function isOrdinaryFunctionName(name) {
   return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat'].includes(name);
 }
 
-function evaluateOrdinaryFunction(name, evaluatedArgs) {
+function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
+  const profile = getValueSemanticsProfile(options.valueSemantics);
   switch (name) {
     case 'contains':
       return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
@@ -787,9 +831,9 @@ function evaluateOrdinaryFunction(name, evaluatedArgs) {
     case 'endsWith':
       return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
     case 'lower':
-      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => profile.lowerString(value));
     case 'upper':
-      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toUpperCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => profile.upperString(value));
     case 'concat':
       if (evaluatedArgs.length === 0) {
         return {
@@ -1195,12 +1239,12 @@ function evaluateIsValuePredicate(argument, currentBinding, namespace, options) 
 
 function evaluateIsValueQueryValue(value, namespace) {
   if (value.type === 'scalar') {
-    return scalarBoolean(isOrdinaryValueScalar({
+    return scalarBoolean(isConcreteValueScalar({
       value: value.value,
       ...(value[QUERY_VALUE_METADATA_PROPERTY]?.kind === undefined ? {} : { kind: value[QUERY_VALUE_METADATA_PROPERTY].kind }),
     }));
   }
-  if (value.type === 'object') return scalarBoolean(false);
+  if (value.type === 'object') return scalarBoolean(true);
   if (value.type !== 'bindingSet') {
     return scalarBoolean(false);
   }
@@ -1214,10 +1258,13 @@ function evaluateIsValueQueryValue(value, namespace) {
 
   const scalar = getBindingScalarInfo(namespace, value.bindings[0]);
   if (!scalar.ok) {
+    if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR' && isContainerBinding(namespace, value.bindings[0])) {
+      return scalarBoolean(true);
+    }
     if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') return scalarBoolean(false);
     return scalar;
   }
-  return scalarBoolean(isOrdinaryValueScalar(scalar));
+  return scalarBoolean(isConcreteValueScalar(scalar));
 }
 
 function evaluateSingleBindingArgument(name, argument, currentBinding, namespace, options) {
@@ -1259,8 +1306,14 @@ function isInfinityScalar(info) {
   return info.kind === 'infinity' || info.value === Infinity || info.value === -Infinity;
 }
 
-function isOrdinaryValueScalar(info) {
-  return isOrdinaryValueDescriptor(scalarInfoToValueDescriptor(info));
+function isConcreteValueScalar(info) {
+  if (isNanScalar(info) || isExplicitNullScalar(info) || isExplicitAbsenceScalar(info)) return false;
+  if (info.kind === 'missing' || info.category === 'missing') return false;
+  if (info.category === 'bindingSet' || info.kind === 'bindingSet') return false;
+  if (info.value === undefined && !['container', 'referenceForm', 'sansaAddress', 'lexicalStructuredScalar', 'temporal', 'toggle'].includes(info.category)) {
+    return false;
+  }
+  return true;
 }
 
 function scalarBoolean(value) {
@@ -1412,8 +1465,8 @@ function evaluateCardinalityBooleans(expression, currentBinding, namespace, opti
     const bindingScalar = getBindingScalarValue(namespace, binding);
     if (!bindingScalar.ok) return bindingScalar;
     const compared = leftIsSet
-      ? compareQueryScalars(expression.operator, bindingScalar.value, scalarValue.value)
-      : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value);
+      ? compareQueryScalars(expression.operator, bindingScalar.value, scalarValue.value, options)
+      : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value, options);
     if (!compared.ok) return compared;
     values.push(compared.value.value);
   }
@@ -1539,7 +1592,7 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
 
   keyed.sort((left, right) => {
     for (let index = 0; index < left.keys.length; index += 1) {
-      const comparison = compareOrderKeyValues(left.keys[index].value, right.keys[index].value);
+      const comparison = compareOrderKeyValues(left.keys[index].value, right.keys[index].value, options.valueSemantics);
       if (comparison !== 0) {
         return left.keys[index].direction === 'desc' ? -comparison : comparison;
       }
@@ -1553,10 +1606,58 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
   };
 }
 
-function compareOrderKeyValues(left, right) {
-  if (typeof left === 'string') return compareStringsByUnicodeScalarValue(left, right);
+function compareOrderKeyValues(left, right, valueSemantics) {
+  if (typeof left === 'string') return getValueSemanticsProfile(valueSemantics).compareStrings(left, right);
   if (left < right) return -1;
   if (left > right) return 1;
+  return 0;
+}
+
+function getValueSemanticsProfile(valueSemantics) {
+  if (!valueSemantics) return aeonValueSemanticsDefaultProfile;
+  if (valueSemantics === 'default' || valueSemantics === DEFAULT_VALUE_SEMANTICS_PROFILE_ID) {
+    return aeonValueSemanticsDefaultProfile;
+  }
+  if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
+    return createFrenchValueSemanticsProfile({ locale: valueSemantics });
+  }
+  if (typeof valueSemantics === 'string') {
+    return createIntlValueSemanticsProfile({ locale: valueSemantics });
+  }
+  if (valueSemantics.profile) return getValueSemanticsProfile(valueSemantics.profile);
+  if (
+    typeof valueSemantics.compareStrings === 'function'
+    && typeof valueSemantics.lowerString === 'function'
+    && typeof valueSemantics.upperString === 'function'
+  ) {
+    return valueSemantics;
+  }
+  if (
+    typeof valueSemantics.compareStrings !== 'function'
+    && typeof valueSemantics.lowerString !== 'function'
+    && typeof valueSemantics.upperString !== 'function'
+    && valueSemantics.locale
+  ) {
+    return createIntlValueSemanticsProfile(valueSemantics);
+  }
+  return {
+    ...aeonValueSemanticsDefaultProfile,
+    ...valueSemantics,
+    compareStrings: typeof valueSemantics.compareStrings === 'function'
+      ? (left, right) => normalizeComparison(valueSemantics.compareStrings(left, right))
+      : aeonValueSemanticsDefaultProfile.compareStrings,
+    lowerString: typeof valueSemantics.lowerString === 'function'
+      ? valueSemantics.lowerString
+      : aeonValueSemanticsDefaultProfile.lowerString,
+    upperString: typeof valueSemantics.upperString === 'function'
+      ? valueSemantics.upperString
+      : aeonValueSemanticsDefaultProfile.upperString,
+  };
+}
+
+function normalizeComparison(value) {
+  if (value < 0) return -1;
+  if (value > 0) return 1;
   return 0;
 }
 
@@ -1575,19 +1676,20 @@ function compareStringsByUnicodeScalarValue(left, right) {
   return 0;
 }
 
-export function evaluateValueSemanticsOperation(operation, input = {}) {
+export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
+    const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
       case 'notEqual':
-        return evaluateValueSemanticsEquality(operation, input.left, input.right);
+        return evaluateValueSemanticsEquality(operation, input.left, input.right, profile);
       case 'compare':
-        return evaluateValueSemanticsOrdering(input.left, input.right);
+        return evaluateValueSemanticsOrdering(input.left, input.right, profile);
       case 'isValue':
         return {
           ok: true,
           outcome: 'value',
-          value: isOrdinaryValueScalar(valueDescriptorToScalarInfo(input.value)),
+          value: isConcreteValueScalar(valueDescriptorToScalarInfo(input.value)),
         };
       default:
         return valueSemanticsDiagnostic(
@@ -1600,19 +1702,19 @@ export function evaluateValueSemanticsOperation(operation, input = {}) {
   }
 }
 
-function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor) {
+function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor, profile) {
   const left = valueDescriptorToScalarInfo(leftDescriptor);
   const right = valueDescriptorToScalarInfo(rightDescriptor);
   if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Value category is not equality-comparable in the minimum profile');
   }
-  if (left.category === 'missing' || right.category === 'missing' || left.category === 'container' || right.category === 'container' || left.category === 'bindingSet' || right.category === 'bindingSet') {
+  if (left.category === 'missing' || right.category === 'missing' || left.category === 'bindingSet' || right.category === 'bindingSet') {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Evaluation state or non-scalar value is not equality-comparable');
   }
   if (!sameMinimumEqualityDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
   }
-  const value = compareMinimumEquality(operation, left, right);
+  const value = compareMinimumEquality(operation, left, right, profile);
   return {
     ok: true,
     outcome: 'value',
@@ -1620,7 +1722,7 @@ function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescript
   };
 }
 
-function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
+function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor, profile) {
   const left = valueDescriptorToScalarInfo(leftDescriptor);
   const right = valueDescriptorToScalarInfo(rightDescriptor);
   if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
@@ -1635,7 +1737,7 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
   if (!sameMinimumOrderingDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
   }
-  const comparison = compareMinimumOrdering(left, right);
+  const comparison = compareMinimumOrdering(left, right, profile);
   return {
     ok: true,
     outcome: 'value',
@@ -1663,6 +1765,20 @@ function valueDescriptorToScalarInfo(descriptor) {
       return { category: 'string', value: String(descriptor.value ?? '') };
     case 'boolean':
       return { category: 'boolean', value: Boolean(descriptor.value) };
+    case 'toggle':
+      return { category: 'toggle', value: String(descriptor.value ?? '') };
+    case 'encoding':
+      return { category: 'encoding', value: String(descriptor.value ?? '') };
+    case 'separator':
+      return { category: 'separator', value: String(descriptor.value ?? '') };
+    case 'sansaAddress':
+      return { category: 'sansaAddress', value: String(descriptor.value ?? '') };
+    case 'referenceForm':
+      return { category: 'referenceForm', value: descriptor.value ?? descriptor };
+    case 'temporal':
+      return { category: 'temporal', value: String(descriptor.value ?? '') };
+    case 'lexicalStructuredScalar':
+      return { category: 'lexicalStructuredScalar', value: String(descriptor.value ?? '') };
     case 'explicitNull':
       return { category: 'explicitNull', value: null, kind: 'null', nullReason: descriptor.reason };
     case 'explicitAbsence':
@@ -1670,7 +1786,12 @@ function valueDescriptorToScalarInfo(descriptor) {
     case 'missing':
       return { category: 'missing', value: undefined, kind: 'missing' };
     case 'container':
-      return { category: 'container', value: descriptor, kind: 'container' };
+      return {
+        category: 'container',
+        containerKind: descriptor.containerKind ?? descriptor.value?.containerKind,
+        value: descriptor.value,
+        kind: 'container',
+      };
     case 'bindingSet':
       return { category: 'bindingSet', value: descriptor, kind: 'bindingSet' };
     default:
@@ -1704,6 +1825,13 @@ function scalarInfoToValueDescriptor(info) {
   if (typeof info.value === 'boolean') {
     return { category: 'boolean', value: info.value };
   }
+  if (['toggle', 'encoding', 'separator', 'sansaAddress', 'referenceForm', 'temporal', 'lexicalStructuredScalar', 'container'].includes(info.category)) {
+    return {
+      category: info.category,
+      value: info.value,
+      ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
+    };
+  }
   if (info.kind === 'missing' || info.category === 'missing') {
     return { category: 'missing' };
   }
@@ -1715,33 +1843,76 @@ function scalarInfoToValueDescriptor(info) {
 
 function sameMinimumEqualityDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
-  return left.category === right.category && ['string', 'boolean'].includes(left.category);
+  if (left.category === 'container' || right.category === 'container') {
+    return left.category === 'container'
+      && right.category === 'container'
+      && (left.containerKind ?? 'container') === (right.containerKind ?? 'container');
+  }
+  return left.category === right.category && [
+    'string',
+    'boolean',
+    'toggle',
+    'encoding',
+    'separator',
+    'sansaAddress',
+    'referenceForm',
+  ].includes(left.category);
 }
 
 function sameMinimumOrderingDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
-  return left.category === 'string' && right.category === 'string';
+  return left.category === right.category && ['string', 'encoding', 'separator', 'sansaAddress'].includes(left.category);
 }
 
 function isValueSemanticsNumeric(info) {
   return info.category === 'finiteNumber' || info.category === 'positiveInfinity' || info.category === 'negativeInfinity';
 }
 
-function compareMinimumEquality(operation, left, right) {
+function compareMinimumEquality(operation, left, right, profile) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
     return operation === 'equal' ? left.value === right.value : left.value !== right.value;
   }
-  const equals = Object.is(left.value, right.value);
+  const equals = (() => {
+    if (left.category === 'string' && right.category === 'string') return profile.compareStrings(left.value, right.value) === 0;
+    if (left.category === 'container' && right.category === 'container') return structurallyEqualContainers(left, right, profile);
+    return structurallyEqualValues(left.value, right.value, profile);
+  })();
   return operation === 'equal' ? equals : !equals;
 }
 
-function compareMinimumOrdering(left, right) {
-  return compareOrderKeyValues(left.value, right.value);
+function compareMinimumOrdering(left, right, profile) {
+  if (left.category !== 'string' && ['encoding', 'separator', 'sansaAddress'].includes(left.category)) {
+    return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
+  }
+  return compareOrderKeyValues(left.value, right.value, profile);
 }
 
-function isOrdinaryValueDescriptor(descriptor) {
+function structurallyEqualContainers(left, right, profile) {
+  if ((left.containerKind ?? 'container') !== (right.containerKind ?? 'container')) return false;
+  return structurallyEqualValues(left.value, right.value, profile);
+}
+
+function structurallyEqualValues(left, right, profile) {
+  if (Object.is(left, right)) return true;
+  if (typeof left === 'string' && typeof right === 'string') return profile.compareStrings(left, right) === 0;
+  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => structurallyEqualValues(value, right[index], profile));
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (let index = 0; index < leftKeys.length; index += 1) {
+    if (leftKeys[index] !== rightKeys[index]) return false;
+    if (!structurallyEqualValues(left[leftKeys[index]], right[rightKeys[index]], profile)) return false;
+  }
+  return true;
+}
+
+function isConcreteValueDescriptor(descriptor) {
   const info = valueDescriptorToScalarInfo(descriptor);
-  return info.category === 'finiteNumber' || info.category === 'string' || info.category === 'boolean';
+  return isConcreteValueScalar(info);
 }
 
 function isExplicitAbsenceScalar(info) {
@@ -1761,13 +1932,15 @@ function valueSemanticsDiagnostic(reason, message) {
   };
 }
 
-function compareQueryScalars(operator, left, right) {
+function compareQueryScalars(operator, left, right, options = {}) {
   const leftDescriptor = scalarInfoToValueDescriptor({ value: left });
   const rightDescriptor = scalarInfoToValueDescriptor({ value: right });
   const operation = ['==', '!='].includes(operator) ? (operator === '==' ? 'equal' : 'notEqual') : 'compare';
   const evaluated = evaluateValueSemanticsOperation(operation, {
     left: leftDescriptor,
     right: rightDescriptor,
+  }, {
+    valueSemantics: options.valueSemantics,
   });
   if (!evaluated.ok) {
     return {
@@ -1858,6 +2031,17 @@ function getBindingScalarInfo(namespace, binding) {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
   };
+}
+
+function isContainerBinding(namespace, binding) {
+  const rawKind = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.representationKind ?? binding.kind ?? binding.type ?? binding.literalKind ?? binding.valueKind;
+  const kind = typeof rawKind === 'string' ? lowerFirst(rawKind) : undefined;
+  if (['object', 'obj', 'o', 'envelope', 'list', 'tuple', 'node', 'objectNode', 'listNode', 'tupleLiteral', 'nodeLiteral'].includes(kind)) {
+    return true;
+  }
+  return Array.isArray(binding.children);
 }
 
 function getBindingScalarKind(namespace, binding) {

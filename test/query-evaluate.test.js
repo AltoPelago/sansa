@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluateQuery } from '../src/index.js';
+import { createFrenchValueSemanticsProfile, evaluateQuery } from '../src/index.js';
 
 function binding({
   address,
@@ -320,6 +320,41 @@ const stringOrderingNamespace = {
   children: (entry) => entry.children,
 };
 
+const frenchOrderingRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'labels',
+      address: '$.labels',
+      representationKind: 'list',
+      children: [
+        binding({
+          index: 0,
+          address: '$.labels[0]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[0].value', semanticType: 'string', representationKind: 'string', value: 'zebre' }),
+          ],
+        }),
+        binding({
+          index: 1,
+          address: '$.labels[1]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[1].value', semanticType: 'string', representationKind: 'string', value: 'éclair' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+
+const frenchOrderingNamespace = {
+  root: frenchOrderingRoot,
+  children: (entry) => entry.children,
+};
+
 test('evaluates query projection over filtered bindings', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',
@@ -485,6 +520,35 @@ test('evaluates string ordering by Unicode scalar value', () => {
   assert.deepEqual(compared.results.map((entry) => entry.binding.address), ['$.labels[1]']);
 });
 
+test('evaluates string ordering with an explicit French value-semantics profile', () => {
+  const codepointOrdered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), frenchOrderingNamespace);
+
+  assert.equal(codepointOrdered.ok, true, JSON.stringify(codepointOrdered.errors ?? []));
+  assert.deepEqual(codepointOrdered.results.map((entry) => entry.binding.address), [
+    '$.labels[0]',
+    '$.labels[1]',
+  ]);
+
+  const frenchOrdered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select upper(.value)',
+  ].join('\n'), frenchOrderingNamespace, {
+    valueSemantics: createFrenchValueSemanticsProfile(),
+  });
+
+  assert.equal(frenchOrdered.ok, true, JSON.stringify(frenchOrdered.errors ?? []));
+  assert.deepEqual(frenchOrdered.results.map((entry) => entry.binding.address), [
+    '$.labels[1]',
+    '$.labels[0]',
+  ]);
+  assert.deepEqual(frenchOrdered.results.map((entry) => entry.value.value), ['ÉCLAIR', 'ZEBRE']);
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
@@ -621,7 +685,7 @@ test('distinguishes missing bindings from explicit null values', () => {
   assert.equal(unguardedMissingStatus.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
 });
 
-test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
+test('evaluates isValue as a missing-aware concrete-value guard', () => {
   const ordinaryStatuses = evaluateQuery([
     'from $.inventory.items.*',
     'where isValue(.status)',
@@ -657,7 +721,10 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
     'select .sku',
   ].join('\n'), namespace);
   assert.equal(specialValues.ok, true, JSON.stringify(specialValues.errors ?? []));
-  assert.deepEqual(specialValues.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+  assert.deepEqual(specialValues.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[3]',
+  ]);
 
   const containerValue = evaluateQuery([
     'from $.inventory.items[0]',
@@ -665,7 +732,7 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
     'select .sku',
   ].join('\n'), namespace);
   assert.equal(containerValue.ok, true, JSON.stringify(containerValue.errors ?? []));
-  assert.deepEqual(containerValue.results, []);
+  assert.deepEqual(containerValue.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 
   const multipleValues = evaluateQuery([
     'from $.inventory.items[0]',

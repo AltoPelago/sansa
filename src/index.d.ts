@@ -194,6 +194,7 @@ export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
 export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolveBinding> {
   readonly parse?: SansaQueryParseOptions;
   readonly resolve?: SansaResolveOptions<TBinding>;
+  readonly valueSemantics?: AeonValueSemanticsProfileInput;
   readonly policy?: 'validation' | { readonly mode?: 'validation'; readonly validation?: boolean };
   readonly extensions?: {
     readonly transform?: boolean;
@@ -253,11 +254,45 @@ export type AeonValueSemanticsCategory =
   | 'nan'
   | 'string'
   | 'boolean'
+  | 'toggle'
+  | 'encoding'
+  | 'separator'
+  | 'sansaAddress'
+  | 'referenceForm'
+  | 'temporal'
+  | 'lexicalStructuredScalar'
   | 'explicitNull'
   | 'explicitAbsence'
   | 'missing'
   | 'container'
   | 'bindingSet';
+
+export interface AeonValueSemanticsProfile {
+  readonly id?: string;
+  readonly locale?: string | readonly string[];
+  readonly stringOrder?: string;
+  readonly caseMapping?: string;
+  readonly compareStrings: (left: string, right: string) => number;
+  readonly lowerString: (value: string) => string;
+  readonly upperString: (value: string) => string;
+}
+
+export interface AeonValueSemanticsProfileOptions {
+  readonly id?: string;
+  readonly locale?: string | readonly string[];
+  readonly usage?: 'sort' | 'search';
+  readonly sensitivity?: 'base' | 'accent' | 'case' | 'variant';
+  readonly ignorePunctuation?: boolean;
+  readonly numeric?: boolean;
+  readonly caseFirst?: 'upper' | 'lower' | 'false';
+}
+
+export type AeonValueSemanticsProfileInput =
+  | 'default'
+  | string
+  | AeonValueSemanticsProfile
+  | AeonValueSemanticsProfileOptions
+  | { readonly profile: AeonValueSemanticsProfileInput };
 
 export interface AeonValueSemanticsValueDescriptor {
   readonly category: AeonValueSemanticsCategory;
@@ -271,10 +306,18 @@ export type AeonValueSemanticsOperationInput =
   | {
       readonly left: AeonValueSemanticsValueDescriptor;
       readonly right: AeonValueSemanticsValueDescriptor;
+      readonly valueSemantics?: AeonValueSemanticsProfileInput;
+      readonly profile?: AeonValueSemanticsProfileInput;
     }
   | {
       readonly value: AeonValueSemanticsValueDescriptor;
+      readonly valueSemantics?: AeonValueSemanticsProfileInput;
+      readonly profile?: AeonValueSemanticsProfileInput;
     };
+
+export interface AeonValueSemanticsOperationOptions {
+  readonly valueSemantics?: AeonValueSemanticsProfileInput;
+}
 
 export type AeonValueSemanticsResult =
   | {
@@ -297,7 +340,14 @@ export type AeonValueSemanticsResult =
 export function evaluateValueSemanticsOperation(
   operation: AeonValueSemanticsOperation,
   input: AeonValueSemanticsOperationInput,
+  options?: AeonValueSemanticsOperationOptions,
 ): AeonValueSemanticsResult;
+
+export const aeonValueSemanticsDefaultProfile: AeonValueSemanticsProfile;
+export function createIntlValueSemanticsProfile(options?: AeonValueSemanticsProfileOptions): AeonValueSemanticsProfile;
+export function createFrenchValueSemanticsProfile(
+  options?: Omit<AeonValueSemanticsProfileOptions, 'locale'> & { readonly locale?: 'fr' | 'fr-FR' },
+): AeonValueSemanticsProfile;
 
 export interface SansaAddress {
   readonly type: 'SansaAddress';

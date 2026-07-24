@@ -125,9 +125,18 @@ evaluateValueSemanticsOperation("compare", {
 evaluateValueSemanticsOperation("isValue", {
   value: { category: "string", value: "active" }
 })
+
+evaluateValueSemanticsOperation("compare", {
+  left: { category: "string", value: "éclair" },
+  right: { category: "string", value: "zebre" }
+}, {
+  valueSemantics: createFrenchValueSemanticsProfile()
+})
 ```
 
-The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+
+The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, and `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -506,14 +515,14 @@ Missing bindings, explicit null values, and special numeric values are distinct:
 
 ```text
 absent(.status) == true when .status resolves zero bindings
-isValue(.status) == true when .status resolves one ordinary scalar binding
+isValue(.status) == true when .status resolves one concrete value binding
 isNull(.status) == true when .status resolves one explicit null binding
 isNullReason(.status, "notSet") == true when the null reason matches
 isNaN(.metric) == true when the scalar is explicit NaN
 isInfinity(.limit) == true when the scalar is positive or negative infinity
 ```
 
-`isValue(...)` is a missing-aware ordinary scalar guard. It returns true when its operand evaluates to one string, Boolean, or finite number. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, non-scalar bindings, explicit null, NaN, and infinity. More than one binding remains a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
 
 `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
 
@@ -531,7 +540,7 @@ Current comparison policy:
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
 
-Until the shared value-semantics string-ordering profile is locked, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults for query comparison or `order by`.
+By default, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults unless the caller explicitly supplies a value-semantics profile such as `createFrenchValueSemanticsProfile()`.
 
 Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:
 

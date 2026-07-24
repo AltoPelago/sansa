@@ -5,6 +5,28 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
+## Unreleased
+
+### Added
+
+- Added explicit Shared AEON Value Semantics profile hooks for string comparison,
+  ordering, and case mapping.
+- Added `aeonValueSemanticsDefaultProfile`,
+  `createIntlValueSemanticsProfile(...)`, and
+  `createFrenchValueSemanticsProfile(...)`.
+- Added Query `valueSemantics` evaluation option so consumers can select default
+  or domain-specific string semantics.
+- Added minimum structural equality and reference-form equality coverage to the
+  standalone value-semantics helper.
+
+### Changed
+
+- Updated `isValue(...)` to use the concrete-value basis: infinities and
+  containers are values, while Missing, explicit null, explicit absence values,
+  NaN, and Binding Sets are not.
+- Kept default Query string ordering on deterministic Unicode scalar value
+  order unless an explicit value-semantics profile is supplied.
+
 ## 0.9.0 - 2026-07-24
 
 Initial public pre-1.0 release of `@altopelago/sansa`.

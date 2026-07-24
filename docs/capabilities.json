@@ -3,6 +3,9 @@
   "version": "0.9.0",
   "profiles": [
     "value-semantics-minimum-consumer",
+    "aeon.value.default.v1",
+    "aeon.value.string.codepoint.v1",
+    "aeon.value.string.locale.fr.v1",
     "addressing",
     "resolve",
     "query"
