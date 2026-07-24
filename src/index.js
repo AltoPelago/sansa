@@ -541,7 +541,7 @@ function renderQueryFromClause(from) {
 export function renderQueryExpression(expression) {
   switch (expression.type) {
     case 'literalExpression':
-      return expression.kind === 'string' ? quotePayload(expression.value) : String(expression.value);
+      return expression.canonical ?? (expression.kind === 'string' ? quotePayload(expression.value) : String(expression.value));
     case 'currentBindingExpression':
       return '.';
     case 'resolutionExpression':
@@ -620,7 +620,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
         ok: true,
         value: scalarQueryValue(
           expression.value,
-          expression.kind === 'toggle' ? { kind: 'toggle', category: 'toggle' } : undefined,
+          queryLiteralMetadata(expression),
         ).value,
       };
     case 'currentBindingExpression':
@@ -1367,6 +1367,30 @@ function isConcreteValueScalar(info) {
 
 function scalarBoolean(value) {
   return scalarQueryValue(value);
+}
+
+function queryLiteralMetadata(expression) {
+  switch (expression.kind) {
+    case 'toggle':
+      return { kind: 'toggle', category: 'toggle' };
+    case 'hex':
+      return { kind: 'hex', category: 'hex' };
+    case 'radix':
+      return { kind: 'radix', category: 'radix' };
+    case 'encoding':
+      return { kind: 'encoding', category: 'encoding' };
+    case 'separator':
+      return { kind: 'separator', category: 'separator' };
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+      return { kind: expression.kind, category: 'temporal', semanticType: expression.kind };
+    case 'null':
+      return { kind: 'null', category: 'explicitNull', nullReason: expression.nullReason };
+    default:
+      return undefined;
+  }
 }
 
 function scalarQueryValue(value, metadata) {
@@ -3020,6 +3044,12 @@ class QueryExpressionParser {
     const char = this.peek();
     if (!char) this.fail('Expected SANSA query expression', 'SANSA_QUERY_EXPECTED_EXPRESSION');
     if (char === '"') return this.parseString();
+    if (char === '#') return this.parseHex();
+    if (char === '%') return this.parseRadix();
+    if (char === '&') return this.parseEncoding();
+    if (char === '^') return this.parseSeparator();
+    if (char === '!') return this.parseNull();
+    if (isDigit(char) && this.startsTemporalLiteral()) return this.parseTemporal();
     if (char === '-' || isDigit(char)) return this.parseNumber();
     if (char === '$' || char === '?' || char === '.') return this.parseResolution();
     if (char === '(') return this.parseGroup();
@@ -3125,6 +3155,107 @@ class QueryExpressionParser {
     };
   }
 
+  parseHex() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!/^[0-9A-Fa-f](?:_?[0-9A-Fa-f])*$/.test(payload)) {
+      this.fail('Invalid hex literal', 'SANSA_QUERY_INVALID_HEX_LITERAL', start);
+    }
+    const value = payload.replaceAll('_', '').toLowerCase();
+    return {
+      type: 'literalExpression',
+      kind: 'hex',
+      value,
+      canonical: `#${value}`,
+    };
+  }
+
+  parseRadix() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!/^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload)) {
+      this.fail('Invalid radix literal', 'SANSA_QUERY_INVALID_RADIX_LITERAL', start);
+    }
+    const value = payload.replaceAll('_', '');
+    return {
+      type: 'literalExpression',
+      kind: 'radix',
+      value,
+      canonical: `%${value}`,
+    };
+  }
+
+  parseEncoding() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!/^[A-Za-z0-9_-]+={0,2}$/.test(payload)) {
+      this.fail('Invalid encoding literal', 'SANSA_QUERY_INVALID_ENCODING_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'encoding',
+      value: payload,
+      canonical: `&${payload}`,
+    };
+  }
+
+  parseSeparator() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readStructuredLiteralPayload();
+    if (payload.length === 0) {
+      this.fail('Invalid separator literal', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'separator',
+      value: payload,
+      canonical: `^${payload}`,
+    };
+  }
+
+  parseNull() {
+    const start = this.index;
+    this.index += 1;
+    const reason = this.peek() === '"'
+      ? this.parseQuotedPayload()
+      : this.readIdentifier();
+    if (reason.length === 0) {
+      this.fail('Invalid null literal', 'SANSA_QUERY_INVALID_NULL_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'null',
+      value: null,
+      nullReason: reason,
+      canonical: IDENTIFIER_RE.test(reason) ? `!${reason}` : `!${quotePayload(reason)}`,
+    };
+  }
+
+  parseTemporal() {
+    const start = this.index;
+    const source = this.readSimpleLiteralPayload();
+    const kind = source.includes('T')
+      ? source.includes('&')
+        ? 'zrut'
+        : 'datetime'
+      : source.includes(':')
+        ? 'time'
+        : 'date';
+    if (!isQueryTemporalLiteral(source, kind)) {
+      this.fail('Invalid temporal literal', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind,
+      value: source,
+      canonical: source,
+    };
+  }
+
   parseResolution() {
     const start = this.index;
     const source = this.readResolutionSource();
@@ -3189,6 +3320,55 @@ class QueryExpressionParser {
       fields,
       canonical: '',
     };
+  }
+
+  startsTemporalLiteral() {
+    const rest = this.input.slice(this.index);
+    return /^\d{4}-\d{2}-\d{2}(?:T|(?=$|[\s,)}\]]))/.test(rest)
+      || /^\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?(?=$|[\s,)}\]])/.test(rest);
+  }
+
+  readSimpleLiteralPayload() {
+    const start = this.index;
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (isLayout(char) || char === ',' || char === ')' || char === '}' || char === ']') break;
+      this.index += 1;
+    }
+    const payload = this.input.slice(start, this.index);
+    if (payload.length === 0) {
+      this.fail('Expected literal payload', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD', start);
+    }
+    return payload;
+  }
+
+  readStructuredLiteralPayload() {
+    const start = this.index;
+    let quote = null;
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (quote) {
+        if (char === '\\') {
+          this.index += 2;
+          continue;
+        }
+        if (char === quote) quote = null;
+        this.index += 1;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        this.index += 1;
+        continue;
+      }
+      if (isLayout(char) || char === ',' || char === ')' || char === '}' || char === ']') break;
+      this.index += 1;
+    }
+    const payload = this.input.slice(start, this.index);
+    if (quote) {
+      this.fail('Unterminated structured scalar literal', 'SANSA_QUERY_UNTERMINATED_EXPRESSION', start);
+    }
+    return payload;
   }
 
   readResolutionSource() {
@@ -3533,6 +3713,17 @@ function normalizeQueryExpression(source) {
 
 function isQueryCurrentPositionalShorthand(source) {
   return source.startsWith('.[') && source[2] !== '"';
+}
+
+function isQueryTemporalLiteral(source, kind) {
+  const date = String.raw`\d{4}-\d{2}-\d{2}`;
+  const time = String.raw`\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?`;
+  const zone = String.raw`[A-Za-z0-9_+\-/]+(?:/[A-Za-z0-9_+\-]+)*`;
+  if (kind === 'date') return new RegExp(`^${date}$`).test(source);
+  if (kind === 'time') return new RegExp(`^${time}$`).test(source);
+  if (kind === 'datetime') return new RegExp(`^${date}T${time}$`).test(source);
+  if (kind === 'zrut') return new RegExp(`^${date}T${time}&${zone}$`).test(source);
+  return false;
 }
 
 function splitTopLevelQueryList(source) {

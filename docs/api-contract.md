@@ -530,6 +530,13 @@ isInfinity(.limit) == true when the scalar is positive or negative infinity
 
 `NaN` is not comparable. Scalar comparison and ordering over `NaN` fail with `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`; use `isNaN(...)` for explicit tests. Infinity values remain numeric bounds and may participate in same-type numeric comparisons and ordering.
 
+Query source can express selected AEON scalar literal families directly:
+`#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
+temporal-looking literals such as `2026-07-25`. These literals preserve their
+family metadata for comparison; temporal literals still require an active
+temporal profile to compare or order, and explicit null literals are tested
+through null predicates rather than equality.
+
 Current comparison policy:
 
 | Operands | Equality | Ordering | Result |

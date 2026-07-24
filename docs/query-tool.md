@@ -121,8 +121,11 @@ cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
 equality, exact toggle-token equality, same-family lexical value equality for
-hex and radix values, exact reference-form equality, and infinity as a numeric
-bound. It rejects mixed-type comparisons, toggle-to-Boolean coercion,
+hex, radix, encoding, and separator values, exact reference-form equality, and
+infinity as a numeric bound. Query source can express the same AEON scalar
+literal families directly, for example `#ff00aa`, `%ff00aa`,
+`&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
+`2026-07-25`. It rejects mixed-type comparisons, toggle-to-Boolean coercion,
 hex-to-radix coercion, temporal comparison without an active temporal profile,
 Boolean ordering, explicit null comparison, and NaN comparison.
 

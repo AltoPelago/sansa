@@ -150,6 +150,43 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(toggle.value, 'yes');
   assert.equal(renderQueryExpression(toggle), 'yes');
 
+  const hex = parseExpressionOk('#Ff_00_Aa');
+  assert.equal(hex.type, 'literalExpression');
+  assert.equal(hex.kind, 'hex');
+  assert.equal(hex.value, 'ff00aa');
+  assert.equal(renderQueryExpression(hex), '#ff00aa');
+
+  const radix = parseExpressionOk('%ff00aa');
+  assert.equal(radix.type, 'literalExpression');
+  assert.equal(radix.kind, 'radix');
+  assert.equal(radix.value, 'ff00aa');
+  assert.equal(renderQueryExpression(radix), '%ff00aa');
+
+  const encoding = parseExpressionOk('&QmFzZTY0IQ==');
+  assert.equal(encoding.type, 'literalExpression');
+  assert.equal(encoding.kind, 'encoding');
+  assert.equal(encoding.value, 'QmFzZTY0IQ==');
+  assert.equal(renderQueryExpression(encoding), '&QmFzZTY0IQ==');
+
+  const separator = parseExpressionOk('^0.11.0');
+  assert.equal(separator.type, 'literalExpression');
+  assert.equal(separator.kind, 'separator');
+  assert.equal(separator.value, '0.11.0');
+  assert.equal(renderQueryExpression(separator), '^0.11.0');
+
+  const temporal = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(temporal.type, 'literalExpression');
+  assert.equal(temporal.kind, 'zrut');
+  assert.equal(temporal.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(renderQueryExpression(temporal), '2026-07-25T09:30:00Z&Australia/Melbourne');
+
+  const nullLiteral = parseExpressionOk('!notSet');
+  assert.equal(nullLiteral.type, 'literalExpression');
+  assert.equal(nullLiteral.kind, 'null');
+  assert.equal(nullLiteral.value, null);
+  assert.equal(nullLiteral.nullReason, 'notSet');
+  assert.equal(renderQueryExpression(nullLiteral), '!notSet');
+
   const parentResolution = parseExpressionOk('.^.sibling');
   assert.equal(parentResolution.type, 'resolutionExpression');
   assert.equal(parentResolution.scope, 'current');
@@ -192,6 +229,9 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('absent("roles")', 'SANSA_QUERY_INVALID_FUNCTION_CALL');
   parseExpressionBad('{ name = }', 'SANSA_QUERY_INVALID_PROJECTION');
   parseExpressionBad('( .name', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
+  parseExpressionBad('#_', 'SANSA_QUERY_INVALID_HEX_LITERAL');
+  parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
+  parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
 });
 
 test('query CTS cases match parser behavior', () => {

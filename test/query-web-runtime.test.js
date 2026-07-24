@@ -145,6 +145,38 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(hexEquality.ok, true, JSON.stringify(hexEquality.errors ?? []));
   assert.equal(hexEquality.count, 1);
 
+  const hexLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.color\nwhere . == #ff00aa\nselect .',
+  });
+  assert.equal(hexLiteralEquality.ok, true, JSON.stringify(hexLiteralEquality.errors ?? []));
+  assert.equal(hexLiteralEquality.text, '$.types.color = #ff00aa');
+
+  const radixLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.mask\nwhere . == %ff00aa\nselect .',
+  });
+  assert.equal(radixLiteralEquality.ok, true, JSON.stringify(radixLiteralEquality.errors ?? []));
+  assert.equal(radixLiteralEquality.count, 0);
+
+  const encodingLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.payload\nwhere . == &QmFzZTY0IQ==\nselect .',
+  });
+  assert.equal(encodingLiteralEquality.ok, true, JSON.stringify(encodingLiteralEquality.errors ?? []));
+  assert.equal(encodingLiteralEquality.text, '$.types.payload = &QmFzZTY0IQ==');
+
+  const separatorLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.version\nwhere . == ^0.11.0\nselect .',
+  });
+  assert.equal(separatorLiteralEquality.ok, true, JSON.stringify(separatorLiteralEquality.errors ?? []));
+  assert.equal(separatorLiteralEquality.text, '$.types.version = ^0.11.0');
+
   const hexRadixComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -160,6 +192,22 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(temporalComparison.ok, false);
   assert.equal(temporalComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const temporalLiteralComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.released\nwhere . == 2026-07-25\nselect .',
+  });
+  assert.equal(temporalLiteralComparison.ok, false);
+  assert.equal(temporalLiteralComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const nullLiteralComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items[0].status\nwhere . == !notSet\nselect .',
+  });
+  assert.equal(nullLiteralComparison.ok, false);
+  assert.equal(nullLiteralComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 
   const aeonishRendering = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',

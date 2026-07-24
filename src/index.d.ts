@@ -425,8 +425,22 @@ export type SansaQueryExpression =
 
 export interface SansaQueryLiteralExpression {
   readonly type: 'literalExpression';
-  readonly kind: 'string' | 'number' | 'boolean';
-  readonly value: string | number | boolean;
+  readonly kind:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'toggle'
+    | 'hex'
+    | 'radix'
+    | 'encoding'
+    | 'separator'
+    | 'date'
+    | 'time'
+    | 'datetime'
+    | 'zrut'
+    | 'null';
+  readonly value: string | number | boolean | null;
+  readonly nullReason?: string;
   readonly canonical: string;
 }
 
