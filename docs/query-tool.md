@@ -140,9 +140,11 @@ value, comparison uses the shared numeric value semantics; range, width,
 integer-only, unsigned, and precision checks remain profile or schema concerns.
 The same label-vs-family split applies to reserved aliases: `n` compares as a
 number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
+`radix2`, `radix6`, `radix8`, and `radix12` remain radix-family labels,
 `base64`, `embed`, and `inline` compare as encoded payloads, and `kadot`
 compares as a separator payload when the host exposes those representation
-families.
+families. `hex` remains distinct from radix, including `radix[16]`; no numeric
+or byte-level interpretation is implied without an explicit profile.
 Semantic filters match the base datatype label of generic claims, so
 `#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
 `nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,
@@ -153,7 +155,7 @@ Objects compare by member names and member values. Lists, tuples, and nodes
 compare by child order. Container kinds are not coerced, so a list and a tuple
 with identical child values still do not compare equal.
 Container datatype labels remain visible to semantic filters, including
-`#object`, object aliases such as `#obj` and `#envelope`, generic bases such as
+`#object`, object aliases such as `#obj`, `#o`, and `#envelope`, generic bases such as
 `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select
 bindings; they do not change structural comparison or introduce container
 ordering.
@@ -194,7 +196,9 @@ unless an embedding caller supplies an explicit value-semantics profile.
 For exploratory testing, the CLI and browser workbench can select the French
 profile to compare locale-aware behavior against the default codepoint order, or
 the Natural ASCII profile to compare numeric-region behavior such as
-`part-2 < part-10`.
+`part-2 < part-10`. These string profiles do not reinterpret `hex`, `radix`,
+`encoding`, `separator`, or `sansa` values as richer domains; those require an
+explicit future profile or consumer contract.
 
 `path(value)` activates a structured SANSA Address Literal value. In expression
 positions such as `select`, `where`, and `order by`, it resolves in the current

@@ -8,6 +8,7 @@ types:object = {
   color:hex = #ff00aa
   colorCopy:hex = #ff00aa
   mask:radix[16] = %ff00aa
+  octal:radix8 = %70
   payload:encoding = &QmFzZTY0IQ==
   version:sep[.] = ^0.11.0
   released:date = 2026-07-25
@@ -95,6 +96,9 @@ containers:object = {
     id:number = 1
   }
   packet:envelope = {
+    ok:boolean = true
+  }
+  compact:o = {
     ok:boolean = true
   }
   series:list<number> = [1, 2]

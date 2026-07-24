@@ -154,6 +154,71 @@ test('evaluates same-family temporal value semantics', () => {
   assert.equal(temporalOnlyProfile.relation, 'less');
 });
 
+test('evaluates lexical structured scalar value-family boundaries', () => {
+  const toggleSpelling = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'toggle', value: 'yes' },
+    right: { category: 'toggle', value: 'on' },
+  });
+  assert.equal(toggleSpelling.ok, true);
+  assert.equal(toggleSpelling.value, false);
+
+  const toggleBoolean = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'toggle', value: 'yes' },
+    right: { category: 'boolean', value: true },
+  });
+  assert.equal(toggleBoolean.ok, false);
+  assert.equal(toggleBoolean.reason, 'mixed_categories');
+
+  const hexIdentity = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'hex', value: 'ff00aa' },
+    right: { category: 'hex', value: 'ff00aa' },
+  });
+  assert.equal(hexIdentity.ok, true);
+  assert.equal(hexIdentity.value, true);
+
+  const hexRadix = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'hex', value: '10' },
+    right: { category: 'radix', semanticType: 'radix[16]', value: '10' },
+  });
+  assert.equal(hexRadix.ok, false);
+  assert.equal(hexRadix.reason, 'mixed_categories');
+
+  const radixSameMetadata = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'radix[16]', value: '10' },
+    right: { category: 'radix', semanticType: 'radix[16]', value: '10' },
+  });
+  assert.equal(radixSameMetadata.ok, true);
+  assert.equal(radixSameMetadata.value, true);
+
+  const radixDifferentMetadata = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'radix[16]', value: '10' },
+    right: { category: 'radix', semanticType: 'radix8', value: '10' },
+  });
+  assert.equal(radixDifferentMetadata.ok, true);
+  assert.equal(radixDifferentMetadata.value, false);
+
+  const encodingOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'encoding', value: 'A' },
+    right: { category: 'encoding', value: 'B' },
+  });
+  assert.equal(encodingOrder.ok, true);
+  assert.equal(encodingOrder.relation, 'less');
+
+  const separatorOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'separator', value: '0.11.0' },
+    right: { category: 'separator', value: '0.9.9' },
+  });
+  assert.equal(separatorOrder.ok, true);
+  assert.equal(separatorOrder.relation, 'less');
+
+  const sansaIdentity = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'sansaAddress', value: '$.inventory.items.*.sku' },
+    right: { category: 'sansaAddress', value: '$.inventory.items.*.sku' },
+  });
+  assert.equal(sansaIdentity.ok, true);
+  assert.equal(sansaIdentity.value, true);
+});
+
 test('evaluates minimum structural and reference-form equality', () => {
   const objects = evaluateValueSemanticsOperation('equal', {
     left: { category: 'container', containerKind: 'object', value: { a: 1, b: 'x' } },
@@ -175,4 +240,11 @@ test('evaluates minimum structural and reference-form equality', () => {
   });
   assert.equal(references.ok, true);
   assert.equal(references.value, true);
+
+  const referenceKinds = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'referenceForm', value: { kind: 'clone', target: '$.a' } },
+    right: { category: 'referenceForm', value: { kind: 'pointer', target: '$.a' } },
+  });
+  assert.equal(referenceKinds.ok, true);
+  assert.equal(referenceKinds.value, false);
 });

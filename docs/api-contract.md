@@ -134,11 +134,11 @@ evaluateValueSemanticsOperation("compare", {
 })
 ```
 
-The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
 The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, and `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
-Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable.
+Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless a future explicit profile defines a richer domain.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -501,7 +501,7 @@ The left operand is consumed in scalar context. Right-side bindings are evaluate
 
 Equality and inequality comparison may also consume one resolved container binding on each side. Containers compare structurally only when both sides expose the same normalized container kind (`object`, `list`, `tuple`, or `node`). Lists and tuples compare by child order; objects compare by member names and member values. Nodes compare by exposed tag, exposed attributes, and child order. Containers are not orderable by the minimum profile, and membership remains scalar-only.
 
-Container datatype labels remain visible to semantic filters. This includes `#object`, object aliases such as `#obj` and `#envelope`, generic bases such as `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select bindings only; they do not normalize aliases for equality, change structural comparison, or introduce container ordering.
+Container datatype labels remain visible to semantic filters. This includes `#object`, object aliases such as `#obj`, `#o`, and `#envelope`, generic bases such as `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select bindings only; they do not normalize aliases for equality, change structural comparison, or introduce container ordering.
 
 Container representation filters such as `%object`, `%list`, `%tuple`, and `%node` select by exposed shape instead of datatype claim. For example, `%object` can select both `obj` and `envelope` bindings when both expose object representation.
 
@@ -552,7 +552,7 @@ Current comparison policy:
 | --- | --- | --- | --- |
 | number and number | allowed | allowed | numeric comparison |
 | numeric subtype and numeric subtype | allowed | allowed | `int`, `uint`, and `float` datatype labels remain visible to semantic filters; comparison uses finite numeric values once exposed by the host |
-| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `base64`/`embed`/`inline` as encoding, and `kadot` as separator |
+| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `radix2`/`radix6`/`radix8`/`radix12` as radix, `base64`/`embed`/`inline` as encoding, `kadot` as separator, and `obj`/`o`/`envelope` as object containers |
 | string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
 | toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |

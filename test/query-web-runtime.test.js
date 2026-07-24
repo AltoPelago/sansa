@@ -161,6 +161,14 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(radixLiteralEquality.ok, true, JSON.stringify(radixLiteralEquality.errors ?? []));
   assert.equal(radixLiteralEquality.count, 0);
 
+  const radixReservedLabelFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#radix8\nselect .',
+  });
+  assert.equal(radixReservedLabelFilter.ok, true, JSON.stringify(radixReservedLabelFilter.errors ?? []));
+  assert.equal(radixReservedLabelFilter.text, '$.types.octal = %70');
+
   const encodingLiteralEquality = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -281,6 +289,22 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(encodingAliasFilter.ok, true, JSON.stringify(encodingAliasFilter.errors ?? []));
   assert.equal(encodingAliasFilter.text, '$.types.payloadBase64 = &QmFzZTY0IQ==');
 
+  const embedAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#embed\nselect .',
+  });
+  assert.equal(embedAliasFilter.ok, true, JSON.stringify(embedAliasFilter.errors ?? []));
+  assert.equal(embedAliasFilter.text, '$.types.payloadEmbed = &QmFzZTY0IQ==');
+
+  const inlineAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#inline\nselect .',
+  });
+  assert.equal(inlineAliasFilter.ok, true, JSON.stringify(inlineAliasFilter.errors ?? []));
+  assert.equal(inlineAliasFilter.text, '$.types.payloadInline = &QmFzZTY0IQ==');
+
   const separatorAliasFilter = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -344,6 +368,7 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(aeonishRendering.ok, true, JSON.stringify(aeonishRendering.errors ?? []));
   assert.match(aeonishRendering.text, /\$\.types\.mask = %ff00aa/);
+  assert.match(aeonishRendering.text, /\$\.types\.octal = %70/);
   assert.match(aeonishRendering.text, /\$\.types\.payload = &QmFzZTY0IQ==/);
   assert.match(aeonishRendering.text, /\$\.types\.version = \^0\.11\.0/);
   assert.match(aeonishRendering.text, /\$\.types\.released = 2026-07-25/);
@@ -626,6 +651,14 @@ testAeonRuntime('query web runtime evaluates objectFrom against AEON source', as
   assert.equal(envelopeFilter.ok, true, JSON.stringify(envelopeFilter.errors ?? []));
   assert.equal(envelopeFilter.text, '$.containers.packet');
 
+  const compactObjectAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#o\nselect .',
+  });
+  assert.equal(compactObjectAliasFilter.ok, true, JSON.stringify(compactObjectAliasFilter.errors ?? []));
+  assert.equal(compactObjectAliasFilter.text, '$.containers.compact');
+
   const listFilter = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -659,6 +692,7 @@ testAeonRuntime('query web runtime evaluates objectFrom against AEON source', as
   assert.equal(objectRepresentationFilter.text, [
     '$.containers.record',
     '$.containers.packet',
+    '$.containers.compact',
   ].join('\n'));
 
   const listRepresentationFilter = await evaluateQueryForWorkbench({

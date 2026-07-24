@@ -263,6 +263,15 @@ const containers = binding({
       ],
     }),
     binding({
+      name: 'compact',
+      address: '$.containers.compact',
+      semanticType: 'o',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'ok', address: '$.containers.compact.ok', semanticType: 'boolean', representationKind: 'boolean', value: true }),
+      ],
+    }),
+    binding({
       name: 'series',
       address: '$.containers.series',
       semanticType: 'list<number>',
@@ -331,6 +340,12 @@ const root = binding({
         binding({ name: 'window', address: '$.types.window', semanticType: 'time', representationKind: 'time', scalarKind: 'time', value: '09:30:00Z' }),
         binding({ name: 'stamp', address: '$.types.stamp', semanticType: 'datetime', representationKind: 'datetime', scalarKind: 'datetime', value: '2026-07-25T09:30:00Z' }),
         binding({ name: 'zone', address: '$.types.zone', semanticType: 'zrut', representationKind: 'zrut', scalarKind: 'zrut', value: '2026-07-25T09:30:00Z&Australia/Melbourne' }),
+        binding({ name: 'color', address: '$.types.color', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
+        binding({ name: 'colorCopy', address: '$.types.colorCopy', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
+        binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
+        binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
+        binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'version', address: '$.types.version', semanticType: 'sep[.]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
@@ -752,6 +767,27 @@ test('rejects incomplete custom value-semantics profiles in query evaluation', (
   assert.match(result.errors[0].message, /compareStrings, lowerString, and upperString together/);
 });
 
+test('does not apply custom string profiles as separator domain semantics', () => {
+  const reversedStringProfile = {
+    compareStrings: (left, right) => left < right ? 1 : left > right ? -1 : 0,
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
+  };
+  const result = evaluateQuery([
+    'from $.types.*%separator',
+    'order by . asc',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reversedStringProfile,
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.results.map((entry) => entry.binding.address), [
+    '$.types.version',
+    '$.types.semver',
+  ]);
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
@@ -1074,6 +1110,47 @@ test('follows the comparison policy matrix', () => {
   assert.equal(stringFamilyAliasComparison.ok, true, JSON.stringify(stringFamilyAliasComparison.errors ?? []));
   assert.deepEqual(stringFamilyAliasComparison.results.map((entry) => entry.binding.address), ['$.types.summary']);
 
+  const hexRepresentationFilter = evaluateQuery([
+    'from $.types.*%hex',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexRepresentationFilter.ok, true, JSON.stringify(hexRepresentationFilter.errors ?? []));
+  assert.deepEqual(hexRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.color',
+    '$.types.colorCopy',
+  ]);
+
+  const hexLiteralComparison = evaluateQuery([
+    'from $.types.color',
+    'where . == #ff00aa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexLiteralComparison.ok, true, JSON.stringify(hexLiteralComparison.errors ?? []));
+  assert.deepEqual(hexLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.color']);
+
+  const radixReservedLabelFilter = evaluateQuery([
+    'from $.types.*#radix8',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(radixReservedLabelFilter.ok, true, JSON.stringify(radixReservedLabelFilter.errors ?? []));
+  assert.deepEqual(radixReservedLabelFilter.results.map((entry) => entry.binding.address), ['$.types.octal']);
+
+  const radixLiteralDoesNotEraseFamilyMetadata = evaluateQuery([
+    'from $.types.mask',
+    'where . == %ff00aa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(radixLiteralDoesNotEraseFamilyMetadata.ok, true, JSON.stringify(radixLiteralDoesNotEraseFamilyMetadata.errors ?? []));
+  assert.deepEqual(radixLiteralDoesNotEraseFamilyMetadata.results.map((entry) => entry.binding.address), []);
+
+  const hexRadixComparison = evaluateQuery([
+    'from $.types.color',
+    'where . == $.types.mask',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexRadixComparison.ok, false);
+  assert.equal(hexRadixComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
   const encodingAliasComparison = evaluateQuery([
     'from $.types.*#base64',
     'where . == &QmFzZTY0IQ==',
@@ -1082,6 +1159,32 @@ test('follows the comparison policy matrix', () => {
   assert.equal(encodingAliasComparison.ok, true, JSON.stringify(encodingAliasComparison.errors ?? []));
   assert.deepEqual(encodingAliasComparison.results.map((entry) => entry.binding.address), ['$.types.payloadBase64']);
 
+  const encodingReservedLabelFilters = evaluateQuery([
+    'from $.types.*#embed',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingReservedLabelFilters.ok, true, JSON.stringify(encodingReservedLabelFilters.errors ?? []));
+  assert.deepEqual(encodingReservedLabelFilters.results.map((entry) => entry.binding.address), ['$.types.payloadEmbed']);
+
+  const inlineReservedLabelFilters = evaluateQuery([
+    'from $.types.*#inline',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(inlineReservedLabelFilters.ok, true, JSON.stringify(inlineReservedLabelFilters.errors ?? []));
+  assert.deepEqual(inlineReservedLabelFilters.results.map((entry) => entry.binding.address), ['$.types.payloadInline']);
+
+  const encodingRepresentationFilter = evaluateQuery([
+    'from $.types.*%encoding',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingRepresentationFilter.ok, true, JSON.stringify(encodingRepresentationFilter.errors ?? []));
+  assert.deepEqual(encodingRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.payload',
+    '$.types.payloadBase64',
+    '$.types.payloadEmbed',
+    '$.types.payloadInline',
+  ]);
+
   const separatorAliasComparison = evaluateQuery([
     'from $.types.*#kadot',
     'where . > ^3.0.0',
@@ -1089,6 +1192,16 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(separatorAliasComparison.ok, true, JSON.stringify(separatorAliasComparison.errors ?? []));
   assert.deepEqual(separatorAliasComparison.results.map((entry) => entry.binding.address), ['$.types.semver']);
+
+  const separatorRepresentationFilter = evaluateQuery([
+    'from $.types.*%separator',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(separatorRepresentationFilter.ok, true, JSON.stringify(separatorRepresentationFilter.errors ?? []));
+  assert.deepEqual(separatorRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.version',
+    '$.types.semver',
+  ]);
 
   const sansaSemanticFilter = evaluateQuery([
     'from $.types.*#sansa',
@@ -1303,6 +1416,13 @@ test('follows the comparison policy matrix', () => {
   assert.equal(envelopeSemanticFilter.ok, true, JSON.stringify(envelopeSemanticFilter.errors ?? []));
   assert.deepEqual(envelopeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.packet']);
 
+  const compactObjectAliasSemanticFilter = evaluateQuery([
+    'from $.containers.*#o',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(compactObjectAliasSemanticFilter.ok, true, JSON.stringify(compactObjectAliasSemanticFilter.errors ?? []));
+  assert.deepEqual(compactObjectAliasSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.compact']);
+
   const listSemanticFilter = evaluateQuery([
     'from $.containers.*#list',
     'select .',
@@ -1332,6 +1452,7 @@ test('follows the comparison policy matrix', () => {
   assert.deepEqual(objectRepresentationFilter.results.map((entry) => entry.binding.address), [
     '$.containers.record',
     '$.containers.packet',
+    '$.containers.compact',
   ]);
 
   const listRepresentationFilter = evaluateQuery([
