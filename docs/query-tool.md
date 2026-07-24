@@ -152,6 +152,11 @@ Container equality compares one resolved container binding on each side.
 Objects compare by member names and member values. Lists, tuples, and nodes
 compare by child order. Container kinds are not coerced, so a list and a tuple
 with identical child values still do not compare equal.
+Container datatype labels remain visible to semantic filters, including
+`#object`, object aliases such as `#obj` and `#envelope`, generic bases such as
+`#list` for `list<T>`, plus `#tuple` and `#node`. These filters select
+bindings; they do not change structural comparison or introduce container
+ordering.
 
 ```text
 where .consent == yes

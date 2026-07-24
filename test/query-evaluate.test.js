@@ -238,6 +238,63 @@ const table = binding({
   children: [tableHeader, tableDuplicateHeader, tableContent],
 });
 
+const containers = binding({
+  name: 'containers',
+  address: '$.containers',
+  semanticType: 'object',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'record',
+      address: '$.containers.record',
+      semanticType: 'obj',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'id', address: '$.containers.record.id', semanticType: 'number', representationKind: 'number', value: 1 }),
+      ],
+    }),
+    binding({
+      name: 'packet',
+      address: '$.containers.packet',
+      semanticType: 'envelope',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'ok', address: '$.containers.packet.ok', semanticType: 'boolean', representationKind: 'boolean', value: true }),
+      ],
+    }),
+    binding({
+      name: 'series',
+      address: '$.containers.series',
+      semanticType: 'list<number>',
+      representationKind: 'list',
+      children: [
+        binding({ index: 0, address: '$.containers.series[0]', semanticType: 'number', representationKind: 'number', value: 1 }),
+        binding({ index: 1, address: '$.containers.series[1]', semanticType: 'number', representationKind: 'number', value: 2 }),
+      ],
+    }),
+    binding({
+      name: 'pair',
+      address: '$.containers.pair',
+      semanticType: 'tuple',
+      representationKind: 'tuple',
+      children: [
+        binding({ index: 0, address: '$.containers.pair[0]', semanticType: 'string', representationKind: 'string', value: 'x' }),
+        binding({ index: 1, address: '$.containers.pair[1]', semanticType: 'number', representationKind: 'number', value: 1 }),
+      ],
+    }),
+    binding({
+      name: 'nodeValue',
+      address: '$.containers.nodeValue',
+      semanticType: 'node',
+      representationKind: 'node',
+      nodeTag: 'tag',
+      children: [
+        binding({ index: 0, address: '$.containers.nodeValue[0]', semanticType: 'string', representationKind: 'string', value: 'hello' }),
+      ],
+    }),
+  ],
+});
+
 const root = binding({
   address: '$',
   representationKind: 'object',
@@ -310,6 +367,7 @@ const root = binding({
       ],
     }),
     table,
+    containers,
   ],
 });
 
@@ -1187,6 +1245,48 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(containerOrdering.ok, false);
   assert.equal(containerOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const objectSemanticFilter = evaluateQuery([
+    'from $.containers#object',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectSemanticFilter.ok, true, JSON.stringify(objectSemanticFilter.errors ?? []));
+  assert.deepEqual(objectSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers']);
+
+  const objectAliasSemanticFilter = evaluateQuery([
+    'from $.containers.*#obj',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectAliasSemanticFilter.ok, true, JSON.stringify(objectAliasSemanticFilter.errors ?? []));
+  assert.deepEqual(objectAliasSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.record']);
+
+  const envelopeSemanticFilter = evaluateQuery([
+    'from $.containers.*#envelope',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(envelopeSemanticFilter.ok, true, JSON.stringify(envelopeSemanticFilter.errors ?? []));
+  assert.deepEqual(envelopeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.packet']);
+
+  const listSemanticFilter = evaluateQuery([
+    'from $.containers.*#list',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(listSemanticFilter.ok, true, JSON.stringify(listSemanticFilter.errors ?? []));
+  assert.deepEqual(listSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.series']);
+
+  const tupleSemanticFilter = evaluateQuery([
+    'from $.containers.*#tuple',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(tupleSemanticFilter.ok, true, JSON.stringify(tupleSemanticFilter.errors ?? []));
+  assert.deepEqual(tupleSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.pair']);
+
+  const nodeSemanticFilter = evaluateQuery([
+    'from $.containers.*#node',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(nodeSemanticFilter.ok, true, JSON.stringify(nodeSemanticFilter.errors ?? []));
+  assert.deepEqual(nodeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.nodeValue']);
 
   const nodeComparisonNamespace = {
     root: {

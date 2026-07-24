@@ -90,6 +90,18 @@ table:object = {
   ]
 }
 
+containers:object = {
+  record:obj = {
+    id:number = 1
+  }
+  packet:envelope = {
+    ok:boolean = true
+  }
+  series:list<number> = [1, 2]
+  pair:tuple = ("x", 1)
+  nodeValue:node = <tag("hello")>
+}
+
 labels:list<object> = [
   {
     value:string = "zebre"

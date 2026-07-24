@@ -501,6 +501,8 @@ The left operand is consumed in scalar context. Right-side bindings are evaluate
 
 Equality and inequality comparison may also consume one resolved container binding on each side. Containers compare structurally only when both sides expose the same normalized container kind (`object`, `list`, `tuple`, or `node`). Lists and tuples compare by child order; objects compare by member names and member values. Nodes compare by exposed tag, exposed attributes, and child order. Containers are not orderable by the minimum profile, and membership remains scalar-only.
 
+Container datatype labels remain visible to semantic filters. This includes `#object`, object aliases such as `#obj` and `#envelope`, generic bases such as `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select bindings only; they do not normalize aliases for equality, change structural comparison, or introduce container ordering.
+
 Existence predicates inspect binding presence rather than scalar value:
 
 ```text

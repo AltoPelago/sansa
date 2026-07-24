@@ -570,6 +570,54 @@ testAeonRuntime('query web runtime evaluates objectFrom against AEON source', as
   assert.equal(structuralEquality.ok, true, JSON.stringify(structuralEquality.errors ?? []));
   assert.equal(structuralEquality.text, '$.table.header');
 
+  const objectFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers#object\nselect .',
+  });
+  assert.equal(objectFilter.ok, true, JSON.stringify(objectFilter.errors ?? []));
+  assert.equal(objectFilter.text, '$.containers');
+
+  const objectAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#obj\nselect .',
+  });
+  assert.equal(objectAliasFilter.ok, true, JSON.stringify(objectAliasFilter.errors ?? []));
+  assert.equal(objectAliasFilter.text, '$.containers.record');
+
+  const envelopeFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#envelope\nselect .',
+  });
+  assert.equal(envelopeFilter.ok, true, JSON.stringify(envelopeFilter.errors ?? []));
+  assert.equal(envelopeFilter.text, '$.containers.packet');
+
+  const listFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#list\nselect .',
+  });
+  assert.equal(listFilter.ok, true, JSON.stringify(listFilter.errors ?? []));
+  assert.equal(listFilter.text, '$.containers.series');
+
+  const tupleFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#tuple\nselect .',
+  });
+  assert.equal(tupleFilter.ok, true, JSON.stringify(tupleFilter.errors ?? []));
+  assert.equal(tupleFilter.text, '$.containers.pair');
+
+  const nodeFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.containers.*#node\nselect .',
+  });
+  assert.equal(nodeFilter.ok, true, JSON.stringify(nodeFilter.errors ?? []));
+  assert.equal(nodeFilter.text, '$.containers.nodeValue');
+
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
