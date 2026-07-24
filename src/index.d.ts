@@ -348,6 +348,7 @@ export function createIntlValueSemanticsProfile(options?: AeonValueSemanticsProf
 export function createFrenchValueSemanticsProfile(
   options?: Omit<AeonValueSemanticsProfileOptions, 'locale'> & { readonly locale?: 'fr' | 'fr-FR' },
 ): AeonValueSemanticsProfile;
+export function createNaturalAsciiValueSemanticsProfile(options?: Omit<AeonValueSemanticsProfileOptions, 'locale'>): AeonValueSemanticsProfile;
 
 export interface SansaAddress {
   readonly type: 'SansaAddress';

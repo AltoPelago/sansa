@@ -67,3 +67,15 @@ labels:list<object> = [
     value:string = "adapter"
   }
 ]
+
+parts:list<object> = [
+  {
+    value:string = "part-10"
+  }
+  {
+    value:string = "part-2"
+  }
+  {
+    value:string = "part-1"
+  }
+]

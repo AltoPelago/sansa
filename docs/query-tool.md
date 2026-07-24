@@ -44,9 +44,10 @@ experimental `SANSA.Transform` helpers disabled.
 
 Use `--value-semantics <profile>` to select an explicit query value-semantics
 profile. The current implementation recognizes `default`,
-`aeon.value.default.v1`, `aeon.value.string.codepoint.v1`, `fr`, `fr-FR`, and
-`aeon.value.string.locale.fr.v1`; other compact locale tags are passed to the
-host Intl collation surface as implementation-slice behavior.
+`aeon.value.default.v1`, `aeon.value.string.codepoint.v1`,
+`aeon.value.string.natural.ascii.v1`, `fr`, `fr-FR`, and
+`aeon.value.string.locale.fr.v1`; other compact locale tags are passed to
+the host Intl collation surface as implementation-slice behavior.
 
 Host callers can pass optional `evaluateQuery(..., { budget: ... })` limits for
 pipeline sizes such as `maxFromBindings`, `maxWhereCandidates`,
@@ -143,7 +144,9 @@ String comparison and `order by` use deterministic Unicode scalar-value
 ordering by default. They do not use host locale or process locale collation
 unless an embedding caller supplies an explicit value-semantics profile.
 For exploratory testing, the CLI and browser workbench can select the French
-profile to compare locale-aware behavior against the default codepoint order.
+profile to compare locale-aware behavior against the default codepoint order, or
+the Natural ASCII profile to compare numeric-region behavior such as
+`part-2 < part-10`.
 
 `path(value)` activates a structured SANSA Address Literal value. In expression
 positions such as `select`, `where`, and `order by`, it resolves in the current

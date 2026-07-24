@@ -136,7 +136,7 @@ evaluateValueSemanticsOperation("compare", {
 
 The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
-The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, and `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
+The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, and `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
 Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable.
 
@@ -542,7 +542,7 @@ Current comparison policy:
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
 
-By default, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults unless the caller explicitly supplies a value-semantics profile such as `createFrenchValueSemanticsProfile()`.
+By default, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults unless the caller explicitly supplies a value-semantics profile such as `createNaturalAsciiValueSemanticsProfile()` or `createFrenchValueSemanticsProfile()`.
 
 Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:
 

@@ -197,6 +197,38 @@ testAeonRuntime('query web runtime applies value semantics profiles to ordered f
   assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
 });
 
+testAeonRuntime('query web runtime applies natural ASCII value semantics profiles', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const query = 'from $.parts.*\norder by .value asc\nselect .value';
+
+  const codepointResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query,
+    valueSemantics: 'aeon.value.string.codepoint.v1',
+  });
+  assert.equal(codepointResult.ok, true, JSON.stringify(codepointResult.errors ?? []));
+  assert.equal(codepointResult.text, [
+    '$.parts[2].value = "part-1"',
+    '$.parts[0].value = "part-10"',
+    '$.parts[1].value = "part-2"',
+  ].join('\n'));
+
+  const naturalResult = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query,
+    valueSemantics: 'aeon.value.string.natural.ascii.v1',
+  });
+  assert.equal(naturalResult.ok, true, JSON.stringify(naturalResult.errors ?? []));
+  assert.equal(naturalResult.text, [
+    '$.parts[2].value = "part-1"',
+    '$.parts[1].value = "part-2"',
+    '$.parts[0].value = "part-10"',
+  ].join('\n'));
+  assert.equal(naturalResult.valueSemantics, 'aeon.value.string.natural.ascii.v1');
+});
+
 testAeonRuntime('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const numbers = await evaluateQueryForWorkbench({

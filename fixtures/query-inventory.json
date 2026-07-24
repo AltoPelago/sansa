@@ -665,6 +665,55 @@
             ]
           }
         ]
+      },
+      {
+        "name": "parts",
+        "address": "$.parts",
+        "representationKind": "list",
+        "children": [
+          {
+            "index": 0,
+            "address": "$.parts[0]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[0].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-10"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "address": "$.parts[1]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[1].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-2"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "address": "$.parts[2]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[2].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-1"
+              }
+            ]
+          }
+        ]
       }
     ]
   }

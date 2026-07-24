@@ -12,6 +12,7 @@ const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
 const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
+const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -143,6 +144,18 @@ export function createFrenchValueSemanticsProfile(options = {}) {
     id: 'aeon.value.string.locale.fr.v1',
     locale: 'fr',
     ...options,
+  });
+}
+
+export function createNaturalAsciiValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    id: NATURAL_ASCII_STRING_PROFILE_ID,
+    stringOrder: NATURAL_ASCII_STRING_PROFILE_ID,
+    caseMapping: 'unicode-default',
+    ...options,
+    compareStrings: compareStringsByNaturalAsciiOrder,
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
   });
 }
 
@@ -1641,6 +1654,9 @@ function getValueSemanticsProfile(valueSemantics) {
   if (valueSemantics === FRENCH_STRING_PROFILE_ID) {
     return createFrenchValueSemanticsProfile();
   }
+  if (valueSemantics === NATURAL_ASCII_STRING_PROFILE_ID || valueSemantics === 'natural-ascii') {
+    return createNaturalAsciiValueSemanticsProfile();
+  }
   if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
     return createFrenchValueSemanticsProfile({ locale: valueSemantics });
   }
@@ -1687,6 +1703,59 @@ function compareStringsByUnicodeScalarValue(left, right) {
   if (leftScalars.length < rightScalars.length) return -1;
   if (leftScalars.length > rightScalars.length) return 1;
   return 0;
+}
+
+function compareStringsByNaturalAsciiOrder(left, right) {
+  let leftIndex = 0;
+  let rightIndex = 0;
+
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftCode = left.codePointAt(leftIndex);
+    const rightCode = right.codePointAt(rightIndex);
+    if (isAsciiDigitCodePoint(leftCode) && isAsciiDigitCodePoint(rightCode)) {
+      const leftRun = readAsciiDigitRun(left, leftIndex);
+      const rightRun = readAsciiDigitRun(right, rightIndex);
+      const comparedNumber = compareAsciiDigitRuns(leftRun.text, rightRun.text);
+      if (comparedNumber !== 0) return comparedNumber;
+      leftIndex = leftRun.end;
+      rightIndex = rightRun.end;
+      continue;
+    }
+    if (leftCode < rightCode) return -1;
+    if (leftCode > rightCode) return 1;
+    leftIndex += codePointWidth(leftCode);
+    rightIndex += codePointWidth(rightCode);
+  }
+
+  if (leftIndex < left.length) return 1;
+  if (rightIndex < right.length) return -1;
+  return 0;
+}
+
+function readAsciiDigitRun(value, start) {
+  let end = start;
+  while (end < value.length && isAsciiDigitCodePoint(value.codePointAt(end))) end += 1;
+  return { text: value.slice(start, end), end };
+}
+
+function compareAsciiDigitRuns(left, right) {
+  const leftTrimmed = left.replace(/^0+/, '') || '0';
+  const rightTrimmed = right.replace(/^0+/, '') || '0';
+  if (leftTrimmed.length < rightTrimmed.length) return -1;
+  if (leftTrimmed.length > rightTrimmed.length) return 1;
+  const lexical = compareStringsByUnicodeScalarValue(leftTrimmed, rightTrimmed);
+  if (lexical !== 0) return lexical;
+  if (left.length < right.length) return -1;
+  if (left.length > right.length) return 1;
+  return 0;
+}
+
+function isAsciiDigitCodePoint(codePoint) {
+  return codePoint >= 0x30 && codePoint <= 0x39;
+}
+
+function codePointWidth(codePoint) {
+  return codePoint > 0xffff ? 2 : 1;
 }
 
 export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {

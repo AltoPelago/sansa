@@ -14,6 +14,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added `aeonValueSemanticsDefaultProfile`,
   `createIntlValueSemanticsProfile(...)`, and
   `createFrenchValueSemanticsProfile(...)`.
+- Added `createNaturalAsciiValueSemanticsProfile(...)` and the
+  `aeon.value.string.natural.ascii.v1` profile for deterministic numeric-region
+  string ordering.
 - Added Query `valueSemantics` evaluation option so consumers can select default
   or domain-specific string semantics.
 - Added minimum structural equality and reference-form equality coverage to the

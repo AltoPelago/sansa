@@ -371,6 +371,21 @@ export const queryExampleGroups = [
           includes: '$.labels[1] = "ÉCLAIR"',
         },
       },
+      {
+        name: 'profileNaturalAsciiOrder',
+        label: 'Natural ASCII order',
+        valueSemantics: 'aeon.value.string.natural.ascii.v1',
+        query: lines(
+          'from $.parts.*',
+          'order by .value asc',
+          'select .value',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.parts[1].value = "part-2"',
+        },
+      },
     ],
   },
   {

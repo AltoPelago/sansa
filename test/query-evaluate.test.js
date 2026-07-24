@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createFrenchValueSemanticsProfile, evaluateQuery } from '../src/index.js';
+import { createFrenchValueSemanticsProfile, createNaturalAsciiValueSemanticsProfile, evaluateQuery } from '../src/index.js';
 
 function binding({
   address,
@@ -355,6 +355,49 @@ const frenchOrderingNamespace = {
   children: (entry) => entry.children,
 };
 
+const naturalOrderingRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'parts',
+      address: '$.parts',
+      representationKind: 'list',
+      children: [
+        binding({
+          index: 0,
+          address: '$.parts[0]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[0].value', semanticType: 'string', representationKind: 'string', value: 'part-10' }),
+          ],
+        }),
+        binding({
+          index: 1,
+          address: '$.parts[1]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[1].value', semanticType: 'string', representationKind: 'string', value: 'part-2' }),
+          ],
+        }),
+        binding({
+          index: 2,
+          address: '$.parts[2]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[2].value', semanticType: 'string', representationKind: 'string', value: 'part-1' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+
+const naturalOrderingNamespace = {
+  root: naturalOrderingRoot,
+  children: (entry) => entry.children,
+};
+
 test('evaluates query projection over filtered bindings', () => {
   const result = evaluateQuery([
     'from $.inventory.items.*',
@@ -547,6 +590,41 @@ test('evaluates string ordering with an explicit French value-semantics profile'
     '$.labels[0]',
   ]);
   assert.deepEqual(frenchOrdered.results.map((entry) => entry.value.value), ['ÉCLAIR', 'ZEBRE']);
+});
+
+test('evaluates natural ASCII numeric-region string ordering with an explicit profile', () => {
+  const codepointOrdered = evaluateQuery([
+    'from $.parts.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), naturalOrderingNamespace);
+
+  assert.equal(codepointOrdered.ok, true, JSON.stringify(codepointOrdered.errors ?? []));
+  assert.deepEqual(codepointOrdered.results.map((entry) => entry.binding.address), [
+    '$.parts[2]',
+    '$.parts[0]',
+    '$.parts[1]',
+  ]);
+
+  const naturalOrdered = evaluateQuery([
+    'from $.parts.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), naturalOrderingNamespace, {
+    valueSemantics: createNaturalAsciiValueSemanticsProfile(),
+  });
+
+  assert.equal(naturalOrdered.ok, true, JSON.stringify(naturalOrdered.errors ?? []));
+  assert.deepEqual(naturalOrdered.results.map((entry) => entry.binding.address), [
+    '$.parts[2]',
+    '$.parts[1]',
+    '$.parts[0]',
+  ]);
+  assert.deepEqual(naturalOrdered.results.map((entry) => entry.value.bindings[0].value), [
+    'part-1',
+    'part-2',
+    'part-10',
+  ]);
 });
 
 test('rejects incomplete custom value-semantics profiles in query evaluation', () => {

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createFrenchValueSemanticsProfile, evaluateValueSemanticsOperation } from '../src/index.js';
+import {
+  createFrenchValueSemanticsProfile,
+  createNaturalAsciiValueSemanticsProfile,
+  evaluateValueSemanticsOperation,
+} from '../src/index.js';
 
 test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
   const equality = evaluateValueSemanticsOperation('equal', {
@@ -71,6 +75,24 @@ test('evaluates explicit value-semantics profiles', () => {
   });
   assert.equal(frenchProfileIdOrder.ok, true);
   assert.equal(frenchProfileIdOrder.relation, 'less');
+
+  const naturalOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'string', value: 'part-2' },
+    right: { category: 'string', value: 'part-10' },
+  }, {
+    valueSemantics: createNaturalAsciiValueSemanticsProfile(),
+  });
+  assert.equal(naturalOrder.ok, true);
+  assert.equal(naturalOrder.relation, 'less');
+
+  const naturalProfileIdOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'string', value: 'part-2' },
+    right: { category: 'string', value: 'part-10' },
+  }, {
+    valueSemantics: 'aeon.value.string.natural.ascii.v1',
+  });
+  assert.equal(naturalProfileIdOrder.ok, true);
+  assert.equal(naturalProfileIdOrder.relation, 'less');
 
   const completeCustomOrder = evaluateValueSemanticsOperation('compare', {
     left: { category: 'string', value: 'a' },
