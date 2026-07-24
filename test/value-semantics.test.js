@@ -107,6 +107,19 @@ test('evaluates explicit value-semantics profiles', () => {
   assert.equal(completeCustomOrder.ok, true);
   assert.equal(completeCustomOrder.relation, 'greater');
 
+  const completeCustomEquality = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'string', value: 'a' },
+    right: { category: 'string', value: 'b' },
+  }, {
+    valueSemantics: {
+      compareStrings: () => 0,
+      lowerString: (value) => value.toLowerCase(),
+      upperString: (value) => value.toUpperCase(),
+    },
+  });
+  assert.equal(completeCustomEquality.ok, true);
+  assert.equal(completeCustomEquality.value, true);
+
   const partialCustomOrder = evaluateValueSemanticsOperation('compare', {
     left: { category: 'string', value: 'a' },
     right: { category: 'string', value: 'b' },

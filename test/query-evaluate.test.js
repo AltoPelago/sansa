@@ -767,6 +767,72 @@ test('rejects incomplete custom value-semantics profiles in query evaluation', (
   assert.match(result.errors[0].message, /compareStrings, lowerString, and upperString together/);
 });
 
+test('applies explicit custom string profiles to query equality and ordering', () => {
+  const customProfile = {
+    compareStrings: (left, right) => {
+      if (Array.from(left)[0] === Array.from(right)[0]) return 0;
+      return left < right ? 1 : left > right ? -1 : 0;
+    },
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
+  };
+
+  const equality = evaluateQuery([
+    'from $.labels.*',
+    'where .value == "aardvark"',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace, {
+    valueSemantics: customProfile,
+  });
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.labels[2]']);
+
+  const ordered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace, {
+    valueSemantics: customProfile,
+  });
+  assert.equal(ordered.ok, true, JSON.stringify(ordered.errors ?? []));
+  assert.deepEqual(ordered.results.map((entry) => entry.binding.address), [
+    '$.labels[1]',
+    '$.labels[0]',
+    '$.labels[2]',
+  ]);
+});
+
+test('applies explicit custom temporal profiles to same-family temporal comparisons', () => {
+  const reverseTemporalProfile = {
+    compareTemporal: (left, right) => (
+      left.payload < right.payload ? 1 : left.payload > right.payload ? -1 : 0
+    ),
+  };
+
+  const ordered = evaluateQuery([
+    'from $.types.*#date',
+    'order by . asc',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reverseTemporalProfile,
+  });
+  assert.equal(ordered.ok, true, JSON.stringify(ordered.errors ?? []));
+  assert.deepEqual(ordered.results.map((entry) => entry.binding.address), [
+    '$.types.released',
+    '$.types.archiveDate',
+  ]);
+
+  const compared = evaluateQuery([
+    'from $.types.released',
+    'where . < 2025-01-01',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reverseTemporalProfile,
+  });
+  assert.equal(compared.ok, true, JSON.stringify(compared.errors ?? []));
+  assert.deepEqual(compared.results.map((entry) => entry.binding.address), ['$.types.released']);
+});
+
 test('does not apply custom string profiles as separator domain semantics', () => {
   const reversedStringProfile = {
     compareStrings: (left, right) => left < right ? 1 : left > right ? -1 : 0,
