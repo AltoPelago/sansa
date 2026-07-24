@@ -330,7 +330,6 @@ test('query tool evaluates table and label examples against JSON fixtures', () =
     '--query',
     [
       'from $.labels.*',
-      'where .value >= "z"',
       'order by .value asc',
       'select .value',
     ].join('\n'),
@@ -339,8 +338,9 @@ test('query tool evaluates table and label examples against JSON fixtures', () =
   assert.equal(unicodeOrder.status, 0, unicodeOrder.stderr);
   assert.equal(unicodeOrder.stderr, '');
   assert.equal(unicodeOrder.stdout.trim(), [
-    '$.labels[0].value = "z"',
-    '$.labels[1].value = "ä"',
+    '$.labels[2].value = "adapter"',
+    '$.labels[0].value = "zebre"',
+    '$.labels[1].value = "éclair"',
   ].join('\n'));
 
   const duplicateHeader = runTool([

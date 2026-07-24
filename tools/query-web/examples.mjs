@@ -306,7 +306,7 @@ export const queryExampleGroups = [
     ],
   },
   {
-    label: 'Pipeline',
+    label: 'Ordering',
     examples: [
       {
         name: 'inactiveOrder',
@@ -324,20 +324,58 @@ export const queryExampleGroups = [
         },
       },
       {
-        name: 'unicodeScalarOrder',
-        label: 'Unicode scalar order',
+        name: 'defaultCodepointOrder',
+        label: 'Default codepoint order',
         query: lines(
           'from $.labels.*',
-          'where .value >= "z"',
           'order by .value asc',
           'select .value',
         ),
         expected: {
           ok: true,
-          count: 2,
-          includes: '$.labels[1].value = "ä"',
+          count: 3,
+          includes: '$.labels[1].value = "éclair"',
         },
       },
+    ],
+  },
+  {
+    label: 'Value Semantics',
+    examples: [
+      {
+        name: 'profileStringOrder',
+        label: 'French string order',
+        valueSemantics: 'aeon.value.string.locale.fr.v1',
+        query: lines(
+          'from $.labels.*',
+          'order by .value asc',
+          'select .value',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.labels[1].value = "éclair"',
+        },
+      },
+      {
+        name: 'profileCaseMapping',
+        label: 'French case mapping',
+        valueSemantics: 'aeon.value.string.locale.fr.v1',
+        query: lines(
+          'from $.labels.*',
+          'select upper(.value)',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.labels[1] = "ÉCLAIR"',
+        },
+      },
+    ],
+  },
+  {
+    label: 'Pipeline',
+    examples: [
       {
         name: 'parseProjection',
         label: 'Projection parse check',

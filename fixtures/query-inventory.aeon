@@ -58,12 +58,12 @@ table:object = {
 
 labels:list<object> = [
   {
-    value:string = "z"
+    value:string = "zebre"
   }
   {
-    value:string = "ä"
+    value:string = "éclair"
   }
   {
-    value:string = "a"
+    value:string = "adapter"
   }
 ]

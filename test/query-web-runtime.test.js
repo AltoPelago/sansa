@@ -377,7 +377,6 @@ test('query web runtime keeps JSON fixture parity for table and label examples',
     source,
     query: [
       'from $.labels.*',
-      'where .value >= "z"',
       'order by .value asc',
       'select .value',
     ].join('\n'),
@@ -385,8 +384,9 @@ test('query web runtime keeps JSON fixture parity for table and label examples',
 
   assert.equal(unicodeOrder.ok, true, JSON.stringify(unicodeOrder.errors ?? []));
   assert.equal(unicodeOrder.text, [
-    '$.labels[0].value = "z"',
-    '$.labels[1].value = "ä"',
+    '$.labels[2].value = "adapter"',
+    '$.labels[0].value = "zebre"',
+    '$.labels[1].value = "éclair"',
   ].join('\n'));
 
   const duplicateHeader = await evaluateQueryForWorkbench({
@@ -459,6 +459,8 @@ test('query web example catalog is grouped and uniquely keyed', () => {
     'Attributes',
     'Predicates',
     'Functions',
+    'Ordering',
+    'Value Semantics',
     'Pipeline',
     'Recipes',
     'Diagnostics',
@@ -480,6 +482,7 @@ testAeonRuntime('query web runtime exercises workbench examples', async () => {
       source,
       paramsSource: defaultParamsSource,
       query: entry.query,
+      valueSemantics: entry.valueSemantics ?? '',
     });
 
     assert.equal(result.ok, entry.expected.ok, `${entry.name}: ${JSON.stringify(result.errors ?? [])}`);

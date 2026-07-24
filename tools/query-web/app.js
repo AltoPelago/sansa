@@ -98,7 +98,9 @@ queryInput.addEventListener('keydown', (event) => {
 });
 
 function setExample(name) {
-  queryInput.value = queryExamples[name]?.query ?? queryExamples[firstQueryExampleName()]?.query ?? '';
+  const example = queryExamples[name] ?? queryExamples[firstQueryExampleName()];
+  queryInput.value = example?.query ?? '';
+  valueSemanticsInput.value = example?.valueSemantics ?? '';
   queryStatus.textContent = 'example loaded';
 }
 

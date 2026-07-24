@@ -632,7 +632,7 @@
                 "address": "$.labels[0].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "z"
+                  "value": "zebre"
               }
             ]
           },
@@ -646,7 +646,7 @@
                 "address": "$.labels[1].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "ä"
+                  "value": "éclair"
               }
             ]
           },
@@ -660,7 +660,7 @@
                 "address": "$.labels[2].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "a"
+                  "value": "adapter"
               }
             ]
           }
