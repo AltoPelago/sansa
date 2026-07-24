@@ -474,7 +474,7 @@ Currently evaluated:
 - `select` expressions
 - scalar literals
 - resolution expressions
-- comparisons between same-type scalar values
+- comparisons between same-type scalar values and same-kind structural containers
 - membership over Binding Sets with `in`
 - Boolean `not`, `and`, `or`
 - existence predicates over resolution expressions: `exists`, `absent`
@@ -498,6 +498,8 @@ where "admin" in .roles.*
 ```
 
 The left operand is consumed in scalar context. Right-side bindings are evaluated in Binding Set order. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Membership returns true on the first successful match and does not evaluate later bindings. Empty Binding Sets and fully evaluated non-matching sets evaluate to false. Membership does not skip incompatible bindings before a match: explicit null, NaN, missing scalar, cardinality, and mixed-type comparison failures surface as diagnostics. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
+
+Equality and inequality comparison may also consume one resolved container binding on each side. Containers compare structurally only when both sides expose the same normalized container kind (`object`, `list`, `tuple`, or `node`). Lists and tuples compare by child order; objects compare by member names and member values. Nodes compare by exposed tag, exposed attributes, and child order. Containers are not orderable by the minimum profile, and membership remains scalar-only.
 
 Existence predicates inspect binding presence rather than scalar value:
 

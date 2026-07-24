@@ -443,6 +443,15 @@ testAeonRuntime('query web runtime evaluates parent traversal against AEON sourc
 
 testAeonRuntime('query web runtime evaluates objectFrom against AEON source', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const structuralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.table\nwhere .header == .header\nselect .header',
+  });
+
+  assert.equal(structuralEquality.ok, true, JSON.stringify(structuralEquality.errors ?? []));
+  assert.equal(structuralEquality.text, '$.table.header');
+
   const result = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

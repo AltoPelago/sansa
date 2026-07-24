@@ -121,16 +121,22 @@ cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
 equality, exact toggle-token equality, same-family lexical value equality for
-hex, radix, encoding, and separator values, exact reference-form equality, and
-infinity as a numeric bound. Query source can express the same AEON scalar
-literal families directly, for example `#ff00aa`, `%ff00aa`,
+hex, radix, encoding, and separator values, exact reference-form equality,
+same-kind structural container equality, and infinity as a numeric bound.
+Query source can express the same AEON scalar literal families directly, for
+example `#ff00aa`, `%ff00aa`,
 `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
 `2026-07-25`. Same-family temporal values compare through the active temporal
 value-semantics profile; the default profile uses canonical payload order for
 `date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
 comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
-temporal comparison, Boolean ordering, explicit null comparison, and NaN
-comparison.
+temporal comparison, Boolean ordering, container ordering, explicit null
+comparison, and NaN comparison.
+
+Container equality compares one resolved container binding on each side.
+Objects compare by member names and member values. Lists, tuples, and nodes
+compare by child order. Container kinds are not coerced, so a list and a tuple
+with identical child values still do not compare equal.
 
 ```text
 where .consent == yes

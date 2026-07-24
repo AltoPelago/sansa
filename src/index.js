@@ -707,9 +707,9 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
     return evaluateMembershipExpression(left.value, right.value, namespace, options);
   }
 
-  const leftScalar = expectScalarQueryValue(left.value, namespace);
+  const leftScalar = expectComparableQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
-  const rightScalar = expectScalarQueryValue(right.value, namespace);
+  const rightScalar = expectComparableQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
   return compareQueryScalars(expression.operator, leftScalar, rightScalar, options);
 }
@@ -2320,6 +2320,7 @@ function queryScalarToInfo(scalar) {
       ...(metadata.kind === undefined ? {} : { kind: metadata.kind }),
       ...(metadata.category === undefined ? {} : { category: metadata.category }),
       ...(metadata.semanticType === undefined ? {} : { semanticType: metadata.semanticType }),
+      ...(metadata.containerKind === undefined ? {} : { containerKind: metadata.containerKind }),
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
     };
   }
@@ -2328,7 +2329,7 @@ function queryScalarToInfo(scalar) {
 
 function queryComparisonMessage(reason, operator) {
   if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
-  if (reason === 'not_equality_comparable') return 'NaN, null, absence, and non-scalar values are not equality-comparable in this evaluator slice';
+  if (reason === 'not_equality_comparable') return 'NaN, null, and absence values are not equality-comparable in this evaluator slice';
   if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
   return 'Invalid scalar comparison';
 }
@@ -2375,6 +2376,30 @@ function expectScalarQueryValue(value, namespace) {
   };
 }
 
+function expectComparableQueryValue(value, namespace) {
+  if (value.type === 'object') {
+    return {
+      ok: true,
+      value: value.value,
+      metadata: { kind: 'container', category: 'container', containerKind: 'object' },
+    };
+  }
+  if (value.type !== 'bindingSet') return expectScalarQueryValue(value, namespace);
+  if (value.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Expected one binding but resolved none'),
+    };
+  }
+  if (value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', 'Expected one binding but resolved multiple bindings'),
+    };
+  }
+  return getBindingComparableValue(namespace, value.bindings[0]);
+}
+
 function unwrapQueryValue(value, namespace) {
   if (value.type === 'scalar') return { ok: true, value: value.value };
   if (value.type === 'object') return { ok: true, value: value.value };
@@ -2385,6 +2410,115 @@ function getBindingScalarValue(namespace, binding) {
   const info = getBindingScalarInfo(namespace, binding);
   if (!info.ok) return info;
   return { ok: true, value: info.value, metadata: scalarMetadataFromInfo(info) };
+}
+
+function getBindingComparableValue(namespace, binding) {
+  const scalar = getBindingScalarValue(namespace, binding);
+  if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) return scalar;
+  if (!isContainerBinding(namespace, binding)) return scalar;
+  const container = materializeContainerComparableValue(namespace, binding);
+  if (!container.ok) return container;
+  return {
+    ok: true,
+    value: container.value,
+    metadata: {
+      kind: 'container',
+      category: 'container',
+      containerKind: container.containerKind,
+    },
+  };
+}
+
+function materializeContainerComparableValue(namespace, binding, seen = new Set()) {
+  if (seen.has(binding)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Cyclic containers are not structurally comparable'),
+    };
+  }
+  seen.add(binding);
+  const containerKind = containerKindFromBinding(namespace, binding) ?? 'container';
+  const children = getChildren(namespace, binding);
+  const positional = ['list', 'tuple'].includes(containerKind);
+
+  if (positional) {
+    const values = [];
+    for (const child of children) {
+      const childValue = materializeBindingComparableValue(namespace, child, seen);
+      if (!childValue.ok) {
+        seen.delete(binding);
+        return childValue;
+      }
+      values.push(childValue.value);
+    }
+    seen.delete(binding);
+    return { ok: true, value: values, containerKind };
+  }
+
+  if (containerKind === 'node') {
+    const values = [];
+    for (const child of children) {
+      const childValue = materializeBindingComparableValue(namespace, child, seen);
+      if (!childValue.ok) {
+        seen.delete(binding);
+        return childValue;
+      }
+      values.push(childValue.value);
+    }
+    const attributes = materializeAttributeComparableValue(namespace, binding, seen);
+    if (!attributes.ok) {
+      seen.delete(binding);
+      return attributes;
+    }
+    const tag = getBindingNodeTag(namespace, binding);
+    seen.delete(binding);
+    return {
+      ok: true,
+      value: {
+        ...(tag === undefined ? {} : { tag }),
+        ...(attributes.value === undefined ? {} : { attributes: attributes.value }),
+        children: values,
+      },
+      containerKind,
+    };
+  }
+
+  const object = {};
+  for (const child of children) {
+    const name = getBindingName(namespace, child);
+    if (typeof name !== 'string') continue;
+    const childValue = materializeBindingComparableValue(namespace, child, seen);
+    if (!childValue.ok) {
+      seen.delete(binding);
+      return childValue;
+    }
+    object[name] = childValue.value;
+  }
+  seen.delete(binding);
+  return { ok: true, value: object, containerKind };
+}
+
+function materializeAttributeComparableValue(namespace, binding, seen) {
+  const attributeSpace = getBindingAttributeSpace(namespace, binding);
+  if (!attributeSpace) return { ok: true, value: undefined };
+  const attributes = {};
+  for (const attribute of getChildren(namespace, attributeSpace)) {
+    const name = getBindingName(namespace, attribute);
+    if (typeof name !== 'string') continue;
+    const attributeValue = materializeBindingComparableValue(namespace, attribute, seen);
+    if (!attributeValue.ok) return attributeValue;
+    attributes[name] = attributeValue.value;
+  }
+  return { ok: true, value: attributes };
+}
+
+function materializeBindingComparableValue(namespace, binding, seen) {
+  const scalar = getBindingScalarValue(namespace, binding);
+  if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) {
+    return { ok: true, value: scalar.value };
+  }
+  if (!isContainerBinding(namespace, binding)) return scalar;
+  return materializeContainerComparableValue(namespace, binding, seen);
 }
 
 function getBindingScalarInfo(namespace, binding) {
@@ -2402,15 +2536,21 @@ function getBindingScalarInfo(namespace, binding) {
   };
 }
 
-function isContainerBinding(namespace, binding) {
+function containerKindFromBinding(namespace, binding) {
   const rawKind = typeof namespace.representationKind === 'function'
     ? namespace.representationKind(binding)
     : binding.representationKind ?? binding.kind ?? binding.type ?? binding.literalKind ?? binding.valueKind;
   const kind = typeof rawKind === 'string' ? lowerFirst(rawKind) : undefined;
-  if (['object', 'obj', 'o', 'envelope', 'list', 'tuple', 'node', 'objectNode', 'listNode', 'tupleLiteral', 'nodeLiteral'].includes(kind)) {
-    return true;
-  }
-  return Array.isArray(binding.children);
+  if (['object', 'obj', 'o', 'envelope', 'objectNode'].includes(kind)) return 'object';
+  if (['list', 'listNode'].includes(kind)) return 'list';
+  if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
+  if (['node', 'nodeLiteral'].includes(kind)) return 'node';
+  if (Array.isArray(binding.children)) return 'container';
+  return undefined;
+}
+
+function isContainerBinding(namespace, binding) {
+  return containerKindFromBinding(namespace, binding) !== undefined;
 }
 
 function getBindingScalarKind(namespace, binding) {
@@ -2433,6 +2573,17 @@ function getBindingSemanticType(namespace, binding) {
 function getBindingNullReason(namespace, binding) {
   if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
   return binding.nullReason;
+}
+
+function getBindingNodeTag(namespace, binding) {
+  if (typeof namespace.nodeTag === 'function') return namespace.nodeTag(binding);
+  if (typeof namespace.tag === 'function') return namespace.tag(binding);
+  return binding.nodeTag ?? binding.tag;
+}
+
+function getBindingAttributeSpace(namespace, binding) {
+  if (typeof namespace.attributeSpace === 'function') return namespace.attributeSpace(binding);
+  return binding.attributeSpace ?? binding.attributes;
 }
 
 function queryValueMetadata(value, namespace) {

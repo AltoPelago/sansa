@@ -1037,6 +1037,115 @@ test('follows the comparison policy matrix', () => {
   assert.equal(followRejectsNonReference.ok, false);
   assert.equal(followRejectsNonReference.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 
+  const listStructuralEquality = evaluateQuery([
+    'from $.table',
+    'where .header == .header',
+    'select .header',
+  ].join('\n'), namespace);
+  assert.equal(listStructuralEquality.ok, true, JSON.stringify(listStructuralEquality.errors ?? []));
+  assert.deepEqual(listStructuralEquality.results.map((entry) => entry.binding.address), ['$.table']);
+  assert.deepEqual(listStructuralEquality.results.map((entry) => (
+    entry.value.type === 'bindingSet' ? entry.value.bindings.map((binding) => binding.address) : null
+  )), [['$.table.header']]);
+
+  const listStructuralInequality = evaluateQuery([
+    'from $.table',
+    'where .header != .duplicateHeader',
+    'select .duplicateHeader',
+  ].join('\n'), namespace);
+  assert.equal(listStructuralInequality.ok, true, JSON.stringify(listStructuralInequality.errors ?? []));
+  assert.deepEqual(listStructuralInequality.results.map((entry) => entry.binding.address), ['$.table']);
+
+  const differentContainerKinds = evaluateQuery([
+    'from $.table',
+    'where .header == .content[0]',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(differentContainerKinds.ok, false);
+  assert.equal(differentContainerKinds.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const containerOrdering = evaluateQuery([
+    'from $.table',
+    'where .header > .header',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(containerOrdering.ok, false);
+  assert.equal(containerOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const nodeComparisonNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'nodeA',
+          address: '$.nodeA',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeA.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeA.@.role', semanticType: 'string', representationKind: 'string', value: 'primary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeA[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+        {
+          name: 'nodeB',
+          address: '$.nodeB',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeB.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeB.@.role', semanticType: 'string', representationKind: 'string', value: 'primary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeB[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+        {
+          name: 'nodeC',
+          address: '$.nodeC',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeC.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeC.@.role', semanticType: 'string', representationKind: 'string', value: 'secondary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeC[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+    attributeSpace: (entry) => entry.attributeSpace,
+  };
+  const nodeStructuralEquality = evaluateQuery([
+    'from $',
+    'where $.nodeA == $.nodeB',
+    'select $.nodeA',
+  ].join('\n'), nodeComparisonNamespace);
+  assert.equal(nodeStructuralEquality.ok, true, JSON.stringify(nodeStructuralEquality.errors ?? []));
+  assert.deepEqual(nodeStructuralEquality.results.map((entry) => entry.binding.address), ['$']);
+
+  const nodeAttributeInequality = evaluateQuery([
+    'from $',
+    'where $.nodeA != $.nodeC',
+    'select $.nodeC',
+  ].join('\n'), nodeComparisonNamespace);
+  assert.equal(nodeAttributeInequality.ok, true, JSON.stringify(nodeAttributeInequality.errors ?? []));
+  assert.deepEqual(nodeAttributeInequality.results.map((entry) => entry.binding.address), ['$']);
+
   const infinityComparison = evaluateQuery([
     'from $.inventory.items[3]',
     'where .ceiling > 1000000',
