@@ -289,6 +289,22 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(separatorAliasFilter.ok, true, JSON.stringify(separatorAliasFilter.errors ?? []));
   assert.equal(separatorAliasFilter.text, '$.types.semver = ^3.14.15');
 
+  const sansaSemanticFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#sansa\nselect .',
+  });
+  assert.equal(sansaSemanticFilter.ok, true, JSON.stringify(sansaSemanticFilter.errors ?? []));
+  assert.equal(sansaSemanticFilter.text, '$.types.selector = $.inventory.items.*.sku');
+
+  const sansaRepresentationFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*%sansa\nselect .',
+  });
+  assert.equal(sansaRepresentationFilter.ok, true, JSON.stringify(sansaRepresentationFilter.errors ?? []));
+  assert.equal(sansaRepresentationFilter.text, '$.types.selector = $.inventory.items.*.sku');
+
   const nullGenericFilter = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

@@ -197,6 +197,9 @@ positions such as `select`, `where`, and `order by`, it resolves in the current
 candidate context and returns a Binding Set. In `from path(...)`, it supplies
 the source Binding Set for the query. It does not parse plain strings as
 addresses.
+SANSA Address Literal values remain selectable as values with `#sansa` and
+`%sansa`; those filters do not activate the address. Activation is always
+explicit through `path(...)`.
 
 `fallback(primary, replacement)` handles missing primary values only. The
 replacement expression is evaluated only when the primary expression resolves no

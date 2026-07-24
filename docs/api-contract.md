@@ -586,6 +586,10 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 
+SANSA Address Literal values remain selectable as values with `#sansa` and
+`%sansa`. Those filters select the literal binding itself and do not activate
+the address; activation is always explicit through `path(...)`.
+
 `fallback(primary, replacement)` is a function-like operator with lazy missing handling. The primary operand is consumed in scalar value context. If it resolves zero bindings, or raises a missing-scalar diagnostic, the replacement operand is evaluated and consumed in the same scalar value context. If the primary operand succeeds, the replacement operand is not evaluated. Explicit null values, cardinality errors, type errors, comparison errors, and unsupported-function errors do not trigger fallback.
 
 `resolveChild(base, key)` is a function-like structural operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one addressable container. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics. It does not parse traversal strings, scan collections, or perform join semantics.

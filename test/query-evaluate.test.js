@@ -342,6 +342,14 @@ const root = binding({
         binding({ name: 'payloadEmbed', address: '$.types.payloadEmbed', semanticType: 'embed', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
         binding({ name: 'payloadInline', address: '$.types.payloadInline', semanticType: 'inline', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
         binding({ name: 'semver', address: '$.types.semver', semanticType: 'kadot', representationKind: 'separator', scalarKind: 'separator', value: '3.14.15' }),
+        binding({
+          name: 'selector',
+          address: '$.types.selector',
+          semanticType: 'sansa',
+          representationKind: 'sansa',
+          scalarKind: 'sansaAddress',
+          value: { type: 'SansaAddressLiteral', address: '$.inventory.items.*.sku', canonical: '$.inventory.items.*.sku' },
+        }),
       ],
     }),
     binding({
@@ -1081,6 +1089,20 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(separatorAliasComparison.ok, true, JSON.stringify(separatorAliasComparison.errors ?? []));
   assert.deepEqual(separatorAliasComparison.results.map((entry) => entry.binding.address), ['$.types.semver']);
+
+  const sansaSemanticFilter = evaluateQuery([
+    'from $.types.*#sansa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(sansaSemanticFilter.ok, true, JSON.stringify(sansaSemanticFilter.errors ?? []));
+  assert.deepEqual(sansaSemanticFilter.results.map((entry) => entry.binding.address), ['$.types.selector']);
+
+  const sansaRepresentationFilter = evaluateQuery([
+    'from $.types.*%sansa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(sansaRepresentationFilter.ok, true, JSON.stringify(sansaRepresentationFilter.errors ?? []));
+  assert.deepEqual(sansaRepresentationFilter.results.map((entry) => entry.binding.address), ['$.types.selector']);
 
   const stringEquality = evaluateQuery([
     'from $.inventory.items.*',
