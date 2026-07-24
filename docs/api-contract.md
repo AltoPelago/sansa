@@ -566,6 +566,10 @@ Current comparison policy:
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
 
+Semantic filters match the base datatype label of generic claims. For example,
+`#null`, `#nan`, and `#infinity` match host bindings annotated as `null<T>`,
+`nan<T>`, and `infinity<T>` before value predicates inspect the scalar.
+
 By default, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults unless the caller explicitly supplies a value-semantics profile such as `createNaturalAsciiValueSemanticsProfile()` or `createFrenchValueSemanticsProfile()`.
 
 Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:

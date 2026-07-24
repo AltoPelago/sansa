@@ -889,6 +889,14 @@ test('evaluates isValue as a missing-aware concrete-value guard', () => {
 });
 
 test('evaluates NaN and Infinity predicates explicitly', () => {
+  const nullStatusSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.status#null) and isNullReason(.status, "notSet")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nullStatusSemanticFilter.ok, true, JSON.stringify(nullStatusSemanticFilter.errors ?? []));
+  assert.deepEqual(nullStatusSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
   const nanMetric = evaluateQuery([
     'from $.inventory.items.*',
     'where exists(.metric) and isNaN(.metric)',
@@ -897,6 +905,14 @@ test('evaluates NaN and Infinity predicates explicitly', () => {
   assert.equal(nanMetric.ok, true, JSON.stringify(nanMetric.errors ?? []));
   assert.deepEqual(nanMetric.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
 
+  const nanMetricSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.metric#nan) and isNaN(.metric)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nanMetricSemanticFilter.ok, true, JSON.stringify(nanMetricSemanticFilter.errors ?? []));
+  assert.deepEqual(nanMetricSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+
   const infiniteCeiling = evaluateQuery([
     'from $.inventory.items.*',
     'where exists(.ceiling) and isInfinity(.ceiling)',
@@ -904,6 +920,14 @@ test('evaluates NaN and Infinity predicates explicitly', () => {
   ].join('\n'), namespace);
   assert.equal(infiniteCeiling.ok, true, JSON.stringify(infiniteCeiling.errors ?? []));
   assert.deepEqual(infiniteCeiling.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+
+  const infiniteCeilingSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.ceiling#infinity) and isInfinity(.ceiling)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infiniteCeilingSemanticFilter.ok, true, JSON.stringify(infiniteCeilingSemanticFilter.errors ?? []));
+  assert.deepEqual(infiniteCeilingSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items.*',

@@ -289,6 +289,30 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(separatorAliasFilter.ok, true, JSON.stringify(separatorAliasFilter.errors ?? []));
   assert.equal(separatorAliasFilter.text, '$.types.semver = ^3.14.15');
 
+  const nullGenericFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items.*\nwhere exists(.status#null) and isNullReason(.status, "notSet")\nselect .sku',
+  });
+  assert.equal(nullGenericFilter.ok, true, JSON.stringify(nullGenericFilter.errors ?? []));
+  assert.equal(nullGenericFilter.text, '$.inventory.items[0].sku = "A-100"');
+
+  const nanGenericFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items.*\nwhere exists(.metric#nan) and isNaN(.metric)\nselect .sku',
+  });
+  assert.equal(nanGenericFilter.ok, true, JSON.stringify(nanGenericFilter.errors ?? []));
+  assert.equal(nanGenericFilter.text, '$.inventory.items[2].sku = "C-300"');
+
+  const infinityGenericFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.inventory.items.*\nwhere exists(.ceiling#infinity) and isInfinity(.ceiling)\nselect .sku',
+  });
+  assert.equal(infinityGenericFilter.ok, true, JSON.stringify(infinityGenericFilter.errors ?? []));
+  assert.equal(infinityGenericFilter.text, '$.inventory.items[3].sku = "D-250"');
+
   const nullLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

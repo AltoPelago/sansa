@@ -143,6 +143,10 @@ number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
 `base64`, `embed`, and `inline` compare as encoded payloads, and `kadot`
 compares as a separator payload when the host exposes those representation
 families.
+Semantic filters match the base datatype label of generic claims, so
+`#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
+`nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,
+`isNaN(...)`, or `isInfinity(...)` inspect the value.
 
 Container equality compares one resolved container binding on each side.
 Objects compare by member names and member values. Lists, tuples, and nodes
