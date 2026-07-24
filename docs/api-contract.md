@@ -591,7 +591,7 @@ order by path($.<"params">.sortField) asc
 select path($.<"params">.field)
 ```
 
-`isValue(...)`, `exists(...)`, and explicit null predicates can distinguish ordinary values, explicit nulls, and missing bindings:
+`isValue(...)`, `exists(...)`, and explicit null predicates can distinguish concrete values, explicit nulls, and missing bindings:
 
 ```text
 from $.inventory.items.*

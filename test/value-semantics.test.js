@@ -17,11 +17,11 @@ test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
   assert.equal(ordering.ok, true);
   assert.equal(ordering.relation, 'less');
 
-  const ordinary = evaluateValueSemanticsOperation('isValue', {
+  const concrete = evaluateValueSemanticsOperation('isValue', {
     value: { category: 'positiveInfinity' },
   });
-  assert.equal(ordinary.ok, true);
-  assert.equal(ordinary.value, true);
+  assert.equal(concrete.ok, true);
+  assert.equal(concrete.value, true);
 
   const container = evaluateValueSemanticsOperation('isValue', {
     value: { category: 'container', containerKind: 'list', value: [1, 2] },
@@ -62,6 +62,15 @@ test('evaluates explicit value-semantics profiles', () => {
   });
   assert.equal(frenchOrder.ok, true);
   assert.equal(frenchOrder.relation, 'less');
+
+  const frenchProfileIdOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'string', value: 'éclair' },
+    right: { category: 'string', value: 'zebre' },
+  }, {
+    valueSemantics: 'aeon.value.string.locale.fr.v1',
+  });
+  assert.equal(frenchProfileIdOrder.ok, true);
+  assert.equal(frenchProfileIdOrder.relation, 'less');
 });
 
 test('evaluates minimum structural and reference-form equality', () => {

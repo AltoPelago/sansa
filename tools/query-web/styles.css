@@ -114,7 +114,7 @@ button {
 }
 
 .query-panel {
-  grid-template-rows: auto minmax(140px, 0.55fr) auto auto auto minmax(180px, 0.45fr);
+  grid-template-rows: auto minmax(140px, 0.55fr) auto auto auto auto auto auto minmax(180px, 0.45fr);
 }
 
 .panel-head {

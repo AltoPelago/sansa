@@ -28,8 +28,14 @@ const mode = args.mode ?? 'evaluate';
 const format = args.format ?? 'text';
 const fixturePath = resolve(args.fixture ?? defaultFixturePath);
 const policy = parsePolicy(args.policy);
+const valueSemantics = parseValueSemantics(args.valueSemantics);
 const budget = parseBudgetArgs(args);
-const evaluateOptions = buildEvaluateOptions({ policy, transformEnabled: args.disableTransform !== true, budget });
+const evaluateOptions = buildEvaluateOptions({
+  policy,
+  transformEnabled: args.disableTransform !== true,
+  valueSemantics,
+  budget,
+});
 
 if (!['evaluate', 'parse'].includes(mode)) {
   console.error(`SANSA Query tool error: unsupported --mode '${mode}'. Expected 'evaluate' or 'parse'.`);
@@ -87,6 +93,8 @@ function parseArgs(raw) {
       output.mode = requireValue(raw, ++index, arg);
     } else if (arg === '--policy') {
       output.policy = requireValue(raw, ++index, arg);
+    } else if (arg === '--value-semantics') {
+      output.valueSemantics = requireValue(raw, ++index, arg);
     } else if (arg === '--disable-transform') {
       output.disableTransform = true;
     } else if (arg === '--max-from-bindings') {
@@ -110,6 +118,16 @@ function parsePolicy(value) {
   if (value === 'validation') return value;
   console.error(`SANSA Query tool error: unsupported --policy '${value}'. Expected 'validation'.`);
   process.exit(2);
+}
+
+function parseValueSemantics(value) {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 100 || /\s/.test(trimmed)) {
+    console.error('SANSA Query tool error: --value-semantics expects a compact profile id or locale tag.');
+    process.exit(2);
+  }
+  return trimmed;
 }
 
 function parseBudgetArgs(options) {
@@ -139,10 +157,11 @@ function parseBudgetLimit(value, flag) {
   return parsed;
 }
 
-function buildEvaluateOptions({ policy, transformEnabled, budget }) {
+function buildEvaluateOptions({ policy, transformEnabled, valueSemantics, budget }) {
   return {
     ...(policy ? { policy } : {}),
     ...(transformEnabled ? {} : { extensions: { transform: false } }),
+    ...(valueSemantics ? { valueSemantics } : {}),
     ...(budget ? { budget } : {}),
   };
 }
@@ -565,6 +584,8 @@ Options:
       --mode <mode>         evaluate or parse. Defaults to evaluate.
       --format <format>     text or json. Defaults to text.
       --policy <policy>     Optional query policy: validation.
+      --value-semantics <profile>
+                            Value semantics profile id or locale tag.
       --disable-transform   Disable experimental SANSA.Transform helpers.
       --max-from-bindings <n>
                             Fail if the from source resolves more than n bindings.

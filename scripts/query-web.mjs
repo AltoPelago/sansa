@@ -95,6 +95,7 @@ function handleQueryApi(request, response) {
           paramsSource: String(payload.paramsSource ?? ''),
           policy: payload.policy === 'validation' ? 'validation' : '',
           transformExtensions: payload.transformExtensions !== false,
+          valueSemantics: parseValueSemantics(payload.valueSemantics),
           budget: payload.budget,
         });
       writeJson(response, result.ok ? 200 : 400, result);
@@ -105,6 +106,16 @@ function handleQueryApi(request, response) {
         errors: [{ code: 'SANSA_QUERY_WORKBENCH_REQUEST_ERROR', message: error.message }],
       });
     });
+}
+
+function parseValueSemantics(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const text = String(value).trim();
+  if (text.length === 0) return '';
+  if (text.length > 100 || /\s/.test(text)) {
+    throw new Error('valueSemantics expects a compact profile id or locale tag.');
+  }
+  return text;
 }
 
 function readRequestBody(request, maxBytes) {

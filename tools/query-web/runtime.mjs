@@ -37,6 +37,7 @@ export async function evaluateQueryForWorkbench({
   paramsSource = '',
   policy = '',
   transformExtensions = true,
+  valueSemantics = '',
   budget = {},
 }) {
   const namespaceResult = sourceKind === 'json'
@@ -63,6 +64,7 @@ export async function evaluateQueryForWorkbench({
   const options = {
     ...(policy === 'validation' ? { policy: 'validation' } : {}),
     ...(transformExtensions === false ? { extensions: { transform: false } } : {}),
+    ...(valueSemantics ? { valueSemantics } : {}),
     ...queryBudgetOption(budget),
   };
   const result = evaluateQuery(query, mounted.namespace, options);
@@ -75,6 +77,7 @@ export async function evaluateQueryForWorkbench({
       text: renderDiagnosticText(errors),
       errors,
       sourceDiagnostics,
+      valueSemantics: valueSemantics || 'default',
     };
   }
 
@@ -85,6 +88,7 @@ export async function evaluateQueryForWorkbench({
     count: result.results.length,
     text: renderTextResults(result.results),
     inspect: renderInspectResults(result.results),
+    valueSemantics: valueSemantics || 'default',
     results: result.results.map((entry) => ({
       type: entry.type,
       ...(entry.address === undefined ? {} : { address: entry.address }),

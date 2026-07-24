@@ -11,6 +11,7 @@ npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.js
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
 npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
 npm run query -- --max-from-bindings 3 --query 'from $.inventory.items.* select .sku'
+npm run query -- --value-semantics fr --query 'from $.inventory.items.* order by .name asc select .name'
 npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
@@ -41,6 +42,12 @@ Use `--policy validation` to exercise the proposal-stage validation policy from
 the CLI. Use `--disable-transform` to run normal Query evaluation with
 experimental `SANSA.Transform` helpers disabled.
 
+Use `--value-semantics <profile>` to select an explicit query value-semantics
+profile. The current implementation recognizes `default`,
+`aeon.value.default.v1`, `aeon.value.string.codepoint.v1`, `fr`, `fr-FR`, and
+`aeon.value.string.locale.fr.v1`; other compact locale tags are passed to the
+host Intl collation surface as implementation-slice behavior.
+
 Host callers can pass optional `evaluateQuery(..., { budget: ... })` limits for
 pipeline sizes such as `maxFromBindings`, `maxWhereCandidates`,
 `maxOrderCandidates`, and `maxResultRecords`. The CLI exposes the same surface
@@ -62,8 +69,9 @@ The workbench defaults to [../fixtures/query-inventory.aeon](../fixtures/query-i
 derives a SANSA resolver namespace from the optional AEON TypeScript Core
 runtime, and runs SANSA.Query over that derived graph. It also includes a params
 local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle,
-a Transform extension toggle, optional budget limit inputs, plus a JSON fixture
-mode for debugging the resolver shape directly.
+a Transform extension toggle, a value-semantics profile selector, optional
+budget limit inputs, plus a JSON fixture mode for debugging the resolver shape
+directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines
 with phase and candidate context when available. JSON mode exposes the full
@@ -134,6 +142,8 @@ non-string values unless a specific function contract says otherwise.
 String comparison and `order by` use deterministic Unicode scalar-value
 ordering by default. They do not use host locale or process locale collation
 unless an embedding caller supplies an explicit value-semantics profile.
+For exploratory testing, the CLI and browser workbench can select the French
+profile to compare locale-aware behavior against the default codepoint order.
 
 `path(value)` activates a structured SANSA Address Literal value. In expression
 positions such as `select`, `where`, and `order by`, it resolves in the current

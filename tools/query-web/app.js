@@ -14,6 +14,7 @@ const resetButton = document.querySelector('#resetButton');
 const parseButton = document.querySelector('#parseButton');
 const runButton = document.querySelector('#runButton');
 const transformExtensionsInput = document.querySelector('#transformExtensions');
+const valueSemanticsInput = document.querySelector('#valueSemantics');
 const budgetInputs = Array.from(document.querySelectorAll('.budget-row input'));
 
 let defaultFixtureSource = '';
@@ -62,6 +63,9 @@ document.querySelectorAll('input[name="queryPolicy"]').forEach((input) => {
   });
 });
 transformExtensionsInput.addEventListener('change', () => {
+  if (lastAction !== 'parse') void runQuery();
+});
+valueSemanticsInput.addEventListener('change', () => {
   if (lastAction !== 'parse') void runQuery();
 });
 budgetInputs.forEach((input) => {
@@ -168,6 +172,7 @@ async function runQuery() {
     query: queryInput.value,
     policy: queryPolicy(),
     transformExtensions: transformExtensionsInput.checked,
+    valueSemantics: valueSemanticsInput.value,
     budget: queryBudget(),
   });
   queryStatus.textContent = payload.ok ? 'run ok' : 'run failed';

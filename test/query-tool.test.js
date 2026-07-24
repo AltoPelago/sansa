@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
@@ -66,6 +69,7 @@ test('query tool help documents fixture kind support', () => {
   assert.match(result.stdout, /--fixture-kind <kind>/);
   assert.match(result.stdout, /Force fixture kind: aeon or json/);
   assert.match(result.stdout, /--policy <policy>/);
+  assert.match(result.stdout, /--value-semantics <profile>/);
   assert.match(result.stdout, /--disable-transform/);
   assert.match(result.stdout, /--max-from-bindings <n>/);
 });
@@ -217,6 +221,92 @@ test('query tool applies evaluation budgets', () => {
 
   assert.equal(invalid.status, 2);
   assert.match(invalid.stderr, /expects a non-negative integer/);
+});
+
+test('query tool applies explicit value semantics profiles', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sansa-query-profile-'));
+  const fixturePath = join(dir, 'fixture.json');
+  writeFileSync(fixturePath, JSON.stringify({
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'labels',
+          address: '$.labels',
+          representationKind: 'list',
+          children: [
+            {
+              index: 0,
+              address: '$.labels[0]',
+              representationKind: 'object',
+              children: [
+                {
+                  name: 'value',
+                  address: '$.labels[0].value',
+                  semanticType: 'string',
+                  representationKind: 'string',
+                  value: 'zebre',
+                },
+              ],
+            },
+            {
+              index: 1,
+              address: '$.labels[1]',
+              representationKind: 'object',
+              children: [
+                {
+                  name: 'value',
+                  address: '$.labels[1].value',
+                  semanticType: 'string',
+                  representationKind: 'string',
+                  value: 'éclair',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  }));
+
+  const query = 'from $.labels.* order by .value asc select .value';
+  const defaultResult = runTool([
+    '--fixture',
+    fixturePath,
+    '--value-semantics',
+    'aeon.value.string.codepoint.v1',
+    '--query',
+    query,
+  ]);
+  assert.equal(defaultResult.status, 0, defaultResult.stderr);
+  assert.equal(defaultResult.stdout.trim(), [
+    '$.labels[0].value = "zebre"',
+    '$.labels[1].value = "éclair"',
+  ].join('\n'));
+
+  const frenchResult = runTool([
+    '--fixture',
+    fixturePath,
+    '--value-semantics',
+    'aeon.value.string.locale.fr.v1',
+    '--query',
+    query,
+  ]);
+  assert.equal(frenchResult.status, 0, frenchResult.stderr);
+  assert.equal(frenchResult.stdout.trim(), [
+    '$.labels[1].value = "éclair"',
+    '$.labels[0].value = "zebre"',
+  ].join('\n'));
+
+  const invalid = runTool([
+    '--value-semantics',
+    'not portable',
+    '--query',
+    'from $.inventory.items.* select .sku',
+  ]);
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /--value-semantics expects a compact profile id or locale tag/);
 });
 
 test('query tool evaluates table and label examples against JSON fixtures', () => {

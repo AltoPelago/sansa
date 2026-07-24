@@ -92,6 +92,78 @@ testAeonRuntime('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+test('query web runtime applies explicit value semantics profiles', async () => {
+  const source = JSON.stringify({
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'labels',
+          address: '$.labels',
+          representationKind: 'list',
+          children: [
+            {
+              index: 0,
+              address: '$.labels[0]',
+              representationKind: 'object',
+              children: [
+                {
+                  name: 'value',
+                  address: '$.labels[0].value',
+                  semanticType: 'string',
+                  representationKind: 'string',
+                  value: 'zebre',
+                },
+              ],
+            },
+            {
+              index: 1,
+              address: '$.labels[1]',
+              representationKind: 'object',
+              children: [
+                {
+                  name: 'value',
+                  address: '$.labels[1].value',
+                  semanticType: 'string',
+                  representationKind: 'string',
+                  value: 'éclair',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  const defaultResult = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from $.labels.*\norder by .value asc\nselect .value',
+    valueSemantics: 'aeon.value.string.codepoint.v1',
+  });
+  assert.equal(defaultResult.ok, true, JSON.stringify(defaultResult.errors ?? []));
+  assert.equal(defaultResult.text, [
+    '$.labels[0].value = "zebre"',
+    '$.labels[1].value = "éclair"',
+  ].join('\n'));
+  assert.equal(defaultResult.valueSemantics, 'aeon.value.string.codepoint.v1');
+
+  const frenchResult = await evaluateQueryForWorkbench({
+    sourceKind: 'json',
+    source,
+    query: 'from $.labels.*\norder by .value asc\nselect .value',
+    valueSemantics: 'aeon.value.string.locale.fr.v1',
+  });
+  assert.equal(frenchResult.ok, true, JSON.stringify(frenchResult.errors ?? []));
+  assert.equal(frenchResult.text, [
+    '$.labels[1].value = "éclair"',
+    '$.labels[0].value = "zebre"',
+  ].join('\n'));
+  assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
+});
+
 testAeonRuntime('query web runtime keeps numeric representation filters separate from numeric specials', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const numbers = await evaluateQueryForWorkbench({

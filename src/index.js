@@ -11,6 +11,7 @@ const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
 ]);
 const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
+const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -1617,6 +1618,12 @@ function getValueSemanticsProfile(valueSemantics) {
   if (!valueSemantics) return aeonValueSemanticsDefaultProfile;
   if (valueSemantics === 'default' || valueSemantics === DEFAULT_VALUE_SEMANTICS_PROFILE_ID) {
     return aeonValueSemanticsDefaultProfile;
+  }
+  if (valueSemantics === CODEPOINT_STRING_PROFILE_ID) {
+    return aeonValueSemanticsDefaultProfile;
+  }
+  if (valueSemantics === FRENCH_STRING_PROFILE_ID) {
+    return createFrenchValueSemanticsProfile();
   }
   if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
     return createFrenchValueSemanticsProfile({ locale: valueSemantics });

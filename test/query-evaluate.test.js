@@ -686,21 +686,21 @@ test('distinguishes missing bindings from explicit null values', () => {
 });
 
 test('evaluates isValue as a missing-aware concrete-value guard', () => {
-  const ordinaryStatuses = evaluateQuery([
+  const concreteStatuses = evaluateQuery([
     'from $.inventory.items.*',
     'where isValue(.status)',
     'select .sku',
   ].join('\n'), namespace);
-  assert.equal(ordinaryStatuses.ok, true, JSON.stringify(ordinaryStatuses.errors ?? []));
-  assert.deepEqual(ordinaryStatuses.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
+  assert.equal(concreteStatuses.ok, true, JSON.stringify(concreteStatuses.errors ?? []));
+  assert.deepEqual(concreteStatuses.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
 
-  const ordinaryNumbers = evaluateQuery([
+  const concreteNumbers = evaluateQuery([
     'from $.inventory.items.*',
     'where isValue(.qty)',
     'select .sku',
   ].join('\n'), namespace);
-  assert.equal(ordinaryNumbers.ok, true, JSON.stringify(ordinaryNumbers.errors ?? []));
-  assert.deepEqual(ordinaryNumbers.results.map((entry) => entry.binding.address), [
+  assert.equal(concreteNumbers.ok, true, JSON.stringify(concreteNumbers.errors ?? []));
+  assert.deepEqual(concreteNumbers.results.map((entry) => entry.binding.address), [
     '$.inventory.items[0]',
     '$.inventory.items[1]',
     '$.inventory.items[2]',
