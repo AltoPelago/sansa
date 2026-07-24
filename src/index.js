@@ -147,9 +147,25 @@ export function createFrenchValueSemanticsProfile(options = {}) {
 }
 
 export function evaluateQuery(input, namespace, options = {}) {
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      results: [],
+      errors: [
+        annotateQueryDiagnostic(queryEvaluateError(
+          'SANSA_QUERY_INVALID_VALUE_SEMANTICS_PROFILE',
+          error instanceof Error ? error.message : 'Invalid value-semantics profile',
+        ), { phase: 'policy' }),
+      ],
+    };
+  }
+
   options = {
     ...options,
-    valueSemantics: getValueSemanticsProfile(options.valueSemantics),
+    valueSemantics: valueSemanticsProfile,
   };
   const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
   if (!parsed.ok) {
@@ -1632,34 +1648,24 @@ function getValueSemanticsProfile(valueSemantics) {
     return createIntlValueSemanticsProfile({ locale: valueSemantics });
   }
   if (valueSemantics.profile) return getValueSemanticsProfile(valueSemantics.profile);
-  if (
-    typeof valueSemantics.compareStrings === 'function'
-    && typeof valueSemantics.lowerString === 'function'
-    && typeof valueSemantics.upperString === 'function'
-  ) {
-    return valueSemantics;
+  const hasCompareStrings = typeof valueSemantics.compareStrings === 'function';
+  const hasLowerString = typeof valueSemantics.lowerString === 'function';
+  const hasUpperString = typeof valueSemantics.upperString === 'function';
+  if (hasCompareStrings && hasLowerString && hasUpperString) {
+    return {
+      ...valueSemantics,
+      compareStrings: (left, right) => normalizeComparison(valueSemantics.compareStrings(left, right)),
+    };
+  }
+  if (hasCompareStrings || hasLowerString || hasUpperString) {
+    throw new Error('Custom value-semantics profiles must define compareStrings, lowerString, and upperString together.');
   }
   if (
-    typeof valueSemantics.compareStrings !== 'function'
-    && typeof valueSemantics.lowerString !== 'function'
-    && typeof valueSemantics.upperString !== 'function'
-    && valueSemantics.locale
+    valueSemantics.locale
   ) {
     return createIntlValueSemanticsProfile(valueSemantics);
   }
-  return {
-    ...aeonValueSemanticsDefaultProfile,
-    ...valueSemantics,
-    compareStrings: typeof valueSemantics.compareStrings === 'function'
-      ? (left, right) => normalizeComparison(valueSemantics.compareStrings(left, right))
-      : aeonValueSemanticsDefaultProfile.compareStrings,
-    lowerString: typeof valueSemantics.lowerString === 'function'
-      ? valueSemantics.lowerString
-      : aeonValueSemanticsDefaultProfile.lowerString,
-    upperString: typeof valueSemantics.upperString === 'function'
-      ? valueSemantics.upperString
-      : aeonValueSemanticsDefaultProfile.upperString,
-  };
+  throw new Error('Unsupported value-semantics profile input.');
 }
 
 function normalizeComparison(value) {

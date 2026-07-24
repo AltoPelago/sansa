@@ -71,6 +71,31 @@ test('evaluates explicit value-semantics profiles', () => {
   });
   assert.equal(frenchProfileIdOrder.ok, true);
   assert.equal(frenchProfileIdOrder.relation, 'less');
+
+  const completeCustomOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'string', value: 'a' },
+    right: { category: 'string', value: 'b' },
+  }, {
+    valueSemantics: {
+      compareStrings: () => 10,
+      lowerString: (value) => value.toLowerCase(),
+      upperString: (value) => value.toUpperCase(),
+    },
+  });
+  assert.equal(completeCustomOrder.ok, true);
+  assert.equal(completeCustomOrder.relation, 'greater');
+
+  const partialCustomOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'string', value: 'a' },
+    right: { category: 'string', value: 'b' },
+  }, {
+    valueSemantics: {
+      compareStrings: () => 0,
+    },
+  });
+  assert.equal(partialCustomOrder.ok, false);
+  assert.equal(partialCustomOrder.reason, 'invalid_value_descriptor');
+  assert.match(partialCustomOrder.error.message, /compareStrings, lowerString, and upperString together/);
 });
 
 test('evaluates minimum structural and reference-form equality', () => {

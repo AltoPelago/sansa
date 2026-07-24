@@ -549,6 +549,23 @@ test('evaluates string ordering with an explicit French value-semantics profile'
   assert.deepEqual(frenchOrdered.results.map((entry) => entry.value.value), ['ÉCLAIR', 'ZEBRE']);
 });
 
+test('rejects incomplete custom value-semantics profiles in query evaluation', () => {
+  const result = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), frenchOrderingNamespace, {
+    valueSemantics: {
+      compareStrings: () => 0,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_INVALID_VALUE_SEMANTICS_PROFILE');
+  assert.equal(result.errors[0].phase, 'policy');
+  assert.match(result.errors[0].message, /compareStrings, lowerString, and upperString together/);
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);

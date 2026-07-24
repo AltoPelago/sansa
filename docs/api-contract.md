@@ -138,6 +138,8 @@ The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The 
 
 The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, and `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
+Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable.
+
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
 ```js
