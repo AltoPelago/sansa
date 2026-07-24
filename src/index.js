@@ -13,6 +13,16 @@ const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
+const VALUE_SEMANTICS_METADATA_CATEGORIES = [
+  'toggle',
+  'encoding',
+  'separator',
+  'sansaAddress',
+  'referenceForm',
+  'temporal',
+  'lexicalStructuredScalar',
+  'container',
+];
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -599,10 +609,10 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
     case 'literalExpression':
       return {
         ok: true,
-        value: {
-          type: 'scalar',
-          value: expression.value,
-        },
+        value: scalarQueryValue(
+          expression.value,
+          expression.kind === 'toggle' ? { kind: 'toggle', category: 'toggle' } : undefined,
+        ).value,
       };
     case 'currentBindingExpression':
       return {
@@ -685,7 +695,7 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
   if (!leftScalar.ok) return leftScalar;
   const rightScalar = expectScalarQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
-  return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value, options);
+  return compareQueryScalars(expression.operator, leftScalar, rightScalar, options);
 }
 
 function evaluateMembershipExpression(leftValue, rightValue, namespace, options) {
@@ -702,7 +712,7 @@ function evaluateMembershipExpression(leftValue, rightValue, namespace, options)
   for (const binding of rightValue.bindings) {
     const rightScalar = getBindingScalarValue(namespace, binding);
     if (!rightScalar.ok) return rightScalar;
-    const compared = compareQueryScalars('==', leftScalar.value, rightScalar.value, options);
+    const compared = compareQueryScalars('==', leftScalar, rightScalar, options);
     if (!compared.ok) return compared;
     if (compared.value.value) {
       return {
@@ -1495,8 +1505,8 @@ function evaluateCardinalityBooleans(expression, currentBinding, namespace, opti
     const bindingScalar = getBindingScalarValue(namespace, binding);
     if (!bindingScalar.ok) return bindingScalar;
     const compared = leftIsSet
-      ? compareQueryScalars(expression.operator, bindingScalar.value, scalarValue.value, options)
-      : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value, options);
+      ? compareQueryScalars(expression.operator, bindingScalar, scalarValue, options)
+      : compareQueryScalars(expression.operator, scalarValue, bindingScalar, options);
     if (!compared.ok) return compared;
     values.push(compared.value.value);
   }
@@ -1896,6 +1906,18 @@ function scalarInfoToValueDescriptor(info) {
       ? { category: 'negativeInfinity' }
       : { category: 'positiveInfinity' };
   }
+  const semanticCategory = VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.category)
+    ? info.category
+    : VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.kind)
+      ? info.kind
+      : undefined;
+  if (semanticCategory) {
+    return {
+      category: semanticCategory,
+      value: info.value,
+      ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
+    };
+  }
   if (typeof info.value === 'number') {
     return Number.isFinite(info.value)
       ? { category: 'finiteNumber', value: String(info.value) }
@@ -1906,13 +1928,6 @@ function scalarInfoToValueDescriptor(info) {
   }
   if (typeof info.value === 'boolean') {
     return { category: 'boolean', value: info.value };
-  }
-  if (['toggle', 'encoding', 'separator', 'sansaAddress', 'referenceForm', 'temporal', 'lexicalStructuredScalar', 'container'].includes(info.category)) {
-    return {
-      category: info.category,
-      value: info.value,
-      ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
-    };
   }
   if (info.kind === 'missing' || info.category === 'missing') {
     return { category: 'missing' };
@@ -2015,8 +2030,8 @@ function valueSemanticsDiagnostic(reason, message) {
 }
 
 function compareQueryScalars(operator, left, right, options = {}) {
-  const leftDescriptor = scalarInfoToValueDescriptor({ value: left });
-  const rightDescriptor = scalarInfoToValueDescriptor({ value: right });
+  const leftDescriptor = scalarInfoToValueDescriptor(queryScalarToInfo(left));
+  const rightDescriptor = scalarInfoToValueDescriptor(queryScalarToInfo(right));
   const operation = ['==', '!='].includes(operator) ? (operator === '==' ? 'equal' : 'notEqual') : 'compare';
   const evaluated = evaluateValueSemanticsOperation(operation, {
     left: leftDescriptor,
@@ -2042,6 +2057,19 @@ function compareQueryScalars(operator, left, right, options = {}) {
   return { ok: true, value: { type: 'scalar', value } };
 }
 
+function queryScalarToInfo(scalar) {
+  if (scalar && typeof scalar === 'object' && Object.hasOwn(scalar, 'value')) {
+    const metadata = scalar.metadata ?? {};
+    return {
+      value: scalar.value,
+      ...(metadata.kind === undefined ? {} : { kind: metadata.kind }),
+      ...(metadata.category === undefined ? {} : { category: metadata.category }),
+      ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
+    };
+  }
+  return { value: scalar };
+}
+
 function queryComparisonMessage(reason, operator) {
   if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
   if (reason === 'not_equality_comparable') return 'NaN, null, absence, and non-scalar values are not equality-comparable in this evaluator slice';
@@ -2065,7 +2093,9 @@ function expectBooleanQueryValue(value, namespace) {
 }
 
 function expectScalarQueryValue(value, namespace) {
-  if (value.type === 'scalar') return { ok: true, value: value.value };
+  if (value.type === 'scalar') {
+    return { ok: true, value: value.value, metadata: value[QUERY_VALUE_METADATA_PROPERTY] };
+  }
   if (value.type === 'bindingSet') {
     if (value.bindings.length === 0) {
       return {
@@ -2081,7 +2111,7 @@ function expectScalarQueryValue(value, namespace) {
     }
     const scalar = getBindingScalarValue(namespace, value.bindings[0]);
     if (!scalar.ok) return scalar;
-    return { ok: true, value: scalar.value };
+    return { ok: true, value: scalar.value, metadata: scalar.metadata };
   }
   return {
     ok: false,
@@ -2951,6 +2981,14 @@ class QueryExpressionParser {
         type: 'literalExpression',
         kind: 'boolean',
         value: name === 'true',
+        canonical: name,
+      };
+    }
+    if (['yes', 'no', 'on', 'off'].includes(name)) {
+      return {
+        type: 'literalExpression',
+        kind: 'toggle',
+        value: name,
         canonical: name,
       };
     }

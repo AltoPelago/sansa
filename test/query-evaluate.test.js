@@ -245,6 +245,8 @@ const root = binding({
     params,
   },
   children: [
+    binding({ name: 'consent', address: '$.consent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'yes' }),
+    binding({ name: 'fallbackConsent', address: '$.fallbackConsent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'on' }),
     binding({
       name: 'inventory',
       address: '$.inventory',
@@ -920,6 +922,30 @@ test('follows the comparison policy matrix', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+
+  const toggleEquality = evaluateQuery([
+    'from $.consent',
+    'where . == yes',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleEquality.ok, true, JSON.stringify(toggleEquality.errors ?? []));
+  assert.deepEqual(toggleEquality.results.map((entry) => entry.binding.address), ['$.consent']);
+
+  const toggleSpellingIsNotCoerced = evaluateQuery([
+    'from $.fallbackConsent',
+    'where . == yes',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleSpellingIsNotCoerced.ok, true, JSON.stringify(toggleSpellingIsNotCoerced.errors ?? []));
+  assert.deepEqual(toggleSpellingIsNotCoerced.results.map((entry) => entry.binding.address), []);
+
+  const toggleBooleanComparison = evaluateQuery([
+    'from $.consent',
+    'where . == true',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleBooleanComparison.ok, false);
+  assert.equal(toggleBooleanComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items[3]',

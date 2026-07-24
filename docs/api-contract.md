@@ -524,7 +524,7 @@ isNaN(.metric) == true when the scalar is explicit NaN
 isInfinity(.limit) == true when the scalar is positive or negative infinity
 ```
 
-`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, toggles, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
 
 `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
 
@@ -537,6 +537,8 @@ Current comparison policy:
 | number and number | allowed | allowed | numeric comparison |
 | string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
+| toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |
+| toggle and boolean | error | error | no implicit Boolean coercion |
 | explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
 | NaN | error | error | use `isNaN(...)` |
 | infinity and number | allowed | allowed | numeric bound comparison |

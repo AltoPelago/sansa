@@ -92,6 +92,37 @@ testAeonRuntime('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+testAeonRuntime('query web runtime evaluates AEON toggle literal comparisons', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.consent\nwhere . == yes\nselect .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.consent = yes');
+
+  const notCoerced = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.fallbackConsent\nwhere . == yes\nselect .',
+  });
+
+  assert.equal(notCoerced.ok, true, JSON.stringify(notCoerced.errors ?? []));
+  assert.equal(notCoerced.count, 0);
+
+  const booleanComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.consent\nwhere . == true\nselect .',
+  });
+
+  assert.equal(booleanComparison.ok, false);
+  assert.equal(booleanComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
 test('query web runtime applies explicit value semantics profiles', async () => {
   const source = JSON.stringify({
     root: {

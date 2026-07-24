@@ -546,6 +546,8 @@ function scalarKindFromValue(value) {
       return 'infinity';
     case 'NaNLiteral':
       return 'nan';
+    case 'ToggleLiteral':
+      return 'toggle';
     default:
       return undefined;
   }
@@ -630,6 +632,7 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   }
   if (metadata?.kind === 'nan' || (typeof value === 'number' && Number.isNaN(value))) return 'NaN';
   if (metadata?.kind === 'infinity' || value === Infinity) return 'Infinity';
+  if (metadata?.kind === 'toggle' || metadata?.category === 'toggle') return String(value);
   if (value === -Infinity) return '-Infinity';
   if (value === null) return 'null';
   if (typeof value === 'string') return JSON.stringify(value);

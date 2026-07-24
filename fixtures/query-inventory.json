@@ -90,6 +90,22 @@
     },
     "children": [
       {
+        "name": "consent",
+        "address": "$.consent",
+        "semanticType": "toggle",
+        "representationKind": "toggle",
+        "scalarKind": "toggle",
+        "value": "yes"
+      },
+      {
+        "name": "fallbackConsent",
+        "address": "$.fallbackConsent",
+        "semanticType": "toggle",
+        "representationKind": "toggle",
+        "scalarKind": "toggle",
+        "value": "on"
+      },
+      {
         "name": "inventory",
         "address": "$.inventory",
         "representationKind": "object",

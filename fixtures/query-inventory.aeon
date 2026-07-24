@@ -1,3 +1,6 @@
+consent:toggle = yes
+fallbackConsent:toggle = on
+
 inventory:object = {
   items:list<object> = [
       @{lane:string = "primary"}:object = {

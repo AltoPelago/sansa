@@ -120,8 +120,18 @@ null, explicit absence values, and NaN, while multiple bindings remain a
 cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
-equality, and infinity as a numeric bound. It rejects mixed-type comparisons,
-Boolean ordering, explicit null comparison, and NaN comparison.
+equality, exact toggle-token equality, and infinity as a numeric bound. It
+rejects mixed-type comparisons, toggle-to-Boolean coercion, Boolean ordering,
+explicit null comparison, and NaN comparison.
+
+```text
+where .consent == yes
+```
+
+AEON toggle literal spellings `yes`, `no`, `on`, and `off` are parsed as toggle
+values. They are not Boolean aliases: `yes` does not equal `on`, and `yes` does
+not equal `true` without an explicit conversion or profile-defined comparison
+domain.
 
 Membership tests a scalar against the scalar values exposed by a Binding Set:
 
