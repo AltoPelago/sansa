@@ -234,6 +234,26 @@ testAeonRuntime('query web runtime renders AEON-style text values', async () => 
   ].join('\n'));
 });
 
+testAeonRuntime('query web runtime evaluates resolveChild and fallback in one projection', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: [
+      'from $.inventory.items.*',
+      'where .qty >= 4',
+      'select { sku = .sku category = resolveChild($.inventory.categoryLabels, .category) status = fallback(.status, "missing") }',
+    ].join('\n'),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.text, [
+    '$.inventory.items[1] = {"sku":"B-200","category":"Hardware","status":"active"}',
+    '$.inventory.items[2] = {"sku":"C-300","category":"Hardware","status":"missing"}',
+    '$.inventory.items[3] = {"sku":"D-250","category":"Tooling","status":!notApplicable}',
+  ].join('\n'));
+});
+
 test('query web runtime activates structured address literals from JSON fixtures', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.json', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
