@@ -1,5 +1,21 @@
 consent:toggle = yes
 fallbackConsent:toggle = on
+target:number = 7
+targetClone:number = ~target
+targetPointer:number = ~>target
+
+types:object = {
+  color:hex = #ff00aa
+  colorCopy:hex = #ff00aa
+  mask:radix[16] = %ff00aa
+  payload:encoding = &QmFzZTY0IQ==
+  version:sep[.] = ^0.11.0
+  released:date = 2026-07-25
+  window:time = 09:30:00Z
+  stamp:datetime = 2026-07-25T09:30:00Z
+  zone:zrut = 2026-07-25T09:30:00Z&Australia/Melbourne
+  selector:sansa = $.inventory.items.*.sku
+}
 
 inventory:object = {
   items:list<object> = [

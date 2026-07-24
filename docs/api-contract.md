@@ -539,6 +539,14 @@ Current comparison policy:
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
 | toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |
 | toggle and boolean | error | error | no implicit Boolean coercion |
+| hex and hex | allowed | error | canonical payload identity only |
+| radix and radix | allowed | error | preserved payload and radix-family metadata identity only |
+| hex and radix | error | error | no implicit numeric or base-16 coercion |
+| encoding and encoding | allowed | allowed | naïve payload order over preserved encoded payload characters |
+| separator and separator | allowed | allowed | naïve whole-payload order; no splitting on separator specs |
+| SANSA address and SANSA address | allowed | allowed | canonical address-expression identity and naïve address-expression order |
+| temporal and temporal | profile-defined | profile-defined | no comparison without an active temporal profile |
+| reference form and reference form | allowed | error | reference-kind and canonical target-path identity; no implicit follow |
 | explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
 | NaN | error | error | use `isNaN(...)` |
 | infinity and number | allowed | allowed | numeric bound comparison |

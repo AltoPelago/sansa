@@ -123,6 +123,65 @@ testAeonRuntime('query web runtime evaluates AEON toggle literal comparisons', a
   assert.equal(booleanComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
+testAeonRuntime('query web runtime preserves AEON scalar value families', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const hexFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*%hex\nselect .',
+  });
+
+  assert.equal(hexFilter.ok, true, JSON.stringify(hexFilter.errors ?? []));
+  assert.equal(hexFilter.text, [
+    '$.types.color = #ff00aa',
+    '$.types.colorCopy = #ff00aa',
+  ].join('\n'));
+
+  const hexEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.color\nwhere . == $.types.colorCopy\nselect .',
+  });
+  assert.equal(hexEquality.ok, true, JSON.stringify(hexEquality.errors ?? []));
+  assert.equal(hexEquality.count, 1);
+
+  const hexRadixComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.color\nwhere . == $.types.mask\nselect .',
+  });
+  assert.equal(hexRadixComparison.ok, false);
+  assert.equal(hexRadixComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const temporalComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.released\nwhere . == $.types.released\nselect .',
+  });
+  assert.equal(temporalComparison.ok, false);
+  assert.equal(temporalComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const aeonishRendering = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*\nselect .',
+  });
+  assert.equal(aeonishRendering.ok, true, JSON.stringify(aeonishRendering.errors ?? []));
+  assert.match(aeonishRendering.text, /\$\.types\.mask = %ff00aa/);
+  assert.match(aeonishRendering.text, /\$\.types\.payload = &QmFzZTY0IQ==/);
+  assert.match(aeonishRendering.text, /\$\.types\.version = \^0\.11\.0/);
+  assert.match(aeonishRendering.text, /\$\.types\.released = 2026-07-25/);
+  assert.match(aeonishRendering.text, /\$\.types\.selector = \$\.inventory\.items\.\*\.sku/);
+
+  const referenceForm = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.targetClone\nwhere . == $.targetClone\nselect .',
+  });
+  assert.equal(referenceForm.ok, true, JSON.stringify(referenceForm.errors ?? []));
+  assert.equal(referenceForm.text, '$.targetClone = ~target');
+});
+
 test('query web runtime applies explicit value semantics profiles', async () => {
   const source = JSON.stringify({
     root: {
@@ -556,6 +615,7 @@ test('query web example catalog is grouped and uniquely keyed', () => {
     'Predicates',
     'Functions',
     'Ordering',
+    'Value Families',
     'Value Semantics',
     'Pipeline',
     'Recipes',

@@ -120,9 +120,11 @@ null, explicit absence values, and NaN, while multiple bindings remain a
 cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
-equality, exact toggle-token equality, and infinity as a numeric bound. It
-rejects mixed-type comparisons, toggle-to-Boolean coercion, Boolean ordering,
-explicit null comparison, and NaN comparison.
+equality, exact toggle-token equality, same-family lexical value equality for
+hex and radix values, exact reference-form equality, and infinity as a numeric
+bound. It rejects mixed-type comparisons, toggle-to-Boolean coercion,
+hex-to-radix coercion, temporal comparison without an active temporal profile,
+Boolean ordering, explicit null comparison, and NaN comparison.
 
 ```text
 where .consent == yes

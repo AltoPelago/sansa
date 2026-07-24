@@ -461,6 +461,15 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (metadata?.kind === 'toggle' || metadata?.category === 'toggle') return String(value);
   if (value === -Infinity) return '-Infinity';
   if (value === null) return 'null';
+  if (metadata?.kind === 'hex') return `#${value}`;
+  if (metadata?.kind === 'radix') return `%${value}`;
+  if (metadata?.kind === 'encoding') return `&${value}`;
+  if (metadata?.kind === 'separator') return `^${value}`;
+  if (['date', 'time', 'datetime', 'zrut'].includes(metadata?.kind)) return String(value);
+  if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
+    return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
+  }
+  if (metadata?.kind === 'referenceForm') return value?.canonical ?? JSON.stringify(value);
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) {

@@ -15,10 +15,19 @@ const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'toggle',
+  'hex',
+  'radix',
   'encoding',
   'separator',
+  'sansa',
   'sansaAddress',
+  'cloneReference',
+  'pointerReference',
   'referenceForm',
+  'date',
+  'time',
+  'datetime',
+  'zrut',
   'temporal',
   'lexicalStructuredScalar',
   'container',
@@ -1859,16 +1868,32 @@ function valueDescriptorToScalarInfo(descriptor) {
       return { category: 'boolean', value: Boolean(descriptor.value) };
     case 'toggle':
       return { category: 'toggle', value: String(descriptor.value ?? '') };
+    case 'hex':
+      return { category: 'hex', value: String(descriptor.value ?? '') };
+    case 'radix':
+      return {
+        category: 'radix',
+        value: {
+          payload: String(descriptor.value ?? ''),
+          semanticType: descriptor.semanticType ?? 'radix',
+        },
+      };
     case 'encoding':
       return { category: 'encoding', value: String(descriptor.value ?? '') };
     case 'separator':
       return { category: 'separator', value: String(descriptor.value ?? '') };
     case 'sansaAddress':
-      return { category: 'sansaAddress', value: String(descriptor.value ?? '') };
+      return { category: 'sansaAddress', value: sansaAddressSemanticValue(descriptor.value) };
     case 'referenceForm':
       return { category: 'referenceForm', value: descriptor.value ?? descriptor };
     case 'temporal':
-      return { category: 'temporal', value: String(descriptor.value ?? '') };
+      return {
+        category: 'temporal',
+        value: {
+          payload: String(descriptor.value ?? ''),
+          semanticType: descriptor.semanticType ?? 'temporal',
+        },
+      };
     case 'lexicalStructuredScalar':
       return { category: 'lexicalStructuredScalar', value: String(descriptor.value ?? '') };
     case 'explicitNull':
@@ -1912,9 +1937,11 @@ function scalarInfoToValueDescriptor(info) {
       ? info.kind
       : undefined;
   if (semanticCategory) {
+    const category = normalizeValueSemanticsCategory(semanticCategory);
     return {
-      category: semanticCategory,
+      category,
       value: info.value,
+      ...(info.semanticType === undefined ? {} : { semanticType: info.semanticType }),
       ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
     };
   }
@@ -1949,6 +1976,8 @@ function sameMinimumEqualityDomain(left, right) {
     'string',
     'boolean',
     'toggle',
+    'hex',
+    'radix',
     'encoding',
     'separator',
     'sansaAddress',
@@ -1982,6 +2011,21 @@ function compareMinimumOrdering(left, right, profile) {
     return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
   }
   return compareOrderKeyValues(left.value, right.value, profile);
+}
+
+function normalizeValueSemanticsCategory(category) {
+  if (category === 'sansa') return 'sansaAddress';
+  if (category === 'cloneReference' || category === 'pointerReference') return 'referenceForm';
+  if (['date', 'time', 'datetime', 'zrut'].includes(category)) return 'temporal';
+  return category;
+}
+
+function sansaAddressSemanticValue(value) {
+  if (typeof value === 'string') return value;
+  if (value?.canonical !== undefined) return String(value.canonical);
+  if (value?.address?.canonical !== undefined) return String(value.address.canonical);
+  if (typeof value?.address === 'string') return value.address;
+  return String(value ?? '');
 }
 
 function structurallyEqualContainers(left, right, profile) {
@@ -2064,6 +2108,7 @@ function queryScalarToInfo(scalar) {
       value: scalar.value,
       ...(metadata.kind === undefined ? {} : { kind: metadata.kind }),
       ...(metadata.category === undefined ? {} : { category: metadata.category }),
+      ...(metadata.semanticType === undefined ? {} : { semanticType: metadata.semanticType }),
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
     };
   }
@@ -2133,12 +2178,13 @@ function getBindingScalarValue(namespace, binding) {
 
 function getBindingScalarInfo(namespace, binding) {
   const kind = getBindingScalarKind(namespace, binding);
+  const semanticType = getBindingSemanticType(namespace, binding);
   const nullReason = getBindingNullReason(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, nullReason };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, nullReason };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, nullReason };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
@@ -2166,6 +2212,13 @@ function getBindingScalarKind(namespace, binding) {
   return typeof actual === 'string' ? lowerFirst(actual) : undefined;
 }
 
+function getBindingSemanticType(namespace, binding) {
+  const actual = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding.semanticType ?? binding.datatype;
+  return typeof actual === 'string' ? actual : undefined;
+}
+
 function getBindingNullReason(namespace, binding) {
   if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
   return binding.nullReason;
@@ -2186,6 +2239,7 @@ function queryValueAddress(value) {
 function scalarMetadataFromInfo(info) {
   const metadata = {};
   if (info.kind !== undefined) metadata.kind = info.kind;
+  if (info.semanticType !== undefined) metadata.semanticType = info.semanticType;
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }

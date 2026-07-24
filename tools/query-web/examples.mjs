@@ -340,6 +340,65 @@ export const queryExampleGroups = [
     ],
   },
   {
+    label: 'Value Families',
+    examples: [
+      {
+        name: 'hexFamilyFilter',
+        label: 'Hex family filter',
+        query: lines(
+          'from $.types.*%hex',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.types.color = #ff00aa',
+        },
+      },
+      {
+        name: 'hexFamilyEquality',
+        label: 'Hex family equality',
+        query: lines(
+          'from $.types.color',
+          'where . == $.types.colorCopy',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.types.color = #ff00aa',
+        },
+      },
+      {
+        name: 'typedScalarRendering',
+        label: 'Typed scalar rendering',
+        query: lines(
+          'from $.types.*',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 10,
+          includes: '$.types.selector = $.inventory.items.*.sku',
+        },
+      },
+      {
+        name: 'referenceForm',
+        label: 'Reference form',
+        query: lines(
+          'from $.targetClone',
+          'where . == $.targetClone',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.targetClone = ~target',
+        },
+      },
+    ],
+  },
+  {
     label: 'Value Semantics',
     examples: [
       {
