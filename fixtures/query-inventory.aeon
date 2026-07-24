@@ -14,6 +14,21 @@ types:object = {
   window:time = 09:30:00Z
   stamp:datetime = 2026-07-25T09:30:00Z
   zone:zrut = 2026-07-25T09:30:00Z&Australia/Melbourne
+  count:int32 = 2
+  capacity:uint64 = 8
+  ratio:float64 = 2.5
+  aliasNumber:n = 9
+  approved:bool = true
+  note:trimtick = >`
+    hello trimtick
+  `
+  summary:prose = >`
+    hello prose
+  `
+  payloadBase64:base64 = &QmFzZTY0IQ==
+  payloadEmbed:embed = &QmFzZTY0IQ==
+  payloadInline:inline = &QmFzZTY0IQ==
+  semver:kadot = ^3.14.15
   selector:sansa = $.inventory.items.*.sku
 }
 

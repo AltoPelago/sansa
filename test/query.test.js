@@ -174,11 +174,29 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(separator.value, '0.11.0');
   assert.equal(renderQueryExpression(separator), '^0.11.0');
 
-  const temporal = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
-  assert.equal(temporal.type, 'literalExpression');
-  assert.equal(temporal.kind, 'zrut');
-  assert.equal(temporal.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
-  assert.equal(renderQueryExpression(temporal), '2026-07-25T09:30:00Z&Australia/Melbourne');
+  const date = parseExpressionOk('2026-07-25');
+  assert.equal(date.type, 'literalExpression');
+  assert.equal(date.kind, 'date');
+  assert.equal(date.value, '2026-07-25');
+  assert.equal(renderQueryExpression(date), '2026-07-25');
+
+  const time = parseExpressionOk('09:30:00Z');
+  assert.equal(time.type, 'literalExpression');
+  assert.equal(time.kind, 'time');
+  assert.equal(time.value, '09:30:00Z');
+  assert.equal(renderQueryExpression(time), '09:30:00Z');
+
+  const datetime = parseExpressionOk('2026-07-25T09:30:00Z');
+  assert.equal(datetime.type, 'literalExpression');
+  assert.equal(datetime.kind, 'datetime');
+  assert.equal(datetime.value, '2026-07-25T09:30:00Z');
+  assert.equal(renderQueryExpression(datetime), '2026-07-25T09:30:00Z');
+
+  const zrut = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(zrut.type, 'literalExpression');
+  assert.equal(zrut.kind, 'zrut');
+  assert.equal(zrut.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(renderQueryExpression(zrut), '2026-07-25T09:30:00Z&Australia/Melbourne');
 
   const nullLiteral = parseExpressionOk('!notSet');
   assert.equal(nullLiteral.type, 'literalExpression');

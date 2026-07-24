@@ -535,9 +535,11 @@ isInfinity(.limit) == true when the scalar is positive or negative infinity
 
 Query source can express selected AEON scalar literal families directly:
 `#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
-temporal-looking literals such as `2026-07-25`. These literals preserve their
-family metadata for comparison. Same-family temporal literals compare through
-the active temporal profile; the default profile uses canonical payload order.
+temporal-looking literals such as `2026-07-25`, `09:30:00Z`,
+`2026-07-25T09:30:00Z`, and `2026-07-25T09:30:00Z&Australia/Melbourne`. These
+literals preserve their family metadata for comparison. Same-family temporal
+literals compare through the active temporal profile; the default profile uses
+canonical payload order.
 Explicit null literals are tested through null predicates rather than equality.
 
 Current comparison policy:
@@ -545,6 +547,8 @@ Current comparison policy:
 | Operands | Equality | Ordering | Result |
 | --- | --- | --- | --- |
 | number and number | allowed | allowed | numeric comparison |
+| numeric subtype and numeric subtype | allowed | allowed | `int`, `uint`, and `float` datatype labels remain visible to semantic filters; comparison uses finite numeric values once exposed by the host |
+| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `base64`/`embed`/`inline` as encoding, and `kadot` as separator |
 | string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
 | toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |

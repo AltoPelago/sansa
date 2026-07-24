@@ -201,6 +201,30 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(temporalLiteralComparison.ok, true, JSON.stringify(temporalLiteralComparison.errors ?? []));
   assert.equal(temporalLiteralComparison.text, '$.types.released = 2026-07-25');
 
+  const timeLiteralComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.window\nwhere . >= 09:00:00Z\nselect .',
+  });
+  assert.equal(timeLiteralComparison.ok, true, JSON.stringify(timeLiteralComparison.errors ?? []));
+  assert.equal(timeLiteralComparison.text, '$.types.window = 09:30:00Z');
+
+  const datetimeLiteralComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.stamp\nwhere . == 2026-07-25T09:30:00Z\nselect .',
+  });
+  assert.equal(datetimeLiteralComparison.ok, true, JSON.stringify(datetimeLiteralComparison.errors ?? []));
+  assert.equal(datetimeLiteralComparison.text, '$.types.stamp = 2026-07-25T09:30:00Z');
+
+  const zrutLiteralComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.zone\nwhere . == 2026-07-25T09:30:00Z&Australia/Melbourne\nselect .',
+  });
+  assert.equal(zrutLiteralComparison.ok, true, JSON.stringify(zrutLiteralComparison.errors ?? []));
+  assert.equal(zrutLiteralComparison.text, '$.types.zone = 2026-07-25T09:30:00Z&Australia/Melbourne');
+
   const temporalCrossFamilyComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -208,6 +232,62 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(temporalCrossFamilyComparison.ok, false);
   assert.equal(temporalCrossFamilyComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const numericSubtypeFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#int32\nwhere . >= 2\nselect .',
+  });
+  assert.equal(numericSubtypeFilter.ok, true, JSON.stringify(numericSubtypeFilter.errors ?? []));
+  assert.equal(numericSubtypeFilter.text, '$.types.count = 2');
+
+  const numericSubtypeComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types\nwhere .count < .ratio and .capacity > .ratio\nselect .count',
+  });
+  assert.equal(numericSubtypeComparison.ok, true, JSON.stringify(numericSubtypeComparison.errors ?? []));
+  assert.equal(numericSubtypeComparison.text, '$.types.count = 2');
+
+  const numberAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#n\nwhere . > $.types.count\nselect .',
+  });
+  assert.equal(numberAliasFilter.ok, true, JSON.stringify(numberAliasFilter.errors ?? []));
+  assert.equal(numberAliasFilter.text, '$.types.aliasNumber = 9');
+
+  const boolAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#bool\nwhere . == true\nselect .',
+  });
+  assert.equal(boolAliasFilter.ok, true, JSON.stringify(boolAliasFilter.errors ?? []));
+  assert.equal(boolAliasFilter.text, '$.types.approved = true');
+
+  const stringFamilyAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#prose\nwhere . == "hello prose"\nselect .',
+  });
+  assert.equal(stringFamilyAliasFilter.ok, true, JSON.stringify(stringFamilyAliasFilter.errors ?? []));
+  assert.equal(stringFamilyAliasFilter.text, '$.types.summary = "hello prose"');
+
+  const encodingAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#base64\nwhere . == &QmFzZTY0IQ==\nselect .',
+  });
+  assert.equal(encodingAliasFilter.ok, true, JSON.stringify(encodingAliasFilter.errors ?? []));
+  assert.equal(encodingAliasFilter.text, '$.types.payloadBase64 = &QmFzZTY0IQ==');
+
+  const separatorAliasFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.*#kadot\nwhere . > ^3.0.0\nselect .',
+  });
+  assert.equal(separatorAliasFilter.ok, true, JSON.stringify(separatorAliasFilter.errors ?? []));
+  assert.equal(separatorAliasFilter.text, '$.types.semver = ^3.14.15');
 
   const nullLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -227,6 +307,20 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.match(aeonishRendering.text, /\$\.types\.payload = &QmFzZTY0IQ==/);
   assert.match(aeonishRendering.text, /\$\.types\.version = \^0\.11\.0/);
   assert.match(aeonishRendering.text, /\$\.types\.released = 2026-07-25/);
+  assert.match(aeonishRendering.text, /\$\.types\.window = 09:30:00Z/);
+  assert.match(aeonishRendering.text, /\$\.types\.stamp = 2026-07-25T09:30:00Z/);
+  assert.match(aeonishRendering.text, /\$\.types\.zone = 2026-07-25T09:30:00Z&Australia\/Melbourne/);
+  assert.match(aeonishRendering.text, /\$\.types\.count = 2/);
+  assert.match(aeonishRendering.text, /\$\.types\.capacity = 8/);
+  assert.match(aeonishRendering.text, /\$\.types\.ratio = 2.5/);
+  assert.match(aeonishRendering.text, /\$\.types\.aliasNumber = 9/);
+  assert.match(aeonishRendering.text, /\$\.types\.approved = true/);
+  assert.match(aeonishRendering.text, /\$\.types\.note = "hello trimtick"/);
+  assert.match(aeonishRendering.text, /\$\.types\.summary = "hello prose"/);
+  assert.match(aeonishRendering.text, /\$\.types\.payloadBase64 = &QmFzZTY0IQ==/);
+  assert.match(aeonishRendering.text, /\$\.types\.payloadEmbed = &QmFzZTY0IQ==/);
+  assert.match(aeonishRendering.text, /\$\.types\.payloadInline = &QmFzZTY0IQ==/);
+  assert.match(aeonishRendering.text, /\$\.types\.semver = \^3\.14\.15/);
   assert.match(aeonishRendering.text, /\$\.types\.selector = \$\.inventory\.items\.\*\.sku/);
 
   const referenceForm = await evaluateQueryForWorkbench({

@@ -273,6 +273,18 @@ const root = binding({
         binding({ name: 'released', address: '$.types.released', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2026-07-25' }),
         binding({ name: 'window', address: '$.types.window', semanticType: 'time', representationKind: 'time', scalarKind: 'time', value: '09:30:00Z' }),
         binding({ name: 'stamp', address: '$.types.stamp', semanticType: 'datetime', representationKind: 'datetime', scalarKind: 'datetime', value: '2026-07-25T09:30:00Z' }),
+        binding({ name: 'zone', address: '$.types.zone', semanticType: 'zrut', representationKind: 'zrut', scalarKind: 'zrut', value: '2026-07-25T09:30:00Z&Australia/Melbourne' }),
+        binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
+        binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
+        binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
+        binding({ name: 'aliasNumber', address: '$.types.aliasNumber', semanticType: 'n', representationKind: 'number', value: 9 }),
+        binding({ name: 'approved', address: '$.types.approved', semanticType: 'bool', representationKind: 'boolean', value: true }),
+        binding({ name: 'note', address: '$.types.note', semanticType: 'trimtick', representationKind: 'string', value: 'hello trimtick' }),
+        binding({ name: 'summary', address: '$.types.summary', semanticType: 'prose', representationKind: 'string', value: 'hello prose' }),
+        binding({ name: 'payloadBase64', address: '$.types.payloadBase64', semanticType: 'base64', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'payloadEmbed', address: '$.types.payloadEmbed', semanticType: 'embed', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'payloadInline', address: '$.types.payloadInline', semanticType: 'inline', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'semver', address: '$.types.semver', semanticType: 'kadot', representationKind: 'separator', scalarKind: 'separator', value: '3.14.15' }),
       ],
     }),
     binding({
@@ -932,6 +944,62 @@ test('follows the comparison policy matrix', () => {
   assert.equal(numberComparison.ok, true, JSON.stringify(numberComparison.errors ?? []));
   assert.deepEqual(numberComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 
+  const intSemanticFilterComparison = evaluateQuery([
+    'from $.types.*#int32',
+    'where . >= 2',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(intSemanticFilterComparison.ok, true, JSON.stringify(intSemanticFilterComparison.errors ?? []));
+  assert.deepEqual(intSemanticFilterComparison.results.map((entry) => entry.binding.address), ['$.types.count']);
+
+  const numericSubtypeComparison = evaluateQuery([
+    'from $.types',
+    'where .count < .ratio and .capacity > .ratio',
+    'select .count',
+  ].join('\n'), namespace);
+  assert.equal(numericSubtypeComparison.ok, true, JSON.stringify(numericSubtypeComparison.errors ?? []));
+  assert.deepEqual(numericSubtypeComparison.results.map((entry) => entry.binding.address), ['$.types']);
+
+  const numberAliasFilterComparison = evaluateQuery([
+    'from $.types.*#n',
+    'where . > $.types.count',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(numberAliasFilterComparison.ok, true, JSON.stringify(numberAliasFilterComparison.errors ?? []));
+  assert.deepEqual(numberAliasFilterComparison.results.map((entry) => entry.binding.address), ['$.types.aliasNumber']);
+
+  const boolAliasFilterComparison = evaluateQuery([
+    'from $.types.*#bool',
+    'where . == true',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(boolAliasFilterComparison.ok, true, JSON.stringify(boolAliasFilterComparison.errors ?? []));
+  assert.deepEqual(boolAliasFilterComparison.results.map((entry) => entry.binding.address), ['$.types.approved']);
+
+  const stringFamilyAliasComparison = evaluateQuery([
+    'from $.types.*#prose',
+    'where . == "hello prose"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(stringFamilyAliasComparison.ok, true, JSON.stringify(stringFamilyAliasComparison.errors ?? []));
+  assert.deepEqual(stringFamilyAliasComparison.results.map((entry) => entry.binding.address), ['$.types.summary']);
+
+  const encodingAliasComparison = evaluateQuery([
+    'from $.types.*#base64',
+    'where . == &QmFzZTY0IQ==',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingAliasComparison.ok, true, JSON.stringify(encodingAliasComparison.errors ?? []));
+  assert.deepEqual(encodingAliasComparison.results.map((entry) => entry.binding.address), ['$.types.payloadBase64']);
+
+  const separatorAliasComparison = evaluateQuery([
+    'from $.types.*#kadot',
+    'where . > ^3.0.0',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(separatorAliasComparison.ok, true, JSON.stringify(separatorAliasComparison.errors ?? []));
+  assert.deepEqual(separatorAliasComparison.results.map((entry) => entry.binding.address), ['$.types.semver']);
+
   const stringEquality = evaluateQuery([
     'from $.inventory.items.*',
     'where .sku == "B-200"',
@@ -993,6 +1061,30 @@ test('follows the comparison policy matrix', () => {
     '$.types.released',
     '$.types.archiveDate',
   ]);
+
+  const timeLiteralComparison = evaluateQuery([
+    'from $.types.window',
+    'where . >= 09:00:00Z',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(timeLiteralComparison.ok, true, JSON.stringify(timeLiteralComparison.errors ?? []));
+  assert.deepEqual(timeLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.window']);
+
+  const datetimeLiteralComparison = evaluateQuery([
+    'from $.types.stamp',
+    'where . == 2026-07-25T09:30:00Z',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(datetimeLiteralComparison.ok, true, JSON.stringify(datetimeLiteralComparison.errors ?? []));
+  assert.deepEqual(datetimeLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.stamp']);
+
+  const zrutLiteralComparison = evaluateQuery([
+    'from $.types.zone',
+    'where . == 2026-07-25T09:30:00Z&Australia/Melbourne',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(zrutLiteralComparison.ok, true, JSON.stringify(zrutLiteralComparison.errors ?? []));
+  assert.deepEqual(zrutLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
 
   const temporalCrossFamilyComparison = evaluateQuery([
     'from $.types.stamp',

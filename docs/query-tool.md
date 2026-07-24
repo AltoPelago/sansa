@@ -126,12 +126,23 @@ same-kind structural container equality, and infinity as a numeric bound.
 Query source can express the same AEON scalar literal families directly, for
 example `#ff00aa`, `%ff00aa`,
 `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
-`2026-07-25`. Same-family temporal values compare through the active temporal
-value-semantics profile; the default profile uses canonical payload order for
-`date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
+`2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
+`2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
+through the active temporal value-semantics profile; the default profile uses
+canonical payload order for `date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
 comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
 temporal comparison, Boolean ordering, container ordering, explicit null
 comparison, and NaN comparison.
+
+Numeric datatype labels such as `int32`, `uint64`, and `float64` remain visible
+to semantic filters. When the host exposes their payload as a finite numeric
+value, comparison uses the shared numeric value semantics; range, width,
+integer-only, unsigned, and precision checks remain profile or schema concerns.
+The same label-vs-family split applies to reserved aliases: `n` compares as a
+number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
+`base64`, `embed`, and `inline` compare as encoded payloads, and `kadot`
+compares as a separator payload when the host exposes those representation
+families.
 
 Container equality compares one resolved container binding on each side.
 Objects compare by member names and member values. Lists, tuples, and nodes
