@@ -236,6 +236,22 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(referenceForm.ok, true, JSON.stringify(referenceForm.errors ?? []));
   assert.equal(referenceForm.text, '$.targetClone = ~target');
+
+  const referenceFormKindIsNotCoerced = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.targetPointer\nwhere . == $.targetClone\nselect .',
+  });
+  assert.equal(referenceFormKindIsNotCoerced.ok, true, JSON.stringify(referenceFormKindIsNotCoerced.errors ?? []));
+  assert.equal(referenceFormKindIsNotCoerced.count, 0);
+
+  const followedReference = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.targetClone\nwhere follow(.) == 7\nselect follow(.)',
+  });
+  assert.equal(followedReference.ok, true, JSON.stringify(followedReference.errors ?? []));
+  assert.equal(followedReference.text, '$.target = 7');
 });
 
 test('query web runtime applies explicit value semantics profiles', async () => {

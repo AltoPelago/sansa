@@ -483,6 +483,7 @@ Currently evaluated:
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - dynamic direct-child resolution over addressable containers with `resolveChild`
+- explicit read-only reference following with `follow`
 - experimental transform-library object construction with `objectFrom`
 - experimental transform-library field projection with `fieldsFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
@@ -576,6 +577,14 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 `fallback(primary, replacement)` is a function-like operator with lazy missing handling. The primary operand is consumed in scalar value context. If it resolves zero bindings, or raises a missing-scalar diagnostic, the replacement operand is evaluated and consumed in the same scalar value context. If the primary operand succeeds, the replacement operand is not evaluated. Explicit null values, cardinality errors, type errors, comparison errors, and unsupported-function errors do not trigger fallback.
 
 `resolveChild(base, key)` is a function-like structural operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one addressable container. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics. It does not parse traversal strings, scan collections, or perform join semantics.
+
+`follow(reference)` is a function-like read-only reference operator. Its operand
+must evaluate to one AEON reference form. The function resolves the reference's
+canonical exact target path and returns that target Binding Set. Without
+`follow(...)`, references compare as reference forms by reference kind and
+canonical target path; with `follow(...)`, the target binding is consumed by the
+ordinary scalar, structural, or order context. `follow(...)` does not rewrite,
+inline, clone, alias, or erase the source reference.
 
 `objectFrom(keys, values)` is an experimental transform-library helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics. It is not part of the required SANSA.Query v1 core surface.
 

@@ -396,6 +396,20 @@ export const queryExampleGroups = [
           includes: '$.targetClone = ~target',
         },
       },
+      {
+        name: 'followReference',
+        label: 'Follow reference',
+        query: lines(
+          'from $.targetClone',
+          'where follow(.) == 7',
+          'select follow(.)',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.target = 7',
+        },
+      },
     ],
   },
   {

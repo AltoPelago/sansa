@@ -818,6 +818,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (expression.name === 'resolveChild') {
     return evaluateResolveChildExpression(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'follow') {
+    return evaluateFollowExpression(expression, currentBinding, namespace, options);
+  }
   if (expression.name === 'objectFrom') {
     const extension = expectEnabledExtension(expression.name, options);
     if (!extension.ok) return extension;
@@ -1103,6 +1106,107 @@ function evaluateResolveChildExpression(expression, currentBinding, namespace, o
       bindings,
     },
   };
+}
+
+function evaluateFollowExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'follow' expects 1 argument"),
+    };
+  }
+
+  const evaluated = evaluateQueryExpressionValue(expression.arguments[0], currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  const scalar = expectScalarQueryValue(evaluated.value, namespace);
+  if (!scalar.ok) return scalar;
+  if (!isReferenceFormValue(scalar.value, scalar.metadata)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'follow' expects an AEON reference form"),
+    };
+  }
+
+  const target = referenceTargetAddress(scalar.value, options.parse?.address);
+  if (!target.ok) return target;
+  if (!target.address.isExact) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' requires an exact reference target path"),
+    };
+  }
+
+  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  if (resolved.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_REFERENCE_TARGET', "Function 'follow' target resolved no binding"),
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: 'bindingSet',
+      bindings: resolved.bindings,
+    },
+  };
+}
+
+function isReferenceFormValue(value, metadata) {
+  if (metadata?.kind === 'referenceForm' || metadata?.category === 'referenceForm') return true;
+  return value?.type === 'CloneReference' || value?.type === 'PointerReference';
+}
+
+function referenceTargetAddress(value, parseOptions) {
+  const source = referenceTargetAddressSource(value);
+  if (source === null) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' received a reference without a target path"),
+    };
+  }
+  const parsed = parseAddress(source, parseOptions);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' received an invalid reference target path", {
+        cause: parsed.errors[0],
+      }),
+    };
+  }
+  return { ok: true, address: parsed.address };
+}
+
+function referenceTargetAddressSource(value) {
+  const pathSource = referencePathSource(value);
+  if (pathSource === null) return null;
+  if (pathSource.startsWith('$')) return pathSource;
+  if (pathSource.startsWith('?')) return null;
+  if (pathSource.startsWith('.') || pathSource.startsWith('[')) return `$${pathSource}`;
+  return `$.${pathSource}`;
+}
+
+function referencePathSource(value) {
+  if (Array.isArray(value?.path)) return renderReferencePathSegments(value.path);
+  if (typeof value?.path === 'string') return value.path;
+  if (typeof value?.target === 'string') return value.target;
+  if (typeof value?.canonical === 'string') {
+    if (value.canonical.startsWith('~>')) return value.canonical.slice(2);
+    if (value.canonical.startsWith('~')) return value.canonical.slice(1);
+  }
+  return null;
+}
+
+function renderReferencePathSegments(path) {
+  return path.map((segment, index) => {
+    if (typeof segment === 'number') return `[${segment}]`;
+    if (typeof segment === 'string' && IDENTIFIER_RE.test(segment)) {
+      return index === 0 ? segment : `.${segment}`;
+    }
+    return `${index === 0 ? '' : '.'}[${quotePayload(String(segment))}]`;
+  }).join('');
 }
 
 function evaluateObjectFromExpression(expression, currentBinding, namespace, options) {

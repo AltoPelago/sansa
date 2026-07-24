@@ -247,6 +247,23 @@ const root = binding({
   children: [
     binding({ name: 'consent', address: '$.consent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'yes' }),
     binding({ name: 'fallbackConsent', address: '$.fallbackConsent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'on' }),
+    binding({ name: 'target', address: '$.target', semanticType: 'number', representationKind: 'number', value: 7 }),
+    binding({
+      name: 'targetClone',
+      address: '$.targetClone',
+      semanticType: 'number',
+      representationKind: 'cloneReference',
+      scalarKind: 'referenceForm',
+      value: { type: 'CloneReference', path: ['target'], canonical: '~target' },
+    }),
+    binding({
+      name: 'targetPointer',
+      address: '$.targetPointer',
+      semanticType: 'number',
+      representationKind: 'pointerReference',
+      scalarKind: 'referenceForm',
+      value: { type: 'PointerReference', path: ['target'], canonical: '~>target' },
+    }),
     binding({
       name: 'types',
       address: '$.types',
@@ -984,6 +1001,41 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(temporalCrossFamilyComparison.ok, false);
   assert.equal(temporalCrossFamilyComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const referenceFormEquality = evaluateQuery([
+    'from $.targetClone',
+    'where . == $.targetClone',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(referenceFormEquality.ok, true, JSON.stringify(referenceFormEquality.errors ?? []));
+  assert.deepEqual(referenceFormEquality.results.map((entry) => entry.binding.address), ['$.targetClone']);
+
+  const referenceFormKindIsNotCoerced = evaluateQuery([
+    'from $.targetPointer',
+    'where . == $.targetClone',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(referenceFormKindIsNotCoerced.ok, true, JSON.stringify(referenceFormKindIsNotCoerced.errors ?? []));
+  assert.deepEqual(referenceFormKindIsNotCoerced.results.map((entry) => entry.binding.address), []);
+
+  const followedValueComparison = evaluateQuery([
+    'from $.targetClone',
+    'where follow(.) == 7',
+    'select follow(.)',
+  ].join('\n'), namespace);
+  assert.equal(followedValueComparison.ok, true, JSON.stringify(followedValueComparison.errors ?? []));
+  assert.deepEqual(followedValueComparison.results.map((entry) => entry.binding.address), ['$.targetClone']);
+  assert.deepEqual(followedValueComparison.results.map((entry) => (
+    entry.value.type === 'bindingSet' ? entry.value.bindings.map((binding) => binding.address) : null
+  )), [['$.target']]);
+
+  const followRejectsNonReference = evaluateQuery([
+    'from $.target',
+    'where follow(.) == 7',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(followRejectsNonReference.ok, false);
+  assert.equal(followRejectsNonReference.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items[3]',

@@ -183,6 +183,17 @@ keys select positions. A missing target returns an empty Binding Set, and the
 consuming expression decides whether that is acceptable. It does not parse
 traversal strings or perform collection joins.
 
+`follow(reference)` explicitly traverses an AEON reference form to its target
+binding for read-only evaluation. Without `follow(...)`, reference forms compare
+by reference kind and canonical target path only. With `follow(...)`, the
+followed target value is consumed by ordinary value semantics:
+
+```text
+from $.targetClone
+where follow(.) == 7
+select follow(.)
+```
+
 `objectFrom(keys, values)` is an experimental transform-library helper. It
 pairs two ordered Binding Sets by position and constructs a derived object. Key
 bindings must expose unique string scalar values, value bindings must expose

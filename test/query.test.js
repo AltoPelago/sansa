@@ -219,6 +219,11 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(projection.type, 'projectionExpression');
   assert.deepEqual(projection.fields.map((field) => field.name), ['name', 'status']);
   assert.equal(renderQueryExpression(projection), '{ name = .name status = resolveChild($.statuses, .status) }');
+
+  const follow = parseExpressionOk('follow(.targetRef)');
+  assert.equal(follow.type, 'functionCallExpression');
+  assert.equal(follow.name, 'follow');
+  assert.equal(renderQueryExpression(follow), 'follow(.targetRef)');
 });
 
 test('rejects invalid query expression forms', () => {
