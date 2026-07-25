@@ -110,6 +110,7 @@ function runTest(test, namespaces) {
         failures.push(`errorObserved mismatch: expected ${expected.errorObserved}, got ${actualObserved}`);
       }
     }
+    compareApplyResultExpectations(expected, result, failures);
     compareValuesByAddress(expected.valuesByAddress ?? {}, fixture.byAddress, failures);
     compareChildrenByAddress(expected.childrenByAddress ?? {}, fixture.byAddress, 'name', failures);
     compareChildrenByAddress(expected.childrenValuesByAddress ?? {}, fixture.byAddress, 'value', failures);
@@ -140,17 +141,7 @@ function runTest(test, namespaces) {
     return failures;
   }
 
-  if (Array.isArray(expected.operationStatuses)) {
-    compareArray(
-      expected.operationStatuses,
-      result.operationResults.map((entry) => entry.status),
-      'operationStatuses',
-      failures,
-    );
-  }
-  if (Array.isArray(expected.operationReports)) {
-    compareOperationReports(expected.operationReports, result.operationResults, failures);
-  }
+  compareApplyResultExpectations(expected, result, failures);
   compareValuesByAddress(expected.valuesByAddress ?? {}, fixture.byAddress, failures);
   compareChildrenByAddress(expected.childrenByAddress ?? {}, fixture.byAddress, 'name', failures);
   compareChildrenByAddress(expected.childrenValuesByAddress ?? {}, fixture.byAddress, 'value', failures);
@@ -159,7 +150,26 @@ function runTest(test, namespaces) {
 
 function applyPlannedMutation(test, plan, fixture, options) {
   applyDrift(test.input?.driftBeforeApply, fixture);
-  return applyMutationPlan(plan, fixture.namespace, options);
+  fixture.control.hookFailureBeforeApply = test.input?.hookFailureBeforeApply ?? null;
+  try {
+    return applyMutationPlan(plan, fixture.namespace, options);
+  } finally {
+    fixture.control.hookFailureBeforeApply = null;
+  }
+}
+
+function compareApplyResultExpectations(expected, result, failures) {
+  if (Array.isArray(expected.operationStatuses)) {
+    compareArray(
+      expected.operationStatuses,
+      (result.operationResults ?? []).map((entry) => entry.status),
+      'operationStatuses',
+      failures,
+    );
+  }
+  if (Array.isArray(expected.operationReports)) {
+    compareOperationReports(expected.operationReports, result.operationResults ?? [], failures);
+  }
 }
 
 function comparePlannedOperations(expected, actual, failures) {
@@ -245,8 +255,10 @@ function buildNamespaces(entries) {
     const rootBinding = structuredClone(entry.root);
     const byAddress = new Map();
     indexBindingTree(rootBinding, byAddress);
+    const control = { hookFailureBeforeApply: null };
     output.set(entry.id, {
       byAddress,
+      control,
       namespace: {
         root: rootBinding,
         children: (binding) => binding.children ?? [],
@@ -254,7 +266,7 @@ function buildNamespaces(entries) {
         bindingHandle: (binding) => binding.id ?? binding.address,
         observedState: (binding) => binding.revision,
         ...(entry.supportsMutation === true
-          ? { mutate: mutationAdapter(entry, byAddress) }
+          ? { mutate: mutationAdapter(entry, byAddress, control) }
           : {}),
       },
     });
@@ -262,7 +274,7 @@ function buildNamespaces(entries) {
   return output;
 }
 
-function mutationAdapter(entry, byAddress) {
+function mutationAdapter(entry, byAddress, control) {
   return {
     ...(entry.supportsCreate === undefined ? {} : { supportsCreate: entry.supportsCreate }),
     ...(entry.supportsReplace === undefined ? {} : { supportsReplace: entry.supportsReplace }),
@@ -288,6 +300,8 @@ function mutationAdapter(entry, byAddress) {
       return { binding: child, resultingAddress: child.address };
     },
     replace(target, value) {
+      const failure = hookFailure(control, 'replace', target.address);
+      if (failure) return failure;
       target.value = value;
       target.revision = (target.revision ?? 0) + 1;
       return { binding: target, resultingAddress: target.address };
@@ -319,6 +333,12 @@ function mutationAdapter(entry, byAddress) {
       return { binding: source, resultingAddress: source.address };
     },
   };
+}
+
+function hookFailure(control, op, address) {
+  const failure = control.hookFailureBeforeApply;
+  if (!failure || failure.op !== op || failure.address !== address) return null;
+  return { ok: false, message: failure.message ?? `CTS hook failure for ${op} at ${address}` };
 }
 
 function placementIndex(container, placement) {
