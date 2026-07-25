@@ -39,6 +39,10 @@
         "insert",
         "move"
       ],
+      "valueIntentHints": [
+        "datatype",
+        "kind"
+      ],
       "adapterCapabilityFlags": [
         "supportsCreate",
         "supportsReplace",
@@ -92,6 +96,27 @@
     },
     {
       "id": "maxPreconditions",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxValueNodes",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxValueDepth",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxStringLength",
       "capability": "SANSA.Mutate",
       "category": "mutation-budget",
       "phase": "plan-apply",
