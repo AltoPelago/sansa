@@ -602,6 +602,21 @@ test('rejects apply when the resolved binding identity drifted after planning', 
   assert.equal(applied.errors[0].code, 'SANSA_MUTATE_STALE_TARGET');
 });
 
+test('keeps mutation plans as in-process execution artifacts', () => {
+  const namespace = sampleNamespace();
+  const sku = namespace.root.children[0].children[0];
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+
+  assert.throws(() => JSON.stringify(plan), /circular structure/);
+
+  const clonedPlan = structuredClone(plan);
+  const applied = applyMutationPlan(clonedPlan, namespace);
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_STALE_TARGET');
+  assert.match(applied.errors[0].message, /identity changed/);
+  assert.equal(sku.value, 'A-100');
+});
+
 test('rejects apply when ordered mutation anchors drift after planning', () => {
   const insertNamespace = sampleNamespace();
   const insertPlan = planOk({
