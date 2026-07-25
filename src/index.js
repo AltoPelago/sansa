@@ -421,6 +421,10 @@ export function applyMutationPlan(plan, namespace, options = {}) {
   if (!preconditionBudget.ok) {
     return { ok: false, operationResults: [], errors: [preconditionBudget.error] };
   }
+  const valueBudget = checkMutationValueBudgets(options, plan.operations, 'apply');
+  if (!valueBudget.ok) {
+    return { ok: false, operationResults: [], errors: [valueBudget.error] };
+  }
 
   for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
     const operation = plan.operations[operationIndex];
@@ -665,7 +669,7 @@ function checkMutationBudget(options, budget, observed, phase) {
   };
 }
 
-function checkMutationValueBudgets(options, operations) {
+function checkMutationValueBudgets(options, operations, phase = 'plan') {
   const budget = options.budget ?? {};
   const limits = {
     maxValueNodes: normalizeQueryBudgetLimit(budget.maxValueNodes),
@@ -690,7 +694,7 @@ function checkMutationValueBudgets(options, operations) {
   ];
   for (const [name, value] of checks) {
     const limit = limits[name];
-    if (limit !== undefined && value > limit) return checkMutationBudget({ budget: { [name]: limit } }, name, value, 'plan');
+    if (limit !== undefined && value > limit) return checkMutationBudget({ budget: { [name]: limit } }, name, value, phase);
   }
   return { ok: true };
 }

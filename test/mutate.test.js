@@ -508,6 +508,22 @@ test('fails closed when mutation apply budgets are exceeded', () => {
   assert.equal(name.value, 'Adapter');
 });
 
+test('fails closed when mutation apply value budgets are exceeded', () => {
+  const namespace = sampleNamespace();
+  const sku = namespace.root.children[0].children[0];
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'ABCDEFGHIJ' }, namespace);
+
+  const applied = applyMutationPlan(plan, namespace, { budget: { maxStringLength: 4 } });
+
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(applied.errors[0].phase, 'apply');
+  assert.equal(applied.errors[0].budget, 'maxStringLength');
+  assert.equal(applied.errors[0].limit, 4);
+  assert.equal(applied.errors[0].observed, 10);
+  assert.equal(sku.value, 'A-100');
+});
+
 test('plans ordered insert and same-container move without prescribing storage representation', () => {
   const namespace = sampleNamespace();
   const insertPlan = planOk({ op: 'insert', container: '$.items', placement: { kind: 'before', anchor: '$.items[1]' }, value: 'middle' }, namespace);

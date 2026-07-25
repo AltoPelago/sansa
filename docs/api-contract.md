@@ -238,14 +238,17 @@ planMutation(request, namespace, {
 applyMutationPlan(plan, namespace, {
   budget: {
     maxOperations: 100,
-    maxPreconditions: 20
+    maxPreconditions: 20,
+    maxValueNodes: 1000,
+    maxValueDepth: 32,
+    maxStringLength: 65536
   }
 })
 ```
 
 Budget exhaustion returns `SANSA_MUTATE_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It does not produce a partial plan and does not apply partial mutations.
 
-`maxValueNodes`, `maxValueDepth`, and `maxStringLength` are planning budgets over supplied values for `create`, `replace`, and `insert`. `maxValueNodes` counts all supplied value nodes across the request; arrays and objects count as one node plus their entries. `maxValueDepth` is the deepest supplied value tree, with scalar values at depth `1`. `maxStringLength` is the longest supplied string payload observed by this implementation.
+`maxValueNodes`, `maxValueDepth`, and `maxStringLength` are budgets over supplied values for `create`, `replace`, and `insert`. They are honored during planning and again during apply when callers provide a prebuilt plan. `maxValueNodes` counts all supplied value nodes across the request or plan; arrays and objects count as one node plus their entries. `maxValueDepth` is the deepest supplied value tree, with scalar values at depth `1`. `maxStringLength` is the longest supplied string payload observed by this implementation.
 
 Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
 
