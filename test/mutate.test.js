@@ -211,16 +211,35 @@ test('fails closed when mutation planning budgets are exceeded', () => {
   assert.equal(preconditionBudget.errors[0].budget, 'maxPreconditions');
 });
 
+test('preserves mutation target portability warnings on the plan', () => {
+  const namespace = sampleNamespace();
+  const items = namespace.root.children[1];
+  const large = binding({ address: '$.items[1000000]', value: 'large', representationKind: 'string' });
+  large.id = 'large';
+  large.index = 1_000_000;
+  large.parent = items;
+  items.children.push(large);
+
+  const result = planMutation({ op: 'replace', target: '$.items[1000000]', value: 'updated' }, namespace, {
+    parse: { maxPositionIndex: 1_000_000 },
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.plan.portabilityWarnings.map((warning) => warning.code), ['SANSA_NON_PORTABLE_POSITION_INDEX']);
+  assert.deepEqual(result.plan.operations[0].target.portabilityWarnings.map((warning) => warning.code), ['SANSA_NON_PORTABLE_POSITION_INDEX']);
+});
+
 test('evaluates structured preconditions before producing mutation plans', () => {
   const namespace = sampleNamespace();
   const plan = planOk({
     operations: [
-      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200', provenance: { row: 7 } },
     ],
     preconditions: [
       { expression: '$.inventory.sku == "A-100"' },
       { target: '$.inventory.sku', expression: '. == "A-100"' },
     ],
+    provenance: { query: 'manual-review' },
   }, namespace);
 
   assert.deepEqual(plan.preconditions.map((precondition) => precondition.canonical), [
@@ -228,6 +247,8 @@ test('evaluates structured preconditions before producing mutation plans', () =>
     '. == "A-100"',
   ]);
   assert.equal(plan.preconditions[1].target.canonicalAddress, '$.inventory.sku');
+  assert.deepEqual(plan.sourceProvenance, { query: 'manual-review' });
+  assert.deepEqual(plan.operations[0].provenance, { row: 7 });
 });
 
 test('fails closed when a structured precondition evaluates false', () => {

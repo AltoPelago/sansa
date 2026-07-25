@@ -201,6 +201,10 @@ Preconditions use the SANSA.Query expression evaluator and must produce a Boolea
 
 Preserved preconditions are rechecked by default before apply invokes any mutation hook. This protects a plan from non-target state drift between planning and apply. Callers that rely on a stronger external transaction or namespace-state contract may pass `{ recheckPreconditions: false }` to `applyMutationPlan`.
 
+Request envelopes may include `provenance`. Successful planning preserves this as plan-level `sourceProvenance` for audit and diagnostics. Individual requested operations may also carry `provenance`, which is preserved on the planned operation. Provenance is inert metadata; it is not interpreted as SANSA source, authorization policy, or validation policy.
+
+If mutation targets parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the target resolves exactly, the plan remains inspectable but carries the non-portability warning.
+
 Experimental Mutate budgets are optional and fail closed:
 
 ```js

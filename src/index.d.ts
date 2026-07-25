@@ -401,6 +401,8 @@ export interface SansaMutationPlan<TBinding extends object = SansaResolveBinding
   readonly namespaceState?: unknown;
   readonly operations: readonly SansaMutationOperation<TBinding>[];
   readonly preconditions: readonly SansaMutationPrecondition<TBinding>[];
+  readonly sourceProvenance?: unknown;
+  readonly portabilityWarnings?: readonly SansaDiagnostic[];
   readonly diagnostics: readonly SansaMutateDiagnostic[];
 }
 
@@ -424,6 +426,7 @@ export interface SansaMutationTarget<TBinding extends object = SansaResolveBindi
   readonly binding: TBinding;
   readonly bindingHandle?: unknown;
   readonly observedState?: unknown;
+  readonly portabilityWarnings?: readonly SansaDiagnostic[];
 }
 
 export interface SansaCreateMutationOperation<TBinding extends object = SansaResolveBinding> {

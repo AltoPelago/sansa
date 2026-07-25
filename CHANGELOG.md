@@ -32,6 +32,10 @@ versions may still include breaking changes when the SANSA specifications move.
   budgets for planning and apply.
 - Added explicit SANSA.Mutate apply report addresses for mutation role,
   affected binding, and resulting binding diagnostics.
+- Added SANSA.Mutate plan-level `sourceProvenance` preservation for structured
+  request envelopes.
+- Added SANSA.Mutate plan-level portability warning preservation for locally
+  accepted non-portable targets.
 
 ### Changed
 

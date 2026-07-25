@@ -52,7 +52,11 @@ function runTest(test, namespaces) {
     ? test.input.operations
     : [test.input?.operation];
   const request = Array.isArray(test.input?.preconditions)
-    ? { operations, preconditions: test.input.preconditions }
+    ? {
+        operations,
+        preconditions: test.input.preconditions,
+        ...(test.input.provenance === undefined ? {} : { provenance: test.input.provenance }),
+      }
     : operations.length === 1
       ? operations[0]
       : operations;
@@ -111,6 +115,17 @@ function runTest(test, namespaces) {
 
   if (mode === 'plan') {
     comparePlannedOperations(expected.operations ?? [], result.plan.operations, failures);
+    if (Object.hasOwn(expected, 'sourceProvenance')) {
+      compareJsonLike(expected.sourceProvenance, result.plan.sourceProvenance, 'sourceProvenance', failures);
+    }
+    if (Array.isArray(expected.portabilityWarnings)) {
+      compareArray(
+        expected.portabilityWarnings,
+        (result.plan.portabilityWarnings ?? []).map((warning) => warning.code),
+        'portabilityWarnings',
+        failures,
+      );
+    }
     if (Array.isArray(expected.preconditions)) {
       compareArray(
         expected.preconditions,
@@ -162,6 +177,9 @@ function comparePlannedOperations(expected, actual, failures) {
         failures.push(`operations[${index}].target mismatch: expected ${expected[index].target}, got ${actualTarget ?? null}`);
       }
     }
+    if (Object.hasOwn(expected[index], 'provenance')) {
+      compareJsonLike(expected[index].provenance, actual[index].provenance, `operations[${index}].provenance`, failures);
+    }
   }
 }
 
@@ -201,6 +219,14 @@ function compareOperationReports(expected, actual, failures) {
         failures.push(`operationReports[${index}].${field} mismatch: expected ${JSON.stringify(expectedValue)}, got ${JSON.stringify(actualValue)}`);
       }
     }
+  }
+}
+
+function compareJsonLike(expected, actual, label, failures) {
+  const expectedJson = JSON.stringify(expected);
+  const actualJson = JSON.stringify(actual);
+  if (expectedJson !== actualJson) {
+    failures.push(`${label} mismatch: expected ${expectedJson}, got ${actualJson}`);
   }
 }
 

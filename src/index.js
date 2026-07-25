@@ -375,6 +375,7 @@ export function planMutation(input, namespace, options = {}) {
 
   const preconditions = evaluateMutationPreconditions(normalized.preconditions, namespace, options);
   if (!preconditions.ok) return { ok: false, errors: [preconditions.error] };
+  const portabilityWarnings = collectMutationPortabilityWarnings(operations, preconditions.preconditions);
 
   return {
     ok: true,
@@ -384,6 +385,8 @@ export function planMutation(input, namespace, options = {}) {
       namespaceState: options.namespaceState ?? getNamespaceState(namespace),
       operations,
       preconditions: preconditions.preconditions,
+      ...(normalized.sourceProvenance === undefined ? {} : { sourceProvenance: normalized.sourceProvenance }),
+      ...(portabilityWarnings.length === 0 ? {} : { portabilityWarnings }),
       diagnostics: [],
     },
     diagnostics: [],
@@ -487,7 +490,12 @@ function normalizeMutationRequest(input) {
         message: 'Mutation request preconditions must be a list',
       };
     }
-    return { ok: true, operations: input.operations, preconditions: input.preconditions ?? [] };
+    return {
+      ok: true,
+      operations: input.operations,
+      preconditions: input.preconditions ?? [],
+      sourceProvenance: input.provenance,
+    };
   }
   if (input && typeof input === 'object' && typeof input.op === 'string') {
     return { ok: true, operations: [input], preconditions: [] };
@@ -1012,8 +1020,27 @@ function resolveMutationExactTarget(input, role, operationIndex, namespace, opti
       address: parsed.address,
       binding,
       ...mutationBindingIdentity(namespace, binding),
+      ...mutationTargetWarnings(parsed.warnings),
     },
   };
+}
+
+function collectMutationPortabilityWarnings(operations, preconditions) {
+  const warnings = [];
+  for (const operation of operations) {
+    for (const target of mutationOperationTargets(operation)) {
+      warnings.push(...(target.portabilityWarnings ?? []));
+    }
+  }
+  for (const precondition of preconditions) {
+    warnings.push(...(precondition.target?.portabilityWarnings ?? []));
+  }
+  return warnings;
+}
+
+function mutationTargetWarnings(warnings) {
+  const portabilityWarnings = (warnings ?? []).filter((warning) => warning.code?.startsWith('SANSA_NON_PORTABLE_'));
+  return portabilityWarnings.length === 0 ? {} : { portabilityWarnings };
 }
 
 function checkMutationPlanConflict(operation, seenDestructiveTargets, seenCreates) {
