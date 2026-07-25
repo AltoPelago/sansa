@@ -26,6 +26,8 @@ versions may still include breaking changes when the SANSA specifications move.
   same-container `move`.
 - Added experimental SANSA.Mutate structured preconditions evaluated during
   planning with the SANSA.Query expression evaluator.
+- Added default apply-time rechecking of preserved SANSA.Mutate preconditions
+  before mutation hooks run.
 
 ### Changed
 

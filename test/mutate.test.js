@@ -214,6 +214,28 @@ test('rejects non-boolean precondition expressions', () => {
   assert.equal(result.errors[0].cause.code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
 });
 
+test('rechecks preserved preconditions before apply hooks run', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({
+    operations: [
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    ],
+    preconditions: [
+      { expression: '$.inventory.name == "Adapter"' },
+    ],
+  }, namespace);
+  const inventory = namespace.root.children[0];
+  const sku = inventory.children[0];
+  const name = inventory.children[1];
+  name.value = 'Bracket';
+
+  const applied = applyMutationPlan(plan, namespace);
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_PRECONDITION_FAILED');
+  assert.equal(applied.errors[0].preconditionIndex, 0);
+  assert.equal(sku.value, 'A-100');
+});
+
 test('plans ordered insert and same-container move without prescribing storage representation', () => {
   const namespace = sampleNamespace();
   const insertPlan = planOk({ op: 'insert', container: '$.items', placement: { kind: 'before', anchor: '$.items[1]' }, value: 'middle' }, namespace);

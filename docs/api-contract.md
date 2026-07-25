@@ -199,6 +199,8 @@ planMutation({
 
 Preconditions use the SANSA.Query expression evaluator and must produce a Boolean value. A failed, invalid, or non-Boolean precondition prevents plan construction and produces no executable plan. Preconditions are evaluated during planning against the same host-exposed namespace state as target resolution.
 
+Preserved preconditions are rechecked by default before apply invokes any mutation hook. This protects a plan from non-target state drift between planning and apply. Callers that rely on a stronger external transaction or namespace-state contract may pass `{ recheckPreconditions: false }` to `applyMutationPlan`.
+
 Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
 
 `applyMutationPlan` applies an already planned mutation only when the namespace exposes matching mutation hooks:

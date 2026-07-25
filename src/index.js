@@ -419,6 +419,13 @@ export function applyMutationPlan(plan, namespace, options = {}) {
     }
   }
 
+  if (options.recheckPreconditions !== false) {
+    const preconditions = verifyPlannedMutationPreconditions(plan.preconditions ?? [], namespace, options);
+    if (!preconditions.ok) {
+      return { ok: false, operationResults: [], errors: [preconditions.error] };
+    }
+  }
+
   const operationResults = [];
   for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
     const operation = plan.operations[operationIndex];
@@ -617,6 +624,132 @@ function mutationQueryExpressionParseOptions(options) {
   }
   if (options.parse) return { address: options.parse };
   return {};
+}
+
+function verifyPlannedMutationPreconditions(preconditions, namespace, options) {
+  if (!Array.isArray(preconditions) || preconditions.length === 0) return { ok: true };
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE',
+        error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      ),
+    };
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  for (let preconditionIndex = 0; preconditionIndex < preconditions.length; preconditionIndex += 1) {
+    const precondition = verifyPlannedMutationPrecondition(
+      preconditions[preconditionIndex],
+      preconditionIndex,
+      namespace,
+      evaluationOptions,
+    );
+    if (!precondition.ok) return precondition;
+  }
+  return { ok: true };
+}
+
+function verifyPlannedMutationPrecondition(precondition, preconditionIndex, namespace, options) {
+  if (!precondition || typeof precondition !== 'object' || typeof precondition.expression !== 'string') {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Planned mutation preconditions must preserve an expression string',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  const parsed = parseQueryExpression(precondition.canonical ?? precondition.expression, mutationQueryExpressionParseOptions(options));
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Planned mutation precondition expression is not valid',
+        { preconditionIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+
+  const context = resolvePlannedMutationPreconditionContext(precondition, preconditionIndex, namespace, options);
+  if (!context.ok) return context;
+
+  const evaluated = evaluateQueryExpressionValue(parsed.expression, context.binding, namespace, options);
+  if (!evaluated.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        evaluated.error.message,
+        { preconditionIndex, cause: evaluated.error },
+      ),
+    };
+  }
+
+  const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+  if (!boolean.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        boolean.error.message,
+        { preconditionIndex, cause: boolean.error },
+      ),
+    };
+  }
+  if (boolean.value !== true) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_FAILED',
+        'Mutation precondition no longer holds at apply time',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
+function resolvePlannedMutationPreconditionContext(precondition, preconditionIndex, namespace, options) {
+  if (precondition.target !== undefined) {
+    const stable = verifyMutationTargetStability(precondition.target, undefined, namespace, options);
+    if (!stable.ok) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_STALE_TARGET',
+          stable.error.message,
+          { preconditionIndex, cause: stable.error },
+        ),
+      };
+    }
+    return { ok: true, binding: precondition.target.binding };
+  }
+
+  const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+  if (!rootResult.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        rootResult.error.message,
+        { preconditionIndex, cause: rootResult.error },
+      ),
+    };
+  }
+  return { ok: true, binding: rootResult.binding };
 }
 
 function planMutationOperation(requested, operationIndex, namespace, options) {

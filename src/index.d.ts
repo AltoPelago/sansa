@@ -459,6 +459,12 @@ export type SansaMutationPlacement<TBinding extends object = SansaResolveBinding
 export interface SansaApplyMutationOptions<TBinding extends object = SansaResolveBinding> {
   readonly resolve?: SansaResolveOptions<TBinding>;
   readonly requireAtomic?: boolean;
+  readonly recheckPreconditions?: boolean;
+  readonly valueSemantics?: AeonValueSemanticsProfileInput;
+  readonly parse?: SansaParseOptions | {
+    readonly address?: SansaParseOptions;
+    readonly expression?: SansaQueryExpressionParseOptions;
+  };
 }
 
 export interface SansaPlanMutationOptions<TBinding extends object = SansaResolveBinding> {

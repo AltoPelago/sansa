@@ -247,6 +247,10 @@ function applyDrift(drift, fixture) {
   if (!drift?.replaceBindingAtAddress) return;
   const target = fixture.byAddress.get(drift.replaceBindingAtAddress);
   if (!target || !target.parent) return;
+  if (Object.hasOwn(drift, 'value')) {
+    target.value = drift.value;
+    return;
+  }
   const replacement = structuredClone(drift.with);
   replacement.parent = target.parent;
   const siblings = target.parent.children ?? [];
