@@ -352,6 +352,8 @@ export function planMutation(input, namespace, options = {}) {
   if (!operationBudget.ok) return { ok: false, errors: [operationBudget.error] };
   const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', normalized.preconditions.length, 'plan');
   if (!preconditionBudget.ok) return { ok: false, errors: [preconditionBudget.error] };
+  const valueBudget = checkMutationValueBudgets(options, normalized.operations);
+  if (!valueBudget.ok) return { ok: false, errors: [valueBudget.error] };
 
   const operations = [];
   const seenDestructiveTargets = new Set();
@@ -661,6 +663,59 @@ function checkMutationBudget(options, budget, observed, phase) {
       { phase, budget, limit, observed },
     ),
   };
+}
+
+function checkMutationValueBudgets(options, operations) {
+  const budget = options.budget ?? {};
+  const limits = {
+    maxValueNodes: normalizeQueryBudgetLimit(budget.maxValueNodes),
+    maxValueDepth: normalizeQueryBudgetLimit(budget.maxValueDepth),
+    maxStringLength: normalizeQueryBudgetLimit(budget.maxStringLength),
+  };
+  if (Object.values(limits).every((value) => value === undefined)) return { ok: true };
+
+  const observed = { valueNodes: 0, valueDepth: 0, stringLength: 0 };
+  for (const operation of operations) {
+    if (!mutationOperationCarriesValue(operation)) continue;
+    const stats = mutationValueStats(operation.value);
+    observed.valueNodes += stats.nodes;
+    observed.valueDepth = Math.max(observed.valueDepth, stats.depth);
+    observed.stringLength = Math.max(observed.stringLength, stats.stringLength);
+  }
+
+  const checks = [
+    ['maxValueNodes', observed.valueNodes],
+    ['maxValueDepth', observed.valueDepth],
+    ['maxStringLength', observed.stringLength],
+  ];
+  for (const [name, value] of checks) {
+    const limit = limits[name];
+    if (limit !== undefined && value > limit) return checkMutationBudget({ budget: { [name]: limit } }, name, value, 'plan');
+  }
+  return { ok: true };
+}
+
+function mutationOperationCarriesValue(operation) {
+  return ['create', 'replace', 'insert'].includes(operation?.op) && Object.hasOwn(operation, 'value');
+}
+
+function mutationValueStats(value, seen = new WeakSet()) {
+  if (typeof value === 'string') return { nodes: 1, depth: 1, stringLength: value.length };
+  if (value === null || typeof value !== 'object') return { nodes: 1, depth: 1, stringLength: 0 };
+  if (seen.has(value)) return { nodes: 0, depth: 0, stringLength: 0 };
+  seen.add(value);
+
+  const entries = Array.isArray(value) ? value : Object.values(value);
+  let nodes = 1;
+  let childDepth = 0;
+  let stringLength = 0;
+  for (const entry of entries) {
+    const stats = mutationValueStats(entry, seen);
+    nodes += stats.nodes;
+    childDepth = Math.max(childDepth, stats.depth);
+    stringLength = Math.max(stringLength, stats.stringLength);
+  }
+  return { nodes, depth: childDepth + 1, stringLength };
 }
 
 function verifyPlannedMutationPreconditions(preconditions, namespace, options) {

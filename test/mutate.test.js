@@ -358,6 +358,42 @@ test('fails closed when mutation planning budgets are exceeded', () => {
   assert.equal(preconditionBudget.errors[0].budget, 'maxPreconditions');
 });
 
+test('fails closed when mutation value budgets are exceeded', () => {
+  const namespace = sampleNamespace();
+
+  const nodeBudget = planMutation([
+    { op: 'replace', target: '$.inventory.sku', value: { text: 'A-101' } },
+    { op: 'insert', container: '$.items', placement: 'last', value: ['x', 'y'] },
+  ], namespace, { budget: { maxValueNodes: 4 } });
+  assert.equal(nodeBudget.ok, false);
+  assert.equal(nodeBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(nodeBudget.errors[0].phase, 'plan');
+  assert.equal(nodeBudget.errors[0].budget, 'maxValueNodes');
+  assert.equal(nodeBudget.errors[0].limit, 4);
+  assert.equal(nodeBudget.errors[0].observed, 5);
+
+  const depthBudget = planMutation({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'nested',
+    value: { outer: { inner: 'value' } },
+  }, namespace, { budget: { maxValueDepth: 2 } });
+  assert.equal(depthBudget.ok, false);
+  assert.equal(depthBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(depthBudget.errors[0].budget, 'maxValueDepth');
+  assert.equal(depthBudget.errors[0].observed, 3);
+
+  const stringBudget = planMutation({
+    op: 'replace',
+    target: '$.inventory.sku',
+    value: 'ABCDEFGHIJ',
+  }, namespace, { budget: { maxStringLength: 4 } });
+  assert.equal(stringBudget.ok, false);
+  assert.equal(stringBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(stringBudget.errors[0].budget, 'maxStringLength');
+  assert.equal(stringBudget.errors[0].observed, 10);
+});
+
 test('preserves mutation target portability warnings on the plan', () => {
   const namespace = sampleNamespace();
   const items = namespace.root.children[1];

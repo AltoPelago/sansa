@@ -228,7 +228,10 @@ Experimental Mutate budgets are optional and fail closed:
 planMutation(request, namespace, {
   budget: {
     maxOperations: 100,
-    maxPreconditions: 20
+    maxPreconditions: 20,
+    maxValueNodes: 1000,
+    maxValueDepth: 32,
+    maxStringLength: 65536
   }
 })
 
@@ -241,6 +244,8 @@ applyMutationPlan(plan, namespace, {
 ```
 
 Budget exhaustion returns `SANSA_MUTATE_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It does not produce a partial plan and does not apply partial mutations.
+
+`maxValueNodes`, `maxValueDepth`, and `maxStringLength` are planning budgets over supplied values for `create`, `replace`, and `insert`. `maxValueNodes` counts all supplied value nodes across the request; arrays and objects count as one node plus their entries. `maxValueDepth` is the deepest supplied value tree, with scalar values at depth `1`. `maxStringLength` is the longest supplied string payload observed by this implementation.
 
 Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
 
@@ -391,7 +396,7 @@ npm run query:web
 
 The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
-The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon` source, a structured JSON mutation request, plan/apply mode, mutation budgets, parse position-limit input, and apply options such as `requireAtomic` and `recheckPreconditions`. The endpoint compiles the AEON source into a fresh host-neutral namespace for each request, layers an in-memory mutation adapter over that namespace, and returns the structured plan/result plus an AEON-ish rendered source tree after apply. It is a technical testing surface for the structured API, not a human-authored mutation language or canonical AEON source rewriter.
+The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon` source, a structured JSON mutation request, plan/apply mode, operation/precondition/value mutation budgets, parse position-limit input, and apply options such as `requireAtomic` and `recheckPreconditions`. The endpoint compiles the AEON source into a fresh host-neutral namespace for each request, layers an in-memory mutation adapter over that namespace, and returns the structured plan/result plus an AEON-ish rendered source tree after apply. It is a technical testing surface for the structured API, not a human-authored mutation language or canonical AEON source rewriter.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 

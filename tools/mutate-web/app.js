@@ -13,6 +13,9 @@ const requireAtomicInput = document.querySelector('#requireAtomic');
 const recheckPreconditionsInput = document.querySelector('#recheckPreconditions');
 const maxOperationsInput = document.querySelector('#maxOperations');
 const maxPreconditionsInput = document.querySelector('#maxPreconditions');
+const maxValueNodesInput = document.querySelector('#maxValueNodes');
+const maxValueDepthInput = document.querySelector('#maxValueDepth');
+const maxStringLengthInput = document.querySelector('#maxStringLength');
 const maxPositionIndexInput = document.querySelector('#maxPositionIndex');
 const optionInputs = Array.from(document.querySelectorAll('.budget-row input'));
 const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]'));
@@ -174,6 +177,16 @@ const examples = [
     ],
   },
   {
+    id: 'value-budget-fail',
+    label: 'Value Budget',
+    options: { maxStringLength: 4 },
+    request: {
+      op: 'replace',
+      target: '$.inventory.items[0].sku',
+      value: 'ABCDEFGHIJ',
+    },
+  },
+  {
     id: 'capability-fail',
     label: 'Precondition Failure',
     request: {
@@ -274,6 +287,9 @@ function setExample(id) {
   requestStatus.textContent = 'example loaded';
   maxOperationsInput.value = example.options?.maxOperations ?? '';
   maxPreconditionsInput.value = example.options?.maxPreconditions ?? '';
+  maxValueNodesInput.value = example.options?.maxValueNodes ?? '';
+  maxValueDepthInput.value = example.options?.maxValueDepth ?? '';
+  maxStringLengthInput.value = example.options?.maxStringLength ?? '';
   maxPositionIndexInput.value = example.options?.maxPositionIndex ?? '';
 }
 

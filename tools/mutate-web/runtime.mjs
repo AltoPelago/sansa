@@ -531,7 +531,7 @@ function mutationApplyOptions(options) {
 
 function mutationBudgetOptions(options) {
   const budget = {};
-  for (const key of ['maxOperations', 'maxPreconditions']) {
+  for (const key of ['maxOperations', 'maxPreconditions', 'maxValueNodes', 'maxValueDepth', 'maxStringLength']) {
     if (Number.isSafeInteger(options?.[key]) && options[key] >= 0) budget[key] = options[key];
   }
   return Object.keys(budget).length === 0 ? {} : { budget };

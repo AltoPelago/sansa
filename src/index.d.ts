@@ -505,6 +505,9 @@ export interface SansaApplyMutationOptions<TBinding extends object = SansaResolv
 export interface SansaMutationBudgetOptions {
   readonly maxOperations?: number;
   readonly maxPreconditions?: number;
+  readonly maxValueNodes?: number;
+  readonly maxValueDepth?: number;
+  readonly maxStringLength?: number;
 }
 
 export interface SansaPlanMutationOptions<TBinding extends object = SansaResolveBinding> {

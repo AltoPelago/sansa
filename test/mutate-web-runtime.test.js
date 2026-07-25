@@ -263,6 +263,27 @@ testAeonRuntime('mutate web runtime rejects scalar values that cannot render as 
   assert.doesNotMatch(result.source, /consentCopy:toggle/);
 });
 
+testAeonRuntime('mutate web runtime forwards value budget options', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].sku',
+      value: 'ABCDEFGHIJ',
+    }),
+    options: { maxStringLength: 4 },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(result.errors[0].phase, 'plan');
+  assert.equal(result.errors[0].budget, 'maxStringLength');
+  assert.equal(result.errors[0].limit, 4);
+  assert.equal(result.errors[0].observed, 10);
+});
+
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
