@@ -459,7 +459,9 @@ export function applyMutationPlan(plan, namespace, options = {}) {
     operationResults.push({
       operationIndex,
       status: 'applied',
+      ...mutationOperationReportAddresses(operation),
       ...(applied.previousAddress === undefined ? {} : { previousAddress: applied.previousAddress }),
+      ...(applied.affectedAddress === undefined ? {} : { affectedAddress: applied.affectedAddress }),
       ...(applied.resultingAddress === undefined ? {} : { resultingAddress: applied.resultingAddress }),
       ...(applied.affectedBinding === undefined ? {} : { affectedBinding: applied.affectedBinding }),
     });
@@ -1113,10 +1115,12 @@ function applyMutationOperation(operation, hook) {
       ?? operation.source?.binding
       ?? operation.parent?.binding
       ?? operation.container?.binding;
+    const fallbackAffectedAddress = getBindingAddress(affectedBinding);
     return {
       ok: true,
       previousAddress: operation.target?.canonicalAddress ?? operation.source?.canonicalAddress,
-      resultingAddress: result?.resultingAddress ?? getBindingAddress(affectedBinding),
+      affectedAddress: result?.affectedAddress ?? fallbackAffectedAddress,
+      resultingAddress: result?.resultingAddress ?? fallbackMutationResultingAddress(operation, fallbackAffectedAddress),
       affectedBinding,
     };
   } catch (error) {
@@ -1125,6 +1129,30 @@ function applyMutationOperation(operation, hook) {
       message: error instanceof Error ? error.message : 'Mutation adapter threw while applying operation',
     };
   }
+}
+
+function mutationOperationReportAddresses(operation) {
+  const output = {};
+  if (operation.target?.canonicalAddress) output.targetAddress = operation.target.canonicalAddress;
+  if (operation.parent?.canonicalAddress) output.parentAddress = operation.parent.canonicalAddress;
+  if (operation.container?.canonicalAddress) output.containerAddress = operation.container.canonicalAddress;
+  if (operation.source?.canonicalAddress) output.sourceAddress = operation.source.canonicalAddress;
+  if (operation.placement?.anchor?.canonicalAddress) output.anchorAddress = operation.placement.anchor.canonicalAddress;
+  return output;
+}
+
+function fallbackMutationResultingAddress(operation, affectedAddress) {
+  if (operation.op === 'remove') return undefined;
+  if (operation.op === 'create' && operation.parent?.canonicalAddress) {
+    return appendMemberAddress(operation.parent.canonicalAddress, operation.name);
+  }
+  return affectedAddress;
+}
+
+function appendMemberAddress(parentAddress, name) {
+  return IDENTIFIER_RE.test(name)
+    ? `${parentAddress}.${name}`
+    : `${parentAddress}.[${quotePayload(name)}]`;
 }
 
 function mutationHookForOperation(operation, adapter) {

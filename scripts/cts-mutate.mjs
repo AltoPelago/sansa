@@ -130,6 +130,9 @@ function runTest(test, namespaces) {
       failures,
     );
   }
+  if (Array.isArray(expected.operationReports)) {
+    compareOperationReports(expected.operationReports, result.operationResults, failures);
+  }
   compareValuesByAddress(expected.valuesByAddress ?? {}, fixture.byAddress, failures);
   compareChildrenByAddress(expected.childrenByAddress ?? {}, fixture.byAddress, 'name', failures);
   compareChildrenByAddress(expected.childrenValuesByAddress ?? {}, fixture.byAddress, 'value', failures);
@@ -183,6 +186,21 @@ function compareChildrenByAddress(expected, byAddress, field, failures) {
       continue;
     }
     compareArray(values, (binding.children ?? []).map((child) => child[field]), `${field} children at ${address}`, failures);
+  }
+}
+
+function compareOperationReports(expected, actual, failures) {
+  if (expected.length !== actual.length) {
+    failures.push(`operationReports length mismatch: expected ${expected.length}, got ${actual.length}`);
+    return;
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    for (const [field, expectedValue] of Object.entries(expected[index])) {
+      const actualValue = actual[index]?.[field];
+      if (!Object.is(expectedValue, actualValue)) {
+        failures.push(`operationReports[${index}].${field} mismatch: expected ${JSON.stringify(expectedValue)}, got ${JSON.stringify(actualValue)}`);
+      }
+    }
   }
 }
 

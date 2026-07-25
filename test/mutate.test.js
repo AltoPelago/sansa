@@ -122,7 +122,10 @@ test('plans and applies exact replace operations through host mutation hooks', (
   const applied = applyMutationPlan(plan, namespace, { requireAtomic: true });
   assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
   assert.equal(plan.operations[0].target.binding.value, 'B-200');
+  assert.equal(applied.operationResults[0].targetAddress, '$.inventory.sku');
   assert.equal(applied.operationResults[0].previousAddress, '$.inventory.sku');
+  assert.equal(applied.operationResults[0].affectedAddress, '$.inventory.sku');
+  assert.equal(applied.operationResults[0].resultingAddress, '$.inventory.sku');
 });
 
 test('plans create against an existing exact parent without upserting', () => {
@@ -132,6 +135,9 @@ test('plans create against an existing exact parent without upserting', () => {
 
   assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
   assert.deepEqual(namespace.root.children[0].children.map((child) => child.name), ['sku', 'name', 'status']);
+  assert.equal(applied.operationResults[0].parentAddress, '$.inventory');
+  assert.equal(applied.operationResults[0].affectedAddress, '$.inventory.status');
+  assert.equal(applied.operationResults[0].resultingAddress, '$.inventory.status');
 
   const existing = planMutation({ op: 'create', parent: '$.inventory', name: 'sku', value: 'C-300' }, namespace);
   assert.equal(existing.ok, false);
@@ -145,9 +151,25 @@ test('requires exact mutation targets and forbids root removal', () => {
   assert.equal(expanded.ok, false);
   assert.equal(expanded.errors[0].code, 'SANSA_MUTATE_NON_EXACT_TARGET');
 
+  const missing = planMutation({ op: 'replace', target: '$.inventory.missing', value: 'x' }, namespace);
+  assert.equal(missing.ok, false);
+  assert.equal(missing.errors[0].code, 'SANSA_MUTATE_TARGET_MISS');
+
   const rootRemove = planMutation({ op: 'remove', target: '$' }, namespace);
   assert.equal(rootRemove.ok, false);
   assert.equal(rootRemove.errors[0].code, 'SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN');
+});
+
+test('reports unsupported operation and placement diagnostics', () => {
+  const namespace = sampleNamespace();
+
+  const unsupportedOperation = planMutation({ op: 'rename', target: '$.inventory.sku', name: 'code' }, namespace);
+  assert.equal(unsupportedOperation.ok, false);
+  assert.equal(unsupportedOperation.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_OPERATION');
+
+  const unsupportedPlacement = planMutation({ op: 'insert', container: '$.items', placement: 'middle', value: 'x' }, namespace);
+  assert.equal(unsupportedPlacement.ok, false);
+  assert.equal(unsupportedPlacement.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_PLACEMENT');
 });
 
 test('rejects repeated destructive operations for the same binding', () => {
@@ -288,11 +310,32 @@ test('plans ordered insert and same-container move without prescribing storage r
   const insert = applyMutationPlan(insertPlan, namespace);
   assert.equal(insert.ok, true, JSON.stringify(insert.errors ?? []));
   assert.deepEqual(namespace.root.children[1].children.map((child) => child.value), ['first', 'middle', 'second']);
+  assert.equal(insert.operationResults[0].containerAddress, '$.items');
+  assert.equal(insert.operationResults[0].anchorAddress, '$.items[1]');
+  assert.equal(insert.operationResults[0].affectedAddress, '$.items[new]');
+  assert.equal(insert.operationResults[0].resultingAddress, '$.items[new]');
 
   const movePlan = planOk({ op: 'move', source: '$.items[0]', container: '$.items', placement: 'last' }, namespace);
   const move = applyMutationPlan(movePlan, namespace);
   assert.equal(move.ok, true, JSON.stringify(move.errors ?? []));
   assert.deepEqual(namespace.root.children[1].children.map((child) => child.value), ['middle', 'second', 'first']);
+  assert.equal(move.operationResults[0].sourceAddress, '$.items[0]');
+  assert.equal(move.operationResults[0].containerAddress, '$.items');
+  assert.equal(move.operationResults[0].previousAddress, '$.items[0]');
+  assert.equal(move.operationResults[0].affectedAddress, '$.items[0]');
+  assert.equal(move.operationResults[0].resultingAddress, '$.items[0]');
+});
+
+test('reports remove as an affected binding without an implicit resulting address', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({ op: 'remove', target: '$.inventory.name' }, namespace);
+  const applied = applyMutationPlan(plan, namespace);
+
+  assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
+  assert.equal(applied.operationResults[0].targetAddress, '$.inventory.name');
+  assert.equal(applied.operationResults[0].previousAddress, '$.inventory.name');
+  assert.equal(applied.operationResults[0].affectedAddress, '$.inventory.name');
+  assert.equal(applied.operationResults[0].resultingAddress, undefined);
 });
 
 test('rejects cross-container move in the conservative core', () => {
@@ -301,6 +344,28 @@ test('rejects cross-container move in the conservative core', () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_INVALID_MOVE_CONTAINER');
+});
+
+test('rejects invalid ordered mutation anchors', () => {
+  const namespace = sampleNamespace();
+
+  const wrongContainer = planMutation({
+    op: 'insert',
+    container: '$.archive',
+    placement: { kind: 'before', anchor: '$.items[0]' },
+    value: 'x',
+  }, namespace);
+  assert.equal(wrongContainer.ok, false);
+  assert.equal(wrongContainer.errors[0].code, 'SANSA_MUTATE_INVALID_ANCHOR');
+
+  const selfAnchor = planMutation({
+    op: 'move',
+    source: '$.items[0]',
+    container: '$.items',
+    placement: { kind: 'before', anchor: '$.items[0]' },
+  }, namespace);
+  assert.equal(selfAnchor.ok, false);
+  assert.equal(selfAnchor.errors[0].code, 'SANSA_MUTATE_INVALID_MOVE_ANCHOR');
 });
 
 test('rejects apply when the resolved binding identity drifted after planning', () => {
@@ -329,4 +394,20 @@ test('does not apply without explicit mutation adapter support', () => {
   const applied = applyMutationPlan(plan, readOnly);
   assert.equal(applied.ok, false);
   assert.equal(applied.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION');
+});
+
+test('can require an atomic mutation adapter before apply', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  const nonAtomic = {
+    ...namespace,
+    mutate: {
+      ...namespace.mutate,
+      supportsAtomicApply: false,
+    },
+  };
+
+  const applied = applyMutationPlan(plan, nonAtomic, { requireAtomic: true });
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE');
 });

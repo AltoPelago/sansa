@@ -252,6 +252,8 @@ Mutation hooks may live under `namespace.mutate`:
 
 The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
 
+Successful apply returns one result record per applied operation. Result records expose stable mutation-intent addresses such as `targetAddress`, `parentAddress`, `containerAddress`, `sourceAddress`, and `anchorAddress` when those roles exist. They also expose `previousAddress`, `affectedAddress`, and `resultingAddress` where known. `remove` reports the removed binding as affected, but does not invent a `resultingAddress` unless the adapter explicitly supplies one.
+
 This API does not authorize operations, validate proposed values against schemas, follow references implicitly, or provide storage transactions. Those remain consumer, AEOS, ASP, or adapter responsibilities.
 
 Parent traversal defaults to the conservative structural model: traversal from the effective resolution root resolves to an empty Binding Set. The effective resolution root is the root binding established by `$`, `?`, or the root of a dynamic resolution context for the current branch. Callers that need stricter boundary diagnostics can pass:

@@ -30,6 +30,8 @@ versions may still include breaking changes when the SANSA specifications move.
   before mutation hooks run.
 - Added experimental SANSA.Mutate `maxOperations` and `maxPreconditions`
   budgets for planning and apply.
+- Added explicit SANSA.Mutate apply report addresses for mutation role,
+  affected binding, and resulting binding diagnostics.
 
 ### Changed
 

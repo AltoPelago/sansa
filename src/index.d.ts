@@ -314,7 +314,13 @@ export interface SansaMutationAdapter<TBinding extends object = SansaResolveBind
 }
 
 export type SansaMutationAdapterResult<TBinding extends object = SansaResolveBinding> =
-  | { readonly ok?: true; readonly binding?: TBinding; readonly affectedBinding?: TBinding; readonly resultingAddress?: string }
+  | {
+      readonly ok?: true;
+      readonly binding?: TBinding;
+      readonly affectedBinding?: TBinding;
+      readonly affectedAddress?: string;
+      readonly resultingAddress?: string;
+    }
   | { readonly ok: false; readonly message?: string; readonly error?: Error };
 
 export type SansaMutationRequest<TBinding extends object = SansaResolveBinding> =
@@ -511,7 +517,13 @@ export type SansaApplyMutationPlanResult<TBinding extends object = SansaResolveB
 export interface SansaMutationOperationResult<TBinding extends object = SansaResolveBinding> {
   readonly operationIndex: number;
   readonly status: 'applied';
+  readonly targetAddress?: string;
+  readonly parentAddress?: string;
+  readonly containerAddress?: string;
+  readonly sourceAddress?: string;
+  readonly anchorAddress?: string;
   readonly previousAddress?: string;
+  readonly affectedAddress?: string;
   readonly resultingAddress?: string;
   readonly affectedBinding?: TBinding;
 }
