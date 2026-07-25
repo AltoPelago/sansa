@@ -120,14 +120,42 @@ testAeonRuntime('mutate web runtime creates attributes through attribute-space p
     requestSource: JSON.stringify({
       op: 'create',
       parent: '$.types.color.@',
-      name: 'status',
-      value: 'active',
+      name: 'selector',
+      datatype: 'sansa',
+      value: '$.inventory.items.*',
     }),
   });
 
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
-  assert.match(result.source, /color@\{status:string = "active"\}:hex = #ff00aa/);
+  assert.equal(result.plan.operations[0].datatype, 'sansa');
+  assert.match(result.source, /color@\{selector:sansa = \$\.inventory\.items\.\*\}:hex = #ff00aa/);
   assert.match(result.text, /applied: 1/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
+testAeonRuntime('mutate web runtime creates typed AEON containers', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      operations: [
+        { op: 'create', parent: '$.types', name: 'settings', datatype: 'object', value: { enabled: true } },
+        { op: 'create', parent: '$.types', name: 'aliases', datatype: 'list<string>', value: ['adapter', 'driver'] },
+        { op: 'create', parent: '$.types', name: 'pairing', datatype: 'tuple', value: ['sku', 7] },
+        { op: 'create', parent: '$.types', name: 'badge', datatype: 'node', value: { tag: 'badge', children: ['new', 3] } },
+      ],
+    }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.match(result.source, /settings:object = \{/);
+  assert.match(result.source, /aliases:list<string> = \[/);
+  assert.match(result.source, /pairing:tuple = \(/);
+  assert.match(result.source, /badge:node = <badge\(/);
+  assert.match(result.source, /nodeValue:node = <tag\(/);
 
   const rendered = await namespaceFromAeonSource(result.source);
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));

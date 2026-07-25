@@ -47,8 +47,45 @@ const examples = [
     request: {
       op: 'create',
       parent: '$.types.color.@',
-      name: 'status',
-      value: 'active',
+      name: 'selector',
+      datatype: 'sansa',
+      value: '$.inventory.items.*',
+    },
+  },
+  {
+    id: 'create-containers',
+    label: 'Create Containers',
+    request: {
+      operations: [
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'settings',
+          datatype: 'object',
+          value: { enabled: true },
+        },
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'aliases',
+          datatype: 'list<string>',
+          value: ['adapter', 'driver'],
+        },
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'pairing',
+          datatype: 'tuple',
+          value: ['sku', 7],
+        },
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'badge',
+          datatype: 'node',
+          value: { tag: 'badge', children: ['new', 3] },
+        },
+      ],
     },
   },
   {

@@ -367,6 +367,7 @@ function buildNamespaceFromEvents(events, formatPath) {
     binding.semanticType = event.datatype ?? semanticTypeFromValue(event.value);
     binding.representationKind = representationKindFromValue(event.value, binding.semanticType);
     binding.scalarKind = scalarKindFromValue(event.value, binding.semanticType);
+    if (event.value?.type === 'NodeLiteral' && typeof event.value.tag === 'string') binding.nodeTag = event.value.tag;
     const nullReason = nullReasonFromValue(event.value);
     if (nullReason !== undefined) binding.nullReason = nullReason;
 

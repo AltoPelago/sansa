@@ -100,9 +100,10 @@ function mutableNamespace(namespace) {
       bindingHandle: (binding) => binding[HANDLE_PROPERTY],
       observedState: (binding) => binding.revision ?? 0,
       sameBinding: (left, right) => left === right || left?.[HANDLE_PROPERTY] === right?.[HANDLE_PROPERTY],
-      create(parent, name, value) {
+      create(parent, name, value, operation) {
         const child = bindingFromJsonValue(value, {
           name,
+          datatype: operation.datatype,
           address: appendMember(parent.address ?? '$', name),
           parent,
         });
@@ -110,10 +111,11 @@ function mutableNamespace(namespace) {
         bump(parent);
         return { binding: child, resultingAddress: child.address };
       },
-      replace(target, value) {
+      replace(target, value, operation) {
         const replacement = bindingFromJsonValue(value, {
           name: target.name,
           index: target.index,
+          datatype: operation.datatype,
           address: target.address,
           parent: target.parent,
           handle: target[HANDLE_PROPERTY],
@@ -131,8 +133,9 @@ function mutableNamespace(namespace) {
         }
         return { binding: target, affectedAddress: target.address };
       },
-      insert(container, placement, value) {
+      insert(container, placement, value, operation) {
         const child = bindingFromJsonValue(value, {
+          datatype: operation.datatype,
           address: `${container.address ?? '$'}[new]`,
           parent: container,
         });
@@ -196,7 +199,8 @@ function ensureAttributeSpace(binding) {
   return binding.attributeSpace;
 }
 
-function bindingFromJsonValue(value, { name, index, address, parent, handle } = {}) {
+function bindingFromJsonValue(value, { name, index, datatype, address, parent, handle } = {}) {
+  const datatypeRepresentation = representationKindFromDatatype(datatype);
   const binding = {
     ...(name === undefined ? {} : { name }),
     ...(index === undefined ? {} : { index }),
@@ -211,9 +215,13 @@ function bindingFromJsonValue(value, { name, index, address, parent, handle } = 
     configurable: true,
   });
 
+  if (datatypeRepresentation === 'node') {
+    return assignNodeBinding(binding, value, datatype, address);
+  }
+
   if (Array.isArray(value)) {
-    binding.semanticType = 'list';
-    binding.representationKind = 'list';
+    binding.semanticType = datatype ?? 'list';
+    binding.representationKind = datatypeRepresentation === 'tuple' ? 'tuple' : 'list';
     binding.children = value.map((entry, childIndex) => bindingFromJsonValue(entry, {
       index: childIndex,
       address: `${address}[${childIndex}]`,
@@ -223,8 +231,8 @@ function bindingFromJsonValue(value, { name, index, address, parent, handle } = 
   }
 
   if (value && typeof value === 'object') {
-    binding.semanticType = 'object';
-    binding.representationKind = 'object';
+    binding.semanticType = datatype ?? 'object';
+    binding.representationKind = datatypeRepresentation === 'object' ? 'object' : 'object';
     binding.children = Object.entries(value).map(([key, entry]) => bindingFromJsonValue(entry, {
       name: key,
       address: appendMember(address, key),
@@ -234,8 +242,40 @@ function bindingFromJsonValue(value, { name, index, address, parent, handle } = 
   }
 
   binding.value = value;
-  binding.semanticType = semanticTypeFromJsonValue(value);
-  binding.representationKind = binding.semanticType;
+  binding.semanticType = datatype ?? semanticTypeFromJsonValue(value);
+  binding.representationKind = representationKindFromDatatype(datatype) ?? semanticTypeFromJsonValue(value);
+  binding.scalarKind = scalarKindFromDatatype(datatype) ?? binding.representationKind;
+  return binding;
+}
+
+function assignNodeBinding(binding, value, datatype, address) {
+  const node = value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : { children: Array.isArray(value) ? value : [] };
+  binding.semanticType = datatype ?? 'node';
+  binding.representationKind = 'node';
+  binding.nodeTag = validNodeTag(node.tag) ? node.tag : 'node';
+  const children = Array.isArray(node.children) ? node.children : [];
+  binding.children = children.map((entry, childIndex) => bindingFromJsonValue(entry, {
+    index: childIndex,
+    address: `${address}[${childIndex}]`,
+    parent: binding,
+  }));
+  if (node.attributes && typeof node.attributes === 'object' && !Array.isArray(node.attributes)) {
+    const attributeSpace = {
+      address: `${address}.@`,
+      representationKind: 'attributeSpace',
+      parent: binding,
+      revision: 0,
+      children: [],
+    };
+    attributeSpace.children = Object.entries(node.attributes).map(([key, entry]) => bindingFromJsonValue(entry, {
+      name: key,
+      address: appendMember(`${address}.@`, key),
+      parent: attributeSpace,
+    }));
+    binding.attributeSpace = attributeSpace;
+  }
   return binding;
 }
 
@@ -270,7 +310,7 @@ function placementIndex(container, placement) {
 }
 
 function reindexOrderedChildren(container) {
-  if (container.representationKind !== 'list') return;
+  if (!['list', 'tuple', 'node'].includes(container.representationKind)) return;
   container.children = (container.children ?? []).map((child, index) => {
     child.index = index;
     child.name = undefined;
@@ -350,6 +390,7 @@ function summarizeOperation(operation) {
     ...(operation.container ? { container: summarizeTarget(operation.container) } : {}),
     ...(operation.placement ? { placement: summarizePlacement(operation.placement) } : {}),
     ...(operation.name === undefined ? {} : { name: operation.name }),
+    ...(operation.datatype === undefined ? {} : { datatype: operation.datatype }),
     ...(operation.value === undefined ? {} : { value: sanitizeJsonValue(operation.value) }),
     ...(operation.provenance === undefined ? {} : { provenance: sanitizeJsonValue(operation.provenance) }),
   };
@@ -474,10 +515,12 @@ function renderContainerAssignment(binding, depth, head) {
     ];
   }
   if (kind === 'node') {
+    const tag = validNodeTag(binding.nodeTag) ? binding.nodeTag : 'node';
+    if ((binding.children ?? []).length === 0) return [`${head}<${tag}>`];
     return [
-      `${head}<`,
+      `${head}<${tag}(`,
       ...(binding.children ?? []).flatMap((child) => renderAnonymousBinding(child, depth + 1)),
-      `${indent}>`,
+      `${indent})>`,
     ];
   }
   return [
@@ -504,6 +547,10 @@ function renderInlineAttributes(binding) {
   const attributes = binding.attributeSpace?.children ?? [];
   if (attributes.length === 0) return '';
   return `@{${attributes.map(renderAttributeBinding).join(', ')}}`;
+}
+
+function validNodeTag(value) {
+  return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 }
 
 function renderAttributeBinding(binding) {
@@ -588,6 +635,39 @@ function semanticTypeFromJsonValue(value) {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'list';
   return typeof value;
+}
+
+function representationKindFromDatatype(datatype) {
+  const base = datatypeBaseName(datatype);
+  if (['object', 'obj', 'o', 'envelope'].includes(base)) return 'object';
+  if (base === 'list') return 'list';
+  if (base === 'tuple') return 'tuple';
+  if (base === 'node') return 'node';
+  if (['string', 'trimtick', 'prose'].includes(base)) return 'string';
+  if (['number', 'int', 'uint', 'float', 'n'].includes(base)) return 'number';
+  if (base === 'bool') return 'boolean';
+  if (base === 'nan') return 'nan';
+  if (base === 'infinity') return 'infinity';
+  if (base === 'null') return 'null';
+  if (base === 'sep' || base === 'kadot') return 'separator';
+  if (base === 'sansa') return 'sansa';
+  if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
+  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  return base;
+}
+
+function scalarKindFromDatatype(datatype) {
+  const kind = representationKindFromDatatype(datatype);
+  if (kind === 'sansa') return 'sansaAddress';
+  return kind;
+}
+
+function datatypeBaseName(datatype) {
+  if (typeof datatype !== 'string') return undefined;
+  const genericCut = datatype.indexOf('<');
+  const argumentCut = datatype.indexOf('[');
+  const cut = [genericCut, argumentCut].filter((index) => index >= 0).sort((left, right) => left - right)[0];
+  return (cut === undefined ? datatype : datatype.slice(0, cut)).trim();
 }
 
 function sanitizeJsonValue(value) {

@@ -356,6 +356,7 @@ export interface SansaRequestedCreateOperation {
   readonly op: 'create';
   readonly parent: string | SansaAddress;
   readonly name: string;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -363,6 +364,7 @@ export interface SansaRequestedCreateOperation {
 export interface SansaRequestedReplaceOperation {
   readonly op: 'replace';
   readonly target: string | SansaAddress;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -377,6 +379,7 @@ export interface SansaRequestedInsertOperation {
   readonly op: 'insert';
   readonly container: string | SansaAddress;
   readonly placement: SansaRequestedMutationPlacement;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -439,6 +442,7 @@ export interface SansaCreateMutationOperation<TBinding extends object = SansaRes
   readonly op: 'create';
   readonly parent: SansaMutationTarget<TBinding>;
   readonly name: string;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -446,6 +450,7 @@ export interface SansaCreateMutationOperation<TBinding extends object = SansaRes
 export interface SansaReplaceMutationOperation<TBinding extends object = SansaResolveBinding> {
   readonly op: 'replace';
   readonly target: SansaMutationTarget<TBinding>;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -460,6 +465,7 @@ export interface SansaInsertMutationOperation<TBinding extends object = SansaRes
   readonly op: 'insert';
   readonly container: SansaMutationTarget<TBinding>;
   readonly placement: SansaMutationPlacement<TBinding>;
+  readonly datatype?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }

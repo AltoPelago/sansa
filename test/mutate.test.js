@@ -162,13 +162,23 @@ test('rejects create against non-container parents', () => {
 
 test('allows create against exposed attribute spaces', () => {
   const namespace = sampleNamespace();
-  const plan = planOk({ op: 'create', parent: '$.inventory.sku.@', name: 'status', value: 'active' }, namespace);
+  const plan = planOk({ op: 'create', parent: '$.inventory.sku.@', name: 'status', datatype: 'sansa', value: '$.inventory.*' }, namespace);
   const applied = applyMutationPlan(plan, namespace);
 
+  assert.equal(plan.operations[0].datatype, 'sansa');
   assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
   assert.deepEqual(namespace.root.children[0].children[0].attributeSpace.children.map((child) => child.name), ['origin', 'status']);
+  assert.equal(namespace.root.children[0].children[0].attributeSpace.children[1].value, '$.inventory.*');
   assert.equal(applied.operationResults[0].parentAddress, '$.inventory.sku.@');
   assert.equal(applied.operationResults[0].resultingAddress, '$.inventory.sku.@.status');
+});
+
+test('rejects invalid mutation datatype hints', () => {
+  const namespace = sampleNamespace();
+  const result = planMutation({ op: 'replace', target: '$.inventory.sku', datatype: '', value: 'x' }, namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_INVALID_DATATYPE');
 });
 
 test('requires exact mutation targets and forbids root removal', () => {

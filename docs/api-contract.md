@@ -203,6 +203,18 @@ Preserved preconditions are rechecked by default before apply invokes any mutati
 
 Request envelopes may include `provenance`. Successful planning preserves this as plan-level `sourceProvenance` for audit and diagnostics. Individual requested operations may also carry `provenance`, which is preserved on the planned operation. Provenance is inert metadata; it is not interpreted as SANSA source, authorization policy, or validation policy.
 
+`create`, `replace`, and `insert` requests may include an optional `datatype` string. The planner validates only that the hint is a non-empty string and preserves it on the planned operation. It does not decide whether the value is legal for that datatype; schema, host adapters, or higher-level profiles own that compatibility check. The workbench AEON adapter uses the datatype hint when rendering Source Result output:
+
+```js
+planMutation({
+  op: "create",
+  parent: "$.types.color.@",
+  name: "selector",
+  datatype: "sansa",
+  value: "$.inventory.items.*"
+}, namespace)
+```
+
 If mutation targets parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the target resolves exactly, the plan remains inspectable but carries the non-portability warning.
 
 Experimental Mutate budgets are optional and fail closed:
@@ -265,6 +277,21 @@ When an operation capability flag is omitted, this implementation infers support
 The conservative planner rejects structurally incompatible mutation targets before invoking adapter hooks. `create` requires a parent binding whose exposed representation or semantic type is a container. `insert` and `move` require an ordered container (`list`, `tuple`, or `node`). Scalar bindings are not treated as mutation containers merely because a resolver exposes an empty child list for uniform traversal.
 
 Attributes are created by targeting the owner's attribute space as the create parent. For example, creating `status` under `$.types.color.@` produces the attribute path `$.types.color.@.status` and renders in AEON as an inline attribute on `color`. Attribute-space parents are valid create containers, but they are not ordered containers for `insert` or `move`.
+
+The workbench AEON adapter materializes JSON values according to container datatype hints. JSON objects create object bindings, JSON arrays create list bindings by default, `datatype: "tuple"` renders an array as a tuple, and `datatype: "node"` accepts a node payload with a tag and ordered children:
+
+```json
+{
+  "op": "create",
+  "parent": "$.types",
+  "name": "badge",
+  "datatype": "node",
+  "value": {
+    "tag": "badge",
+    "children": ["new", 3]
+  }
+}
+```
 
 The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
 

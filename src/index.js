@@ -839,6 +839,8 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
       error: mutationError('SANSA_MUTATE_INVALID_NAME', 'Create requires a non-empty string name', { operationIndex }),
     };
   }
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
   if (selectMember(namespace, parent.target.binding, requested.name).length > 0) {
     return {
       ok: false,
@@ -855,6 +857,7 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
       op: 'create',
       parent: parent.target,
       name: requested.name,
+      ...datatype.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -864,11 +867,14 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
 function planReplaceOperation(requested, operationIndex, namespace, options) {
   const target = resolveMutationExactTarget(requested.target, 'target', operationIndex, namespace, options);
   if (!target.ok) return target;
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
   return {
     ok: true,
     operation: {
       op: 'replace',
       target: target.target,
+      ...datatype.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -909,12 +915,15 @@ function planInsertOperation(requested, operationIndex, namespace, options) {
   }
   const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
   if (!placement.ok) return placement;
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
   return {
     ok: true,
     operation: {
       op: 'insert',
       container: container.target,
       placement: placement.placement,
+      ...datatype.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -1331,6 +1340,21 @@ function mutationTargetKey(target) {
 
 function mutationProvenance(requested) {
   return requested.provenance === undefined ? {} : { provenance: requested.provenance };
+}
+
+function mutationDatatype(requested, operationIndex) {
+  if (requested.datatype === undefined) return { ok: true, value: {} };
+  if (typeof requested.datatype !== 'string' || requested.datatype.trim().length === 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_DATATYPE',
+        'Mutation datatype must be a non-empty string when provided',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, value: { datatype: requested.datatype.trim() } };
 }
 
 function mutationError(code, message, details = {}) {
