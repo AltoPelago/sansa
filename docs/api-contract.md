@@ -203,15 +203,18 @@ Preserved preconditions are rechecked by default before apply invokes any mutati
 
 Request envelopes may include `provenance`. Successful planning preserves this as plan-level `sourceProvenance` for audit and diagnostics. Individual requested operations may also carry `provenance`, which is preserved on the planned operation. Provenance is inert metadata; it is not interpreted as SANSA source, authorization policy, or validation policy.
 
-`create`, `replace`, and `insert` requests may include an optional `datatype` string. The planner validates only that the hint is a non-empty string and preserves it on the planned operation. It does not decide whether the value is legal for that datatype; schema, host adapters, or higher-level profiles own that compatibility check. The workbench AEON adapter uses the datatype hint when rendering Source Result output:
+`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own that compatibility check.
+
+The workbench AEON adapter uses these hints when rendering Source Result output. If `kind` is present, it chooses the representation. Otherwise the adapter infers representation from known `datatype` values, then from the JSON value shape:
 
 ```js
 planMutation({
   op: "create",
-  parent: "$.types.color.@",
-  name: "selector",
-  datatype: "sansa",
-  value: "$.inventory.items.*"
+  parent: "$.types",
+  name: "brand",
+  datatype: "brandColor",
+  kind: "hex",
+  value: "ff00aa"
 }, namespace)
 ```
 
@@ -278,7 +281,7 @@ The conservative planner rejects structurally incompatible mutation targets befo
 
 Attributes are created by targeting the owner's attribute space as the create parent. For example, creating `status` under `$.types.color.@` produces the attribute path `$.types.color.@.status` and renders in AEON as an inline attribute on `color`. Attribute-space parents are valid create containers, but they are not ordered containers for `insert` or `move`.
 
-The workbench AEON adapter materializes JSON values according to container datatype hints. JSON objects create object bindings, JSON arrays create list bindings by default, `datatype: "tuple"` renders an array as a tuple, and `datatype: "node"` accepts a node payload with a tag and ordered children:
+The workbench AEON adapter materializes JSON values according to container `kind` or known container `datatype` hints. JSON objects create object bindings, JSON arrays create list bindings by default, `kind: "tuple"` or `datatype: "tuple"` renders an array as a tuple, and `kind: "node"` or `datatype: "node"` accepts a node payload with a tag and ordered children:
 
 ```json
 {

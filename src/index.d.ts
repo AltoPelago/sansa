@@ -141,6 +141,8 @@ export type SansaMutateErrorCode =
   | 'SANSA_MUTATE_TARGET_EXISTS'
   | 'SANSA_MUTATE_INVALID_PRECONDITION'
   | 'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE'
+  | 'SANSA_MUTATE_INVALID_DATATYPE'
+  | 'SANSA_MUTATE_INVALID_KIND'
   | 'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED'
   | 'SANSA_MUTATE_PRECONDITION_FAILED'
   | 'SANSA_MUTATE_BUDGET_EXCEEDED'
@@ -357,6 +359,7 @@ export interface SansaRequestedCreateOperation {
   readonly parent: string | SansaAddress;
   readonly name: string;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -365,6 +368,7 @@ export interface SansaRequestedReplaceOperation {
   readonly op: 'replace';
   readonly target: string | SansaAddress;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -380,6 +384,7 @@ export interface SansaRequestedInsertOperation {
   readonly container: string | SansaAddress;
   readonly placement: SansaRequestedMutationPlacement;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -443,6 +448,7 @@ export interface SansaCreateMutationOperation<TBinding extends object = SansaRes
   readonly parent: SansaMutationTarget<TBinding>;
   readonly name: string;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -451,6 +457,7 @@ export interface SansaReplaceMutationOperation<TBinding extends object = SansaRe
   readonly op: 'replace';
   readonly target: SansaMutationTarget<TBinding>;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }
@@ -466,6 +473,7 @@ export interface SansaInsertMutationOperation<TBinding extends object = SansaRes
   readonly container: SansaMutationTarget<TBinding>;
   readonly placement: SansaMutationPlacement<TBinding>;
   readonly datatype?: string;
+  readonly kind?: string;
   readonly value: unknown;
   readonly provenance?: unknown;
 }

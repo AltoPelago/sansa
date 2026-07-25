@@ -181,6 +181,25 @@ test('rejects invalid mutation datatype hints', () => {
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_INVALID_DATATYPE');
 });
 
+test('preserves representation kind hints separately from datatype hints', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'color',
+    datatype: 'brandColor',
+    kind: 'hex',
+    value: 'ff00aa',
+  }, namespace);
+
+  assert.equal(plan.operations[0].datatype, 'brandColor');
+  assert.equal(plan.operations[0].kind, 'hex');
+
+  const invalid = planMutation({ op: 'replace', target: '$.inventory.sku', kind: '', value: 'x' }, namespace);
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.errors[0].code, 'SANSA_MUTATE_INVALID_KIND');
+});
+
 test('requires exact mutation targets and forbids root removal', () => {
   const namespace = sampleNamespace();
 

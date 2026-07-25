@@ -101,11 +101,12 @@ function mutableNamespace(namespace) {
       observedState: (binding) => binding.revision ?? 0,
       sameBinding: (left, right) => left === right || left?.[HANDLE_PROPERTY] === right?.[HANDLE_PROPERTY],
       create(parent, name, value, operation) {
-        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        const validation = validateAeonWorkbenchValue(value, operation);
         if (!validation.ok) return validation;
         const child = bindingFromJsonValue(value, {
           name,
           datatype: operation.datatype,
+          kind: operation.kind,
           address: appendMember(parent.address ?? '$', name),
           parent,
         });
@@ -114,12 +115,13 @@ function mutableNamespace(namespace) {
         return { binding: child, resultingAddress: child.address };
       },
       replace(target, value, operation) {
-        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        const validation = validateAeonWorkbenchValue(value, operation);
         if (!validation.ok) return validation;
         const replacement = bindingFromJsonValue(value, {
           name: target.name,
           index: target.index,
           datatype: operation.datatype,
+          kind: operation.kind,
           address: target.address,
           parent: target.parent,
           handle: target[HANDLE_PROPERTY],
@@ -138,10 +140,11 @@ function mutableNamespace(namespace) {
         return { binding: target, affectedAddress: target.address };
       },
       insert(container, placement, value, operation) {
-        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        const validation = validateAeonWorkbenchValue(value, operation);
         if (!validation.ok) return validation;
         const child = bindingFromJsonValue(value, {
           datatype: operation.datatype,
+          kind: operation.kind,
           address: `${container.address ?? '$'}[new]`,
           parent: container,
         });
@@ -205,12 +208,12 @@ function ensureAttributeSpace(binding) {
   return binding.attributeSpace;
 }
 
-function validateAeonWorkbenchValue(value, datatype, path = 'value') {
-  const representation = representationKindFromDatatype(datatype);
+function validateAeonWorkbenchValue(value, hints = {}, path = 'value') {
+  const representation = representationKindFromHints(hints);
   if (representation === 'node') return validateAeonWorkbenchNodeValue(value, path);
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
-      const result = validateAeonWorkbenchValue(value[index], undefined, `${path}[${index}]`);
+      const result = validateAeonWorkbenchValue(value[index], {}, `${path}[${index}]`);
       if (!result.ok) return result;
     }
     return { ok: true };
@@ -218,7 +221,7 @@ function validateAeonWorkbenchValue(value, datatype, path = 'value') {
   if (value && typeof value === 'object') {
     for (const [key, entry] of Object.entries(value)) {
       if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}[""]`);
-      const result = validateAeonWorkbenchValue(entry, undefined, `${path}.${key}`);
+      const result = validateAeonWorkbenchValue(entry, {}, `${path}.${key}`);
       if (!result.ok) return result;
     }
   }
@@ -227,7 +230,7 @@ function validateAeonWorkbenchValue(value, datatype, path = 'value') {
 
 function validateAeonWorkbenchNodeValue(value, path) {
   if (value === undefined || value === null) return { ok: true };
-  if (Array.isArray(value)) return validateAeonWorkbenchValue(value, undefined, `${path}.children`);
+  if (Array.isArray(value)) return validateAeonWorkbenchValue(value, {}, `${path}.children`);
   if (typeof value !== 'object') {
     return invalidAeonWorkbenchValue('Node values must be an object with tag/children or an array of children', path);
   }
@@ -239,7 +242,7 @@ function validateAeonWorkbenchNodeValue(value, path) {
   }
   if (Array.isArray(value.children)) {
     for (let index = 0; index < value.children.length; index += 1) {
-      const result = validateAeonWorkbenchValue(value.children[index], undefined, `${path}.children[${index}]`);
+      const result = validateAeonWorkbenchValue(value.children[index], {}, `${path}.children[${index}]`);
       if (!result.ok) return result;
     }
   }
@@ -249,7 +252,7 @@ function validateAeonWorkbenchNodeValue(value, path) {
     }
     for (const [key, entry] of Object.entries(value.attributes)) {
       if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}.attributes[""]`);
-      const result = validateAeonWorkbenchValue(entry, undefined, `${path}.attributes.${key}`);
+      const result = validateAeonWorkbenchValue(entry, {}, `${path}.attributes.${key}`);
       if (!result.ok) return result;
     }
   }
@@ -263,8 +266,8 @@ function invalidAeonWorkbenchValue(message, path) {
   };
 }
 
-function bindingFromJsonValue(value, { name, index, datatype, address, parent, handle } = {}) {
-  const datatypeRepresentation = representationKindFromDatatype(datatype);
+function bindingFromJsonValue(value, { name, index, datatype, kind, address, parent, handle } = {}) {
+  const representation = representationKindFromHints({ datatype, kind });
   const binding = {
     ...(name === undefined ? {} : { name }),
     ...(index === undefined ? {} : { index }),
@@ -279,13 +282,13 @@ function bindingFromJsonValue(value, { name, index, datatype, address, parent, h
     configurable: true,
   });
 
-  if (datatypeRepresentation === 'node') {
-    return assignNodeBinding(binding, value, datatype, address);
+  if (representation === 'node') {
+    return assignNodeBinding(binding, value, { datatype, kind }, address);
   }
 
   if (Array.isArray(value)) {
     binding.semanticType = datatype ?? 'list';
-    binding.representationKind = datatypeRepresentation === 'tuple' ? 'tuple' : 'list';
+    binding.representationKind = representation === 'tuple' ? 'tuple' : 'list';
     binding.children = value.map((entry, childIndex) => bindingFromJsonValue(entry, {
       index: childIndex,
       address: `${address}[${childIndex}]`,
@@ -296,7 +299,7 @@ function bindingFromJsonValue(value, { name, index, datatype, address, parent, h
 
   if (value && typeof value === 'object') {
     binding.semanticType = datatype ?? 'object';
-    binding.representationKind = datatypeRepresentation === 'object' ? 'object' : 'object';
+    binding.representationKind = 'object';
     binding.children = Object.entries(value).map(([key, entry]) => bindingFromJsonValue(entry, {
       name: key,
       address: appendMember(address, key),
@@ -307,16 +310,16 @@ function bindingFromJsonValue(value, { name, index, datatype, address, parent, h
 
   binding.value = value;
   binding.semanticType = datatype ?? semanticTypeFromJsonValue(value);
-  binding.representationKind = representationKindFromDatatype(datatype) ?? semanticTypeFromJsonValue(value);
-  binding.scalarKind = scalarKindFromDatatype(datatype) ?? binding.representationKind;
+  binding.representationKind = representation ?? semanticTypeFromJsonValue(value);
+  binding.scalarKind = scalarKindFromHints({ datatype, kind }) ?? binding.representationKind;
   return binding;
 }
 
-function assignNodeBinding(binding, value, datatype, address) {
+function assignNodeBinding(binding, value, hints, address) {
   const node = value && typeof value === 'object' && !Array.isArray(value)
     ? value
     : { children: Array.isArray(value) ? value : [] };
-  binding.semanticType = datatype ?? 'node';
+  binding.semanticType = hints.datatype ?? 'node';
   binding.representationKind = 'node';
   binding.nodeTag = validNodeTag(node.tag) ? node.tag : 'node';
   const children = Array.isArray(node.children) ? node.children : [];
@@ -455,6 +458,7 @@ function summarizeOperation(operation) {
     ...(operation.placement ? { placement: summarizePlacement(operation.placement) } : {}),
     ...(operation.name === undefined ? {} : { name: operation.name }),
     ...(operation.datatype === undefined ? {} : { datatype: operation.datatype }),
+    ...(operation.kind === undefined ? {} : { kind: operation.kind }),
     ...(operation.value === undefined ? {} : { value: sanitizeJsonValue(operation.value) }),
     ...(operation.provenance === undefined ? {} : { provenance: sanitizeJsonValue(operation.provenance) }),
   };
@@ -701,8 +705,14 @@ function semanticTypeFromJsonValue(value) {
   return typeof value;
 }
 
-function representationKindFromDatatype(datatype) {
-  const base = datatypeBaseName(datatype);
+function representationKindFromHints({ datatype, kind } = {}) {
+  return kind === undefined
+    ? representationKindFromName(datatype, { allowUnknown: false })
+    : representationKindFromName(kind, { allowUnknown: true });
+}
+
+function representationKindFromName(name, { allowUnknown = false } = {}) {
+  const base = datatypeBaseName(name);
   if (['object', 'obj', 'o', 'envelope'].includes(base)) return 'object';
   if (base === 'list') return 'list';
   if (base === 'tuple') return 'tuple';
@@ -717,11 +727,11 @@ function representationKindFromDatatype(datatype) {
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
   if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
-  return base;
+  return allowUnknown ? base : undefined;
 }
 
-function scalarKindFromDatatype(datatype) {
-  const kind = representationKindFromDatatype(datatype);
+function scalarKindFromHints(hints) {
+  const kind = representationKindFromHints(hints);
   if (kind === 'sansa') return 'sansaAddress';
   return kind;
 }

@@ -183,6 +183,9 @@ function comparePlannedOperations(expected, actual, failures) {
     if (Object.hasOwn(expected[index], 'datatype') && expected[index].datatype !== actual[index].datatype) {
       failures.push(`operations[${index}].datatype mismatch: expected ${expected[index].datatype}, got ${actual[index].datatype ?? null}`);
     }
+    if (Object.hasOwn(expected[index], 'kind') && expected[index].kind !== actual[index].kind) {
+      failures.push(`operations[${index}].kind mismatch: expected ${expected[index].kind}, got ${actual[index].kind ?? null}`);
+    }
     if (Object.hasOwn(expected[index], 'provenance')) {
       compareJsonLike(expected[index].provenance, actual[index].provenance, `operations[${index}].provenance`, failures);
     }

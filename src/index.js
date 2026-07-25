@@ -841,6 +841,8 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
   }
   const datatype = mutationDatatype(requested, operationIndex);
   if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
   if (selectMember(namespace, parent.target.binding, requested.name).length > 0) {
     return {
       ok: false,
@@ -858,6 +860,7 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
       parent: parent.target,
       name: requested.name,
       ...datatype.value,
+      ...kind.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -869,12 +872,15 @@ function planReplaceOperation(requested, operationIndex, namespace, options) {
   if (!target.ok) return target;
   const datatype = mutationDatatype(requested, operationIndex);
   if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
   return {
     ok: true,
     operation: {
       op: 'replace',
       target: target.target,
       ...datatype.value,
+      ...kind.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -917,6 +923,8 @@ function planInsertOperation(requested, operationIndex, namespace, options) {
   if (!placement.ok) return placement;
   const datatype = mutationDatatype(requested, operationIndex);
   if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
   return {
     ok: true,
     operation: {
@@ -924,6 +932,7 @@ function planInsertOperation(requested, operationIndex, namespace, options) {
       container: container.target,
       placement: placement.placement,
       ...datatype.value,
+      ...kind.value,
       value: requested.value,
       ...mutationProvenance(requested),
     },
@@ -1355,6 +1364,21 @@ function mutationDatatype(requested, operationIndex) {
     };
   }
   return { ok: true, value: { datatype: requested.datatype.trim() } };
+}
+
+function mutationKind(requested, operationIndex) {
+  if (requested.kind === undefined) return { ok: true, value: {} };
+  if (typeof requested.kind !== 'string' || requested.kind.trim().length === 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_KIND',
+        'Mutation kind must be a non-empty string when provided',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, value: { kind: requested.kind.trim() } };
 }
 
 function mutationError(code, message, details = {}) {

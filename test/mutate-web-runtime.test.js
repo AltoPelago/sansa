@@ -161,6 +161,30 @@ testAeonRuntime('mutate web runtime creates typed AEON containers', async () => 
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
+testAeonRuntime('mutate web runtime applies kind as representation separately from datatype', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types',
+      name: 'brand',
+      datatype: 'brandColor',
+      kind: 'hex',
+      value: 'ff00aa',
+    }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.plan.operations[0].datatype, 'brandColor');
+  assert.equal(result.plan.operations[0].kind, 'hex');
+  assert.match(result.source, /brand:brandColor = #ff00aa/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

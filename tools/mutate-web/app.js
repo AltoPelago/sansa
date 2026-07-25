@@ -53,6 +53,18 @@ const examples = [
     },
   },
   {
+    id: 'create-kind',
+    label: 'Create Kind',
+    request: {
+      op: 'create',
+      parent: '$.types',
+      name: 'brand',
+      datatype: 'brandColor',
+      kind: 'hex',
+      value: 'ff00aa',
+    },
+  },
+  {
     id: 'create-containers',
     label: 'Create Containers',
     request: {
