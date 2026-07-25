@@ -73,6 +73,20 @@
       "capability": "SANSA.Query",
       "category": "evaluation-budget",
       "phase": "select"
+    },
+    {
+      "id": "maxOperations",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxPreconditions",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
     }
   ],
   "extensions": [

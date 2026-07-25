@@ -143,6 +143,7 @@ export type SansaMutateErrorCode =
   | 'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE'
   | 'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED'
   | 'SANSA_MUTATE_PRECONDITION_FAILED'
+  | 'SANSA_MUTATE_BUDGET_EXCEEDED'
   | 'SANSA_MUTATE_DUPLICATE_TARGET'
   | 'SANSA_MUTATE_INVALID_NAME'
   | 'SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN'
@@ -177,8 +178,12 @@ export interface SansaQueryEvaluateDiagnostic {
 export interface SansaMutateDiagnostic {
   readonly code: SansaMutateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
+  readonly phase?: 'plan' | 'apply';
   readonly operationIndex?: number;
   readonly preconditionIndex?: number;
+  readonly budget?: string;
+  readonly limit?: number;
+  readonly observed?: number;
   readonly cause?: unknown;
 }
 
@@ -461,10 +466,16 @@ export interface SansaApplyMutationOptions<TBinding extends object = SansaResolv
   readonly requireAtomic?: boolean;
   readonly recheckPreconditions?: boolean;
   readonly valueSemantics?: AeonValueSemanticsProfileInput;
+  readonly budget?: SansaMutationBudgetOptions;
   readonly parse?: SansaParseOptions | {
     readonly address?: SansaParseOptions;
     readonly expression?: SansaQueryExpressionParseOptions;
   };
+}
+
+export interface SansaMutationBudgetOptions {
+  readonly maxOperations?: number;
+  readonly maxPreconditions?: number;
 }
 
 export interface SansaPlanMutationOptions<TBinding extends object = SansaResolveBinding> {
@@ -479,6 +490,7 @@ export interface SansaPlanMutationOptions<TBinding extends object = SansaResolve
   readonly failOnParentFromEffectiveRoot?: boolean;
   readonly namespaceState?: unknown;
   readonly valueSemantics?: AeonValueSemanticsProfileInput;
+  readonly budget?: SansaMutationBudgetOptions;
 }
 
 export type SansaApplyMutationPlanResult<TBinding extends object = SansaResolveBinding> =

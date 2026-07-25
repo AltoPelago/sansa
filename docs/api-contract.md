@@ -201,6 +201,26 @@ Preconditions use the SANSA.Query expression evaluator and must produce a Boolea
 
 Preserved preconditions are rechecked by default before apply invokes any mutation hook. This protects a plan from non-target state drift between planning and apply. Callers that rely on a stronger external transaction or namespace-state contract may pass `{ recheckPreconditions: false }` to `applyMutationPlan`.
 
+Experimental Mutate budgets are optional and fail closed:
+
+```js
+planMutation(request, namespace, {
+  budget: {
+    maxOperations: 100,
+    maxPreconditions: 20
+  }
+})
+
+applyMutationPlan(plan, namespace, {
+  budget: {
+    maxOperations: 100,
+    maxPreconditions: 20
+  }
+})
+```
+
+Budget exhaustion returns `SANSA_MUTATE_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It does not produce a partial plan and does not apply partial mutations.
+
 Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
 
 `applyMutationPlan` applies an already planned mutation only when the namespace exposes matching mutation hooks:

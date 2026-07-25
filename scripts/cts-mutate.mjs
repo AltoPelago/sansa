@@ -56,10 +56,12 @@ function runTest(test, namespaces) {
     : operations.length === 1
       ? operations[0]
       : operations;
-  const planResult = planMutation(request, fixture.namespace);
+  const planOptions = test.input?.planOptions ?? test.input?.options ?? {};
+  const applyOptions = test.input?.applyOptions ?? test.input?.options ?? {};
+  const planResult = planMutation(request, fixture.namespace, planOptions);
   const mode = test.input?.mode ?? 'plan';
   const result = mode === 'apply' && planResult.ok
-    ? applyPlannedMutation(test, planResult.plan, fixture)
+    ? applyPlannedMutation(test, planResult.plan, fixture, applyOptions)
     : planResult;
 
   if (result.ok !== Boolean(expected.ok)) {
@@ -78,6 +80,30 @@ function runTest(test, namespaces) {
       const actualIndex = result.errors?.[0]?.operationIndex;
       if (actualIndex !== expected.operationIndex) {
         failures.push(`operationIndex mismatch: expected ${expected.operationIndex}, got ${actualIndex ?? null}`);
+      }
+    }
+    if (typeof expected.errorPhase === 'string') {
+      const actualPhase = result.errors?.[0]?.phase ?? null;
+      if (actualPhase !== expected.errorPhase) {
+        failures.push(`errorPhase mismatch: expected ${expected.errorPhase}, got ${actualPhase}`);
+      }
+    }
+    if (typeof expected.errorBudget === 'string') {
+      const actualBudget = result.errors?.[0]?.budget ?? null;
+      if (actualBudget !== expected.errorBudget) {
+        failures.push(`errorBudget mismatch: expected ${expected.errorBudget}, got ${actualBudget}`);
+      }
+    }
+    if (Number.isSafeInteger(expected.errorLimit)) {
+      const actualLimit = result.errors?.[0]?.limit ?? null;
+      if (actualLimit !== expected.errorLimit) {
+        failures.push(`errorLimit mismatch: expected ${expected.errorLimit}, got ${actualLimit}`);
+      }
+    }
+    if (Number.isSafeInteger(expected.errorObserved)) {
+      const actualObserved = result.errors?.[0]?.observed ?? null;
+      if (actualObserved !== expected.errorObserved) {
+        failures.push(`errorObserved mismatch: expected ${expected.errorObserved}, got ${actualObserved}`);
       }
     }
     return failures;
@@ -110,9 +136,9 @@ function runTest(test, namespaces) {
   return failures;
 }
 
-function applyPlannedMutation(test, plan, fixture) {
+function applyPlannedMutation(test, plan, fixture, options) {
   applyDrift(test.input?.driftBeforeApply, fixture);
-  return applyMutationPlan(plan, fixture.namespace);
+  return applyMutationPlan(plan, fixture.namespace, options);
 }
 
 function comparePlannedOperations(expected, actual, failures) {

@@ -162,6 +162,33 @@ test('rejects repeated destructive operations for the same binding', () => {
   assert.equal(result.errors[0].operationIndex, 1);
 });
 
+test('fails closed when mutation planning budgets are exceeded', () => {
+  const namespace = sampleNamespace();
+  const operations = [
+    { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    { op: 'replace', target: '$.inventory.name', value: 'Bracket' },
+  ];
+
+  const operationBudget = planMutation(operations, namespace, { budget: { maxOperations: 1 } });
+  assert.equal(operationBudget.ok, false);
+  assert.equal(operationBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(operationBudget.errors[0].phase, 'plan');
+  assert.equal(operationBudget.errors[0].budget, 'maxOperations');
+  assert.equal(operationBudget.errors[0].limit, 1);
+  assert.equal(operationBudget.errors[0].observed, 2);
+
+  const preconditionBudget = planMutation({
+    operations: [operations[0]],
+    preconditions: [
+      { expression: '$.inventory.sku == "A-100"' },
+      { expression: '$.inventory.name == "Adapter"' },
+    ],
+  }, namespace, { budget: { maxPreconditions: 1 } });
+  assert.equal(preconditionBudget.ok, false);
+  assert.equal(preconditionBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(preconditionBudget.errors[0].budget, 'maxPreconditions');
+});
+
 test('evaluates structured preconditions before producing mutation plans', () => {
   const namespace = sampleNamespace();
   const plan = planOk({
@@ -234,6 +261,25 @@ test('rechecks preserved preconditions before apply hooks run', () => {
   assert.equal(applied.errors[0].code, 'SANSA_MUTATE_PRECONDITION_FAILED');
   assert.equal(applied.errors[0].preconditionIndex, 0);
   assert.equal(sku.value, 'A-100');
+});
+
+test('fails closed when mutation apply budgets are exceeded', () => {
+  const namespace = sampleNamespace();
+  const inventory = namespace.root.children[0];
+  const sku = inventory.children[0];
+  const name = inventory.children[1];
+  const plan = planOk([
+    { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    { op: 'replace', target: '$.inventory.name', value: 'Bracket' },
+  ], namespace);
+
+  const applied = applyMutationPlan(plan, namespace, { budget: { maxOperations: 1 } });
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(applied.errors[0].phase, 'apply');
+  assert.equal(applied.errors[0].budget, 'maxOperations');
+  assert.equal(sku.value, 'A-100');
+  assert.equal(name.value, 'Adapter');
 });
 
 test('plans ordered insert and same-container move without prescribing storage representation', () => {

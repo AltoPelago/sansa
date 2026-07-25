@@ -348,6 +348,11 @@ export function planMutation(input, namespace, options = {}) {
     return { ok: false, errors: [mutationError(normalized.code, normalized.message)] };
   }
 
+  const operationBudget = checkMutationBudget(options, 'maxOperations', normalized.operations.length, 'plan');
+  if (!operationBudget.ok) return { ok: false, errors: [operationBudget.error] };
+  const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', normalized.preconditions.length, 'plan');
+  if (!preconditionBudget.ok) return { ok: false, errors: [preconditionBudget.error] };
+
   const operations = [];
   const seenDestructiveTargets = new Set();
   const seenCreates = new Set();
@@ -401,6 +406,15 @@ export function applyMutationPlan(plan, namespace, options = {}) {
       operationResults: [],
       errors: [mutationError('SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE', 'Mutation adapter does not advertise atomic apply')],
     };
+  }
+
+  const operationBudget = checkMutationBudget(options, 'maxOperations', plan.operations.length, 'apply');
+  if (!operationBudget.ok) {
+    return { ok: false, operationResults: [], errors: [operationBudget.error] };
+  }
+  const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', (plan.preconditions ?? []).length, 'apply');
+  if (!preconditionBudget.ok) {
+    return { ok: false, operationResults: [], errors: [preconditionBudget.error] };
   }
 
   for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
@@ -624,6 +638,19 @@ function mutationQueryExpressionParseOptions(options) {
   }
   if (options.parse) return { address: options.parse };
   return {};
+}
+
+function checkMutationBudget(options, budget, observed, phase) {
+  const limit = normalizeQueryBudgetLimit(options.budget?.[budget]);
+  if (limit === undefined || observed <= limit) return { ok: true };
+  return {
+    ok: false,
+    error: mutationError(
+      'SANSA_MUTATE_BUDGET_EXCEEDED',
+      `Mutation budget '${budget}' exceeded: limit ${limit}, observed ${observed}`,
+      { phase, budget, limit, observed },
+    ),
+  };
 }
 
 function verifyPlannedMutationPreconditions(preconditions, namespace, options) {

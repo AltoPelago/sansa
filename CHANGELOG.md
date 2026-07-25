@@ -28,6 +28,8 @@ versions may still include breaking changes when the SANSA specifications move.
   planning with the SANSA.Query expression evaluator.
 - Added default apply-time rechecking of preserved SANSA.Mutate preconditions
   before mutation hooks run.
+- Added experimental SANSA.Mutate `maxOperations` and `maxPreconditions`
+  budgets for planning and apply.
 
 ### Changed
 
