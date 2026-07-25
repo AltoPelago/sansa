@@ -48,9 +48,14 @@ function runTest(test, namespaces) {
     return failures;
   }
 
-  const request = Array.isArray(test.input?.operations)
+  const operations = Array.isArray(test.input?.operations)
     ? test.input.operations
-    : test.input?.operation;
+    : [test.input?.operation];
+  const request = Array.isArray(test.input?.preconditions)
+    ? { operations, preconditions: test.input.preconditions }
+    : operations.length === 1
+      ? operations[0]
+      : operations;
   const planResult = planMutation(request, fixture.namespace);
   const mode = test.input?.mode ?? 'plan';
   const result = mode === 'apply' && planResult.ok
@@ -80,6 +85,14 @@ function runTest(test, namespaces) {
 
   if (mode === 'plan') {
     comparePlannedOperations(expected.operations ?? [], result.plan.operations, failures);
+    if (Array.isArray(expected.preconditions)) {
+      compareArray(
+        expected.preconditions,
+        result.plan.preconditions.map((entry) => entry.canonical),
+        'preconditions',
+        failures,
+      );
+    }
     return failures;
   }
 

@@ -368,6 +368,9 @@ export function planMutation(input, namespace, options = {}) {
     operations.push(planned.operation);
   }
 
+  const preconditions = evaluateMutationPreconditions(normalized.preconditions, namespace, options);
+  if (!preconditions.ok) return { ok: false, errors: [preconditions.error] };
+
   return {
     ok: true,
     plan: {
@@ -375,7 +378,7 @@ export function planMutation(input, namespace, options = {}) {
       planVersion: 'sansa.mutate.plan.v1',
       namespaceState: options.namespaceState ?? getNamespaceState(namespace),
       operations,
-      preconditions: [],
+      preconditions: preconditions.preconditions,
       diagnostics: [],
     },
     diagnostics: [],
@@ -452,18 +455,168 @@ export function applyMutationPlan(plan, namespace, options = {}) {
 }
 
 function normalizeMutationRequest(input) {
-  if (Array.isArray(input)) return { ok: true, operations: input };
+  if (Array.isArray(input)) return { ok: true, operations: input, preconditions: [] };
   if (input && typeof input === 'object' && Array.isArray(input.operations)) {
-    return { ok: true, operations: input.operations };
+    if (input.preconditions !== undefined && !Array.isArray(input.preconditions)) {
+      return {
+        ok: false,
+        code: 'SANSA_MUTATE_INVALID_PRECONDITION',
+        message: 'Mutation request preconditions must be a list',
+      };
+    }
+    return { ok: true, operations: input.operations, preconditions: input.preconditions ?? [] };
   }
   if (input && typeof input === 'object' && typeof input.op === 'string') {
-    return { ok: true, operations: [input] };
+    return { ok: true, operations: [input], preconditions: [] };
   }
   return {
     ok: false,
     code: 'SANSA_MUTATE_INVALID_REQUEST',
     message: 'Expected mutation request object, operation object, or operation list',
   };
+}
+
+function evaluateMutationPreconditions(preconditions, namespace, options) {
+  if (preconditions.length === 0) return { ok: true, preconditions: [] };
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE',
+        error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      ),
+    };
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  const planned = [];
+  for (let preconditionIndex = 0; preconditionIndex < preconditions.length; preconditionIndex += 1) {
+    const precondition = evaluateMutationPrecondition(
+      preconditions[preconditionIndex],
+      preconditionIndex,
+      namespace,
+      evaluationOptions,
+    );
+    if (!precondition.ok) return precondition;
+    planned.push(precondition.precondition);
+  }
+  return { ok: true, preconditions: planned };
+}
+
+function evaluateMutationPrecondition(precondition, preconditionIndex, namespace, options) {
+  if (!precondition || typeof precondition !== 'object' || typeof precondition.expression !== 'string') {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Mutation preconditions must provide an expression string',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  const parsed = parseQueryExpression(precondition.expression, mutationQueryExpressionParseOptions(options));
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Mutation precondition expression is not valid',
+        { preconditionIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+
+  const context = resolveMutationPreconditionContext(precondition, preconditionIndex, namespace, options);
+  if (!context.ok) return context;
+
+  const evaluated = evaluateQueryExpressionValue(parsed.expression, context.binding, namespace, options);
+  if (!evaluated.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        evaluated.error.message,
+        { preconditionIndex, cause: evaluated.error },
+      ),
+    };
+  }
+
+  const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+  if (!boolean.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        boolean.error.message,
+        { preconditionIndex, cause: boolean.error },
+      ),
+    };
+  }
+  if (boolean.value !== true) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_FAILED',
+        'Mutation precondition evaluated false',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    precondition: {
+      expression: precondition.expression,
+      canonical: parsed.expression.canonical,
+      ...(context.target === undefined ? {} : { target: context.target }),
+    },
+  };
+}
+
+function resolveMutationPreconditionContext(precondition, preconditionIndex, namespace, options) {
+  if (precondition.target !== undefined) {
+    const target = resolveMutationExactTarget(precondition.target, 'precondition target', undefined, namespace, options);
+    if (!target.ok) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_INVALID_PRECONDITION',
+          target.error.message,
+          { preconditionIndex, cause: target.error },
+        ),
+      };
+    }
+    return { ok: true, binding: target.target.binding, target: target.target };
+  }
+
+  const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+  if (!rootResult.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        rootResult.error.message,
+        { preconditionIndex, cause: rootResult.error },
+      ),
+    };
+  }
+  return { ok: true, binding: rootResult.binding };
+}
+
+function mutationQueryExpressionParseOptions(options) {
+  if (options.parse?.expression || options.parse?.address) {
+    return options.parse.expression ?? { address: options.parse.address };
+  }
+  if (options.parse) return { address: options.parse };
+  return {};
 }
 
 function planMutationOperation(requested, operationIndex, namespace, options) {

@@ -24,6 +24,8 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added experimental SANSA.Mutate structured planning and host-adapter apply
   APIs for exact `create`, `replace`, `remove`, ordered `insert`, and
   same-container `move`.
+- Added experimental SANSA.Mutate structured preconditions evaluated during
+  planning with the SANSA.Query expression evaluator.
 
 ### Changed
 

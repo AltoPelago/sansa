@@ -162,6 +162,58 @@ test('rejects repeated destructive operations for the same binding', () => {
   assert.equal(result.errors[0].operationIndex, 1);
 });
 
+test('evaluates structured preconditions before producing mutation plans', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({
+    operations: [
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    ],
+    preconditions: [
+      { expression: '$.inventory.sku == "A-100"' },
+      { target: '$.inventory.sku', expression: '. == "A-100"' },
+    ],
+  }, namespace);
+
+  assert.deepEqual(plan.preconditions.map((precondition) => precondition.canonical), [
+    '$.inventory.sku == "A-100"',
+    '. == "A-100"',
+  ]);
+  assert.equal(plan.preconditions[1].target.canonicalAddress, '$.inventory.sku');
+});
+
+test('fails closed when a structured precondition evaluates false', () => {
+  const namespace = sampleNamespace();
+  const result = planMutation({
+    operations: [
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    ],
+    preconditions: [
+      { expression: '$.inventory.sku == "C-300"' },
+    ],
+  }, namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_PRECONDITION_FAILED');
+  assert.equal(result.errors[0].preconditionIndex, 0);
+  assert.equal(namespace.root.children[0].children[0].value, 'A-100');
+});
+
+test('rejects non-boolean precondition expressions', () => {
+  const namespace = sampleNamespace();
+  const result = planMutation({
+    operations: [
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    ],
+    preconditions: [
+      { expression: '$.inventory.sku' },
+    ],
+  }, namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED');
+  assert.equal(result.errors[0].cause.code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
+});
+
 test('plans ordered insert and same-container move without prescribing storage representation', () => {
   const namespace = sampleNamespace();
   const insertPlan = planOk({ op: 'insert', container: '$.items', placement: { kind: 'before', anchor: '$.items[1]' }, value: 'middle' }, namespace);
