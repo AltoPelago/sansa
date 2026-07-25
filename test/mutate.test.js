@@ -550,6 +550,44 @@ test('rejects apply when the resolved binding identity drifted after planning', 
   assert.equal(applied.errors[0].code, 'SANSA_MUTATE_STALE_TARGET');
 });
 
+test('rejects apply when ordered mutation anchors drift after planning', () => {
+  const insertNamespace = sampleNamespace();
+  const insertPlan = planOk({
+    op: 'insert',
+    container: '$.items',
+    placement: { kind: 'before', anchor: '$.items[1]' },
+    value: 'middle',
+  }, insertNamespace);
+  const insertItems = insertNamespace.root.children[1];
+  const insertReplacement = binding({ address: '$.items[1]', value: 'replacement', representationKind: 'string' });
+  insertReplacement.id = 'replacement';
+  insertReplacement.parent = insertItems;
+  insertItems.children[1] = insertReplacement;
+
+  const inserted = applyMutationPlan(insertPlan, insertNamespace);
+  assert.equal(inserted.ok, false);
+  assert.equal(inserted.errors[0].code, 'SANSA_MUTATE_STALE_TARGET');
+  assert.deepEqual(insertItems.children.map((child) => child.value), ['first', 'replacement']);
+
+  const moveNamespace = sampleNamespace();
+  const movePlan = planOk({
+    op: 'move',
+    source: '$.items[0]',
+    container: '$.items',
+    placement: { kind: 'after', anchor: '$.items[1]' },
+  }, moveNamespace);
+  const moveItems = moveNamespace.root.children[1];
+  const moveReplacement = binding({ address: '$.items[1]', value: 'replacement', representationKind: 'string' });
+  moveReplacement.id = 'replacement';
+  moveReplacement.parent = moveItems;
+  moveItems.children[1] = moveReplacement;
+
+  const moved = applyMutationPlan(movePlan, moveNamespace);
+  assert.equal(moved.ok, false);
+  assert.equal(moved.errors[0].code, 'SANSA_MUTATE_STALE_TARGET');
+  assert.deepEqual(moveItems.children.map((child) => child.value), ['first', 'replacement']);
+});
+
 test('does not apply without explicit mutation adapter support', () => {
   const namespace = sampleNamespace();
   const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);

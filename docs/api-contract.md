@@ -302,7 +302,7 @@ The workbench AEON adapter materializes JSON values according to container `kind
 
 Because Source Result output is AEON, the workbench adapter rejects JSON payloads that cannot be rendered as legal AEON. For example, object member names and node attribute names must not be empty; malformed node payloads also fail before any mutation is applied.
 
-The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
+The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift. Ordered `insert` and `move` anchors are checked with the same stale-target rule before their hooks run.
 
 Successful apply returns one result record per applied operation. Result records expose stable mutation-intent addresses such as `targetAddress`, `parentAddress`, `containerAddress`, `sourceAddress`, and `anchorAddress` when those roles exist. They also expose `previousAddress`, `affectedAddress`, and `resultingAddress` where known. `remove` reports the removed binding as affected, but does not invent a `resultingAddress` unless the adapter explicitly supplies one.
 
