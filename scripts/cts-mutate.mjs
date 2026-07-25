@@ -110,6 +110,9 @@ function runTest(test, namespaces) {
         failures.push(`errorObserved mismatch: expected ${expected.errorObserved}, got ${actualObserved}`);
       }
     }
+    compareValuesByAddress(expected.valuesByAddress ?? {}, fixture.byAddress, failures);
+    compareChildrenByAddress(expected.childrenByAddress ?? {}, fixture.byAddress, 'name', failures);
+    compareChildrenByAddress(expected.childrenValuesByAddress ?? {}, fixture.byAddress, 'value', failures);
     return failures;
   }
 
@@ -255,6 +258,12 @@ function buildNamespaces(entries) {
 
 function mutationAdapter(entry, byAddress) {
   return {
+    ...(entry.supportsCreate === undefined ? {} : { supportsCreate: entry.supportsCreate }),
+    ...(entry.supportsReplace === undefined ? {} : { supportsReplace: entry.supportsReplace }),
+    ...(entry.supportsRemove === undefined ? {} : { supportsRemove: entry.supportsRemove }),
+    ...(entry.supportsOrderedInsert === undefined ? {} : { supportsOrderedInsert: entry.supportsOrderedInsert }),
+    ...(entry.supportsMove === undefined ? {} : { supportsMove: entry.supportsMove }),
+    ...(entry.supportsStableBindingIdentity === undefined ? {} : { supportsStableBindingIdentity: entry.supportsStableBindingIdentity }),
     supportsAtomicApply: entry.supportsAtomicApply === true,
     sameBinding: (left, right) => left === right,
     create(parent, name, value) {

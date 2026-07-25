@@ -1183,6 +1183,14 @@ function appendMemberAddress(parentAddress, name) {
 }
 
 function mutationHookForOperation(operation, adapter) {
+  const capabilityFlag = mutationCapabilityFlagForOperation(operation.op);
+  if (capabilityFlag && adapter?.[capabilityFlag] === false) {
+    return {
+      ok: false,
+      code: 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION',
+      message: `Mutation adapter does not advertise '${operation.op}' support`,
+    };
+  }
   const hook = adapter?.[operation.op];
   if (typeof hook === 'function') return { ok: true, hook };
   return {
@@ -1190,6 +1198,23 @@ function mutationHookForOperation(operation, adapter) {
     code: 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION',
     message: `Mutation adapter does not support '${operation.op}'`,
   };
+}
+
+function mutationCapabilityFlagForOperation(op) {
+  switch (op) {
+    case 'create':
+      return 'supportsCreate';
+    case 'replace':
+      return 'supportsReplace';
+    case 'remove':
+      return 'supportsRemove';
+    case 'insert':
+      return 'supportsOrderedInsert';
+    case 'move':
+      return 'supportsMove';
+    default:
+      return null;
+  }
 }
 
 function mutationAdapter(namespace) {

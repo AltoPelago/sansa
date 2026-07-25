@@ -417,6 +417,20 @@ test('does not apply without explicit mutation adapter support', () => {
   assert.equal(applied.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION');
 });
 
+test('honors explicit false mutation adapter capability flags', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  const adapter = {
+    ...namespace.mutate,
+    supportsReplace: false,
+  };
+
+  const applied = applyMutationPlan(plan, { ...namespace, mutate: adapter });
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION');
+  assert.equal(namespace.root.children[0].children[0].value, 'A-100');
+});
+
 test('can require an atomic mutation adapter before apply', () => {
   const namespace = sampleNamespace();
   const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);

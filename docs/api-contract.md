@@ -243,6 +243,12 @@ Mutation hooks may live under `namespace.mutate`:
   bindingHandle?(binding),
   observedState?(binding),
   mutate: {
+    supportsCreate: true,
+    supportsReplace: true,
+    supportsRemove: true,
+    supportsOrderedInsert: true,
+    supportsMove: true,
+    supportsStableBindingIdentity: true,
     supportsAtomicApply: true,
     sameBinding?(left, right),
     create(parent, name, value, operation),
@@ -253,6 +259,8 @@ Mutation hooks may live under `namespace.mutate`:
   }
 }
 ```
+
+When an operation capability flag is omitted, this implementation infers support from the corresponding mutation hook. When an operation capability flag is explicitly `false`, apply rejects that operation before invoking hooks. `supportsAtomicApply` is only required when callers pass `{ requireAtomic: true }`.
 
 The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
 

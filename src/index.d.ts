@@ -279,6 +279,12 @@ export interface SansaQueryResult<TBinding extends object = SansaResolveBinding>
 }
 
 export interface SansaMutationAdapter<TBinding extends object = SansaResolveBinding> {
+  readonly supportsCreate?: boolean;
+  readonly supportsReplace?: boolean;
+  readonly supportsRemove?: boolean;
+  readonly supportsOrderedInsert?: boolean;
+  readonly supportsMove?: boolean;
+  readonly supportsStableBindingIdentity?: boolean;
   readonly supportsAtomicApply?: boolean;
   readonly namespaceState?: () => unknown;
   readonly bindingHandle?: (binding: TBinding) => unknown;

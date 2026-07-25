@@ -38,6 +38,15 @@
         "remove",
         "insert",
         "move"
+      ],
+      "adapterCapabilityFlags": [
+        "supportsCreate",
+        "supportsReplace",
+        "supportsRemove",
+        "supportsOrderedInsert",
+        "supportsMove",
+        "supportsStableBindingIdentity",
+        "supportsAtomicApply"
       ]
     }
   ],

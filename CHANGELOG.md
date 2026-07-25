@@ -36,6 +36,8 @@ versions may still include breaking changes when the SANSA specifications move.
   request envelopes.
 - Added SANSA.Mutate plan-level portability warning preservation for locally
   accepted non-portable targets.
+- Added explicit SANSA.Mutate adapter capability flags for operation support and
+  stable/atomic apply capability advertisement.
 
 ### Changed
 
