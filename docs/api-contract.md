@@ -13,9 +13,11 @@ npm run cts
 npm run cts:value-semantics
 npm run cts:query
 npm run cts:query:experimental
+npm run cts:mutate
 ```
 
 The default Query CTS lane is core conformance and skips experimental extension cases. The experimental lane includes those cases for implementations that advertise matching extensions.
+The Mutate CTS lane is experimental and is not included in `npm run cts` while SANSA.Mutate remains proposal-stage.
 
 ## Entry Points
 
