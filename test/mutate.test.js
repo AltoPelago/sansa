@@ -183,7 +183,7 @@ test('rejects invalid mutation datatype hints', () => {
 
 test('preserves representation kind hints separately from datatype hints', () => {
   const namespace = sampleNamespace();
-  const plan = planOk({
+  const createPlan = planOk({
     op: 'create',
     parent: '$.inventory',
     name: 'color',
@@ -192,12 +192,91 @@ test('preserves representation kind hints separately from datatype hints', () =>
     value: 'ff00aa',
   }, namespace);
 
-  assert.equal(plan.operations[0].datatype, 'brandColor');
-  assert.equal(plan.operations[0].kind, 'hex');
+  assert.equal(createPlan.operations[0].datatype, 'brandColor');
+  assert.equal(createPlan.operations[0].kind, 'hex');
+
+  const replacePlan = planOk({
+    op: 'replace',
+    target: '$.inventory.sku',
+    datatype: 'sansa',
+    kind: 'sansa',
+    value: '$.inventory.*',
+  }, namespace);
+
+  assert.equal(replacePlan.operations[0].datatype, 'sansa');
+  assert.equal(replacePlan.operations[0].kind, 'sansa');
+
+  const insertPlan = planOk({
+    op: 'insert',
+    container: '$.items',
+    placement: 'last',
+    datatype: 'brandColor',
+    kind: 'hex',
+    value: '00ff00',
+  }, namespace);
+
+  assert.equal(insertPlan.operations[0].datatype, 'brandColor');
+  assert.equal(insertPlan.operations[0].kind, 'hex');
 
   const invalid = planMutation({ op: 'replace', target: '$.inventory.sku', kind: '', value: 'x' }, namespace);
   assert.equal(invalid.ok, false);
   assert.equal(invalid.errors[0].code, 'SANSA_MUTATE_INVALID_KIND');
+});
+
+test('passes planned operations with datatype and kind hints to mutation hooks', () => {
+  const namespace = sampleNamespace();
+  const seen = [];
+  const originalCreate = namespace.mutate.create;
+  const originalReplace = namespace.mutate.replace;
+  const originalInsert = namespace.mutate.insert;
+  namespace.mutate.create = (parent, name, value, operation) => {
+    seen.push({ op: operation.op, datatype: operation.datatype, kind: operation.kind });
+    return originalCreate(parent, name, value, operation);
+  };
+  namespace.mutate.replace = (target, value, operation) => {
+    seen.push({ op: operation.op, datatype: operation.datatype, kind: operation.kind });
+    return originalReplace(target, value, operation);
+  };
+  namespace.mutate.insert = (container, placement, value, operation) => {
+    seen.push({ op: operation.op, datatype: operation.datatype, kind: operation.kind });
+    return originalInsert(container, placement, value, operation);
+  };
+
+  const plan = planOk({
+    operations: [
+      {
+        op: 'create',
+        parent: '$.inventory',
+        name: 'color',
+        datatype: 'brandColor',
+        kind: 'hex',
+        value: 'ff00aa',
+      },
+      {
+        op: 'replace',
+        target: '$.inventory.sku',
+        datatype: 'sansa',
+        kind: 'sansa',
+        value: '$.inventory.*',
+      },
+      {
+        op: 'insert',
+        container: '$.items',
+        placement: 'last',
+        datatype: 'version',
+        kind: 'sep',
+        value: '0.11.0',
+      },
+    ],
+  }, namespace);
+  const applied = applyMutationPlan(plan, namespace);
+
+  assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
+  assert.deepEqual(seen, [
+    { op: 'create', datatype: 'brandColor', kind: 'hex' },
+    { op: 'replace', datatype: 'sansa', kind: 'sansa' },
+    { op: 'insert', datatype: 'version', kind: 'sep' },
+  ]);
 });
 
 test('requires exact mutation targets and forbids root removal', () => {

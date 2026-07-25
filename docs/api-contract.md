@@ -279,6 +279,8 @@ Mutation hooks may live under `namespace.mutate`:
 
 When an operation capability flag is omitted, this implementation infers support from the corresponding mutation hook. When an operation capability flag is explicitly `false`, apply rejects that operation before invoking hooks. `supportsAtomicApply` is only required when callers pass `{ requireAtomic: true }`.
 
+Mutation hooks receive the planned operation as their final argument. Adapters that need to materialize host-specific values should read preserved fields such as `datatype`, `kind`, and `provenance` from that operation rather than inferring intent from the raw JSON value alone.
+
 The conservative planner rejects structurally incompatible mutation targets before invoking adapter hooks. `create` requires a parent binding whose exposed representation or semantic type is a container. `insert` and `move` require an ordered container (`list`, `tuple`, or `node`). Scalar bindings are not treated as mutation containers merely because a resolver exposes an empty child list for uniform traversal.
 
 Attributes are created by targeting the owner's attribute space as the create parent. For example, creating `status` under `$.types.color.@` produces the attribute path `$.types.color.@.status` and renders in AEON as an inline attribute on `color`. Attribute-space parents are valid create containers, but they are not ordered containers for `insert` or `move`.
