@@ -66,6 +66,12 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
+The same server also exposes the experimental SANSA Mutate Workbench at
+`http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon`
+source input plus a structured JSON mutation request editor, then runs
+`planMutation(...)` or `applyMutationPlan(...)` against a fresh in-memory
+namespace for each request.
+
 The workbench defaults to [../fixtures/query-inventory.aeon](../fixtures/query-inventory.aeon),
 derives a SANSA resolver namespace from the optional AEON TypeScript Core
 runtime, and runs SANSA.Query over that derived graph. It also includes a params

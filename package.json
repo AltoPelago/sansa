@@ -55,6 +55,7 @@
     "cts:mutate": "node scripts/cts-mutate.mjs",
     "query": "node scripts/query.mjs",
     "query:web": "node scripts/query-web.mjs",
+    "mutate:web": "node scripts/query-web.mjs",
     "stress": "node scripts/stress-addresses.mjs",
     "test": "node --test test/*.test.js"
   },

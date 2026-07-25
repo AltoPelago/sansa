@@ -38,6 +38,8 @@ versions may still include breaking changes when the SANSA specifications move.
   accepted non-portable targets.
 - Added explicit SANSA.Mutate adapter capability flags for operation support and
   stable/atomic apply capability advertisement.
+- Added an experimental browser SANSA Mutate Workbench for structured JSON
+  mutation requests against `.aeon` source fixtures.
 
 ### Changed
 

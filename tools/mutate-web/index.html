@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SANSA Mutate Workbench</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>SANSA Mutate Workbench</h1>
+        </div>
+        <div class="topbar-actions">
+          <select id="exampleSelect" aria-label="Example mutation"></select>
+          <button id="resetButton" type="button">Reset</button>
+          <button id="planButton" type="button">Plan</button>
+          <button id="applyButton" type="button">Apply</button>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="SANSA Mutate workspace">
+        <section class="panel source-panel">
+          <div class="panel-head">
+            <label for="sourceInput">AEON Source</label>
+            <span id="sourceStatus">default aeon</span>
+          </div>
+          <div class="source-tabs" role="tablist" aria-label="Source views">
+            <button id="sourceTabInput" type="button" role="tab" aria-selected="true" aria-controls="sourceInput" data-source-tab="input">Source</button>
+            <button id="sourceTabResult" type="button" role="tab" aria-selected="false" aria-controls="sourceResultOutput" data-source-tab="result">Source Result</button>
+          </div>
+          <div class="source-view">
+            <textarea id="sourceInput" spellcheck="false"></textarea>
+            <pre id="sourceResultOutput" class="hidden" tabindex="0"></pre>
+          </div>
+        </section>
+
+        <section class="panel request-panel">
+          <div class="panel-head">
+            <label for="requestInput">Mutation Request JSON</label>
+            <span id="requestStatus">example loaded</span>
+          </div>
+          <textarea id="requestInput" spellcheck="false"></textarea>
+
+          <div class="mode-row" role="group" aria-label="Output format">
+            <label>
+              <input type="radio" name="outputMode" value="text" checked>
+              Text
+            </label>
+            <label>
+              <input type="radio" name="outputMode" value="json">
+              JSON
+            </label>
+          </div>
+
+          <div class="mode-row" role="group" aria-label="Apply options">
+            <label>
+              <input type="checkbox" id="requireAtomic" checked>
+              Atomic
+            </label>
+            <label>
+              <input type="checkbox" id="recheckPreconditions" checked>
+              Recheck
+            </label>
+          </div>
+
+          <div class="budget-row" role="group" aria-label="Mutation budgets">
+            <label>
+              Operations
+              <input type="number" id="maxOperations" min="0" step="1" inputmode="numeric">
+            </label>
+            <label>
+              Preconditions
+              <input type="number" id="maxPreconditions" min="0" step="1" inputmode="numeric">
+            </label>
+            <label>
+              Position Limit
+              <input type="number" id="maxPositionIndex" min="0" step="1" inputmode="numeric">
+            </label>
+          </div>
+
+          <div class="panel-head results-head">
+            <label for="resultOutput">Diagnostics</label>
+            <span id="resultStatus">ready</span>
+          </div>
+          <pre id="resultOutput" tabindex="0"></pre>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -73,6 +73,14 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
+The same local server also exposes the experimental Mutate Workbench:
+
+```bash
+npm run mutate:web
+```
+
+Then open `http://127.0.0.1:4173/tools/mutate-web/`.
+
 Both the CLI and browser workbench can select an explicit query value-semantics
 profile, such as the default codepoint profile, the Natural ASCII numeric-region
 profile, or the French locale profile, to test comparison, ordering, and
