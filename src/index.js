@@ -823,6 +823,16 @@ function planMutationOperation(requested, operationIndex, namespace, options) {
 function planCreateOperation(requested, operationIndex, namespace, options) {
   const parent = resolveMutationExactTarget(requested.parent, 'parent', operationIndex, namespace, options);
   if (!parent.ok) return parent;
+  if (!isMutationContainerBinding(namespace, parent.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PARENT_NOT_CONTAINER',
+        `Create parent ${parent.target.canonicalAddress} is not a container binding`,
+        { operationIndex },
+      ),
+    };
+  }
   if (typeof requested.name !== 'string' || requested.name.length === 0) {
     return {
       ok: false,
@@ -887,6 +897,16 @@ function planRemoveOperation(requested, operationIndex, namespace, options) {
 function planInsertOperation(requested, operationIndex, namespace, options) {
   const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
   if (!container.ok) return container;
+  if (!isMutationOrderedContainerBinding(namespace, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_CONTAINER_NOT_ORDERED',
+        `Insert container ${container.target.canonicalAddress} is not an ordered container binding`,
+        { operationIndex },
+      ),
+    };
+  }
   const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
   if (!placement.ok) return placement;
   return {
@@ -906,6 +926,16 @@ function planMoveOperation(requested, operationIndex, namespace, options) {
   if (!source.ok) return source;
   const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
   if (!container.ok) return container;
+  if (!isMutationOrderedContainerBinding(namespace, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_CONTAINER_NOT_ORDERED',
+        `Move container ${container.target.canonicalAddress} is not an ordered container binding`,
+        { operationIndex },
+      ),
+    };
+  }
   if (!isDirectChildOfContainer(namespace, source.target.binding, container.target.binding)) {
     return {
       ok: false,
@@ -1260,6 +1290,38 @@ function isDirectChildOfContainer(namespace, child, container) {
   if (typeof namespace.parent === 'function' && namespace.parent(child) === container) return true;
   if (child.parent === container) return true;
   return getChildren(namespace, container).includes(child);
+}
+
+function isMutationContainerBinding(namespace, binding) {
+  return mutationContainerKind(namespace, binding) !== undefined;
+}
+
+function isMutationOrderedContainerBinding(namespace, binding) {
+  return ['list', 'tuple', 'node'].includes(mutationContainerKind(namespace, binding));
+}
+
+function mutationContainerKind(namespace, binding) {
+  const rawKind = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.representationKind ?? binding.kind ?? binding.type;
+  const kind = typeof rawKind === 'string' ? lowerFirst(rawKind) : undefined;
+  if (['object', 'obj', 'o', 'envelope', 'objectNode'].includes(kind)) return 'object';
+  if (['list', 'listNode'].includes(kind)) return 'list';
+  if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
+  if (['node', 'nodeLiteral'].includes(kind)) return 'node';
+  if (kind === 'attributeSpace') return 'attributeSpace';
+
+  const rawSemanticType = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding.semanticType ?? binding.datatype;
+  const semanticType = typeof rawSemanticType === 'string'
+    ? datatypeBaseName(rawSemanticType)
+    : undefined;
+  if (['object', 'obj', 'o', 'envelope'].includes(semanticType)) return 'object';
+  if (semanticType === 'list') return 'list';
+  if (semanticType === 'tuple') return 'tuple';
+  if (semanticType === 'node') return 'node';
+  return undefined;
 }
 
 function mutationTargetKey(target) {

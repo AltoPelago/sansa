@@ -88,6 +88,7 @@ function mutableNamespace(namespace) {
   return {
     ...namespace,
     root,
+    attributeSpace: (binding) => binding.attributeSpace ?? ensureAttributeSpace(binding),
     mutate: {
       supportsCreate: true,
       supportsReplace: true,
@@ -175,6 +176,24 @@ function assignStableHandles(binding, counter = { value: 0 }) {
     binding.attributeSpace.parent = binding;
     assignStableHandles(binding.attributeSpace, counter);
   }
+}
+
+function ensureAttributeSpace(binding) {
+  if (!binding || typeof binding !== 'object') return undefined;
+  if (binding.representationKind === 'attributeSpace') return undefined;
+  binding.attributeSpace = {
+    address: `${binding.address ?? '$'}.@`,
+    representationKind: 'attributeSpace',
+    parent: binding,
+    revision: 0,
+    children: [],
+  };
+  Object.defineProperty(binding.attributeSpace, HANDLE_PROPERTY, {
+    value: `${HANDLE_PREFIX}:attribute:${binding[HANDLE_PROPERTY] ?? binding.address ?? Math.random().toString(36).slice(2)}`,
+    enumerable: false,
+    configurable: true,
+  });
+  return binding.attributeSpace;
 }
 
 function bindingFromJsonValue(value, { name, index, address, parent, handle } = {}) {

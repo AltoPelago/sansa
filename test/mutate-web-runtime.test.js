@@ -93,3 +93,42 @@ testAeonRuntime('mutate web runtime reports invalid mutation JSON', async () => 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON');
 });
+
+testAeonRuntime('mutate web runtime reports create against non-container parents', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types.color',
+      name: 'status',
+      value: 'active',
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_PARENT_NOT_CONTAINER');
+  assert.match(result.text, /Create parent \$\.types\.color is not a container binding/);
+});
+
+testAeonRuntime('mutate web runtime creates attributes through attribute-space parents', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types.color.@',
+      name: 'status',
+      value: 'active',
+    }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.match(result.source, /color@\{status:string = "active"\}:hex = #ff00aa/);
+  assert.match(result.text, /applied: 1/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});

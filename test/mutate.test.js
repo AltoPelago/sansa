@@ -78,6 +78,13 @@ function sampleNamespace() {
   const sku = binding({ address: '$.inventory.sku', name: 'sku', value: 'A-100', representationKind: 'string' });
   sku.id = 'sku';
   sku.revision = 0;
+  const skuOrigin = binding({ address: '$.inventory.sku.@.origin', name: 'origin', value: 'catalog', representationKind: 'string' });
+  skuOrigin.id = 'sku-origin';
+  const skuAttributes = binding({ address: '$.inventory.sku.@', representationKind: 'attributeSpace', children: [skuOrigin] });
+  skuAttributes.id = 'sku-attributes';
+  skuOrigin.parent = skuAttributes;
+  sku.attributeSpace = skuAttributes;
+  skuAttributes.parent = sku;
   const name = binding({ address: '$.inventory.name', name: 'name', value: 'Adapter', representationKind: 'string' });
   name.id = 'name';
   name.revision = 0;
@@ -144,6 +151,26 @@ test('plans create against an existing exact parent without upserting', () => {
   assert.equal(existing.errors[0].code, 'SANSA_MUTATE_TARGET_EXISTS');
 });
 
+test('rejects create against non-container parents', () => {
+  const namespace = sampleNamespace();
+  const result = planMutation({ op: 'create', parent: '$.inventory.sku', name: 'status', value: 'active' }, namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_PARENT_NOT_CONTAINER');
+  assert.equal(result.errors[0].operationIndex, 0);
+});
+
+test('allows create against exposed attribute spaces', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({ op: 'create', parent: '$.inventory.sku.@', name: 'status', value: 'active' }, namespace);
+  const applied = applyMutationPlan(plan, namespace);
+
+  assert.equal(applied.ok, true, JSON.stringify(applied.errors ?? []));
+  assert.deepEqual(namespace.root.children[0].children[0].attributeSpace.children.map((child) => child.name), ['origin', 'status']);
+  assert.equal(applied.operationResults[0].parentAddress, '$.inventory.sku.@');
+  assert.equal(applied.operationResults[0].resultingAddress, '$.inventory.sku.@.status');
+});
+
 test('requires exact mutation targets and forbids root removal', () => {
   const namespace = sampleNamespace();
 
@@ -170,6 +197,18 @@ test('reports unsupported operation and placement diagnostics', () => {
   const unsupportedPlacement = planMutation({ op: 'insert', container: '$.items', placement: 'middle', value: 'x' }, namespace);
   assert.equal(unsupportedPlacement.ok, false);
   assert.equal(unsupportedPlacement.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_PLACEMENT');
+});
+
+test('rejects ordered mutations against non-ordered containers', () => {
+  const namespace = sampleNamespace();
+
+  const scalarInsert = planMutation({ op: 'insert', container: '$.inventory.sku', placement: 'last', value: 'x' }, namespace);
+  assert.equal(scalarInsert.ok, false);
+  assert.equal(scalarInsert.errors[0].code, 'SANSA_MUTATE_CONTAINER_NOT_ORDERED');
+
+  const objectInsert = planMutation({ op: 'insert', container: '$.inventory', placement: 'last', value: 'x' }, namespace);
+  assert.equal(objectInsert.ok, false);
+  assert.equal(objectInsert.errors[0].code, 'SANSA_MUTATE_CONTAINER_NOT_ORDERED');
 });
 
 test('rejects repeated destructive operations for the same binding', () => {

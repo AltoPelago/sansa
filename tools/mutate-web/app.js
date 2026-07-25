@@ -42,6 +42,16 @@ const examples = [
     },
   },
   {
+    id: 'create-attribute',
+    label: 'Create Attribute',
+    request: {
+      op: 'create',
+      parent: '$.types.color.@',
+      name: 'status',
+      value: 'active',
+    },
+  },
+  {
     id: 'insert-item',
     label: 'Insert Item',
     request: {

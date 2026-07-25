@@ -262,6 +262,10 @@ Mutation hooks may live under `namespace.mutate`:
 
 When an operation capability flag is omitted, this implementation infers support from the corresponding mutation hook. When an operation capability flag is explicitly `false`, apply rejects that operation before invoking hooks. `supportsAtomicApply` is only required when callers pass `{ requireAtomic: true }`.
 
+The conservative planner rejects structurally incompatible mutation targets before invoking adapter hooks. `create` requires a parent binding whose exposed representation or semantic type is a container. `insert` and `move` require an ordered container (`list`, `tuple`, or `node`). Scalar bindings are not treated as mutation containers merely because a resolver exposes an empty child list for uniform traversal.
+
+Attributes are created by targeting the owner's attribute space as the create parent. For example, creating `status` under `$.types.color.@` produces the attribute path `$.types.color.@.status` and renders in AEON as an inline attribute on `color`. Attribute-space parents are valid create containers, but they are not ordered containers for `insert` or `move`.
+
 The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
 
 Successful apply returns one result record per applied operation. Result records expose stable mutation-intent addresses such as `targetAddress`, `parentAddress`, `containerAddress`, `sourceAddress`, and `anchorAddress` when those roles exist. They also expose `previousAddress`, `affectedAddress`, and `resultingAddress` where known. `remove` reports the removed binding as affected, but does not invent a `resultingAddress` unless the adapter explicitly supplies one.
