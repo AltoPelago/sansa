@@ -209,6 +209,23 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
   });
 
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  const bindingsByAddress = new Map(result.result.operationResults.map((entry) => [
+    entry.resultingAddress,
+    entry.affectedBinding,
+  ]));
+  assert.equal(bindingsByAddress.get('$.types.absentCopy').semanticType, 'null<string>');
+  assert.equal(bindingsByAddress.get('$.types.absentCopy').representationKind, 'null');
+  assert.equal(bindingsByAddress.get('$.types.absentCopy').scalarKind, 'null');
+  assert.equal(bindingsByAddress.get('$.types.absentCopy').nullReason, 'notApplicable');
+  assert.equal(bindingsByAddress.get('$.types.metricCopy').value, 'NaN');
+  assert.equal(bindingsByAddress.get('$.types.metricCopy').scalarKind, 'nan');
+  assert.equal(bindingsByAddress.get('$.types.ceilingCopy').value, '-Infinity');
+  assert.equal(bindingsByAddress.get('$.cloneCopy').representationKind, 'cloneReference');
+  assert.equal(bindingsByAddress.get('$.cloneCopy').scalarKind, 'referenceForm');
+  assert.deepEqual(bindingsByAddress.get('$.cloneCopy').value, {
+    type: 'CloneReference',
+    canonical: '~target',
+  });
   assert.match(result.source, /brandColor:brandColor = #ff00aa/);
   assert.match(result.source, /maskCopy:radix\[16\] = %ff00aa/);
   assert.match(result.source, /encoded:encoding = &QmFzZTY0IQ==/);

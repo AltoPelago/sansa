@@ -616,6 +616,9 @@ function summarizeBinding(binding) {
     index: binding.index,
     semanticType: binding.semanticType,
     representationKind: binding.representationKind,
+    scalarKind: binding.scalarKind,
+    nullReason: binding.nullReason,
+    nodeTag: binding.nodeTag,
     value: sanitizeJsonValue(binding.value),
   };
 }
