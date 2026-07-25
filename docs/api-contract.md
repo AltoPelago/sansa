@@ -1,10 +1,10 @@
 # SANSA Parser API Contract
 
-Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, and standalone query tooling slices.
+Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental mutation-plan API, and standalone query tooling slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental mutation planner constructs exact-target mutation plans and applies them only through host-supplied mutation hooks. The package does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, and experimental `SANSA.Transform` extensions.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, and an experimental `SANSA.Mutate` plan API.
 
 CTS lanes:
 
@@ -29,6 +29,8 @@ parseQueryExpressionOrThrow(input, options?)
 evaluateQuery(input, namespace, options?)
 evaluateValueSemanticsOperation(operation, input)
 resolveAddress(input, namespace, options?)
+planMutation(input, namespace, options?)
+applyMutationPlan(plan, namespace, options?)
 renderAddress(address)
 renderQuery(query)
 renderQueryExpression(expression)
@@ -163,6 +165,54 @@ Resolve invariants:
 - Every output binding is expected to retain a canonical address when the host adapter exposes one.
 - An exact expression must not produce more than one binding; multiplicity violations fail with `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`.
 - Resolve performs no value evaluation, predicate evaluation, projection, sorting, slicing, aggregation, or mutation.
+
+## Experimental Mutate API
+
+`planMutation` accepts a structured mutation request, a namespace adapter, and optional resolve options. It returns an immutable mutation plan or explicit planning diagnostics:
+
+```js
+planMutation({ op: "replace", target: "$.inventory.sku", value: "B-200" }, namespace)
+
+planMutation([
+  { op: "create", parent: "$.inventory", name: "status", value: "active" },
+  { op: "remove", target: "$.inventory.oldStatus" }
+], namespace)
+```
+
+Supported operation requests are `create`, `replace`, `remove`, `insert`, and `move`.
+
+Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
+
+`applyMutationPlan` applies an already planned mutation only when the namespace exposes matching mutation hooks:
+
+```js
+const result = applyMutationPlan(plan, namespace, { requireAtomic: true })
+```
+
+Mutation hooks may live under `namespace.mutate`:
+
+```js
+{
+  root,
+  children(binding),
+  parent(binding),
+  bindingHandle?(binding),
+  observedState?(binding),
+  mutate: {
+    supportsAtomicApply: true,
+    sameBinding?(left, right),
+    create(parent, name, value, operation),
+    replace(target, value, operation),
+    remove(target, operation),
+    insert(container, placement, value, operation),
+    move(source, container, placement, operation)
+  }
+}
+```
+
+The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift.
+
+This API does not authorize operations, validate proposed values against schemas, follow references implicitly, or provide storage transactions. Those remain consumer, AEOS, ASP, or adapter responsibilities.
 
 Parent traversal defaults to the conservative structural model: traversal from the effective resolution root resolves to an empty Binding Set. The effective resolution root is the root binding established by `$`, `?`, or the root of a dynamic resolution context for the current branch. Callers that need stricter boundary diagnostics can pass:
 

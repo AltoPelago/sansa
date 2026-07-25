@@ -342,6 +342,550 @@ export function evaluateQuery(input, namespace, options = {}) {
   return { ok: true, results, diagnostics: [] };
 }
 
+export function planMutation(input, namespace, options = {}) {
+  const normalized = normalizeMutationRequest(input);
+  if (!normalized.ok) {
+    return { ok: false, errors: [mutationError(normalized.code, normalized.message)] };
+  }
+
+  const operations = [];
+  const seenDestructiveTargets = new Set();
+  const seenCreates = new Set();
+
+  for (let operationIndex = 0; operationIndex < normalized.operations.length; operationIndex += 1) {
+    const requested = normalized.operations[operationIndex];
+    const planned = planMutationOperation(requested, operationIndex, namespace, options);
+    if (!planned.ok) return { ok: false, errors: [planned.error] };
+
+    const conflict = checkMutationPlanConflict(planned.operation, seenDestructiveTargets, seenCreates);
+    if (!conflict.ok) {
+      return {
+        ok: false,
+        errors: [mutationError(conflict.code, conflict.message, { operationIndex })],
+      };
+    }
+
+    operations.push(planned.operation);
+  }
+
+  return {
+    ok: true,
+    plan: {
+      type: 'SansaMutationPlan',
+      planVersion: 'sansa.mutate.plan.v1',
+      namespaceState: options.namespaceState ?? getNamespaceState(namespace),
+      operations,
+      preconditions: [],
+      diagnostics: [],
+    },
+    diagnostics: [],
+  };
+}
+
+export function applyMutationPlan(plan, namespace, options = {}) {
+  if (!plan || typeof plan !== 'object' || !Array.isArray(plan.operations)) {
+    return {
+      ok: false,
+      operationResults: [],
+      errors: [mutationError('SANSA_MUTATE_INVALID_PLAN', 'Expected SANSA mutation plan')],
+    };
+  }
+
+  const adapter = mutationAdapter(namespace);
+  if (options.requireAtomic === true && adapter?.supportsAtomicApply !== true) {
+    return {
+      ok: false,
+      operationResults: [],
+      errors: [mutationError('SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE', 'Mutation adapter does not advertise atomic apply')],
+    };
+  }
+
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const capability = mutationHookForOperation(operation, adapter);
+    if (!capability.ok) {
+      return {
+        ok: false,
+        operationResults: [],
+        errors: [mutationError(capability.code, capability.message, { operationIndex })],
+      };
+    }
+    const stable = verifyMutationOperationStability(operation, operationIndex, namespace, options);
+    if (!stable.ok) {
+      return { ok: false, operationResults: [], errors: [stable.error] };
+    }
+  }
+
+  const operationResults = [];
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const hook = mutationHookForOperation(operation, adapter).hook;
+    const applied = applyMutationOperation(operation, hook);
+    if (!applied.ok) {
+      return {
+        ok: false,
+        operationResults,
+        errors: [mutationError(
+          'SANSA_MUTATE_APPLY_FAILED',
+          applied.message,
+          { operationIndex },
+        )],
+      };
+    }
+    operationResults.push({
+      operationIndex,
+      status: 'applied',
+      ...(applied.previousAddress === undefined ? {} : { previousAddress: applied.previousAddress }),
+      ...(applied.resultingAddress === undefined ? {} : { resultingAddress: applied.resultingAddress }),
+      ...(applied.affectedBinding === undefined ? {} : { affectedBinding: applied.affectedBinding }),
+    });
+  }
+
+  return {
+    ok: true,
+    planId: plan.planId,
+    stateBefore: plan.namespaceState,
+    stateAfter: getNamespaceState(namespace),
+    operationResults,
+    diagnostics: [],
+  };
+}
+
+function normalizeMutationRequest(input) {
+  if (Array.isArray(input)) return { ok: true, operations: input };
+  if (input && typeof input === 'object' && Array.isArray(input.operations)) {
+    return { ok: true, operations: input.operations };
+  }
+  if (input && typeof input === 'object' && typeof input.op === 'string') {
+    return { ok: true, operations: [input] };
+  }
+  return {
+    ok: false,
+    code: 'SANSA_MUTATE_INVALID_REQUEST',
+    message: 'Expected mutation request object, operation object, or operation list',
+  };
+}
+
+function planMutationOperation(requested, operationIndex, namespace, options) {
+  if (!requested || typeof requested !== 'object') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_OPERATION', 'Expected mutation operation object', { operationIndex }),
+    };
+  }
+
+  switch (requested.op) {
+    case 'create':
+      return planCreateOperation(requested, operationIndex, namespace, options);
+    case 'replace':
+      return planReplaceOperation(requested, operationIndex, namespace, options);
+    case 'remove':
+      return planRemoveOperation(requested, operationIndex, namespace, options);
+    case 'insert':
+      return planInsertOperation(requested, operationIndex, namespace, options);
+    case 'move':
+      return planMoveOperation(requested, operationIndex, namespace, options);
+    default:
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_UNSUPPORTED_OPERATION',
+          `Unsupported mutation operation: ${requested.op}`,
+          { operationIndex },
+        ),
+      };
+  }
+}
+
+function planCreateOperation(requested, operationIndex, namespace, options) {
+  const parent = resolveMutationExactTarget(requested.parent, 'parent', operationIndex, namespace, options);
+  if (!parent.ok) return parent;
+  if (typeof requested.name !== 'string' || requested.name.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_NAME', 'Create requires a non-empty string name', { operationIndex }),
+    };
+  }
+  if (selectMember(namespace, parent.target.binding, requested.name).length > 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_TARGET_EXISTS',
+        `Create target '${requested.name}' already exists under ${parent.target.canonicalAddress}`,
+        { operationIndex },
+      ),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'create',
+      parent: parent.target,
+      name: requested.name,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planReplaceOperation(requested, operationIndex, namespace, options) {
+  const target = resolveMutationExactTarget(requested.target, 'target', operationIndex, namespace, options);
+  if (!target.ok) return target;
+  return {
+    ok: true,
+    operation: {
+      op: 'replace',
+      target: target.target,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planRemoveOperation(requested, operationIndex, namespace, options) {
+  const target = resolveMutationExactTarget(requested.target, 'target', operationIndex, namespace, options);
+  if (!target.ok) return target;
+  if (target.target.address.root.kind === 'absolute' && target.target.address.selectors.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN', 'The conservative mutation core does not remove the namespace root', { operationIndex }),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'remove',
+      target: target.target,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planInsertOperation(requested, operationIndex, namespace, options) {
+  const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
+  if (!container.ok) return container;
+  const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
+  if (!placement.ok) return placement;
+  return {
+    ok: true,
+    operation: {
+      op: 'insert',
+      container: container.target,
+      placement: placement.placement,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planMoveOperation(requested, operationIndex, namespace, options) {
+  const source = resolveMutationExactTarget(requested.source, 'source', operationIndex, namespace, options);
+  if (!source.ok) return source;
+  const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
+  if (!container.ok) return container;
+  if (!isDirectChildOfContainer(namespace, source.target.binding, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_MOVE_CONTAINER',
+        'The conservative mutation core only moves bindings within their current ordered container',
+        { operationIndex },
+      ),
+    };
+  }
+  const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
+  if (!placement.ok) return placement;
+  if (placement.placement.anchor && sameMutationBinding(source.target, placement.placement.anchor, namespace)) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_MOVE_ANCHOR', 'Move placement anchor must not be the moved source binding', { operationIndex }),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'move',
+      source: source.target,
+      container: container.target,
+      placement: placement.placement,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function resolveMutationPlacement(placement, containerTarget, operationIndex, namespace, options) {
+  const kind = typeof placement === 'string' ? placement : placement?.kind;
+  if (kind !== 'first' && kind !== 'last' && kind !== 'before' && kind !== 'after') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_UNSUPPORTED_PLACEMENT', 'Placement must be first, last, before, or after', { operationIndex }),
+    };
+  }
+  if (kind === 'first' || kind === 'last') return { ok: true, placement: { kind } };
+
+  const anchorInput = placement.anchor ?? placement.target;
+  const anchor = resolveMutationExactTarget(anchorInput, 'anchor', operationIndex, namespace, options);
+  if (!anchor.ok) return anchor;
+  if (!isDirectChildOfContainer(namespace, anchor.target.binding, containerTarget.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_ANCHOR',
+        'Ordered insertion and movement anchors must be direct children of the target container',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, placement: { kind, anchor: anchor.target } };
+}
+
+function resolveMutationExactTarget(input, role, operationIndex, namespace, options) {
+  const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_TARGET',
+        `${capitalize(role)} address is not a valid SANSA address`,
+        { operationIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+  if (!parsed.address || parsed.address.type !== 'SansaAddress') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_TARGET', `${capitalize(role)} must be a SANSA address`, { operationIndex }),
+    };
+  }
+  if (!parsed.address.isExact) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_NON_EXACT_TARGET', `${capitalize(role)} address must be exact`, { operationIndex }),
+    };
+  }
+
+  const resolved = resolveAddress(parsed.address, namespace, options.resolve);
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_RESOLUTION_FAILED', `${capitalize(role)} address failed to resolve`, {
+        operationIndex,
+        cause: resolved.errors[0],
+      }),
+    };
+  }
+  if (resolved.bindings.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_MISS', `${capitalize(role)} address resolved no bindings`, { operationIndex }),
+    };
+  }
+  if (resolved.bindings.length > 1) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_MULTIPLICITY', `${capitalize(role)} address resolved multiple bindings`, { operationIndex }),
+    };
+  }
+
+  const binding = resolved.bindings[0];
+  const canonicalAddress = getBindingAddress(binding) ?? parsed.address.canonical;
+  return {
+    ok: true,
+    target: {
+      requestedAddress: typeof input === 'string' ? input : renderAddress(parsed.address),
+      canonicalAddress,
+      address: parsed.address,
+      binding,
+      ...mutationBindingIdentity(namespace, binding),
+    },
+  };
+}
+
+function checkMutationPlanConflict(operation, seenDestructiveTargets, seenCreates) {
+  if (operation.op === 'create') {
+    const key = `${mutationTargetKey(operation.parent)}\u0000${operation.name}`;
+    if (seenCreates.has(key)) {
+      return { ok: false, code: 'SANSA_MUTATE_DUPLICATE_TARGET', message: 'Plan contains repeated create for the same parent/name' };
+    }
+    seenCreates.add(key);
+    return { ok: true };
+  }
+  for (const target of mutationOperationDestructiveTargets(operation)) {
+    const key = mutationTargetKey(target);
+    if (seenDestructiveTargets.has(key)) {
+      return { ok: false, code: 'SANSA_MUTATE_DUPLICATE_TARGET', message: 'Plan contains repeated destructive operation for the same binding' };
+    }
+    seenDestructiveTargets.add(key);
+  }
+  return { ok: true };
+}
+
+function mutationOperationDestructiveTargets(operation) {
+  if (operation.op === 'replace' || operation.op === 'remove') return [operation.target];
+  if (operation.op === 'move') return [operation.source];
+  return [];
+}
+
+function verifyMutationOperationStability(operation, operationIndex, namespace, options) {
+  const targets = mutationOperationTargets(operation);
+  for (const target of targets) {
+    const stable = verifyMutationTargetStability(target, operationIndex, namespace, options);
+    if (!stable.ok) return stable;
+  }
+  return { ok: true };
+}
+
+function verifyMutationTargetStability(target, operationIndex, namespace, options) {
+  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  if (!resolved.ok || resolved.bindings.length !== 1) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target is stale: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  const current = resolved.bindings[0];
+  if (!sameMutationBinding(target, { binding: current, ...mutationBindingIdentity(namespace, current) }, namespace)) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target identity changed: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  const observedState = mutationObservedState(namespace, current);
+  if (target.observedState !== undefined && observedState !== undefined && target.observedState !== observedState) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target state changed: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  return { ok: true };
+}
+
+function mutationOperationTargets(operation) {
+  switch (operation.op) {
+    case 'create':
+      return [operation.parent];
+    case 'replace':
+    case 'remove':
+      return [operation.target];
+    case 'insert':
+      return operation.placement.anchor ? [operation.container, operation.placement.anchor] : [operation.container];
+    case 'move':
+      return operation.placement.anchor
+        ? [operation.source, operation.container, operation.placement.anchor]
+        : [operation.source, operation.container];
+    default:
+      return [];
+  }
+}
+
+function applyMutationOperation(operation, hook) {
+  try {
+    let result;
+    if (operation.op === 'create') {
+      result = hook(operation.parent.binding, operation.name, operation.value, operation);
+    } else if (operation.op === 'replace') {
+      result = hook(operation.target.binding, operation.value, operation);
+    } else if (operation.op === 'remove') {
+      result = hook(operation.target.binding, operation);
+    } else if (operation.op === 'insert') {
+      result = hook(operation.container.binding, operation.placement, operation.value, operation);
+    } else if (operation.op === 'move') {
+      result = hook(operation.source.binding, operation.container.binding, operation.placement, operation);
+    }
+    if (result && typeof result === 'object' && result.ok === false) {
+      return { ok: false, message: result.message ?? result.error?.message ?? 'Mutation adapter rejected operation' };
+    }
+    const affectedBinding = result?.binding ?? result?.affectedBinding
+      ?? operation.target?.binding
+      ?? operation.source?.binding
+      ?? operation.parent?.binding
+      ?? operation.container?.binding;
+    return {
+      ok: true,
+      previousAddress: operation.target?.canonicalAddress ?? operation.source?.canonicalAddress,
+      resultingAddress: result?.resultingAddress ?? getBindingAddress(affectedBinding),
+      affectedBinding,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Mutation adapter threw while applying operation',
+    };
+  }
+}
+
+function mutationHookForOperation(operation, adapter) {
+  const hook = adapter?.[operation.op];
+  if (typeof hook === 'function') return { ok: true, hook };
+  return {
+    ok: false,
+    code: 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION',
+    message: `Mutation adapter does not support '${operation.op}'`,
+  };
+}
+
+function mutationAdapter(namespace) {
+  return namespace?.mutate && typeof namespace.mutate === 'object' ? namespace.mutate : namespace;
+}
+
+function mutationBindingIdentity(namespace, binding) {
+  const identity = {};
+  const handle = mutationBindingHandle(namespace, binding);
+  const observedState = mutationObservedState(namespace, binding);
+  if (handle !== undefined) identity.bindingHandle = handle;
+  if (observedState !== undefined) identity.observedState = observedState;
+  return identity;
+}
+
+function mutationBindingHandle(namespace, binding) {
+  if (typeof namespace?.bindingHandle === 'function') return namespace.bindingHandle(binding);
+  if (typeof namespace?.mutate?.bindingHandle === 'function') return namespace.mutate.bindingHandle(binding);
+  return binding.bindingHandle ?? binding.handle ?? binding.id;
+}
+
+function mutationObservedState(namespace, binding) {
+  if (typeof namespace?.observedState === 'function') return namespace.observedState(binding);
+  if (typeof namespace?.mutate?.observedState === 'function') return namespace.mutate.observedState(binding);
+  return binding.observedState ?? binding.revision ?? binding.version;
+}
+
+function getNamespaceState(namespace) {
+  if (typeof namespace?.namespaceState === 'function') return namespace.namespaceState();
+  if (typeof namespace?.mutate?.namespaceState === 'function') return namespace.mutate.namespaceState();
+  return namespace?.namespaceState ?? namespace?.state;
+}
+
+function sameMutationBinding(left, right, namespace) {
+  if (left.binding === right.binding) return true;
+  const adapter = mutationAdapter(namespace);
+  if (typeof adapter?.sameBinding === 'function') return adapter.sameBinding(left.binding, right.binding) === true;
+  if (left.bindingHandle !== undefined && right.bindingHandle !== undefined) return left.bindingHandle === right.bindingHandle;
+  return false;
+}
+
+function isDirectChildOfContainer(namespace, child, container) {
+  if (typeof namespace.parent === 'function' && namespace.parent(child) === container) return true;
+  if (child.parent === container) return true;
+  return getChildren(namespace, container).includes(child);
+}
+
+function mutationTargetKey(target) {
+  if (target.bindingHandle !== undefined) return `handle:${String(target.bindingHandle)}`;
+  return `address:${target.canonicalAddress}`;
+}
+
+function mutationProvenance(requested) {
+  return requested.provenance === undefined ? {} : { provenance: requested.provenance };
+}
+
+function mutationError(code, message, details = {}) {
+  return { code, message, ...details };
+}
+
+function capitalize(value) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
 function enforceQueryPolicy(query, options) {
   if (!isValidationQueryPolicy(options.policy)) return { ok: true };
 

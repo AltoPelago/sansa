@@ -1,10 +1,10 @@
 # SANSA
 
-Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, and query parser/evaluator model.
+Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, query, and mutation-planning model.
 
-This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for concrete value predicates, equality, ordering behavior, and string profile hooks. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, or assign semantics to qualifiers.
+This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query, with an experimental structured-plan API for SANSA.Mutate. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for concrete value predicates, equality, ordering behavior, and string profile hooks. The experimental Mutate API plans exact create, replace, remove, insert, and same-container move operations, and applies them only through host-supplied mutation hooks. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, and experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, and an experimental `SANSA.Mutate` plan API.
 
 ## Current Scope
 
@@ -24,6 +24,8 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 - query comment stripping, clause-order validation, and canonical query rendering
 - SANSA.Query expression parsing for resolution expressions, literals, comparisons, Boolean operators, membership, cardinality operators, function-call shape, and projection shape
 - SANSA.Query evaluation for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, membership, cardinality predicates, built-in string functions, function-like operators, and projection expressions
+- experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
+- experimental mutation apply through explicit host mutation hooks with stale-target checks
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -87,7 +89,9 @@ Release history lives in [CHANGELOG.md](CHANGELOG.md).
 import {
   evaluateQuery,
   evaluateValueSemanticsOperation,
+  applyMutationPlan,
   parseAddress,
+  planMutation,
   parseQuery,
   parseQueryExpression,
   renderAddress,
@@ -145,6 +149,29 @@ const ordinary = evaluateValueSemanticsOperation("isValue", {
 
 if (ordinary.ok) {
   console.log(ordinary.value);
+}
+
+const mutation = planMutation({ op: "replace", target: "$.inventory.sku", value: "B-200" }, {
+  root,
+  mutate: {
+    replace(target, value) {
+      target.value = value;
+      return { binding: target };
+    }
+  }
+});
+
+if (mutation.ok) {
+  const applied = applyMutationPlan(mutation.plan, {
+    root,
+    mutate: {
+      replace(target, value) {
+        target.value = value;
+        return { binding: target };
+      }
+    }
+  });
+  console.log(applied.ok);
 }
 ```
 

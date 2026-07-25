@@ -127,6 +127,29 @@ export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT'
   | 'SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT';
 
+export type SansaMutateErrorCode =
+  | 'SANSA_MUTATE_INVALID_REQUEST'
+  | 'SANSA_MUTATE_INVALID_PLAN'
+  | 'SANSA_MUTATE_INVALID_OPERATION'
+  | 'SANSA_MUTATE_UNSUPPORTED_OPERATION'
+  | 'SANSA_MUTATE_UNSUPPORTED_PLACEMENT'
+  | 'SANSA_MUTATE_INVALID_TARGET'
+  | 'SANSA_MUTATE_NON_EXACT_TARGET'
+  | 'SANSA_MUTATE_TARGET_RESOLUTION_FAILED'
+  | 'SANSA_MUTATE_TARGET_MISS'
+  | 'SANSA_MUTATE_TARGET_MULTIPLICITY'
+  | 'SANSA_MUTATE_TARGET_EXISTS'
+  | 'SANSA_MUTATE_DUPLICATE_TARGET'
+  | 'SANSA_MUTATE_INVALID_NAME'
+  | 'SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN'
+  | 'SANSA_MUTATE_INVALID_ANCHOR'
+  | 'SANSA_MUTATE_INVALID_MOVE_ANCHOR'
+  | 'SANSA_MUTATE_INVALID_MOVE_CONTAINER'
+  | 'SANSA_MUTATE_STALE_TARGET'
+  | 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION'
+  | 'SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE'
+  | 'SANSA_MUTATE_APPLY_FAILED';
+
 export interface SansaResolveDiagnostic {
   readonly code: SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
@@ -145,6 +168,13 @@ export interface SansaQueryEvaluateDiagnostic {
   readonly budget?: string;
   readonly limit?: number;
   readonly observed?: number;
+}
+
+export interface SansaMutateDiagnostic {
+  readonly code: SansaMutateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
+  readonly message: string;
+  readonly operationIndex?: number;
+  readonly cause?: unknown;
 }
 
 export interface SansaResolveBinding {
@@ -186,6 +216,10 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly nullReason?: (binding: TBinding) => string | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
+  readonly bindingHandle?: (binding: TBinding) => unknown;
+  readonly observedState?: (binding: TBinding) => unknown;
+  readonly namespaceState?: (() => unknown) | unknown;
+  readonly mutate?: SansaMutationAdapter<TBinding>;
 }
 
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
@@ -232,6 +266,206 @@ export interface SansaQueryResult<TBinding extends object = SansaResolveBinding>
   readonly kind: 'binding' | 'derived';
   readonly binding: TBinding;
   readonly value: SansaQueryValue<TBinding>;
+}
+
+export interface SansaMutationAdapter<TBinding extends object = SansaResolveBinding> {
+  readonly supportsAtomicApply?: boolean;
+  readonly namespaceState?: () => unknown;
+  readonly bindingHandle?: (binding: TBinding) => unknown;
+  readonly observedState?: (binding: TBinding) => unknown;
+  readonly sameBinding?: (left: TBinding, right: TBinding) => boolean;
+  readonly create?: (
+    parent: TBinding,
+    name: string,
+    value: unknown,
+    operation: SansaCreateMutationOperation<TBinding>,
+  ) => SansaMutationAdapterResult<TBinding> | void;
+  readonly replace?: (
+    target: TBinding,
+    value: unknown,
+    operation: SansaReplaceMutationOperation<TBinding>,
+  ) => SansaMutationAdapterResult<TBinding> | void;
+  readonly remove?: (
+    target: TBinding,
+    operation: SansaRemoveMutationOperation<TBinding>,
+  ) => SansaMutationAdapterResult<TBinding> | void;
+  readonly insert?: (
+    container: TBinding,
+    placement: SansaMutationPlacement<TBinding>,
+    value: unknown,
+    operation: SansaInsertMutationOperation<TBinding>,
+  ) => SansaMutationAdapterResult<TBinding> | void;
+  readonly move?: (
+    source: TBinding,
+    container: TBinding,
+    placement: SansaMutationPlacement<TBinding>,
+    operation: SansaMoveMutationOperation<TBinding>,
+  ) => SansaMutationAdapterResult<TBinding> | void;
+}
+
+export type SansaMutationAdapterResult<TBinding extends object = SansaResolveBinding> =
+  | { readonly ok?: true; readonly binding?: TBinding; readonly affectedBinding?: TBinding; readonly resultingAddress?: string }
+  | { readonly ok: false; readonly message?: string; readonly error?: Error };
+
+export type SansaMutationRequest<TBinding extends object = SansaResolveBinding> =
+  | SansaMutationRequestEnvelope<TBinding>
+  | SansaRequestedMutationOperation
+  | readonly SansaRequestedMutationOperation[];
+
+export interface SansaMutationRequestEnvelope<TBinding extends object = SansaResolveBinding> {
+  readonly operations: readonly SansaRequestedMutationOperation[];
+  readonly preconditions?: readonly unknown[];
+  readonly provenance?: unknown;
+}
+
+export type SansaRequestedMutationOperation =
+  | SansaRequestedCreateOperation
+  | SansaRequestedReplaceOperation
+  | SansaRequestedRemoveOperation
+  | SansaRequestedInsertOperation
+  | SansaRequestedMoveOperation;
+
+export interface SansaRequestedCreateOperation {
+  readonly op: 'create';
+  readonly parent: string | SansaAddress;
+  readonly name: string;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaRequestedReplaceOperation {
+  readonly op: 'replace';
+  readonly target: string | SansaAddress;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaRequestedRemoveOperation {
+  readonly op: 'remove';
+  readonly target: string | SansaAddress;
+  readonly provenance?: unknown;
+}
+
+export interface SansaRequestedInsertOperation {
+  readonly op: 'insert';
+  readonly container: string | SansaAddress;
+  readonly placement: SansaRequestedMutationPlacement;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaRequestedMoveOperation {
+  readonly op: 'move';
+  readonly source: string | SansaAddress;
+  readonly container: string | SansaAddress;
+  readonly placement: SansaRequestedMutationPlacement;
+  readonly provenance?: unknown;
+}
+
+export type SansaRequestedMutationPlacement =
+  | 'first'
+  | 'last'
+  | { readonly kind: 'first' | 'last' }
+  | { readonly kind: 'before' | 'after'; readonly anchor: string | SansaAddress }
+  | { readonly kind: 'before' | 'after'; readonly target: string | SansaAddress };
+
+export type SansaPlanMutationResult<TBinding extends object = SansaResolveBinding> =
+  | { readonly ok: true; readonly plan: SansaMutationPlan<TBinding>; readonly diagnostics: readonly SansaMutateDiagnostic[] }
+  | { readonly ok: false; readonly errors: readonly SansaMutateDiagnostic[] };
+
+export interface SansaMutationPlan<TBinding extends object = SansaResolveBinding> {
+  readonly type: 'SansaMutationPlan';
+  readonly planVersion: 'sansa.mutate.plan.v1';
+  readonly planId?: string;
+  readonly namespaceState?: unknown;
+  readonly operations: readonly SansaMutationOperation<TBinding>[];
+  readonly preconditions: readonly unknown[];
+  readonly diagnostics: readonly SansaMutateDiagnostic[];
+}
+
+export type SansaMutationOperation<TBinding extends object = SansaResolveBinding> =
+  | SansaCreateMutationOperation<TBinding>
+  | SansaReplaceMutationOperation<TBinding>
+  | SansaRemoveMutationOperation<TBinding>
+  | SansaInsertMutationOperation<TBinding>
+  | SansaMoveMutationOperation<TBinding>;
+
+export interface SansaMutationTarget<TBinding extends object = SansaResolveBinding> {
+  readonly requestedAddress: string;
+  readonly canonicalAddress: string;
+  readonly address: SansaAddress;
+  readonly binding: TBinding;
+  readonly bindingHandle?: unknown;
+  readonly observedState?: unknown;
+}
+
+export interface SansaCreateMutationOperation<TBinding extends object = SansaResolveBinding> {
+  readonly op: 'create';
+  readonly parent: SansaMutationTarget<TBinding>;
+  readonly name: string;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaReplaceMutationOperation<TBinding extends object = SansaResolveBinding> {
+  readonly op: 'replace';
+  readonly target: SansaMutationTarget<TBinding>;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaRemoveMutationOperation<TBinding extends object = SansaResolveBinding> {
+  readonly op: 'remove';
+  readonly target: SansaMutationTarget<TBinding>;
+  readonly provenance?: unknown;
+}
+
+export interface SansaInsertMutationOperation<TBinding extends object = SansaResolveBinding> {
+  readonly op: 'insert';
+  readonly container: SansaMutationTarget<TBinding>;
+  readonly placement: SansaMutationPlacement<TBinding>;
+  readonly value: unknown;
+  readonly provenance?: unknown;
+}
+
+export interface SansaMoveMutationOperation<TBinding extends object = SansaResolveBinding> {
+  readonly op: 'move';
+  readonly source: SansaMutationTarget<TBinding>;
+  readonly container: SansaMutationTarget<TBinding>;
+  readonly placement: SansaMutationPlacement<TBinding>;
+  readonly provenance?: unknown;
+}
+
+export type SansaMutationPlacement<TBinding extends object = SansaResolveBinding> =
+  | { readonly kind: 'first' | 'last' }
+  | { readonly kind: 'before' | 'after'; readonly anchor: SansaMutationTarget<TBinding> };
+
+export interface SansaApplyMutationOptions<TBinding extends object = SansaResolveBinding> {
+  readonly resolve?: SansaResolveOptions<TBinding>;
+  readonly requireAtomic?: boolean;
+}
+
+export type SansaApplyMutationPlanResult<TBinding extends object = SansaResolveBinding> =
+  | {
+      readonly ok: true;
+      readonly planId?: string;
+      readonly stateBefore?: unknown;
+      readonly stateAfter?: unknown;
+      readonly operationResults: readonly SansaMutationOperationResult<TBinding>[];
+      readonly diagnostics: readonly SansaMutateDiagnostic[];
+    }
+  | {
+      readonly ok: false;
+      readonly operationResults: readonly SansaMutationOperationResult<TBinding>[];
+      readonly errors: readonly SansaMutateDiagnostic[];
+    };
+
+export interface SansaMutationOperationResult<TBinding extends object = SansaResolveBinding> {
+  readonly operationIndex: number;
+  readonly status: 'applied';
+  readonly previousAddress?: string;
+  readonly resultingAddress?: string;
+  readonly affectedBinding?: TBinding;
 }
 
 export type SansaQueryValue<TBinding extends object = SansaResolveBinding> =
@@ -648,6 +882,16 @@ export function evaluateQuery<TBinding extends object = SansaResolveBinding>(
   namespace: SansaResolveNamespace<TBinding>,
   options?: SansaQueryEvaluateOptions<TBinding>,
 ): SansaQueryEvaluateResult<TBinding>;
+export function planMutation<TBinding extends object = SansaResolveBinding>(
+  input: SansaMutationRequest<TBinding>,
+  namespace: SansaResolveNamespace<TBinding>,
+  options?: SansaResolveOptions<TBinding> & { readonly namespaceState?: unknown },
+): SansaPlanMutationResult<TBinding>;
+export function applyMutationPlan<TBinding extends object = SansaResolveBinding>(
+  plan: SansaMutationPlan<TBinding>,
+  namespace: SansaResolveNamespace<TBinding>,
+  options?: SansaApplyMutationOptions<TBinding>,
+): SansaApplyMutationPlanResult<TBinding>;
 export function resolveAddress<TBinding extends object = SansaResolveBinding>(
   input: string | SansaAddress,
   namespace: SansaResolveNamespace<TBinding>,

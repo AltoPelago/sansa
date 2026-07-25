@@ -16,14 +16,31 @@
     "SANSA.Addressing",
     "SANSA.Resolve",
     "SANSA.Query",
+    "SANSA.Mutate",
     "SANSA.Transform"
   ],
   "core": {
     "valueSemanticsMinimumConsumer": true,
     "addressing": true,
     "resolve": true,
-    "query": true
+    "query": true,
+    "mutate": false
   },
+  "experimentalCapabilities": [
+    {
+      "id": "sansa.mutate.plan.v1",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-plan",
+      "maturity": "experimental",
+      "operations": [
+        "create",
+        "replace",
+        "remove",
+        "insert",
+        "move"
+      ]
+    }
+  ],
   "policies": [
     {
       "id": "validation",

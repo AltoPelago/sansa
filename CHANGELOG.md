@@ -21,6 +21,9 @@ versions may still include breaking changes when the SANSA specifications move.
   or domain-specific string semantics.
 - Added minimum structural equality and reference-form equality coverage to the
   standalone value-semantics helper.
+- Added experimental SANSA.Mutate structured planning and host-adapter apply
+  APIs for exact `create`, `replace`, `remove`, ordered `insert`, and
+  same-container `move`.
 
 ### Changed
 
