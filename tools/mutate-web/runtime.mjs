@@ -3,6 +3,7 @@ import { namespaceFromAeonSource } from '../query-web/runtime.mjs';
 
 const HANDLE_PROPERTY = '__sansaMutateWorkbenchHandle';
 const HANDLE_PREFIX = 'mutate-workbench';
+const AEON_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export async function runMutationForWorkbench({
   source,
@@ -211,6 +212,8 @@ function ensureAttributeSpace(binding) {
 function validateAeonWorkbenchValue(value, hints = {}, path = 'value') {
   const representation = representationKindFromHints(hints);
   if (representation === 'node') return validateAeonWorkbenchNodeValue(value, path);
+  const scalarValidation = validateAeonWorkbenchScalarValue(value, representation, path);
+  if (!scalarValidation.ok) return scalarValidation;
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
       const result = validateAeonWorkbenchValue(value[index], {}, `${path}[${index}]`);
@@ -266,6 +269,78 @@ function invalidAeonWorkbenchValue(message, path) {
   };
 }
 
+function validateAeonWorkbenchScalarValue(value, representation, path) {
+  if (representation === undefined || ['object', 'list', 'tuple', 'node'].includes(representation)) {
+    return { ok: true };
+  }
+  switch (representation) {
+    case 'string':
+      return typeof value === 'string'
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('String literals must use JSON string payloads', path);
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Number literals must use finite JSON number payloads', path);
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Boolean literals must use JSON boolean payloads', path);
+    case 'hex':
+      return typeof value === 'string' && /^[0-9A-Fa-f]+$/.test(value)
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Hex literals must be non-empty hexadecimal text without the # prefix', path);
+    case 'radix':
+      return typeof value === 'string' && /^[A-Za-z0-9_]+$/.test(value)
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Radix literals must be non-empty ASCII radix text without the % prefix', path);
+    case 'encoding':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Encoding literals must be non-empty text without the & prefix', path);
+    case 'separator':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Separator literals must be non-empty text without the ^ prefix', path);
+    case 'sansa':
+    case 'sansaAddress':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('SANSA literals must be non-empty address text', path);
+    case 'toggle':
+      return ['yes', 'no', 'on', 'off'].includes(value)
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Toggle literals must be one of yes, no, on, or off', path);
+    case 'null':
+      return value === null || (typeof value === 'string' && AEON_IDENTIFIER_PATTERN.test(value))
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Null literals must be null or an AEON identifier reason', path);
+    case 'nan':
+      return value === null || value === 'NaN'
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('NaN literals must use null or "NaN" as the JSON payload', path);
+    case 'infinity':
+      return ['Infinity', '+Infinity', '-Infinity'].includes(value)
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Infinity literals must use "Infinity", "+Infinity", or "-Infinity"', path);
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue(`${representation} literals must be non-empty text`, path);
+    case 'cloneReference':
+    case 'pointerReference':
+    case 'referenceForm':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Reference literals must be non-empty target text', path);
+    default:
+      return { ok: true };
+  }
+}
+
 function bindingFromJsonValue(value, { name, index, datatype, kind, address, parent, handle } = {}) {
   const representation = representationKindFromHints({ datatype, kind });
   const binding = {
@@ -308,11 +383,48 @@ function bindingFromJsonValue(value, { name, index, datatype, kind, address, par
     return binding;
   }
 
-  binding.value = value;
+  const scalarValue = scalarValueFromHints(value, { datatype, kind });
+  binding.value = scalarValue.value;
+  if (scalarValue.nullReason !== undefined) binding.nullReason = scalarValue.nullReason;
   binding.semanticType = datatype ?? semanticTypeFromJsonValue(value);
-  binding.representationKind = representation ?? semanticTypeFromJsonValue(value);
-  binding.scalarKind = scalarKindFromHints({ datatype, kind }) ?? binding.representationKind;
+  binding.representationKind = scalarValue.representationKind ?? representation ?? semanticTypeFromJsonValue(value);
+  binding.scalarKind = scalarValue.scalarKind ?? scalarKindFromHints({ datatype, kind }) ?? binding.representationKind;
   return binding;
+}
+
+function scalarValueFromHints(value, hints) {
+  const representation = representationKindFromHints(hints);
+  if (representation === 'null' && typeof value === 'string') {
+    return { value: null, nullReason: value, scalarKind: 'null', representationKind: 'null' };
+  }
+  if (representation === 'nan') {
+    return { value: Number.NaN, scalarKind: 'nan', representationKind: 'nan' };
+  }
+  if (representation === 'infinity') {
+    return {
+      value: value === '-Infinity' ? -Infinity : Infinity,
+      scalarKind: 'infinity',
+      representationKind: 'infinity',
+    };
+  }
+  if (representation === 'cloneReference' || representation === 'pointerReference' || representation === 'referenceForm') {
+    const canonical = referenceCanonicalFromWorkbenchValue(value, representation);
+    return {
+      value: {
+        type: canonical.startsWith('~>') ? 'PointerReference' : 'CloneReference',
+        canonical,
+      },
+      scalarKind: 'referenceForm',
+      representationKind: canonical.startsWith('~>') ? 'pointerReference' : 'cloneReference',
+    };
+  }
+  return { value };
+}
+
+function referenceCanonicalFromWorkbenchValue(value, representation) {
+  const text = String(value);
+  if (text.startsWith('~>') || text.startsWith('~')) return text;
+  return `${representation === 'pointerReference' ? '~>' : '~'}${text}`;
 }
 
 function assignNodeBinding(binding, value, hints, address) {
@@ -604,7 +716,7 @@ function renderAnonymousPrefix(binding) {
 }
 
 function renderBindingName(name) {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `[${JSON.stringify(String(name))}]`;
+  return AEON_IDENTIFIER_PATTERN.test(name) ? name : `[${JSON.stringify(String(name))}]`;
 }
 
 function renderDatatype(binding) {
@@ -618,7 +730,7 @@ function renderInlineAttributes(binding) {
 }
 
 function validNodeTag(value) {
-  return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+  return typeof value === 'string' && AEON_IDENTIFIER_PATTERN.test(value);
 }
 
 function renderAttributeBinding(binding) {
@@ -634,8 +746,8 @@ function renderScalarValue(binding) {
   if (['trimtick', 'prose'].includes(datatypeBase)) return renderBlockString(value);
   if ((kind === 'null' || value === null) && typeof binding.nullReason === 'string') return `!${binding.nullReason}`;
   if (kind === 'nan' || (typeof value === 'number' && Number.isNaN(value))) return 'NaN';
-  if (kind === 'infinity' || value === Infinity) return 'Infinity';
   if (value === -Infinity) return '-Infinity';
+  if (kind === 'infinity' || value === Infinity) return 'Infinity';
   if (kind === 'toggle') return String(value);
   if (kind === 'hex') return `#${value}`;
   if (kind === 'radix') return `%${value}`;
@@ -694,7 +806,7 @@ function errorResult(code, message, mode) {
 }
 
 function appendMember(base, name) {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+  return AEON_IDENTIFIER_PATTERN.test(name)
     ? `${base}.${name}`
     : `${base}.[${JSON.stringify(name)}]`;
 }
@@ -713,20 +825,25 @@ function representationKindFromHints({ datatype, kind } = {}) {
 
 function representationKindFromName(name, { allowUnknown = false } = {}) {
   const base = datatypeBaseName(name);
+  const lowered = typeof base === 'string' ? base.toLowerCase() : base;
   if (['object', 'obj', 'o', 'envelope'].includes(base)) return 'object';
   if (base === 'list') return 'list';
   if (base === 'tuple') return 'tuple';
   if (base === 'node') return 'node';
   if (['string', 'trimtick', 'prose'].includes(base)) return 'string';
   if (['number', 'int', 'uint', 'float', 'n'].includes(base)) return 'number';
-  if (base === 'bool') return 'boolean';
+  if (base === 'bool' || base === 'boolean') return 'boolean';
+  if (base === 'toggle') return 'toggle';
+  if (base === 'hex') return 'hex';
+  if (lowered === 'radix' || /^radix\d+$/.test(lowered)) return 'radix';
   if (base === 'nan') return 'nan';
   if (base === 'infinity') return 'infinity';
   if (base === 'null') return 'null';
-  if (base === 'sep' || base === 'kadot') return 'separator';
+  if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
   if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
   return allowUnknown ? base : undefined;
 }
 

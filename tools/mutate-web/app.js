@@ -65,6 +65,45 @@ const examples = [
     },
   },
   {
+    id: 'create-scalars',
+    label: 'Create Scalars',
+    request: {
+      operations: [
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'selectorCopy',
+          datatype: 'sansa',
+          value: '$.inventory.items.*',
+        },
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'versionCopy',
+          datatype: 'version',
+          kind: 'sep',
+          value: '0.11.0',
+        },
+        {
+          op: 'create',
+          parent: '$.types',
+          name: 'absentCopy',
+          datatype: 'null<string>',
+          kind: 'null',
+          value: 'notApplicable',
+        },
+        {
+          op: 'create',
+          parent: '$',
+          name: 'cloneCopy',
+          datatype: 'number',
+          kind: 'cloneReference',
+          value: 'target',
+        },
+      ],
+    },
+  },
+  {
     id: 'create-containers',
     label: 'Create Containers',
     request: {

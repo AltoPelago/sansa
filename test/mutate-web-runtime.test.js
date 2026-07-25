@@ -185,6 +185,67 @@ testAeonRuntime('mutate web runtime applies kind as representation separately fr
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
+testAeonRuntime('mutate web runtime materializes typed scalar literal families', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      operations: [
+        { op: 'create', parent: '$.types', name: 'brandColor', datatype: 'brandColor', kind: 'hex', value: 'ff00aa' },
+        { op: 'create', parent: '$.types', name: 'maskCopy', datatype: 'radix[16]', value: 'ff00aa' },
+        { op: 'create', parent: '$.types', name: 'encoded', datatype: 'encoding', value: 'QmFzZTY0IQ==' },
+        { op: 'create', parent: '$.types', name: 'versionCopy', datatype: 'version', kind: 'sep', value: '0.11.0' },
+        { op: 'create', parent: '$.types', name: 'selectorCopy', datatype: 'sansa', value: '$.inventory.items.*' },
+        { op: 'create', parent: '$.types', name: 'releaseCopy', datatype: 'date', value: '2026-07-26' },
+        { op: 'create', parent: '$.types', name: 'consentCopy', datatype: 'toggle', value: 'yes' },
+        { op: 'create', parent: '$.types', name: 'absentCopy', datatype: 'null<string>', kind: 'null', value: 'notApplicable' },
+        { op: 'create', parent: '$.types', name: 'metricCopy', datatype: 'nan<number>', kind: 'nan', value: null },
+        { op: 'create', parent: '$.types', name: 'ceilingCopy', datatype: 'infinity<number>', kind: 'infinity', value: '-Infinity' },
+        { op: 'create', parent: '$', name: 'cloneCopy', datatype: 'number', kind: 'cloneReference', value: 'target' },
+        { op: 'create', parent: '$', name: 'pointerCopy', datatype: 'number', kind: 'pointerReference', value: 'target' },
+      ],
+    }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.match(result.source, /brandColor:brandColor = #ff00aa/);
+  assert.match(result.source, /maskCopy:radix\[16\] = %ff00aa/);
+  assert.match(result.source, /encoded:encoding = &QmFzZTY0IQ==/);
+  assert.match(result.source, /versionCopy:version = \^0\.11\.0/);
+  assert.match(result.source, /selectorCopy:sansa = \$\.inventory\.items\.\*/);
+  assert.match(result.source, /releaseCopy:date = 2026-07-26/);
+  assert.match(result.source, /consentCopy:toggle = yes/);
+  assert.match(result.source, /absentCopy:null<string> = !notApplicable/);
+  assert.match(result.source, /metricCopy:nan<number> = NaN/);
+  assert.match(result.source, /ceilingCopy:infinity<number> = -Infinity/);
+  assert.match(result.source, /cloneCopy:number = ~target/);
+  assert.match(result.source, /pointerCopy:number = ~>target/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
+testAeonRuntime('mutate web runtime rejects scalar values that cannot render as requested kinds', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types',
+      name: 'consentCopy',
+      datatype: 'toggle',
+      value: 'maybe',
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.match(result.text, /Toggle literals must be one of yes, no, on, or off/);
+  assert.doesNotMatch(result.source, /consentCopy:toggle/);
+});
+
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

@@ -220,6 +220,8 @@ planMutation({
 
 If mutation targets parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the target resolves exactly, the plan remains inspectable but carries the non-portability warning.
 
+For scalar values, the workbench adapter treats `kind` as the AEON literal family when one is provided. Known scalar families include `string`, `number`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`/`sep`, `sansa`, `date`, `time`, `datetime`, `zrut`, `null`, `nan`, `infinity`, `cloneReference`, and `pointerReference`. JSON payloads omit AEON sigils: `kind: "hex"` with `"ff00aa"` renders `#ff00aa`; `kind: "sep"` with `"0.11.0"` renders `^0.11.0`; `kind: "null"` with `"notApplicable"` renders `!notApplicable`; and `kind: "cloneReference"` with `"target"` renders `~target`. The adapter rejects payloads that cannot be rendered as the requested known AEON literal family. Unknown custom `kind` values remain adapter-visible metadata and are not interpreted by the core planner.
+
 Experimental Mutate budgets are optional and fail closed:
 
 ```js
