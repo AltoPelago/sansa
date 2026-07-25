@@ -683,6 +683,28 @@ test('honors explicit false mutation adapter capability flags', () => {
   assert.equal(namespace.root.children[0].children[0].value, 'A-100');
 });
 
+test('reports hook failure without reporting full plan success', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk([
+    { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    { op: 'replace', target: '$.inventory.name', value: 'Bracket' },
+  ], namespace);
+  const originalReplace = namespace.mutate.replace;
+  namespace.mutate.replace = (target, value, operation) => {
+    if (target.name === 'name') return { ok: false, message: 'host rejected name update' };
+    return originalReplace(target, value, operation);
+  };
+
+  const applied = applyMutationPlan(plan, namespace);
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.equal(applied.errors[0].operationIndex, 1);
+  assert.equal(applied.operationResults.length, 1);
+  assert.equal(applied.operationResults[0].status, 'applied');
+  assert.equal(namespace.root.children[0].children[0].value, 'B-200');
+  assert.equal(namespace.root.children[0].children[1].value, 'Adapter');
+});
+
 test('can require an atomic mutation adapter before apply', () => {
   const namespace = sampleNamespace();
   const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);

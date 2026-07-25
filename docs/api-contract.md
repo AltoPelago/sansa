@@ -316,6 +316,8 @@ The planner retains the in-process binding object, canonical address, optional `
 
 Successful apply returns one result record per applied operation. Result records expose stable mutation-intent addresses such as `targetAddress`, `parentAddress`, `containerAddress`, `sourceAddress`, and `anchorAddress` when those roles exist. They also expose `previousAddress`, `affectedAddress`, and `resultingAddress` where known. `remove` reports the removed binding as affected, but does not invent a `resultingAddress` unless the adapter explicitly supplies one.
 
+If a mutation hook rejects or throws during consumer-selected non-atomic apply, the result is `ok: false` with `SANSA_MUTATE_APPLY_FAILED`. `operationResults` may contain records for hooks that already completed before the failure. This must not be interpreted as full plan success; rollback, transactionality, retries, and compensation remain adapter or consumer responsibilities.
+
 The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. For AEON-backed bindings this summary preserves `semanticType`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, and a JSON-safe `value` where available, so tools can inspect applied literal-family metadata without parsing the rendered Source Result text.
 
 This API does not authorize operations, validate proposed values against schemas, follow references implicitly, or provide storage transactions. Those remain consumer, AEOS, ASP, or adapter responsibilities.
