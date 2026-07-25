@@ -160,3 +160,24 @@ testAeonRuntime('mutate web runtime creates typed AEON containers', async () => 
   const rendered = await namespaceFromAeonSource(result.source);
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
+
+testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types',
+      name: 'settings',
+      datatype: 'object',
+      value: { '': '' },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.match(result.text, /SANSA_MUTATE_WORKBENCH_INVALID_AEON_VALUE/);
+  assert.match(result.text, /Keys must not be empty/);
+  assert.doesNotMatch(result.source, /settings:object/);
+});

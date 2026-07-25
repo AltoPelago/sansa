@@ -101,6 +101,8 @@ function mutableNamespace(namespace) {
       observedState: (binding) => binding.revision ?? 0,
       sameBinding: (left, right) => left === right || left?.[HANDLE_PROPERTY] === right?.[HANDLE_PROPERTY],
       create(parent, name, value, operation) {
+        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        if (!validation.ok) return validation;
         const child = bindingFromJsonValue(value, {
           name,
           datatype: operation.datatype,
@@ -112,6 +114,8 @@ function mutableNamespace(namespace) {
         return { binding: child, resultingAddress: child.address };
       },
       replace(target, value, operation) {
+        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        if (!validation.ok) return validation;
         const replacement = bindingFromJsonValue(value, {
           name: target.name,
           index: target.index,
@@ -134,6 +138,8 @@ function mutableNamespace(namespace) {
         return { binding: target, affectedAddress: target.address };
       },
       insert(container, placement, value, operation) {
+        const validation = validateAeonWorkbenchValue(value, operation.datatype);
+        if (!validation.ok) return validation;
         const child = bindingFromJsonValue(value, {
           datatype: operation.datatype,
           address: `${container.address ?? '$'}[new]`,
@@ -197,6 +203,64 @@ function ensureAttributeSpace(binding) {
     configurable: true,
   });
   return binding.attributeSpace;
+}
+
+function validateAeonWorkbenchValue(value, datatype, path = 'value') {
+  const representation = representationKindFromDatatype(datatype);
+  if (representation === 'node') return validateAeonWorkbenchNodeValue(value, path);
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = validateAeonWorkbenchValue(value[index], undefined, `${path}[${index}]`);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}[""]`);
+      const result = validateAeonWorkbenchValue(entry, undefined, `${path}.${key}`);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function validateAeonWorkbenchNodeValue(value, path) {
+  if (value === undefined || value === null) return { ok: true };
+  if (Array.isArray(value)) return validateAeonWorkbenchValue(value, undefined, `${path}.children`);
+  if (typeof value !== 'object') {
+    return invalidAeonWorkbenchValue('Node values must be an object with tag/children or an array of children', path);
+  }
+  if (value.tag !== undefined && !validNodeTag(value.tag)) {
+    return invalidAeonWorkbenchValue('Node tags must be non-empty AEON identifiers', `${path}.tag`);
+  }
+  if (value.children !== undefined && !Array.isArray(value.children)) {
+    return invalidAeonWorkbenchValue('Node children must be a list when provided', `${path}.children`);
+  }
+  if (Array.isArray(value.children)) {
+    for (let index = 0; index < value.children.length; index += 1) {
+      const result = validateAeonWorkbenchValue(value.children[index], undefined, `${path}.children[${index}]`);
+      if (!result.ok) return result;
+    }
+  }
+  if (value.attributes !== undefined) {
+    if (!value.attributes || typeof value.attributes !== 'object' || Array.isArray(value.attributes)) {
+      return invalidAeonWorkbenchValue('Node attributes must be an object when provided', `${path}.attributes`);
+    }
+    for (const [key, entry] of Object.entries(value.attributes)) {
+      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}.attributes[""]`);
+      const result = validateAeonWorkbenchValue(entry, undefined, `${path}.attributes.${key}`);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function invalidAeonWorkbenchValue(message, path) {
+  return {
+    ok: false,
+    message: `SANSA_MUTATE_WORKBENCH_INVALID_AEON_VALUE: ${message} at ${path}`,
+  };
 }
 
 function bindingFromJsonValue(value, { name, index, datatype, address, parent, handle } = {}) {
