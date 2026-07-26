@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyMutationPlan, planMutation } from '../src/index.js';
+import { applyMutationPlan, planMutation, validateMutationPlanTarget } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -64,9 +64,12 @@ function runTest(test, namespaces) {
   const applyOptions = test.input?.applyOptions ?? test.input?.options ?? {};
   const planResult = planMutation(request, fixture.namespace, planOptions);
   const mode = test.input?.mode ?? 'plan';
-  const result = mode === 'apply' && planResult.ok
-    ? applyPlannedMutation(test, planResult.plan, fixture, applyOptions)
-    : planResult;
+  const target = test.input?.target;
+  const result = target && planResult.ok
+    ? validateMutationPlanTarget(planResult.plan, target)
+    : mode === 'apply' && planResult.ok
+      ? applyPlannedMutation(test, planResult.plan, fixture, applyOptions)
+      : planResult;
 
   if (result.ok !== Boolean(expected.ok)) {
     failures.push(`ok mismatch: expected ${Boolean(expected.ok)}, got ${result.ok}`);
@@ -92,6 +95,18 @@ function runTest(test, namespaces) {
         failures.push(`errorPhase mismatch: expected ${expected.errorPhase}, got ${actualPhase}`);
       }
     }
+    if (typeof expected.errorTargetFormat === 'string') {
+      const actualTargetFormat = result.errors?.[0]?.targetFormat ?? null;
+      if (actualTargetFormat !== expected.errorTargetFormat) {
+        failures.push(`errorTargetFormat mismatch: expected ${expected.errorTargetFormat}, got ${actualTargetFormat}`);
+      }
+    }
+    if (typeof expected.errorDatatype === 'string') {
+      const actualDatatype = result.errors?.[0]?.datatype ?? null;
+      if (actualDatatype !== expected.errorDatatype) {
+        failures.push(`errorDatatype mismatch: expected ${expected.errorDatatype}, got ${actualDatatype}`);
+      }
+    }
     if (typeof expected.errorBudget === 'string') {
       const actualBudget = result.errors?.[0]?.budget ?? null;
       if (actualBudget !== expected.errorBudget) {
@@ -114,6 +129,18 @@ function runTest(test, namespaces) {
     compareValuesByAddress(expected.valuesByAddress ?? {}, fixture.byAddress, failures);
     compareChildrenByAddress(expected.childrenByAddress ?? {}, fixture.byAddress, 'name', failures);
     compareChildrenByAddress(expected.childrenValuesByAddress ?? {}, fixture.byAddress, 'value', failures);
+    return failures;
+  }
+
+  if (target) {
+    if (Array.isArray(expected.targetDiagnostics)) {
+      compareArray(
+        expected.targetDiagnostics,
+        (result.diagnostics ?? []).map((diagnostic) => diagnostic.code),
+        'targetDiagnostics',
+        failures,
+      );
+    }
     return failures;
   }
 
