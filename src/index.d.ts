@@ -52,6 +52,25 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION'
   | 'SANSA_QUERY_INVALID_FUNCTION_CALL'
   | 'SANSA_QUERY_INVALID_PROJECTION'
+  | 'SANSA_INSTRUCTION_EMPTY'
+  | 'SANSA_INSTRUCTION_EXPECTED_MUTATION'
+  | 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT'
+  | 'SANSA_INSTRUCTION_UNSUPPORTED_QUERY_CLAUSE'
+  | 'SANSA_INSTRUCTION_UNSUPPORTED_VERB'
+  | 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS'
+  | 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE'
+  | 'SANSA_INSTRUCTION_INVALID_CLAUSE_ORDER'
+  | 'SANSA_INSTRUCTION_EXPECTED_FROM_ADDRESS'
+  | 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION'
+  | 'SANSA_INSTRUCTION_EXPECTED_WITH'
+  | 'SANSA_INSTRUCTION_EXPECTED_IN'
+  | 'SANSA_INSTRUCTION_EXPECTED_ADDRESS'
+  | 'SANSA_INSTRUCTION_EXPECTED_CREATE_DESTINATION'
+  | 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION'
+  | 'SANSA_INSTRUCTION_EXPECTED_VALUE'
+  | 'SANSA_INSTRUCTION_INVALID_DATATYPE'
+  | 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL'
+  | 'SANSA_INSTRUCTION_INVALID_PLACEMENT'
   | 'SANSA_PARSE_ERROR';
 
 export type SansaWarningCode =
@@ -84,6 +103,11 @@ export interface SansaQueryParseOptions {
   readonly expression?: SansaQueryExpressionParseOptions;
 }
 
+export interface SansaInstructionParseOptions {
+  readonly address?: SansaParseOptions;
+  readonly expression?: SansaQueryExpressionParseOptions;
+}
+
 export type SansaParseResult =
   | { readonly ok: true; readonly address: SansaAddress; readonly warnings: readonly SansaWarning[] }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
@@ -94,6 +118,10 @@ export type SansaQueryParseResult =
 
 export type SansaQueryExpressionParseResult =
   | { readonly ok: true; readonly expression: SansaQueryExpression; readonly warnings: readonly SansaWarning[] }
+  | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
+
+export type SansaInstructionParseResult =
+  | { readonly ok: true; readonly instruction: SansaInstruction; readonly warnings: readonly SansaWarning[] }
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaResolveErrorCode =
@@ -566,6 +594,35 @@ export interface SansaMutationOperationResult<TBinding extends object = SansaRes
   readonly affectedBinding?: TBinding;
 }
 
+export type SansaInstructionLowerErrorCode =
+  | 'SANSA_INSTRUCTION_PARSE_FAILED'
+  | 'SANSA_INSTRUCTION_LOWERING_REQUIRES_CANDIDATE_EVALUATION'
+  | 'SANSA_INSTRUCTION_UNSUPPORTED_VERB'
+  | 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER';
+
+export interface SansaInstructionLowerDiagnostic {
+  readonly code: SansaInstructionLowerErrorCode;
+  readonly message: string;
+  readonly phase: 'parse' | 'lower';
+  readonly cause?: unknown;
+}
+
+export interface SansaLowerInstructionOptions {
+  readonly parse?: SansaInstructionParseOptions;
+}
+
+export type SansaLowerInstructionResult =
+  | {
+      readonly ok: true;
+      readonly request: SansaRequestedMutationOperation;
+      readonly diagnostics: readonly SansaInstructionLowerDiagnostic[];
+      readonly warnings: readonly SansaWarning[];
+    }
+  | {
+      readonly ok: false;
+      readonly errors: readonly SansaInstructionLowerDiagnostic[];
+    };
+
 export type SansaQueryValue<TBinding extends object = SansaResolveBinding> =
   | SansaQueryScalarValue
   | SansaQueryBindingSetValue<TBinding>
@@ -862,6 +919,131 @@ export interface SansaQueryProjectionField {
   readonly expression: SansaQueryExpression;
 }
 
+export interface SansaInstruction {
+  readonly type: 'SansaInstruction';
+  readonly from: SansaInstructionFromClause | null;
+  readonly where: SansaInstructionWhereClause | null;
+  readonly mutation: SansaInstructionMutationClause;
+  readonly clauses: readonly SansaInstructionClauseName[];
+  readonly canonical: string;
+}
+
+export type SansaInstructionClauseName = 'from' | 'where' | 'create' | 'replace' | 'remove' | 'insert' | 'move';
+
+export interface SansaInstructionFromClause {
+  readonly type: 'fromClause';
+  readonly source: 'address';
+  readonly address: SansaAddress;
+}
+
+export interface SansaInstructionWhereClause {
+  readonly type: 'whereClause';
+  readonly expression: string;
+  readonly ast: SansaQueryExpression;
+}
+
+export type SansaInstructionMutationClause =
+  | SansaInstructionCreateClause
+  | SansaInstructionReplaceClause
+  | SansaInstructionRemoveClause
+  | SansaInstructionInsertClause
+  | SansaInstructionMoveClause;
+
+export interface SansaInstructionCreateClause {
+  readonly type: 'mutationClause';
+  readonly verb: 'create';
+  readonly destination: SansaInstructionCreateDestination;
+  readonly value: SansaInstructionValue;
+}
+
+export interface SansaInstructionReplaceClause {
+  readonly type: 'mutationClause';
+  readonly verb: 'replace';
+  readonly target: SansaInstructionAddress;
+  readonly value: SansaInstructionValue;
+}
+
+export interface SansaInstructionRemoveClause {
+  readonly type: 'mutationClause';
+  readonly verb: 'remove';
+  readonly target: SansaInstructionAddress;
+}
+
+export interface SansaInstructionInsertClause {
+  readonly type: 'mutationClause';
+  readonly verb: 'insert';
+  readonly placement: SansaInstructionPlacement;
+  readonly container: SansaInstructionAddress;
+  readonly value: SansaInstructionValue;
+}
+
+export interface SansaInstructionMoveClause {
+  readonly type: 'mutationClause';
+  readonly verb: 'move';
+  readonly source: SansaInstructionAddress;
+  readonly placement: SansaInstructionPlacement;
+  readonly container: SansaInstructionAddress;
+}
+
+export type SansaInstructionCreateDestination =
+  | {
+      readonly type: 'createDestination';
+      readonly kind: 'member';
+      readonly name: string;
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'createDestination';
+      readonly kind: 'address';
+      readonly address: SansaAddress;
+      readonly canonical: string;
+    };
+
+export interface SansaInstructionAddress {
+  readonly type: 'instructionAddress';
+  readonly source: string;
+  readonly address: SansaAddress;
+  readonly canonical: string;
+}
+
+export type SansaInstructionPlacement =
+  | {
+      readonly type: 'placement';
+      readonly kind: 'first' | 'last';
+    }
+  | {
+      readonly type: 'placement';
+      readonly kind: 'before' | 'after';
+      readonly anchor: SansaInstructionAddress;
+    };
+
+export interface SansaInstructionValue {
+  readonly type: 'InstructionValue';
+  readonly datatype?: string;
+  readonly kind: SansaInstructionValueKind;
+  readonly value: string | number | boolean | null;
+  readonly literal: SansaInstructionValueLiteral;
+  readonly canonical: string;
+}
+
+export type SansaInstructionValueKind = SansaQueryLiteralExpression['kind'] | 'sansa';
+
+export type SansaInstructionValueLiteral =
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: 'sansa';
+      readonly value: string;
+      readonly address: SansaAddress;
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: SansaQueryLiteralExpression['kind'];
+      readonly value: string | number | boolean | null;
+      readonly expression: SansaQueryLiteralExpression;
+      readonly canonical: string;
+    };
+
 export interface RootSelector {
   readonly type: 'root';
   readonly kind: 'absolute' | 'contextual';
@@ -975,6 +1157,9 @@ export function parseQuery(input: string, options?: SansaQueryParseOptions): San
 export function parseQueryOrThrow(input: string, options?: SansaQueryParseOptions): SansaQuery;
 export function parseQueryExpression(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpressionParseResult;
 export function parseQueryExpressionOrThrow(input: string, options?: SansaQueryExpressionParseOptions): SansaQueryExpression;
+export function parseInstruction(input: string, options?: SansaInstructionParseOptions): SansaInstructionParseResult;
+export function parseInstructionOrThrow(input: string, options?: SansaInstructionParseOptions): SansaInstruction;
+export function lowerInstruction(input: string | SansaInstruction, options?: SansaLowerInstructionOptions): SansaLowerInstructionResult;
 export function evaluateQuery<TBinding extends object = SansaResolveBinding>(
   input: string | SansaQuery,
   namespace: SansaResolveNamespace<TBinding>,
