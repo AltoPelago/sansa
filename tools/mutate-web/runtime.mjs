@@ -591,7 +591,7 @@ function bindingFromJsonValue(value, { name, index, datatype, kind, address, par
   const scalarValue = scalarValueFromHints(value, { datatype, kind });
   binding.value = scalarValue.value;
   if (scalarValue.nullReason !== undefined) binding.nullReason = scalarValue.nullReason;
-  binding.semanticType = datatype ?? semanticTypeFromJsonValue(value);
+  binding.semanticType = datatype ?? semanticTypeFromRepresentationKind(representation) ?? semanticTypeFromJsonValue(value);
   binding.representationKind = scalarValue.representationKind ?? representation ?? semanticTypeFromJsonValue(value);
   binding.scalarKind = scalarValue.scalarKind ?? scalarKindFromHints({ datatype, kind }) ?? binding.representationKind;
   return binding;
@@ -1024,6 +1024,34 @@ function semanticTypeFromJsonValue(value) {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'list';
   return typeof value;
+}
+
+function semanticTypeFromRepresentationKind(kind) {
+  if (typeof kind !== 'string') return undefined;
+  switch (kind) {
+    case 'string':
+    case 'number':
+    case 'boolean':
+    case 'toggle':
+    case 'hex':
+    case 'radix':
+    case 'encoding':
+    case 'separator':
+    case 'sansa':
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+    case 'null':
+    case 'nan':
+    case 'infinity':
+    case 'cloneReference':
+    case 'pointerReference':
+    case 'referenceForm':
+      return kind === 'sansa' ? 'sansa' : kind;
+    default:
+      return undefined;
+  }
 }
 
 function representationKindFromHints({ datatype, kind } = {}) {

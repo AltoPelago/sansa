@@ -161,6 +161,11 @@ test('parses instruction value literal families', () => {
   assert.equal(color.mutation.value.kind, 'hex');
   assert.equal(color.mutation.value.value, 'fff');
 
+  const date = parseOk('replace $.inventory.release with 2026-10-10');
+  assert.equal(date.mutation.value.kind, 'date');
+  assert.equal(date.mutation.value.value, '2026-10-10');
+  assert.equal(date.canonical, 'replace $.inventory.release with 2026-10-10');
+
   const selector = parseOk('replace $.inventory.selector with :sansa, $.inventory.items.*:number');
   assert.equal(selector.mutation.value.datatype, 'sansa');
   assert.equal(selector.mutation.value.kind, 'sansa');

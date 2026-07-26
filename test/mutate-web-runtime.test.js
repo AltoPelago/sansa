@@ -134,6 +134,30 @@ testAeonRuntime('mutate web runtime applies instruction requests', async () => {
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
+testAeonRuntime('mutate web runtime renders untyped temporal instruction replacements by literal family', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestKind: 'instruction',
+    requestSource: [
+      'from $.inventory.items[0]',
+      'where .sku == "A-100"',
+      'replace .sku with 2026-10-10',
+    ].join('\n'),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.loweredRequest.kind, 'date');
+  assert.equal(result.result.operationResults[0].affectedBinding.semanticType, 'date');
+  assert.equal(result.result.operationResults[0].affectedBinding.representationKind, 'date');
+  assert.match(result.source, /sku:date = 2026-10-10/);
+  assert.doesNotMatch(result.source, /sku:string = 2026-10-10/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
 testAeonRuntime('mutate web runtime applies representative instruction example forms', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const examples = [
