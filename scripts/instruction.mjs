@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lowerInstruction, parseInstruction, planInstruction } from '../src/index.js';
+import { lowerInstruction, parseInstruction, planInstruction, validateMutationPlanTarget } from '../src/index.js';
 import { namespaceFromAeonSource, namespaceFromJsonSource } from '../tools/query-web/runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,9 +32,18 @@ if (!['text', 'json'].includes(format)) {
   console.error(`SANSA Instruction tool error: unsupported --format '${format}'. Expected 'text' or 'json'.`);
   process.exit(2);
 }
+if (args.target !== undefined && !['aeon', 'json', 'json-compatible'].includes(args.target)) {
+  console.error(`SANSA Instruction tool error: unsupported --target '${args.target}'. Expected 'aeon' or 'json'.`);
+  process.exit(2);
+}
+if (args.target !== undefined && mode !== 'plan') {
+  console.error('SANSA Instruction tool error: --target is only available with --mode plan.');
+  process.exit(2);
+}
 
 let result;
 let fixturePath;
+let targetResult;
 if (mode === 'parse') {
   result = parseInstruction(source);
 } else {
@@ -44,12 +53,23 @@ if (mode === 'parse') {
   result = mode === 'plan'
     ? planInstruction(source, loaded.namespace)
     : lowerInstruction(source, loaded.namespace);
+  if (mode === 'plan' && result.ok && args.target !== undefined) {
+    targetResult = validateMutationPlanTarget(result.plan, args.target);
+    if (!targetResult.ok) {
+      result = {
+        ok: false,
+        phase: 'target',
+        loweredRequest: result.loweredRequest,
+        errors: targetResult.errors,
+      };
+    }
+  }
 }
 
 if (format === 'json') {
-  console.log(JSON.stringify(formatJsonResult(result, mode, fixturePath), null, 2));
+  console.log(JSON.stringify(formatJsonResult(result, mode, fixturePath, args.target, targetResult), null, 2));
 } else {
-  printTextResult(result, mode, fixturePath);
+  printTextResult(result, mode, fixturePath, args.target, targetResult);
 }
 
 process.exit(result.ok ? 0 : 1);
@@ -72,6 +92,8 @@ function parseArgs(raw) {
       output.format = requireValue(raw, ++index, arg);
     } else if (arg === '--mode') {
       output.mode = requireValue(raw, ++index, arg);
+    } else if (arg === '--target') {
+      output.target = requireValue(raw, ++index, arg);
     } else {
       console.error(`SANSA Instruction tool error: unknown argument '${arg}'.`);
       process.exit(2);
@@ -163,7 +185,7 @@ function inferFixtureKind(path, explicitKind) {
   process.exit(2);
 }
 
-function printTextResult(result, mode, fixturePath) {
+function printTextResult(result, mode, fixturePath, target, targetResult) {
   if (!result.ok) {
     console.error(renderDiagnostics(result.errors));
     return;
@@ -179,13 +201,17 @@ function printTextResult(result, mode, fixturePath) {
   console.log(`fixture: ${fixturePath}`);
   console.log(renderLoweredRequest(result.loweredRequest));
   console.log(renderPlanSummary(result.plan));
+  if (target !== undefined) {
+    console.log(`target: ${targetResult?.ok ? `${target} ok` : `${target} failed`}`);
+  }
 }
 
-function formatJsonResult(result, mode, fixturePath) {
+function formatJsonResult(result, mode, fixturePath, target, targetResult) {
   if (!result.ok) {
     return {
       ok: false,
       mode,
+      ...(target === undefined ? {} : { target }),
       ...(result.phase === undefined ? {} : { phase: result.phase }),
       errors: result.errors,
       ...(result.loweredRequest === undefined ? {} : { loweredRequest: result.loweredRequest }),
@@ -199,6 +225,7 @@ function formatJsonResult(result, mode, fixturePath) {
     fixture: fixturePath,
     loweredRequest: result.loweredRequest,
     plan: summarizePlan(result.plan),
+    ...(target === undefined ? {} : { target, targetResult }),
     diagnostics: result.diagnostics,
     warnings: result.warnings,
   };
@@ -361,6 +388,8 @@ Options:
                                    Defaults to fixtures/query-inventory.json.
       --fixture-kind <kind>        Force fixture kind: json or aeon.
       --mode <mode>                parse, lower, or plan. Defaults to lower.
+      --target <target>            Validate plan target surface: aeon or json.
+                                   Only available with --mode plan.
       --format <format>            text or json. Defaults to text.
   -h, --help                       Show this help.
 `);

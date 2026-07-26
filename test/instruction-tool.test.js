@@ -19,6 +19,7 @@ test('instruction tool help documents core options', () => {
   assert.equal(result.stderr, '');
   assert.match(result.stdout, /sansa-instruction --instruction <source>/);
   assert.match(result.stdout, /--mode <mode>/);
+  assert.match(result.stdout, /--target <target>/);
   assert.match(result.stdout, /parse, lower, or plan/);
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
 });
@@ -69,6 +70,45 @@ test('instruction tool plans lowered instructions against the default fixture', 
   assert.equal(result.stderr, '');
   assert.match(result.stdout, /replace \$\.inventory\.items\[1\]\.qty = 10 \(datatype:int32, kind:number\)/);
   assert.match(result.stdout, /plan: 1 operation/);
+});
+
+test('instruction tool validates planned instructions against target surfaces', () => {
+  const ok = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'aeon',
+    '--instruction',
+    [
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  ]);
+
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(ok.stderr, '');
+  assert.match(ok.stdout, /target: aeon ok/);
+
+  const rejected = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'json',
+    '--format',
+    'json',
+    '--instruction',
+    'create $.types.selectorCliProbe with :sansa, $.inventory.items.*',
+  ]);
+
+  assert.equal(rejected.status, 1);
+  assert.equal(rejected.stderr, '');
+  const payload = JSON.parse(rejected.stdout);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.mode, 'plan');
+  assert.equal(payload.phase, 'target');
+  assert.equal(payload.target, 'json');
+  assert.equal(payload.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
 });
 
 test('instruction tool emits JSON diagnostics', () => {

@@ -9,6 +9,7 @@ mode toggle.
 npm run instruction -- --mode parse --instruction 'replace $.inventory.items[1].qty with :int32 10'
 npm run instruction -- --mode lower --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
 npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+npm run instruction -- --mode plan --target json --instruction 'create $.types.selectorCliProbe with :sansa, $.inventory.items.*'
 npm run instruction -- --format json --mode plan --instruction-file instruction.sansai
 ```
 
@@ -59,6 +60,17 @@ npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhe
 
 Text output includes the lowered operation and the planned operation summary.
 JSON output includes a sanitized plan summary instead of live binding objects.
+
+`plan` mode may also validate the resulting plan against a target surface:
+
+```bash
+npm run instruction -- --mode plan --target aeon --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+npm run instruction -- --mode plan --target json --instruction 'create $.types.selectorCliProbe with :sansa, $.inventory.items.*'
+```
+
+The target check runs after planning by calling
+`validateMutationPlanTarget(plan, target)`. It does not change instruction
+parsing, lowering, or mutation planning.
 
 ## Instruction Surface
 
