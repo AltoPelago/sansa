@@ -602,7 +602,7 @@ testAeonRuntime('mutate web runtime rejects AEON-invalid container member names'
   assert.equal(result.ok, false);
   assert.equal(result.phase, 'target');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.match(result.text, /SANSA_MUTATE_WORKBENCH_INVALID_AEON_VALUE/);
+  assert.equal(result.errors[0].targetFormat, 'aeon');
   assert.match(result.text, /Keys must not be empty/);
   assert.doesNotMatch(result.source, /settings:object/);
 });

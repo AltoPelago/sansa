@@ -183,6 +183,10 @@ export type SansaMutateErrorCode =
   | 'SANSA_MUTATE_STALE_TARGET'
   | 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION'
   | 'SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE'
+  | 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE'
+  | 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE'
+  | 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE'
+  | 'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION'
   | 'SANSA_MUTATE_APPLY_FAILED';
 
 export interface SansaResolveDiagnostic {
@@ -208,9 +212,11 @@ export interface SansaQueryEvaluateDiagnostic {
 export interface SansaMutateDiagnostic {
   readonly code: SansaMutateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
-  readonly phase?: 'plan' | 'apply';
+  readonly phase?: 'plan' | 'target' | 'apply';
   readonly operationIndex?: number;
   readonly preconditionIndex?: number;
+  readonly targetFormat?: string;
+  readonly datatype?: string;
   readonly budget?: string;
   readonly limit?: number;
   readonly observed?: number;
@@ -453,6 +459,36 @@ export interface SansaMutationPlan<TBinding extends object = SansaResolveBinding
   readonly portabilityWarnings?: readonly SansaDiagnostic[];
   readonly diagnostics: readonly SansaMutateDiagnostic[];
 }
+
+export type SansaMutationTargetSurfaceInput<TBinding extends object = SansaResolveBinding> =
+  | 'aeon'
+  | 'json'
+  | 'json-compatible'
+  | SansaMutationTargetSurface<TBinding>;
+
+export interface SansaMutationTargetSurface<TBinding extends object = SansaResolveBinding> {
+  readonly id?: string;
+  readonly validateOperation: (
+    operation: SansaMutationOperation<TBinding>,
+    context: SansaMutationTargetSurfaceContext<TBinding>,
+  ) => SansaMutationTargetSurfaceOperationResult;
+}
+
+export interface SansaMutationTargetSurfaceContext<TBinding extends object = SansaResolveBinding> {
+  readonly plan: SansaMutationPlan<TBinding>;
+  readonly operationIndex: number;
+  readonly targetFormat: string;
+}
+
+export type SansaMutationTargetSurfaceOperationResult =
+  | boolean
+  | void
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error?: SansaMutateDiagnostic; readonly errors?: readonly SansaMutateDiagnostic[]; readonly code?: SansaMutateErrorCode; readonly message?: string };
+
+export type SansaValidateMutationPlanTargetResult =
+  | { readonly ok: true; readonly diagnostics: readonly SansaMutateDiagnostic[] }
+  | { readonly ok: false; readonly errors: readonly SansaMutateDiagnostic[] };
 
 export interface SansaMutationPrecondition<TBinding extends object = SansaResolveBinding> {
   readonly expression: string;
@@ -1219,6 +1255,10 @@ export function planMutation<TBinding extends object = SansaResolveBinding>(
   namespace: SansaResolveNamespace<TBinding>,
   options?: SansaPlanMutationOptions<TBinding>,
 ): SansaPlanMutationResult<TBinding>;
+export function validateMutationPlanTarget<TBinding extends object = SansaResolveBinding>(
+  plan: SansaMutationPlan<TBinding>,
+  targetSurface?: SansaMutationTargetSurfaceInput<TBinding>,
+): SansaValidateMutationPlanTargetResult;
 export function applyMutationPlan<TBinding extends object = SansaResolveBinding>(
   plan: SansaMutationPlan<TBinding>,
   namespace: SansaResolveNamespace<TBinding>,

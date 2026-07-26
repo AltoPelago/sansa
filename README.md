@@ -26,6 +26,7 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 - SANSA.Query evaluation for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, membership, cardinality predicates, built-in string functions, function-like operators, and projection expressions
 - experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
 - experimental SANSA.Mutate value-intent preservation and operation, precondition, and value budgets
+- experimental SANSA.Mutate target-surface validation for AEON, JSON-compatible, and custom target representability checks
 - experimental mutation apply through explicit host mutation hooks with stale-target checks
 - experimental SANSA.Instruction parsing, candidate-relative lowering, and mutation-planner bridging for conservative mutation verbs
 

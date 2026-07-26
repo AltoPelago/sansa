@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyMutationPlan, planMutation } from '../src/index.js';
+import { applyMutationPlan, planMutation, validateMutationPlanTarget } from '../src/index.js';
 
 function binding({ address, name, value, representationKind = 'object', children = [] }) {
   return {
@@ -179,6 +179,64 @@ test('rejects invalid mutation datatype hints', () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_INVALID_DATATYPE');
+});
+
+test('validates mutation plans against built-in target surfaces', () => {
+  const namespace = sampleNamespace();
+  const compatible = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  assert.equal(validateMutationPlanTarget(compatible, 'aeon').ok, true);
+  assert.equal(validateMutationPlanTarget(compatible, 'json').ok, true);
+
+  const aeonInvalidDatatype = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'textProbe',
+    datatype: 'string<null>',
+    value: '',
+  }, namespace);
+  const aeonResult = validateMutationPlanTarget(aeonInvalidDatatype, 'aeon');
+  assert.equal(aeonResult.ok, false);
+  assert.equal(aeonResult.errors[0].phase, 'target');
+  assert.equal(aeonResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonResult.errors[0].targetFormat, 'aeon');
+
+  const jsonAttribute = planOk({
+    op: 'create',
+    parent: '$.inventory.sku.@',
+    name: 'selector',
+    datatype: 'sansa',
+    value: '$.inventory.*',
+  }, namespace);
+  const jsonResult = validateMutationPlanTarget(jsonAttribute, 'json');
+  assert.equal(jsonResult.ok, false);
+  assert.equal(jsonResult.errors[0].phase, 'target');
+  assert.equal(jsonResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(jsonResult.errors[0].targetFormat, 'json');
+});
+
+test('validates mutation plans against custom target surfaces', () => {
+  const namespace = sampleNamespace();
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+
+  const result = validateMutationPlanTarget(plan, {
+    id: 'custom.readonly',
+    validateOperation(operation) {
+      if (operation.op === 'replace') {
+        return {
+          ok: false,
+          code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+          message: 'Custom target is read-only',
+        };
+      }
+      return true;
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].phase, 'target');
+  assert.equal(result.errors[0].operationIndex, 0);
+  assert.equal(result.errors[0].targetFormat, 'custom.readonly');
+  assert.equal(result.errors[0].message, 'Custom target is read-only');
 });
 
 test('preserves representation kind hints separately from datatype hints', () => {

@@ -489,16 +489,30 @@ returns the structured plan/result plus an AEON-ish rendered source tree after
 apply. It is a technical testing surface for structured mutation requests and
 proposal-stage instructions, not a canonical AEON source rewriter.
 
-The workbench also has an experimental target-surface gate controlled by
-`options.targetFormat`. The default target is `"aeon"`, which checks whether the
-planned value intent can be represented by the current AEON-oriented renderer
-before apply or source-result rendering. `"json"` applies a stricter
-JSON-compatible surface for probing non-AEON targets. Target-surface failures
-are not SANSA parse or mutation-planning failures: they mean the target format
-cannot represent the planned operation. They use `phase: "target"` with
-workbench codes such as `SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE`,
-`SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE`, and
-`SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE`.
+Target representability is checked explicitly with
+`validateMutationPlanTarget(plan, targetSurface)`. This API is separate from
+`planMutation(...)` so mutation planning remains target-neutral:
+
+```text
+planMutation(...)
+validateMutationPlanTarget(...)
+applyMutationPlan(...)
+```
+
+Built-in target surfaces currently include `"aeon"` and `"json"`.
+`"json-compatible"` is accepted as an alias for `"json"`. Callers may also pass
+a custom target surface object with an `id` and `validateOperation(operation,
+context)` hook. Target-surface failures are not SANSA parse or
+mutation-planning failures: they mean the target format cannot represent the
+planned operation. They use `phase: "target"` with codes such as
+`SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE`,
+`SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE`,
+`SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE`, and
+`SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION`.
+
+The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
+`"aeon"` and can be set to `"json"` through the browser target selector or the
+`/api/mutate` request payload.
 
 For example, SANSA Instruction can parse and lower `:string<null>` as datatype
 intent, but the AEON workbench target rejects it because AEON only allows

@@ -226,6 +226,40 @@ export function planInstruction(input, namespace, options = {}) {
   };
 }
 
+export function validateMutationPlanTarget(plan, targetSurface = 'aeon') {
+  if (!plan || typeof plan !== 'object' || !Array.isArray(plan.operations)) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_INVALID_PLAN',
+        'Mutation target validation requires a mutation plan',
+        { targetFormat: targetSurfaceId(targetSurface) },
+      )],
+    };
+  }
+
+  const surface = resolveMutationTargetSurface(targetSurface);
+  if (!surface.ok) return { ok: false, errors: [surface.error] };
+
+  const errors = [];
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const result = surface.surface.validateOperation(operation, {
+      plan,
+      operationIndex,
+      targetFormat: surface.surface.id,
+    });
+    const normalized = normalizeMutationTargetSurfaceOperationResult(result, {
+      operation,
+      operationIndex,
+      targetFormat: surface.surface.id,
+    });
+    if (!normalized.ok) errors.push(...normalized.errors);
+  }
+
+  return errors.length === 0 ? { ok: true, diagnostics: [] } : { ok: false, errors };
+}
+
 export const aeonValueSemanticsDefaultProfile = Object.freeze({
   id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
   stringOrder: CODEPOINT_STRING_PROFILE_ID,
@@ -1538,6 +1572,462 @@ function mutationKind(requested, operationIndex) {
 
 function mutationError(code, message, details = {}) {
   return { code, message, ...details };
+}
+
+function resolveMutationTargetSurface(targetSurface) {
+  if (targetSurface === undefined || targetSurface === null || targetSurface === '' || targetSurface === 'aeon') {
+    return { ok: true, surface: aeonMutationTargetSurface };
+  }
+  if (targetSurface === 'json' || targetSurface === 'json-compatible') {
+    return { ok: true, surface: jsonMutationTargetSurface };
+  }
+  if (targetSurface && typeof targetSurface === 'object' && typeof targetSurface.validateOperation === 'function') {
+    return {
+      ok: true,
+      surface: {
+        id: typeof targetSurface.id === 'string' && targetSurface.id.length > 0 ? targetSurface.id : 'custom',
+        validateOperation: targetSurface.validateOperation,
+      },
+    };
+  }
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+      'Mutation target surface must be "aeon", "json", or an object with validateOperation',
+      { targetFormat: targetSurfaceId(targetSurface) },
+    ),
+  };
+}
+
+const aeonMutationTargetSurface = Object.freeze({
+  id: 'aeon',
+  validateOperation(operation, context) {
+    const datatype = operation.datatype;
+    if (datatype !== undefined) {
+      const datatypeResult = validateAeonTargetDatatype(datatype, context.operationIndex);
+      if (!datatypeResult.ok) return datatypeResult;
+    }
+    if (operationHasValue(operation)) {
+      return validateAeonTargetValue(operation.value, operation, `operations[${context.operationIndex}].value`, context.operationIndex);
+    }
+    return { ok: true };
+  },
+});
+
+const jsonMutationTargetSurface = Object.freeze({
+  id: 'json',
+  validateOperation(operation, context) {
+    const addressResult = validateJsonTargetAddresses(operation, context.operationIndex);
+    if (!addressResult.ok) return addressResult;
+    const containerResult = validateJsonTargetContainers(operation, context.operationIndex);
+    if (!containerResult.ok) return containerResult;
+    if (operation.datatype !== undefined) {
+      const datatypeResult = validateJsonTargetDatatype(operation.datatype, context.operationIndex);
+      if (!datatypeResult.ok) return datatypeResult;
+    }
+    if (operation.kind !== undefined) {
+      const kindResult = validateJsonTargetDatatype(operation.kind, context.operationIndex, 'kind');
+      if (!kindResult.ok) return kindResult;
+    }
+    if (!operationHasValue(operation)) return { ok: true };
+    return validateJsonTargetValue(operation.value, context.operationIndex, 'value');
+  },
+});
+
+function normalizeMutationTargetSurfaceOperationResult(result, context) {
+  if (result === undefined || result === true || result?.ok === true) return { ok: true };
+  if (result === false) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+        `Target '${context.targetFormat}' rejected ${context.operation.op}`,
+        { operationIndex: context.operationIndex, targetFormat: context.targetFormat },
+      )],
+    };
+  }
+  const rawErrors = Array.isArray(result?.errors)
+    ? result.errors
+    : result?.error
+      ? [result.error]
+      : result?.ok === false
+        ? [result]
+        : [];
+  if (rawErrors.length === 0) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+        `Target '${context.targetFormat}' returned an invalid target-surface result`,
+        { operationIndex: context.operationIndex, targetFormat: context.targetFormat },
+      )],
+    };
+  }
+  return {
+    ok: false,
+    errors: rawErrors.map((error) => normalizeMutationTargetSurfaceError(error, context)),
+  };
+}
+
+function normalizeMutationTargetSurfaceError(error, context) {
+  const {
+    ok: _ok,
+    error: _error,
+    errors: _errors,
+    ...details
+  } = error ?? {};
+  return mutationTargetSurfaceError(
+    error?.code ?? 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+    error?.message ?? `Target '${context.targetFormat}' rejected ${context.operation.op}`,
+    {
+      ...details,
+      phase: 'target',
+      operationIndex: Number.isInteger(error?.operationIndex) ? error.operationIndex : context.operationIndex,
+      targetFormat: typeof error?.targetFormat === 'string' ? error.targetFormat : context.targetFormat,
+    },
+  );
+}
+
+function validateAeonTargetDatatype(datatype, operationIndex) {
+  const base = datatypeBaseName(datatype);
+  const hasGeneric = String(datatype).includes('<');
+  const hasArgument = String(datatype).includes('[');
+  if (hasGeneric && !aeonDatatypeAllowsGeneric(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not allow generic parameters on datatype '${base ?? datatype}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (hasArgument && !aeonDatatypeAllowsArgument(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not allow square-bracket arguments on datatype '${base ?? datatype}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+function validateAeonTargetValue(value, hints, path, operationIndex) {
+  const representation = representationKindFromMutationHints(hints);
+  if (representation === 'node') return validateAeonTargetNodeValue(value, path, operationIndex);
+  const scalarValidation = validateAeonTargetScalarValue(value, representation, path, operationIndex);
+  if (!scalarValidation.ok) return scalarValidation;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = validateAeonTargetValue(value[index], {}, `${path}[${index}]`, operationIndex);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', `${path}[""]`, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, `${path}.${key}`, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function validateAeonTargetNodeValue(value, path, operationIndex) {
+  if (value === undefined || value === null) return { ok: true };
+  if (Array.isArray(value)) return validateAeonTargetValue(value, {}, `${path}.children`, operationIndex);
+  if (typeof value !== 'object') {
+    return invalidAeonTargetValue('Node values must be an object with tag/children or an array of children', path, operationIndex);
+  }
+  if (value.tag !== undefined && !validAeonIdentifier(value.tag)) {
+    return invalidAeonTargetValue('Node tags must be non-empty AEON identifiers', `${path}.tag`, operationIndex);
+  }
+  if (value.children !== undefined && !Array.isArray(value.children)) {
+    return invalidAeonTargetValue('Node children must be a list when provided', `${path}.children`, operationIndex);
+  }
+  if (Array.isArray(value.children)) {
+    for (let index = 0; index < value.children.length; index += 1) {
+      const result = validateAeonTargetValue(value.children[index], {}, `${path}.children[${index}]`, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  if (value.attributes !== undefined) {
+    if (!value.attributes || typeof value.attributes !== 'object' || Array.isArray(value.attributes)) {
+      return invalidAeonTargetValue('Node attributes must be an object when provided', `${path}.attributes`, operationIndex);
+    }
+    for (const [key, entry] of Object.entries(value.attributes)) {
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', `${path}.attributes[""]`, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, `${path}.attributes.${key}`, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function validateAeonTargetScalarValue(value, representation, path, operationIndex) {
+  if (representation === undefined || ['object', 'list', 'tuple', 'node'].includes(representation)) {
+    return { ok: true };
+  }
+  switch (representation) {
+    case 'string':
+      return typeof value === 'string'
+        ? { ok: true }
+        : invalidAeonTargetValue('String literals must use string payloads', path, operationIndex);
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Number literals must use finite number payloads', path, operationIndex);
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? { ok: true }
+        : invalidAeonTargetValue('Boolean literals must use boolean payloads', path, operationIndex);
+    case 'hex':
+      return typeof value === 'string' && /^[0-9A-Fa-f]+$/.test(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Hex literals must be non-empty hexadecimal text without the # prefix', path, operationIndex);
+    case 'radix':
+      return typeof value === 'string' && /^[A-Za-z0-9_]+$/.test(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Radix literals must be non-empty ASCII radix text without the % prefix', path, operationIndex);
+    case 'encoding':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('Encoding literals must be non-empty text without the & prefix', path, operationIndex);
+    case 'separator':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('Separator literals must be non-empty text without the ^ prefix', path, operationIndex);
+    case 'sansa':
+    case 'sansaAddress':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('SANSA literals must be non-empty address text', path, operationIndex);
+    case 'toggle':
+      return ['yes', 'no', 'on', 'off'].includes(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Toggle literals must be one of yes, no, on, or off', path, operationIndex);
+    case 'null':
+      return value === null || (typeof value === 'string' && validAeonIdentifier(value))
+        ? { ok: true }
+        : invalidAeonTargetValue('Null literals must be null or an AEON identifier reason', path, operationIndex);
+    case 'nan':
+      return value === null || value === 'NaN'
+        ? { ok: true }
+        : invalidAeonTargetValue('NaN literals must use null or "NaN" as the payload', path, operationIndex);
+    case 'infinity':
+      return ['Infinity', '+Infinity', '-Infinity'].includes(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Infinity literals must use "Infinity", "+Infinity", or "-Infinity"', path, operationIndex);
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue(`${representation} literals must be non-empty text`, path, operationIndex);
+    case 'cloneReference':
+    case 'pointerReference':
+    case 'referenceForm':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('Reference literals must be non-empty target text', path, operationIndex);
+    default:
+      return { ok: true };
+  }
+}
+
+function invalidAeonTargetValue(message, path, operationIndex) {
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+      `Target 'aeon' cannot represent mutation value: ${message} at ${path}`,
+      { operationIndex, targetFormat: 'aeon' },
+    ),
+  };
+}
+
+function aeonDatatypeAllowsGeneric(base) {
+  return ['object', 'obj', 'o', 'envelope', 'list', 'tuple', 'node', 'null', 'nan', 'infinity'].includes(base);
+}
+
+function aeonDatatypeAllowsArgument(base) {
+  const lowered = typeof base === 'string' ? base.toLowerCase() : base;
+  return ['sep', 'separator', 'kadot', 'radix'].includes(lowered);
+}
+
+function validateJsonTargetAddresses(operation, operationIndex) {
+  for (const role of ['target', 'parent', 'source', 'container']) {
+    const target = operation[role];
+    if (!target) continue;
+    if (target.binding?.representationKind === 'attributeSpace' || String(target.canonicalAddress ?? '').includes('.@')) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+          `Target 'json' cannot represent AEON attribute-space mutations at ${target.canonicalAddress}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetContainers(operation, operationIndex) {
+  for (const role of ['target', 'parent', 'source', 'container']) {
+    const target = operation[role];
+    const representation = target?.binding?.representationKind;
+    if (representation === 'node' || representation === 'tuple') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+          `Target 'json' cannot represent ${representation} container mutations at ${target.canonicalAddress}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetDatatype(datatype, operationIndex, label = 'datatype') {
+  const text = String(datatype);
+  const base = datatypeBaseName(text);
+  if (text.includes('<') || text.includes('[')) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'json' does not support parameterized ${label} '${text}'`,
+        { operationIndex, targetFormat: 'json', datatype: text },
+      ),
+    };
+  }
+  if (!['object', 'list', 'array', 'string', 'number', 'boolean', 'bool', 'null'].includes(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'json' does not support ${label} '${text}'`,
+        { operationIndex, targetFormat: 'json', datatype: text },
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetValue(value, operationIndex, path) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return { ok: true };
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? { ok: true }
+      : {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent non-finite numbers at ${path}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = validateJsonTargetValue(value[index], operationIndex, `${path}[${index}]`);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  if (value && typeof value === 'object') {
+    if (value.type === 'CloneReference' || value.type === 'PointerReference' || typeof value.canonical === 'string') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent AEON reference forms at ${path}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+    if (value.tag !== undefined || value.children !== undefined || value.attributes !== undefined) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent AEON node values at ${path}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const result = validateJsonTargetValue(entry, operationIndex, `${path}.${key}`);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+      `Target 'json' cannot represent ${typeof value} values at ${path}`,
+      { operationIndex, targetFormat: 'json' },
+    ),
+  };
+}
+
+function operationHasValue(operation) {
+  return operation.op === 'create' || operation.op === 'replace' || operation.op === 'insert';
+}
+
+function representationKindFromMutationHints({ datatype, kind } = {}) {
+  return kind === undefined
+    ? representationKindFromMutationName(datatype, { allowUnknown: false })
+    : representationKindFromMutationName(kind, { allowUnknown: true });
+}
+
+function representationKindFromMutationName(name, { allowUnknown = false } = {}) {
+  if (typeof name !== 'string') return undefined;
+  const base = datatypeBaseName(name);
+  const lowered = typeof base === 'string' ? base.toLowerCase() : base;
+  if (['object', 'obj', 'o', 'envelope'].includes(base)) return 'object';
+  if (base === 'list') return 'list';
+  if (base === 'tuple') return 'tuple';
+  if (base === 'node') return 'node';
+  if (['string', 'trimtick', 'prose'].includes(base)) return 'string';
+  if (['number', 'int', 'uint', 'float', 'n'].includes(base)) return 'number';
+  if (base === 'bool' || base === 'boolean') return 'boolean';
+  if (base === 'toggle') return 'toggle';
+  if (base === 'hex') return 'hex';
+  if (lowered === 'radix' || /^radix\d+$/.test(lowered)) return 'radix';
+  if (base === 'nan') return 'nan';
+  if (base === 'infinity') return 'infinity';
+  if (base === 'null') return 'null';
+  if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
+  if (base === 'sansa') return 'sansa';
+  if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
+  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
+  return allowUnknown ? base : undefined;
+}
+
+function validAeonIdentifier(value) {
+  return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+}
+
+function mutationTargetSurfaceError(code, message, details = {}) {
+  return { code, message, phase: 'target', ...details };
+}
+
+function targetSurfaceId(targetSurface) {
+  if (typeof targetSurface === 'string') return targetSurface || 'aeon';
+  if (targetSurface && typeof targetSurface === 'object' && typeof targetSurface.id === 'string') return targetSurface.id;
+  return 'unknown';
 }
 
 function capitalize(value) {
