@@ -159,7 +159,9 @@ export function parseInstructionOrThrow(input, options = {}) {
   return result.instruction;
 }
 
-export function lowerInstruction(input, options = {}) {
+export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = undefined) {
+  const normalizedArgs = normalizeLowerInstructionArgs(namespaceOrOptions, maybeOptions);
+  const { namespace, options } = normalizedArgs;
   const parsed = typeof input === 'string' ? parseInstruction(input, options.parse ?? options) : { ok: true, instruction: input };
   if (!parsed.ok) {
     return {
@@ -172,10 +174,10 @@ export function lowerInstruction(input, options = {}) {
     };
   }
   try {
-    const operation = lowerParsedInstruction(parsed.instruction);
+    const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
     return {
       ok: true,
-      request: operation,
+      request: lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations,
       diagnostics: [],
       warnings: parsed.warnings ?? [],
     };
@@ -1743,19 +1745,46 @@ class SansaInstructionLowerError extends Error {
   }
 }
 
-function lowerParsedInstruction(instruction) {
-  if (instruction.from || instruction.where) {
-    throw new SansaInstructionLowerError(instructionLowerError(
-      'SANSA_INSTRUCTION_LOWERING_REQUIRES_CANDIDATE_EVALUATION',
-      'Instruction lowering with from/where clauses requires candidate resolution and query evaluation',
-      { phase: 'lower' },
-    ));
+function normalizeLowerInstructionArgs(namespaceOrOptions, maybeOptions) {
+  if (maybeOptions !== undefined) {
+    return { namespace: namespaceOrOptions, options: maybeOptions ?? {} };
   }
+  const options = namespaceOrOptions ?? {};
+  if (isLikelyResolveNamespace(options)) {
+    return { namespace: options, options: {} };
+  }
+  return { namespace: options.namespace, options };
+}
 
-  const mutation = instruction.mutation;
+function isLikelyResolveNamespace(value) {
+  return value
+    && typeof value === 'object'
+    && (
+      Object.hasOwn(value, 'root')
+      || typeof value.children === 'function'
+      || typeof value.parent === 'function'
+      || Object.hasOwn(value, 'mutate')
+    );
+}
+
+function lowerParsedInstruction(instruction, namespace, options = {}) {
+  if (instruction.from || instruction.where) {
+    if (!namespace) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE',
+        'Instruction lowering with from/where clauses requires a SANSA resolve namespace',
+        { phase: 'lower' },
+      ));
+    }
+    return lowerInstructionWithCandidates(instruction, namespace, options);
+  }
+  return { operations: [lowerInstructionMutationDirect(instruction.mutation)] };
+}
+
+function lowerInstructionMutationDirect(mutation) {
   switch (mutation.verb) {
     case 'create': {
-      const destination = lowerCreateDestination(mutation.destination);
+      const destination = lowerCreateDestinationDirect(mutation.destination);
       return withInstructionValueIntent({
         op: 'create',
         parent: destination.parent,
@@ -1776,14 +1805,14 @@ function lowerParsedInstruction(instruction) {
       return withInstructionValueIntent({
         op: 'insert',
         container: mutation.container.address.canonical,
-        placement: lowerInstructionPlacement(mutation.placement),
+        placement: lowerInstructionPlacementDirect(mutation.placement),
       }, mutation.value);
     case 'move':
       return {
         op: 'move',
         source: mutation.source.address.canonical,
         container: mutation.container.address.canonical,
-        placement: lowerInstructionPlacement(mutation.placement),
+        placement: lowerInstructionPlacementDirect(mutation.placement),
       };
     default:
       throw new SansaInstructionLowerError(instructionLowerError(
@@ -1794,11 +1823,210 @@ function lowerParsedInstruction(instruction) {
   }
 }
 
-function lowerCreateDestination(destination) {
+function lowerInstructionWithCandidates(instruction, namespace, options) {
+  const selected = selectInstructionCandidates(instruction, namespace, options);
+  const operations = [];
+  for (const candidate of selected) {
+    operations.push(lowerInstructionMutationForCandidate(instruction.mutation, candidate, namespace, options));
+  }
+  return { operations };
+}
+
+function selectInstructionCandidates(instruction, namespace, options) {
+  const candidates = resolveInstructionFromCandidates(instruction, namespace, options);
+  if (!instruction.where) return candidates;
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_INVALID_VALUE_SEMANTICS_PROFILE',
+      error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      { phase: 'lower' },
+    ));
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  const filtered = [];
+  for (const candidate of candidates) {
+    const candidateAddress = getBindingAddress(candidate);
+    const evaluated = evaluateQueryExpressionValue(instruction.where.ast, candidate, namespace, evaluationOptions);
+    if (!evaluated.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_WHERE_EVALUATION_FAILED',
+        evaluated.error.message,
+        { phase: 'lower', candidateAddress, cause: evaluated.error },
+      ));
+    }
+    const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+    if (!boolean.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_WHERE_EVALUATION_FAILED',
+        boolean.error.message,
+        { phase: 'lower', candidateAddress, cause: boolean.error },
+      ));
+    }
+    if (boolean.value) filtered.push(candidate);
+  }
+  return filtered;
+}
+
+function resolveInstructionFromCandidates(instruction, namespace, options) {
+  if (!instruction.from) {
+    const binding = options.contextualRoot ?? namespace.contextualRoot;
+    if (isBindingObject(binding)) return [binding];
+    const root = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+    if (!root.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED',
+        root.error.message,
+        { phase: 'lower', cause: root.error },
+      ));
+    }
+    return [root.binding];
+  }
+
+  const resolved = resolveAddress(instruction.from.address, namespace, options.resolve);
+  if (!resolved.ok) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED',
+      resolved.errors[0].message,
+      { phase: 'lower', cause: resolved.errors[0] },
+    ));
+  }
+  return resolved.bindings;
+}
+
+function lowerInstructionMutationForCandidate(mutation, candidate, namespace, options) {
+  switch (mutation.verb) {
+    case 'create': {
+      const destination = lowerCreateDestinationForCandidate(mutation.destination, candidate, namespace, options);
+      return withInstructionValueIntent({
+        op: 'create',
+        parent: destination.parent,
+        name: destination.name,
+      }, mutation.value);
+    }
+    case 'replace': {
+      const target = resolveInstructionExactAddress(mutation.target, candidate, namespace, options, 'target');
+      return withInstructionValueIntent({
+        op: 'replace',
+        target,
+      }, mutation.value);
+    }
+    case 'remove': {
+      const target = resolveInstructionExactAddress(mutation.target, candidate, namespace, options, 'target');
+      return { op: 'remove', target };
+    }
+    case 'insert': {
+      const container = resolveInstructionExactAddress(mutation.container, candidate, namespace, options, 'container');
+      return withInstructionValueIntent({
+        op: 'insert',
+        container,
+        placement: lowerInstructionPlacementForCandidate(mutation.placement, candidate, namespace, options),
+      }, mutation.value);
+    }
+    case 'move': {
+      const source = resolveInstructionExactAddress(mutation.source, candidate, namespace, options, 'source');
+      const container = resolveInstructionExactAddress(mutation.container, candidate, namespace, options, 'container');
+      return {
+        op: 'move',
+        source,
+        container,
+        placement: lowerInstructionPlacementForCandidate(mutation.placement, candidate, namespace, options),
+      };
+    }
+    default:
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_UNSUPPORTED_VERB',
+        `Unsupported instruction verb '${mutation.verb}'`,
+        { phase: 'lower' },
+      ));
+  }
+}
+
+function lowerCreateDestinationForCandidate(destination, candidate, namespace, options) {
+  if (destination.kind === 'member') {
+    const parent = getBindingAddress(candidate);
+    if (!parent) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_CANDIDATE_ADDRESS_UNAVAILABLE',
+        'Candidate binding does not expose a canonical address for create lowering',
+        { phase: 'lower' },
+      ));
+    }
+    return { parent, name: destination.name };
+  }
+  const split = splitCreateDestinationAddress(destination.address);
+  const parent = resolveInstructionExactAddress(
+    { type: 'instructionAddress', source: destination.canonical, address: split.parent, canonical: renderInstructionAddress(split.parent) },
+    candidate,
+    namespace,
+    options,
+    'parent',
+  );
+  return { parent, name: split.name };
+}
+
+function resolveInstructionExactAddress(instructionAddress, candidate, namespace, options, role) {
+  const address = instructionAddress.address;
+  if (!address.isExact) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_NON_EXACT_TARGET',
+      `Instruction ${role} address must be exact before lowering`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate) },
+    ));
+  }
+
+  const resolved = resolveAddress(address, namespace, {
+    ...(options.resolve ?? {}),
+    ...(address.root.kind === 'contextual' ? { contextualRoot: candidate, allowParentFromEffectiveRoot: true } : {}),
+  });
+  if (!resolved.ok) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_RESOLUTION_FAILED',
+      resolved.errors[0].message,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), cause: resolved.errors[0] },
+    ));
+  }
+  if (resolved.bindings.length === 0) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_MISS',
+      `Instruction ${role} address resolved no bindings`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  if (resolved.bindings.length > 1) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_MULTIPLICITY',
+      `Instruction ${role} address resolved multiple bindings`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  const canonical = getBindingAddress(resolved.bindings[0]);
+  if (!canonical) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_ADDRESS_UNAVAILABLE',
+      `Resolved instruction ${role} binding does not expose a canonical address`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  return canonical;
+}
+
+function lowerCreateDestinationDirect(destination) {
   if (destination.kind === 'member') {
     return { parent: '?', name: destination.name };
   }
-  const address = destination.address;
+  const split = splitCreateDestinationAddress(destination.address);
+  return { parent: renderAddress(split.parent), name: split.name };
+}
+
+function splitCreateDestinationAddress(address) {
   const finalSelector = address.selectors[address.selectors.length - 1];
   if (!finalSelector || finalSelector.type !== 'member') {
     throw new SansaInstructionLowerError(instructionLowerError(
@@ -1815,14 +2043,22 @@ function lowerCreateDestination(destination) {
     isExact: address.selectors.slice(0, -1).every(isExactSelector),
   };
   parent.canonical = renderAddress(parent);
-  return { parent: parent.canonical, name: finalSelector.name };
+  return { parent, name: finalSelector.name };
 }
 
-function lowerInstructionPlacement(placement) {
+function lowerInstructionPlacementDirect(placement) {
   if (placement.kind === 'first' || placement.kind === 'last') return placement.kind;
   return {
     kind: placement.kind,
     anchor: placement.anchor.address.canonical,
+  };
+}
+
+function lowerInstructionPlacementForCandidate(placement, candidate, namespace, options) {
+  if (placement.kind === 'first' || placement.kind === 'last') return placement.kind;
+  return {
+    kind: placement.kind,
+    anchor: resolveInstructionExactAddress(placement.anchor, candidate, namespace, options, 'anchor'),
   };
 }
 

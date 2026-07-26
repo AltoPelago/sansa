@@ -14,16 +14,84 @@ function parseBad(source, code) {
   assert.equal(result.errors[0].code, code);
 }
 
-function lowerOk(source) {
-  const result = lowerInstruction(source);
+function lowerOk(source, ...args) {
+  const result = lowerInstruction(source, ...args);
   assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   return result.request;
 }
 
-function lowerBad(source, code) {
-  const result = lowerInstruction(source);
+function lowerBad(source, code, ...args) {
+  const result = lowerInstruction(source, ...args);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, code);
+}
+
+function binding({ address, name, index, value, representationKind = 'object', semanticType, children = [] }) {
+  const entry = {
+    address,
+    ...(name === undefined ? {} : { name }),
+    ...(index === undefined ? {} : { index }),
+    ...(value === undefined ? {} : { value }),
+    representationKind,
+    ...(semanticType === undefined ? {} : { semanticType }),
+    children,
+  };
+  for (const child of children) child.parent = entry;
+  return entry;
+}
+
+function sampleNamespace() {
+  const item0 = binding({
+    address: '$.inventory.items[0]',
+    index: 0,
+    children: [
+      binding({ address: '$.inventory.items[0].sku', name: 'sku', value: 'A-100', representationKind: 'string', semanticType: 'string' }),
+      binding({ address: '$.inventory.items[0].qty', name: 'qty', value: 0, representationKind: 'number', semanticType: 'number' }),
+      binding({
+        address: '$.inventory.items[0].tags',
+        name: 'tags',
+        representationKind: 'list',
+        children: [
+          binding({ address: '$.inventory.items[0].tags[0]', index: 0, value: 'old', representationKind: 'string', semanticType: 'string' }),
+          binding({ address: '$.inventory.items[0].tags[1]', index: 1, value: 'clearance', representationKind: 'string', semanticType: 'string' }),
+        ],
+      }),
+    ],
+  });
+  const item1 = binding({
+    address: '$.inventory.items[1]',
+    index: 1,
+    children: [
+      binding({ address: '$.inventory.items[1].sku', name: 'sku', value: 'B-200', representationKind: 'string', semanticType: 'string' }),
+      binding({ address: '$.inventory.items[1].qty', name: 'qty', value: 4, representationKind: 'number', semanticType: 'number' }),
+      binding({
+        address: '$.inventory.items[1].tags',
+        name: 'tags',
+        representationKind: 'list',
+        children: [
+          binding({ address: '$.inventory.items[1].tags[0]', index: 0, value: 'new', representationKind: 'string', semanticType: 'string' }),
+        ],
+      }),
+    ],
+  });
+  const root = binding({
+    address: '$',
+    children: [
+      binding({
+        address: '$.inventory',
+        name: 'inventory',
+        children: [
+          binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
+        ],
+      }),
+    ],
+  });
+  return {
+    root,
+    contextualRoot: item0,
+    children: (entry) => entry.children,
+    parent: (entry) => entry.parent,
+  };
 }
 
 test('parses core instruction mutation verbs', () => {
@@ -135,6 +203,50 @@ test('lowers direct instructions to mutate request operations', () => {
   });
 });
 
+test('lowers query-shaped instructions through namespace candidates', () => {
+  const namespace = sampleNamespace();
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'where .qty == 0',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace), {
+    op: 'replace',
+    target: '$.inventory.items[0].qty',
+    datatype: 'int32',
+    kind: 'number',
+    value: 10,
+  });
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'create status with "active"',
+  ].join('\n'), namespace), [
+    { op: 'create', parent: '$.inventory.items[0]', name: 'status', kind: 'string', value: 'active' },
+    { op: 'create', parent: '$.inventory.items[1]', name: 'status', kind: 'string', value: 'active' },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'insert after .tags[0] in .tags with "sale"',
+  ].join('\n'), namespace), [
+    {
+      op: 'insert',
+      container: '$.inventory.items[0].tags',
+      placement: { kind: 'after', anchor: '$.inventory.items[0].tags[0]' },
+      kind: 'string',
+      value: 'sale',
+    },
+    {
+      op: 'insert',
+      container: '$.inventory.items[1].tags',
+      placement: { kind: 'after', anchor: '$.inventory.items[1].tags[0]' },
+      kind: 'string',
+      value: 'sale',
+    },
+  ]);
+});
+
 test('rejects invalid instruction parse seeds', () => {
   parseBad('', 'SANSA_INSTRUCTION_EMPTY');
   parseBad('from $.inventory.items.*', 'SANSA_INSTRUCTION_EXPECTED_MUTATION');
@@ -149,5 +261,6 @@ test('rejects invalid instruction parse seeds', () => {
 
 test('surfaces initial lowering boundary diagnostics', () => {
   lowerBad('create $.tags[2] with "sale"', 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER');
-  lowerBad('from $.inventory\ncreate status with "active"', 'SANSA_INSTRUCTION_LOWERING_REQUIRES_CANDIDATE_EVALUATION');
+  lowerBad('from $.inventory\ncreate status with "active"', 'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE');
+  lowerBad('from $.inventory.items.*\nreplace .missing with "x"', 'SANSA_INSTRUCTION_TARGET_MISS', sampleNamespace());
 });

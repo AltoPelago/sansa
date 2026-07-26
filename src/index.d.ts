@@ -596,7 +596,17 @@ export interface SansaMutationOperationResult<TBinding extends object = SansaRes
 
 export type SansaInstructionLowerErrorCode =
   | 'SANSA_INSTRUCTION_PARSE_FAILED'
+  | 'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE'
   | 'SANSA_INSTRUCTION_LOWERING_REQUIRES_CANDIDATE_EVALUATION'
+  | 'SANSA_INSTRUCTION_INVALID_VALUE_SEMANTICS_PROFILE'
+  | 'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED'
+  | 'SANSA_INSTRUCTION_WHERE_EVALUATION_FAILED'
+  | 'SANSA_INSTRUCTION_CANDIDATE_ADDRESS_UNAVAILABLE'
+  | 'SANSA_INSTRUCTION_TARGET_RESOLUTION_FAILED'
+  | 'SANSA_INSTRUCTION_TARGET_MISS'
+  | 'SANSA_INSTRUCTION_TARGET_MULTIPLICITY'
+  | 'SANSA_INSTRUCTION_TARGET_ADDRESS_UNAVAILABLE'
+  | 'SANSA_INSTRUCTION_NON_EXACT_TARGET'
   | 'SANSA_INSTRUCTION_UNSUPPORTED_VERB'
   | 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER';
 
@@ -609,12 +619,16 @@ export interface SansaInstructionLowerDiagnostic {
 
 export interface SansaLowerInstructionOptions {
   readonly parse?: SansaInstructionParseOptions;
+  readonly namespace?: SansaResolveNamespace;
+  readonly resolve?: SansaResolveOptions;
+  readonly contextualRoot?: SansaResolveBinding;
+  readonly valueSemantics?: AeonValueSemanticsProfileInput;
 }
 
 export type SansaLowerInstructionResult =
   | {
       readonly ok: true;
-      readonly request: SansaRequestedMutationOperation;
+      readonly request: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
       readonly diagnostics: readonly SansaInstructionLowerDiagnostic[];
       readonly warnings: readonly SansaWarning[];
     }
@@ -1160,6 +1174,11 @@ export function parseQueryExpressionOrThrow(input: string, options?: SansaQueryE
 export function parseInstruction(input: string, options?: SansaInstructionParseOptions): SansaInstructionParseResult;
 export function parseInstructionOrThrow(input: string, options?: SansaInstructionParseOptions): SansaInstruction;
 export function lowerInstruction(input: string | SansaInstruction, options?: SansaLowerInstructionOptions): SansaLowerInstructionResult;
+export function lowerInstruction(
+  input: string | SansaInstruction,
+  namespace: SansaResolveNamespace,
+  options?: Omit<SansaLowerInstructionOptions, 'namespace'>,
+): SansaLowerInstructionResult;
 export function evaluateQuery<TBinding extends object = SansaResolveBinding>(
   input: string | SansaQuery,
   namespace: SansaResolveNamespace<TBinding>,
