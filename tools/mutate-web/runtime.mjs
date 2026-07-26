@@ -1,4 +1,4 @@
-import { applyMutationPlan, planInstruction, planMutation } from '../../src/index.js';
+import { applyMutationPlan, planInstruction, planMutation, resolveAddress } from '../../src/index.js';
 import { namespaceFromAeonSource } from '../query-web/runtime.mjs';
 
 const HANDLE_PROPERTY = '__sansaMutateWorkbenchHandle';
@@ -38,6 +38,21 @@ export async function runMutationForWorkbench({
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       text: renderDiagnosticText(planResult.errors),
       errors: normalizeDiagnostics(planResult.errors),
+      source: renderBindingTree(root),
+    };
+  }
+
+  const policyResult = enforceMutationPolicyForWorkbench(planResult.plan, namespace, options.policySource);
+  if (!policyResult.ok) {
+    return {
+      ok: false,
+      mode,
+      requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
+      phase: 'policy',
+      ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
+      text: renderDiagnosticText(policyResult.errors),
+      errors: normalizeDiagnostics(policyResult.errors),
+      plan: summarizePlan(planResult.plan),
       source: renderBindingTree(root),
     };
   }
@@ -84,6 +99,177 @@ export async function runMutationForWorkbench({
       diagnostics: normalizeDiagnostics(applied.diagnostics ?? []),
     },
     source: renderBindingTree(root),
+  };
+}
+
+function enforceMutationPolicyForWorkbench(plan, namespace, policySource) {
+  if (policySource === undefined || policySource === null || String(policySource).trim().length === 0) {
+    return { ok: true, diagnostics: [] };
+  }
+
+  let policy;
+  try {
+    policy = JSON.parse(String(policySource));
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [workbenchPolicyError(
+        'SANSA_MUTATE_POLICY_INVALID_JSON',
+        error instanceof Error ? error.message : 'Mutation policy JSON is invalid',
+      )],
+    };
+  }
+
+  const normalized = normalizeWorkbenchPolicy(policy);
+  if (!normalized.ok) return { ok: false, errors: [normalized.error] };
+
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const decision = authorizeWorkbenchOperation(operation, operationIndex, normalized.policy, namespace);
+    if (!decision.ok) return { ok: false, errors: [decision.error] };
+  }
+  return { ok: true, diagnostics: [] };
+}
+
+function normalizeWorkbenchPolicy(policy) {
+  if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+    return {
+      ok: false,
+      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy must be an object'),
+    };
+  }
+  if (policy.default !== undefined && policy.default !== 'allow' && policy.default !== 'deny') {
+    return {
+      ok: false,
+      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy default must be "allow" or "deny"'),
+    };
+  }
+  if (!Array.isArray(policy.rules)) {
+    return {
+      ok: false,
+      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be a list'),
+    };
+  }
+  return {
+    ok: true,
+    policy: {
+      default: policy.default ?? 'deny',
+      rules: policy.rules,
+    },
+  };
+}
+
+function authorizeWorkbenchOperation(operation, operationIndex, policy, namespace) {
+  for (let ruleIndex = 0; ruleIndex < policy.rules.length; ruleIndex += 1) {
+    const rule = policy.rules[ruleIndex];
+    const match = workbenchPolicyRuleMatches(operation, rule, namespace);
+    if (!match.ok) {
+      return {
+        ok: false,
+        error: workbenchPolicyError(match.code, match.message, { operationIndex, ruleIndex }),
+      };
+    }
+    if (!match.matched) continue;
+    if (rule.allow === false) {
+      return {
+        ok: false,
+        error: workbenchPolicyError(
+          'SANSA_MUTATE_POLICY_DENIED',
+          `Mutation policy rule ${ruleIndex} denies ${operation.op}`,
+          { operationIndex, ruleIndex },
+        ),
+      };
+    }
+    return { ok: true };
+  }
+
+  if (policy.default === 'allow') return { ok: true };
+  return {
+    ok: false,
+    error: workbenchPolicyError(
+      'SANSA_MUTATE_POLICY_DENIED',
+      `Mutation policy has no allow rule for ${operation.op}`,
+      { operationIndex },
+    ),
+  };
+}
+
+function workbenchPolicyRuleMatches(operation, rule, namespace) {
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+    return { ok: false, code: 'SANSA_MUTATE_POLICY_INVALID', message: 'Mutation policy rules must be objects' };
+  }
+  if (!matchesPolicyList(rule.operations ?? rule.operation, operation.op)) return { ok: true, matched: false };
+  if (!matchesPolicyList(rule.names ?? rule.name, operation.name)) return { ok: true, matched: false };
+  if (!matchesPolicyList(rule.datatypes ?? rule.datatype, effectiveMutationDatatype(operation))) return { ok: true, matched: false };
+  if (!matchesPolicyList(rule.kinds ?? rule.kind, effectiveMutationKind(operation))) return { ok: true, matched: false };
+  if (!matchesPolicyValue(rule.values ?? rule.value, operation.value)) return { ok: true, matched: false };
+
+  for (const role of ['target', 'parent', 'source', 'container']) {
+    if (rule[role] === undefined) continue;
+    const target = operation[role];
+    if (!target?.canonicalAddress) return { ok: true, matched: false };
+    const addressMatch = workbenchPolicyAddressMatches(rule[role], target.canonicalAddress, namespace);
+    if (!addressMatch.ok || !addressMatch.matched) return addressMatch;
+  }
+  return { ok: true, matched: true };
+}
+
+function workbenchPolicyAddressMatches(expression, canonicalAddress, namespace) {
+  if (typeof expression !== 'string' || expression.trim().length === 0) {
+    return { ok: false, code: 'SANSA_MUTATE_POLICY_INVALID', message: 'Mutation policy address matchers must be non-empty strings' };
+  }
+  const resolved = resolveAddress(expression, namespace);
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      code: 'SANSA_MUTATE_POLICY_INVALID_ADDRESS',
+      message: `Mutation policy address matcher '${expression}' is invalid or unsupported`,
+    };
+  }
+  return {
+    ok: true,
+    matched: resolved.bindings.some((binding) => binding.address === canonicalAddress),
+  };
+}
+
+function matchesPolicyList(expected, actual) {
+  if (expected === undefined) return true;
+  const expectedList = Array.isArray(expected) ? expected : [expected];
+  if (expectedList.includes('*')) return true;
+  if (actual === undefined) return false;
+  return expectedList.includes(actual);
+}
+
+function matchesPolicyValue(expected, actual) {
+  if (expected === undefined) return true;
+  const expectedList = Array.isArray(expected) ? expected : [expected];
+  return expectedList.some((entry) => Object.is(entry, actual));
+}
+
+function effectiveMutationDatatype(operation) {
+  if (operation.datatype !== undefined) return operation.datatype;
+  if (operation.op === 'replace') return operation.target?.binding?.semanticType;
+  if (operation.op === 'create' || operation.op === 'insert') return semanticTypeFromJsonValue(operation.value);
+  return undefined;
+}
+
+function effectiveMutationKind(operation) {
+  if (operation.kind !== undefined) return operation.kind;
+  if (operation.op === 'replace') {
+    return operation.target?.binding?.scalarKind
+      ?? operation.target?.binding?.representationKind
+      ?? operation.target?.binding?.semanticType;
+  }
+  if (operation.op === 'create' || operation.op === 'insert') return semanticTypeFromJsonValue(operation.value);
+  return undefined;
+}
+
+function workbenchPolicyError(code, message, details = {}) {
+  return {
+    code,
+    message,
+    phase: 'policy',
+    ...details,
   };
 }
 
@@ -809,6 +995,7 @@ function normalizeDiagnostics(errors) {
     ...(typeof error.phase === 'string' ? { phase: error.phase } : {}),
     ...(Number.isInteger(error.operationIndex) ? { operationIndex: error.operationIndex } : {}),
     ...(Number.isInteger(error.preconditionIndex) ? { preconditionIndex: error.preconditionIndex } : {}),
+    ...(Number.isInteger(error.ruleIndex) ? { ruleIndex: error.ruleIndex } : {}),
     ...(typeof error.budget === 'string' ? { budget: error.budget } : {}),
     ...(Number.isSafeInteger(error.limit) ? { limit: error.limit } : {}),
     ...(Number.isSafeInteger(error.observed) ? { observed: error.observed } : {}),

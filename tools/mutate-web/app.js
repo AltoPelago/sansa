@@ -12,6 +12,10 @@ const planButton = document.querySelector('#planButton');
 const applyButton = document.querySelector('#applyButton');
 const requireAtomicInput = document.querySelector('#requireAtomic');
 const recheckPreconditionsInput = document.querySelector('#recheckPreconditions');
+const enforcePolicyInput = document.querySelector('#enforcePolicy');
+const policyInput = document.querySelector('#policyInput');
+const policyStatus = document.querySelector('#policyStatus');
+const policyTabButton = document.querySelector('#detailTabPolicy');
 const maxOperationsInput = document.querySelector('#maxOperations');
 const maxPreconditionsInput = document.querySelector('#maxPreconditions');
 const maxValueNodesInput = document.querySelector('#maxValueNodes');
@@ -20,7 +24,52 @@ const maxStringLengthInput = document.querySelector('#maxStringLength');
 const maxPositionIndexInput = document.querySelector('#maxPositionIndex');
 const optionInputs = Array.from(document.querySelectorAll('.budget-row input'));
 const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]'));
+const detailTabButtons = Array.from(document.querySelectorAll('[data-detail-tab]'));
 const requestKindInputs = Array.from(document.querySelectorAll('input[name="requestKind"]'));
+
+const defaultPolicy = {
+  default: 'deny',
+  rules: [
+    {
+      allow: true,
+      operations: ['replace'],
+      target: '$.inventory.items.*.sku',
+      datatype: 'string',
+    },
+    {
+      allow: true,
+      operations: ['replace'],
+      target: '$.inventory.items.*.qty',
+      datatypes: ['number', 'int32'],
+    },
+    {
+      allow: true,
+      operations: ['create'],
+      parent: '$.inventory.items.*',
+      names: ['status'],
+      datatype: 'string',
+      values: ['pending', 'active'],
+    },
+    {
+      allow: true,
+      operations: ['remove'],
+      target: '$.inventory.items.*.metric',
+    },
+    {
+      allow: true,
+      operations: ['insert'],
+      container: '$.inventory.items.*.roles',
+      datatype: 'string',
+      values: ['admin', 'user'],
+    },
+    {
+      allow: true,
+      operations: ['move'],
+      source: '$.inventory.items.*.roles.*',
+      container: '$.inventory.items.*.roles',
+    },
+  ],
+};
 
 const examples = [
   {
@@ -518,9 +567,13 @@ const examples = [
 let defaultSource = '';
 let lastPayload = null;
 let activeSourceTab = 'input';
+let activeDetailTab = 'diagnostics';
 
 await loadDefaults();
 renderExamples();
+policyInput.value = JSON.stringify(defaultPolicy, null, 2);
+renderPolicyControls();
+renderDetailPanel();
 setExample(examples[0].id);
 await runMutation('plan');
 
@@ -557,10 +610,28 @@ for (const input of requestKindInputs) {
   });
 }
 
+enforcePolicyInput.addEventListener('change', () => {
+  activeDetailTab = enforcePolicyInput.checked ? 'policy' : 'diagnostics';
+  renderPolicyControls();
+  renderDetailPanel();
+  void runMutation('plan');
+});
+
+policyInput.addEventListener('input', () => {
+  policyStatus.textContent = enforcePolicyInput.checked ? 'edited policy' : 'disabled';
+});
+
 for (const button of sourceTabButtons) {
   button.addEventListener('click', () => {
     activeSourceTab = button.dataset.sourceTab;
     renderSourcePanel();
+  });
+}
+
+for (const button of detailTabButtons) {
+  button.addEventListener('click', () => {
+    activeDetailTab = button.dataset.detailTab;
+    renderDetailPanel();
   });
 }
 
@@ -696,11 +767,27 @@ function renderSourceResult(payload) {
     ?? 'Run Plan or Apply to render the current source result.';
 }
 
+function renderDetailPanel() {
+  if (!enforcePolicyInput.checked && activeDetailTab === 'policy') {
+    activeDetailTab = 'diagnostics';
+  }
+  for (const button of detailTabButtons) {
+    const tab = button.dataset.detailTab;
+    const selected = tab === activeDetailTab;
+    button.setAttribute('aria-selected', selected ? 'true' : 'false');
+  }
+  resultOutput.classList.toggle('hidden', activeDetailTab !== 'diagnostics');
+  policyInput.classList.toggle('hidden', activeDetailTab !== 'policy');
+}
+
 function mutateOptions() {
   const options = {
     requireAtomic: requireAtomicInput.checked,
     recheckPreconditions: recheckPreconditionsInput.checked,
   };
+  if (enforcePolicyInput.checked) {
+    options.policySource = policyInput.value;
+  }
   for (const input of optionInputs) {
     const value = input.value.trim();
     if (value.length === 0) continue;
@@ -708,6 +795,11 @@ function mutateOptions() {
     if (Number.isSafeInteger(number) && number >= 0) options[input.id] = number;
   }
   return options;
+}
+
+function renderPolicyControls() {
+  policyTabButton.classList.toggle('hidden', !enforcePolicyInput.checked);
+  policyStatus.textContent = enforcePolicyInput.checked ? 'enabled' : 'disabled';
 }
 
 function requestKind() {

@@ -74,6 +74,10 @@
               <input type="checkbox" id="recheckPreconditions" checked>
               Recheck
             </label>
+            <label>
+              <input type="checkbox" id="enforcePolicy">
+              Policy
+            </label>
           </div>
 
           <div class="budget-row" role="group" aria-label="Mutation budgets">
@@ -103,11 +107,21 @@
             </label>
           </div>
 
-          <div class="panel-head results-head">
-            <label for="resultOutput">Diagnostics</label>
-            <span id="resultStatus">ready</span>
+          <div class="detail-tabs" role="tablist" aria-label="Mutation detail views">
+            <button id="detailTabDiagnostics" type="button" role="tab" aria-selected="true" aria-controls="resultOutput" data-detail-tab="diagnostics">
+              Diagnostics
+              <span id="resultStatus">ready</span>
+            </button>
+            <button id="detailTabPolicy" type="button" role="tab" aria-selected="false" aria-controls="policyInput" data-detail-tab="policy" class="hidden">
+              Policy
+              <span id="policyStatus">disabled</span>
+            </button>
           </div>
-          <pre id="resultOutput" tabindex="0"></pre>
+
+          <div class="detail-view">
+            <pre id="resultOutput" tabindex="0"></pre>
+            <textarea id="policyInput" class="hidden" spellcheck="false"></textarea>
+          </div>
         </section>
       </section>
     </main>
