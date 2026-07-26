@@ -56,9 +56,39 @@ const examples = [
     requestKind: 'instruction',
     request: [
       'from $.inventory.items.*',
-      'where .sku == "B-200"',
-      'create status with "active"',
+      'where .sku == "C-300"',
+      'create status with "pending"',
     ].join('\n'),
+  },
+  {
+    id: 'instruction-create-attribute',
+    label: 'Instruction Attribute',
+    requestKind: 'instruction',
+    request: 'create $.types.color.@.selector with :sansa, $.inventory.items.*',
+  },
+  {
+    id: 'instruction-create-kind',
+    label: 'Instruction Kind',
+    requestKind: 'instruction',
+    request: 'create $.types.brand with :brandColor, #ff00aa',
+  },
+  {
+    id: 'instruction-insert',
+    label: 'Instruction Insert',
+    requestKind: 'instruction',
+    request: 'insert last in $.inventory.items[1].roles with "admin"',
+  },
+  {
+    id: 'instruction-move',
+    label: 'Instruction Move',
+    requestKind: 'instruction',
+    request: 'move $.inventory.items[0].roles[0] after $.inventory.items[0].roles[1] in $.inventory.items[0].roles',
+  },
+  {
+    id: 'instruction-remove',
+    label: 'Instruction Remove',
+    requestKind: 'instruction',
+    request: 'remove $.inventory.items[2].metric',
   },
   {
     id: 'create-status',

@@ -134,6 +134,58 @@ testAeonRuntime('mutate web runtime applies instruction requests', async () => {
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
+testAeonRuntime('mutate web runtime applies representative instruction example forms', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const examples = [
+    {
+      instruction: [
+        'from $.inventory.items.*',
+        'where .sku == "C-300"',
+        'create status with "pending"',
+      ].join('\n'),
+      match: /status:string = "pending"/,
+    },
+    {
+      instruction: 'create $.types.color.@.selector with :sansa, $.inventory.items.*',
+      match: /color@\{selector:sansa = \$\.inventory\.items\.\*\}:hex = #ff00aa/,
+    },
+    {
+      instruction: 'create $.types.brand with :brandColor, #ff00aa',
+      match: /brand:brandColor = #ff00aa/,
+    },
+    {
+      instruction: 'insert last in $.inventory.items[1].roles with "admin"',
+      match: /roles:list<string> = \[\s*"user"\s*"admin"\s*\]/,
+    },
+    {
+      instruction: 'move $.inventory.items[0].roles[0] after $.inventory.items[0].roles[1] in $.inventory.items[0].roles',
+      match: /roles:list<string> = \[\s*"user"\s*"admin"\s*\]/,
+    },
+    {
+      instruction: 'remove $.inventory.items[2].metric',
+      reject: /metric:nan<number> = NaN/,
+    },
+  ];
+
+  for (const example of examples) {
+    const result = await runMutationForWorkbench({
+      source,
+      mode: 'apply',
+      requestKind: 'instruction',
+      requestSource: example.instruction,
+    });
+
+    assert.equal(result.ok, true, `${example.instruction}\n${JSON.stringify(result.errors ?? [])}`);
+    assert.equal(result.requestKind, 'instruction');
+    assert.match(result.text, /applied: 1/);
+    if (example.match) assert.match(result.source, example.match);
+    if (example.reject) assert.doesNotMatch(result.source, example.reject);
+
+    const rendered = await namespaceFromAeonSource(result.source);
+    assert.equal(rendered.ok, true, `${example.instruction}\n${JSON.stringify(rendered.errors ?? [])}`);
+  }
+});
+
 testAeonRuntime('mutate web runtime reports invalid mutation JSON', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

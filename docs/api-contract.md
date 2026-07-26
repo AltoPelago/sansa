@@ -458,7 +458,22 @@ npm run query:web
 
 The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
-The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon` source, a structured JSON mutation request, plan/apply mode, operation/precondition/value mutation budgets, parse position-limit input, and apply options such as `requireAtomic` and `recheckPreconditions`. The endpoint compiles the AEON source into a fresh host-neutral namespace for each request, layers an in-memory mutation adapter over that namespace, and returns the structured plan/result plus an AEON-ish rendered source tree after apply. It is a technical testing surface for the structured API, not a human-authored mutation language or canonical AEON source rewriter.
+The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon`
+source, plan/apply mode, operation/precondition/value mutation budgets, parse
+position-limit input, apply options such as `requireAtomic` and
+`recheckPreconditions`, and one of two request input forms:
+
+- `requestKind: "structured"` with a structured JSON mutation request, which
+  runs `planMutation(...)` directly.
+- `requestKind: "instruction"` with proposal-stage SANSA Instruction source,
+  which runs `planInstruction(...)` and then uses the returned plan for the
+  same preview/apply path.
+
+The endpoint compiles the AEON source into a fresh host-neutral namespace for
+each request, layers an in-memory mutation adapter over that namespace, and
+returns the structured plan/result plus an AEON-ish rendered source tree after
+apply. It is a technical testing surface for structured mutation requests and
+proposal-stage instructions, not a canonical AEON source rewriter.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 
