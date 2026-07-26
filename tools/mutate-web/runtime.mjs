@@ -670,6 +670,7 @@ function replaceBindingContents(target, replacement) {
     address: target.address,
     parent: target.parent,
     handle: target[HANDLE_PROPERTY],
+    attributeSpace: target.attributeSpace,
   };
   for (const key of Object.keys(target)) delete target[key];
   Object.assign(target, replacement, {
@@ -677,6 +678,7 @@ function replaceBindingContents(target, replacement) {
     ...(preserved.index === undefined ? {} : { index: preserved.index }),
     address: preserved.address,
     parent: preserved.parent,
+    attributeSpace: replacement.attributeSpace ?? preserved.attributeSpace,
   });
   Object.defineProperty(target, HANDLE_PROPERTY, {
     value: preserved.handle,
@@ -684,6 +686,7 @@ function replaceBindingContents(target, replacement) {
     configurable: true,
   });
   for (const child of target.children ?? []) child.parent = target;
+  if (target.attributeSpace) target.attributeSpace.parent = target;
 }
 
 function placementIndex(container, placement) {
