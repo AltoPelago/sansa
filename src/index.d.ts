@@ -408,6 +408,12 @@ export type SansaPlanMutationResult<TBinding extends object = SansaResolveBindin
   | { readonly ok: true; readonly plan: SansaMutationPlan<TBinding>; readonly diagnostics: readonly SansaMutateDiagnostic[] }
   | { readonly ok: false; readonly errors: readonly SansaMutateDiagnostic[] };
 
+/**
+ * Current-process mutation execution artifact.
+ *
+ * Plans retain live resolver bindings and local adapter continuity artifacts.
+ * They are inspectable but are not a portable serialized plan format.
+ */
 export interface SansaMutationPlan<TBinding extends object = SansaResolveBinding> {
   readonly type: 'SansaMutationPlan';
   readonly planVersion: 'sansa.mutate.plan.v1';
@@ -433,6 +439,12 @@ export type SansaMutationOperation<TBinding extends object = SansaResolveBinding
   | SansaInsertMutationOperation<TBinding>
   | SansaMoveMutationOperation<TBinding>;
 
+/**
+ * Exact binding reference captured during planning.
+ *
+ * `binding`, `bindingHandle`, and `observedState` are local namespace-adapter
+ * artifacts used for same-process stale-target checks.
+ */
 export interface SansaMutationTarget<TBinding extends object = SansaResolveBinding> {
   readonly requestedAddress: string;
   readonly canonicalAddress: string;
