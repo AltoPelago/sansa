@@ -214,6 +214,10 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
       match: /settingsInstruction:object = \{\s*enabled:boolean = true\s*\}/,
     },
     {
+      instruction: 'create $.types.settingsCommaInstruction with :object, { enabled = true, status = false }',
+      match: /settingsCommaInstruction:object = \{\s*enabled:boolean = true\s*status:boolean = false\s*\}/,
+    },
+    {
       instruction: 'create $.types.aliasesInstruction with :list<string>, ["adapter", "driver"]',
       match: /aliasesInstruction:list<string> = \[\s*"adapter"\s*"driver"\s*\]/,
     },

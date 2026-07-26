@@ -5025,8 +5025,8 @@ class InstructionParser {
 
   parseObjectValueLiteral(source, offset) {
     const body = unwrapInstructionDelimitedLiteral(source, '{', '}', offset);
-    const fields = splitProjectionFields(body).map((field) => {
-      const value = this.parseInstructionValue(field.expression, offset + 1 + body.indexOf(field.expression));
+    const fields = splitInstructionObjectFields(body).map((field) => {
+      const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset);
       return { name: field.name, value };
     });
     return {
@@ -6496,6 +6496,43 @@ function splitProjectionFields(source) {
   return fields;
 }
 
+function splitInstructionObjectFields(source) {
+  const fields = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (cursor >= source.length) break;
+    if (source[cursor] === ',') {
+      throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    const nameStart = cursor;
+    if (!isIdentifierStart(source[cursor] ?? '')) {
+      throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    cursor += 1;
+    while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
+    const name = source.slice(nameStart, cursor);
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (source[cursor] !== '=') {
+      throw new SansaParseError("Expected '=' after object field name", cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    cursor += 1;
+    const expressionStart = cursor;
+    const nextField = findNextInstructionObjectField(source, cursor);
+    const expressionEnd = nextField < 0 ? source.length : nextField;
+    const expressionSource = source.slice(expressionStart, expressionEnd);
+    const expressionOffset = expressionStart + firstNonLayoutOffset(expressionSource);
+    const expression = expressionSource.trim();
+    if (expression.length === 0) {
+      throw new SansaParseError('Expected object field value', expressionStart, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    fields.push({ name, expression, expressionOffset });
+    cursor = expressionEnd;
+    if (source[cursor] === ',') cursor += 1;
+  }
+  return fields;
+}
+
 function findNextProjectionField(source, start) {
   let quote = null;
   let parenDepth = 0;
@@ -6536,6 +6573,51 @@ function findNextProjectionField(source, start) {
     index = afterName - 1;
   }
   return -1;
+}
+
+function findNextInstructionObjectField(source, start) {
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+
+    if (parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) {
+      continue;
+    }
+    if (char === ',' && isInstructionObjectFieldStart(source, index + 1)) return index;
+    if (isLayout(char) && isInstructionObjectFieldStart(source, index)) return index;
+  }
+  return -1;
+}
+
+function isInstructionObjectFieldStart(source, start) {
+  let cursor = start;
+  while (isLayout(source[cursor] ?? '')) cursor += 1;
+  if (!isIdentifierStart(source[cursor] ?? '')) return false;
+  cursor += 1;
+  while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
+  while (isLayout(source[cursor] ?? '')) cursor += 1;
+  return source[cursor] === '=' && source[cursor + 1] !== '=';
 }
 
 function isComparisonStart(char) {

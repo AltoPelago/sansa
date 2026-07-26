@@ -192,6 +192,17 @@ test('parses instruction container value literals', () => {
   assert.equal(object.mutation.value.kind, 'object');
   assert.deepEqual(object.mutation.value.value, { enabled: true });
 
+  const objectWithComma = parseOk('create $.types.settings with :object, { enabled = true, status = false }');
+  assert.equal(objectWithComma.mutation.value.datatype, 'object');
+  assert.equal(objectWithComma.mutation.value.kind, 'object');
+  assert.deepEqual(objectWithComma.mutation.value.value, { enabled: true, status: false });
+  assert.equal(objectWithComma.mutation.value.literal.canonical, '{ enabled = true status = false }');
+
+  const objectWithTypedComma = parseOk('create $.types.settings with :object, { csv = :csv[","], "sku,name", status = false }');
+  assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.datatype, 'csv[","]');
+  assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.kind, 'string');
+  assert.deepEqual(objectWithTypedComma.mutation.value.value, { csv: 'sku,name', status: false });
+
   const list = parseOk('create $.types.aliases with :list<string>, ["adapter", "driver"]');
   assert.equal(list.mutation.value.datatype, 'list<string>');
   assert.equal(list.mutation.value.kind, 'list');
