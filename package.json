@@ -13,7 +13,8 @@
     }
   },
   "bin": {
-    "sansa-query": "./scripts/query.mjs"
+    "sansa-query": "./scripts/query.mjs",
+    "sansa-instruction": "./scripts/instruction.mjs"
   },
   "files": [
     "src",
@@ -53,6 +54,7 @@
     "cts:query": "node scripts/cts-query.mjs",
     "cts:query:experimental": "node scripts/cts-query.mjs --include-experimental",
     "cts:mutate": "node scripts/cts-mutate.mjs",
+    "instruction": "node scripts/instruction.mjs",
     "query": "node scripts/query.mjs",
     "query:web": "node scripts/query-web.mjs",
     "mutate:web": "node scripts/query-web.mjs",

@@ -1,10 +1,10 @@
 # SANSA
 
-Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, query, and mutation-planning model.
+Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, query, instruction, and mutation-planning model.
 
-This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query, with an experimental structured-plan API for SANSA.Mutate. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for concrete value predicates, equality, ordering behavior, and string profile hooks. The experimental Mutate API plans exact create, replace, remove, insert, and same-container move operations, preserves datatype/kind value intent, enforces operation/precondition/value budgets, and applies plans only through host-supplied mutation hooks. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
+This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query, with experimental SANSA.Instruction parsing/lowering and an experimental structured-plan API for SANSA.Mutate. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for concrete value predicates, equality, ordering behavior, and string profile hooks. The experimental Instruction API parses human-authored change intents, lowers them into structured Mutate requests, and can bridge into mutation planning. The experimental Mutate API plans exact create, replace, remove, insert, and same-container move operations, preserves datatype/kind value intent, enforces operation/precondition/value budgets, and applies plans only through host-supplied mutation hooks. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, and an experimental `SANSA.Mutate` plan API.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, experimental `SANSA.Instruction` parse/lower/plan bridging, and an experimental `SANSA.Mutate` plan API.
 
 ## Current Scope
 
@@ -27,6 +27,7 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 - experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
 - experimental SANSA.Mutate value-intent preservation and operation, precondition, and value budgets
 - experimental mutation apply through explicit host mutation hooks with stale-target checks
+- experimental SANSA.Instruction parsing, candidate-relative lowering, and mutation-planner bridging for conservative mutation verbs
 
 Host implementations decide which qualifier surface they accept. This parser accepts the SANSA qualifier grammar and preserves it structurally.
 
@@ -90,6 +91,20 @@ case-mapping behavior under different consumer contexts.
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).
 
+## Instruction Tool
+
+The package includes an experimental instruction tool for exercising
+SANSA.Instruction parse, lower, and plan behavior:
+
+```bash
+npm run instruction -- --mode parse --instruction 'replace $.inventory.items[1].qty with :int32 10'
+npm run instruction -- --mode lower --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+```
+
+The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json).
+Full details live in [docs/instruction-tool.md](docs/instruction-tool.md).
+
 ## Release Notes
 
 Release history lives in [CHANGELOG.md](CHANGELOG.md).
@@ -101,7 +116,10 @@ import {
   evaluateQuery,
   evaluateValueSemanticsOperation,
   applyMutationPlan,
+  lowerInstruction,
   parseAddress,
+  parseInstruction,
+  planInstruction,
   planMutation,
   parseQuery,
   parseQueryExpression,
@@ -183,6 +201,15 @@ if (mutation.ok) {
     }
   });
   console.log(applied.ok);
+}
+
+const instructionPlan = planInstruction(
+  'replace $.inventory.sku with "B-200"',
+  { root }
+);
+
+if (instructionPlan.ok) {
+  console.log(instructionPlan.plan.operations.length);
 }
 ```
 

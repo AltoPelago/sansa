@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { lowerInstruction, parseInstruction } from '../src/index.js';
+import { lowerInstruction, parseInstruction, planInstruction } from '../src/index.js';
 
 function parseOk(source) {
   const result = parseInstruction(source);
@@ -24,6 +24,20 @@ function lowerBad(source, code, ...args) {
   const result = lowerInstruction(source, ...args);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, code);
+}
+
+function planOk(source, namespace, options) {
+  const result = planInstruction(source, namespace, options);
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  return result;
+}
+
+function planBad(source, namespace, phase, code, options) {
+  const result = planInstruction(source, namespace, options);
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, phase);
+  assert.equal(result.errors[0].code, code);
+  return result;
 }
 
 function binding({ address, name, index, value, representationKind = 'object', semanticType, children = [] }) {
@@ -244,6 +258,51 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       kind: 'string',
       value: 'sale',
     },
+  ]);
+});
+
+test('plans lowered instructions through the mutate planner', () => {
+  const namespace = sampleNamespace();
+
+  const replace = planOk([
+    'from $.inventory.items.*',
+    'where .qty == 0',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace);
+  assert.equal(replace.plan.operations.length, 1);
+  assert.equal(replace.plan.operations[0].op, 'replace');
+  assert.equal(replace.plan.operations[0].target.canonicalAddress, '$.inventory.items[0].qty');
+  assert.equal(replace.plan.operations[0].datatype, 'int32');
+  assert.equal(replace.plan.operations[0].value, 10);
+  assert.equal(replace.plan.sourceProvenance.type, 'SansaInstruction');
+
+  const create = planOk([
+    'from $.inventory.items.*',
+    'create status with "active"',
+  ].join('\n'), namespace);
+  assert.deepEqual(create.plan.operations.map((operation) => ({
+    op: operation.op,
+    parent: operation.parent.canonicalAddress,
+    name: operation.name,
+    value: operation.value,
+  })), [
+    { op: 'create', parent: '$.inventory.items[0]', name: 'status', value: 'active' },
+    { op: 'create', parent: '$.inventory.items[1]', name: 'status', value: 'active' },
+  ]);
+});
+
+test('preserves instruction lower and mutate plan failure phases', () => {
+  const namespace = sampleNamespace();
+
+  planBad('from $.inventory.items.*\nreplace .missing with "x"', namespace, 'lower', 'SANSA_INSTRUCTION_TARGET_MISS');
+
+  const duplicate = planBad([
+    'from $.inventory.items.*',
+    'create sku with "duplicate"',
+  ].join('\n'), namespace, 'plan', 'SANSA_MUTATE_TARGET_EXISTS');
+  assert.deepEqual(duplicate.loweredRequest, [
+    { op: 'create', parent: '$.inventory.items[0]', name: 'sku', kind: 'string', value: 'duplicate' },
+    { op: 'create', parent: '$.inventory.items[1]', name: 'sku', kind: 'string', value: 'duplicate' },
   ]);
 });
 

@@ -189,6 +189,43 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
   }
 }
 
+export function planInstruction(input, namespace, options = {}) {
+  const lowered = lowerInstruction(input, namespace, options);
+  if (!lowered.ok) {
+    return {
+      ok: false,
+      phase: 'lower',
+      errors: lowered.errors,
+    };
+  }
+
+  const operations = Array.isArray(lowered.request) ? lowered.request : [lowered.request];
+  const request = {
+    operations,
+    provenance: {
+      type: 'SansaInstruction',
+      source: typeof input === 'string' ? input : input?.canonical,
+    },
+  };
+  const planned = planMutation(request, namespace, options.mutate ?? options);
+  if (!planned.ok) {
+    return {
+      ok: false,
+      phase: 'plan',
+      loweredRequest: lowered.request,
+      errors: planned.errors,
+      warnings: lowered.warnings ?? [],
+    };
+  }
+  return {
+    ok: true,
+    plan: planned.plan,
+    loweredRequest: lowered.request,
+    diagnostics: planned.diagnostics,
+    warnings: lowered.warnings ?? [],
+  };
+}
+
 export const aeonValueSemanticsDefaultProfile = Object.freeze({
   id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
   stringOrder: CODEPOINT_STRING_PROFILE_ID,

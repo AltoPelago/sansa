@@ -72,6 +72,16 @@ source input plus a structured JSON mutation request editor, then runs
 `planMutation(...)` or `applyMutationPlan(...)` against a fresh in-memory
 namespace for each request.
 
+For command-line testing of proposal-stage SANSA.Instruction, use the
+standalone Instruction tool:
+
+```bash
+npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+```
+
+It uses the same default JSON fixture as the Query CLI and can also load AEON
+fixtures. See [instruction-tool.md](instruction-tool.md) for details.
+
 The workbench defaults to [../fixtures/query-inventory.aeon](../fixtures/query-inventory.aeon),
 derives a SANSA resolver namespace from the optional AEON TypeScript Core
 runtime, and runs SANSA.Query over that derived graph. It also includes a params

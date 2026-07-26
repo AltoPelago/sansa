@@ -1,10 +1,10 @@
 # SANSA Parser API Contract
 
-Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental mutation-plan API, and standalone query tooling slices.
+Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental instruction parse/lower/plan bridge, experimental mutation-plan API, and standalone query/instruction tooling slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental mutation planner constructs exact-target mutation plans and applies them only through host-supplied mutation hooks. The package does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental instruction parser validates human-authored change intents and can lower them into structured mutation requests before handing them to the mutation planner. The experimental mutation planner constructs exact-target mutation plans and applies them only through host-supplied mutation hooks. The package does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, and an experimental `SANSA.Mutate` plan API.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, experimental `SANSA.Instruction` parsing/lowering/planning bridge behavior, and an experimental `SANSA.Mutate` plan API.
 
 CTS lanes:
 
@@ -28,6 +28,10 @@ parseQuery(input, options?)
 parseQueryOrThrow(input, options?)
 parseQueryExpression(input, options?)
 parseQueryExpressionOrThrow(input, options?)
+parseInstruction(input, options?)
+parseInstructionOrThrow(input, options?)
+lowerInstruction(input, namespaceOrOptions?, options?)
+planInstruction(input, namespace, options?)
 evaluateQuery(input, namespace, options?)
 evaluateValueSemanticsOperation(operation, input)
 resolveAddress(input, namespace, options?)
@@ -66,6 +70,57 @@ renderQualifierTerm(term)
 ```
 
 `parseQueryExpressionOrThrow` returns `expression` or throws `SansaParseError`.
+
+`parseInstruction` returns a structural `SansaInstruction` model:
+
+```js
+{ ok: true, instruction }
+{ ok: false, errors: [{ code, message, index }] }
+```
+
+`parseInstructionOrThrow` returns `instruction` or throws `SansaParseError`.
+
+`lowerInstruction` accepts either an instruction string or parsed
+`SansaInstruction`. Direct instructions lower without a namespace when their
+targets are already absolute. Query-shaped instructions with `from` or `where`
+require a host namespace so candidates can be resolved and candidate-relative
+targets can become exact structured mutation requests:
+
+```js
+lowerInstruction(
+  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nreplace .qty with :int32, 10",
+  namespace
+)
+```
+
+Successful lowering returns one requested mutation operation or an operation
+list:
+
+```js
+{ ok: true, request, diagnostics, warnings }
+{ ok: false, errors }
+```
+
+`planInstruction` preserves the same boundary, then calls `planMutation(...)`
+with the lowered structured request:
+
+```js
+planInstruction(
+  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nreplace .qty with :int32, 10",
+  namespace
+)
+```
+
+Failures keep their phase:
+
+```js
+{ ok: false, phase: "lower", errors } // instruction lowering failed
+{ ok: false, phase: "plan", loweredRequest, errors } // mutate planning failed
+```
+
+This function is a convenience bridge. Authorization, schema checks, apply,
+transactions, and host-specific mutation policy remain outside Instruction and
+inside the consumer or mutation adapter boundary.
 
 `evaluateQuery` accepts either a query string or a parsed `SansaQuery` and returns:
 

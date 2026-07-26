@@ -9,13 +9,15 @@
     "aeon.value.string.locale.fr.v1",
     "addressing",
     "resolve",
-    "query"
+    "query",
+    "instruction"
   ],
   "capabilities": [
     "AEON.ValueSemantics",
     "SANSA.Addressing",
     "SANSA.Resolve",
     "SANSA.Query",
+    "SANSA.Instruction",
     "SANSA.Mutate",
     "SANSA.Transform"
   ],
@@ -24,9 +26,33 @@
     "addressing": true,
     "resolve": true,
     "query": true,
+    "instruction": false,
     "mutate": false
   },
   "experimentalCapabilities": [
+    {
+      "id": "sansa.instruction.prototype.v1",
+      "capability": "SANSA.Instruction",
+      "category": "instruction-parse-lower-plan",
+      "maturity": "experimental",
+      "verbs": [
+        "create",
+        "replace",
+        "remove",
+        "insert",
+        "move"
+      ],
+      "entryPoints": [
+        "parseInstruction",
+        "lowerInstruction",
+        "planInstruction"
+      ],
+      "boundaries": [
+        "lowering emits SANSA.Mutate request operations",
+        "planning delegates to SANSA.Mutate plan API",
+        "apply remains SANSA.Mutate adapter responsibility"
+      ]
+    },
     {
       "id": "sansa.mutate.plan.v1",
       "capability": "SANSA.Mutate",

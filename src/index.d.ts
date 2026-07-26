@@ -637,6 +637,31 @@ export type SansaLowerInstructionResult =
       readonly errors: readonly SansaInstructionLowerDiagnostic[];
     };
 
+export interface SansaPlanInstructionOptions extends SansaLowerInstructionOptions {
+  readonly mutate?: SansaPlanMutationOptions;
+}
+
+export type SansaPlanInstructionResult<TBinding extends object = SansaResolveBinding> =
+  | {
+      readonly ok: true;
+      readonly plan: SansaMutationPlan<TBinding>;
+      readonly loweredRequest: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly diagnostics: readonly SansaMutateDiagnostic[];
+      readonly warnings: readonly SansaWarning[];
+    }
+  | {
+      readonly ok: false;
+      readonly phase: 'lower';
+      readonly errors: readonly SansaInstructionLowerDiagnostic[];
+    }
+  | {
+      readonly ok: false;
+      readonly phase: 'plan';
+      readonly loweredRequest: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly errors: readonly SansaMutateDiagnostic[];
+      readonly warnings: readonly SansaWarning[];
+    };
+
 export type SansaQueryValue<TBinding extends object = SansaResolveBinding> =
   | SansaQueryScalarValue
   | SansaQueryBindingSetValue<TBinding>
@@ -1179,6 +1204,11 @@ export function lowerInstruction(
   namespace: SansaResolveNamespace,
   options?: Omit<SansaLowerInstructionOptions, 'namespace'>,
 ): SansaLowerInstructionResult;
+export function planInstruction<TBinding extends object = SansaResolveBinding>(
+  input: string | SansaInstruction,
+  namespace: SansaResolveNamespace<TBinding>,
+  options?: SansaPlanInstructionOptions,
+): SansaPlanInstructionResult<TBinding>;
 export function evaluateQuery<TBinding extends object = SansaResolveBinding>(
   input: string | SansaQuery,
   namespace: SansaResolveNamespace<TBinding>,
