@@ -85,7 +85,9 @@ Then open `http://127.0.0.1:4173/tools/mutate-web/`.
 
 The Mutate Workbench accepts either structured mutation-request JSON or
 proposal-stage SANSA Instruction source, then uses the same plan/apply preview
-surface.
+surface. It also includes an experimental target selector so planned mutations
+can be checked against AEON or JSON-compatible representation surfaces before
+apply/render.
 
 Both the CLI and browser workbench can select an explicit query value-semantics
 profile, such as the default codepoint profile, the Natural ASCII numeric-region

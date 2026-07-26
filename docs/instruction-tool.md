@@ -108,7 +108,26 @@ insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B
 
 List, tuple, and node-child values use commas between items in this prototype.
 Object fields use AEON-like `name = value` fields and may be separated by
-layout.
+layout or commas:
+
+```text
+create $.types.settings with :object, { enabled = true, status = false }
+```
+
+Instruction parsing and lowering are target-neutral. A target format can reject
+value intent that SANSA can express. For example, `:string<null>` is valid
+Instruction datatype intent, but the current AEON workbench target rejects it
+because AEON only allows generic parameters on specific datatype families:
+
+```text
+create $.types.textProbe with :string<null>, ""
+```
+
+The browser Mutate Workbench exposes this as a separate target-surface phase.
+The default target is AEON. JSON target mode is stricter and accepts only
+JSON-compatible object/list/string/number/boolean/null values while rejecting
+AEON-only features such as attributes, typed SANSA values, parameterized
+datatypes, tuples, nodes, references, NaN, and Infinity.
 
 This is not yet a full replacement for structured mutation-request JSON.
 Instruction currently does not preserve separate mutation preconditions or
@@ -124,6 +143,8 @@ Failures preserve the phase boundary:
 - lower failures come from instruction lowering, candidate resolution, or
   candidate-relative target resolution;
 - plan failures come from `planMutation(...)`.
+- target-surface failures come from a target renderer/adapter deciding that the
+  planned value cannot be represented by that target.
 
 For example, a missing candidate-relative target fails during lowering:
 

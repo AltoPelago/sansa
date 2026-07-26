@@ -381,6 +381,82 @@ const examples = [
     },
   },
   {
+    id: 'target-aeon-generic-fail',
+    label: 'AEON Rejects string<null>',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'aeon' },
+        request: 'create $.types.textProbe with :string<null>, ""',
+      },
+    },
+  },
+  {
+    id: 'target-json-scalar-ok',
+    label: 'JSON Allows Scalar',
+    group: 'Target Surfaces',
+    variants: {
+      structured: {
+        options: { targetFormat: 'json' },
+        request: {
+          op: 'replace',
+          target: '$.inventory.items[0].sku',
+          value: 'A-101',
+        },
+      },
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: [
+          'from $.inventory.items[0]',
+          'where .sku == "A-100"',
+          'replace .sku with "A-101"',
+        ].join('\n'),
+      },
+    },
+  },
+  {
+    id: 'target-json-attribute-fail',
+    label: 'JSON Rejects Attribute',
+    group: 'Target Surfaces',
+    variants: {
+      structured: {
+        options: { targetFormat: 'json' },
+        request: {
+          op: 'create',
+          parent: '$.types.color.@',
+          name: 'selector',
+          datatype: 'sansa',
+          value: '$.inventory.items.*',
+        },
+      },
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.color.@.selector with :sansa, $.inventory.items.*',
+      },
+    },
+  },
+  {
+    id: 'target-json-typed-sansa-fail',
+    label: 'JSON Rejects SANSA Type',
+    group: 'Target Surfaces',
+    variants: {
+      structured: {
+        options: { targetFormat: 'json' },
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'selectorJsonProbe',
+          datatype: 'sansa',
+          value: '$.inventory.items.*',
+        },
+      },
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.selectorJsonProbe with :sansa, $.inventory.items.*',
+      },
+    },
+  },
+  {
     id: 'create-scalars',
     label: 'Create Scalars',
     group: 'Batch Requests',
@@ -602,6 +678,10 @@ document.querySelectorAll('input[name="outputMode"]').forEach((input) => {
   input.addEventListener('change', () => {
     renderPayload(lastPayload);
   });
+});
+
+targetFormatInput.addEventListener('change', () => {
+  void runMutation('plan');
 });
 
 for (const input of requestKindInputs) {
@@ -851,6 +931,7 @@ function requestKindLabel() {
 }
 
 function setOptionInputs(options) {
+  targetFormatInput.value = options.targetFormat ?? 'aeon';
   maxOperationsInput.value = options.maxOperations ?? '';
   maxPreconditionsInput.value = options.maxPreconditions ?? '';
   maxValueNodesInput.value = options.maxValueNodes ?? '';
