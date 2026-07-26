@@ -60,6 +60,39 @@ npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhe
 Text output includes the lowered operation and the planned operation summary.
 JSON output includes a sanitized plan summary instead of live binding objects.
 
+## Instruction Surface
+
+This prototype accepts the conservative mutation verbs currently supported by
+the SANSA.Mutate planner:
+
+```text
+create $.inventory.status with "active"
+replace $.inventory.qty with :int32, 10
+remove $.inventory.oldStatus
+insert last in $.inventory.tags with "sale"
+insert before $.inventory.tags[1] in $.inventory.tags with :string, "featured"
+move $.inventory.tags[0] after $.inventory.tags[2] in $.inventory.tags
+```
+
+Instructions may also use `from` and `where` clauses to lower
+candidate-relative targets into exact mutation requests:
+
+```text
+from $.inventory.items.*
+where .sku == "C-300"
+create status with "pending"
+```
+
+Values use the same type-first intent style as AEON-facing examples:
+
+```text
+create $.types.brand with :brandColor, #ff00aa
+create $.types.color.@.selector with :sansa, $.inventory.items.*
+```
+
+The optional comma after a datatype annotation is accepted for readability:
+`:int32 10` and `:int32, 10` are equivalent.
+
 ## Diagnostics
 
 Failures preserve the phase boundary:
