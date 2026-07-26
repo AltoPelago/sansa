@@ -705,6 +705,23 @@ test('reports hook failure without reporting full plan success', () => {
   assert.equal(namespace.root.children[0].children[1].value, 'Adapter');
 });
 
+test('reports thrown mutation hook failures without applying the operation', () => {
+  const namespace = sampleNamespace();
+  const sku = namespace.root.children[0].children[0];
+  const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  namespace.mutate.replace = () => {
+    throw new Error('host mutation hook exploded');
+  };
+
+  const applied = applyMutationPlan(plan, namespace);
+  assert.equal(applied.ok, false);
+  assert.equal(applied.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.equal(applied.errors[0].operationIndex, 0);
+  assert.match(applied.errors[0].message, /host mutation hook exploded/);
+  assert.deepEqual(applied.operationResults, []);
+  assert.equal(sku.value, 'A-100');
+});
+
 test('can require an atomic mutation adapter before apply', () => {
   const namespace = sampleNamespace();
   const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);

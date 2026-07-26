@@ -338,6 +338,9 @@ function mutationAdapter(entry, byAddress, control) {
 function hookFailure(control, op, address) {
   const failure = control.hookFailureBeforeApply;
   if (!failure || failure.op !== op || failure.address !== address) return null;
+  if (failure.throw === true) {
+    throw new Error(failure.message ?? `CTS hook failure for ${op} at ${address}`);
+  }
   return { ok: false, message: failure.message ?? `CTS hook failure for ${op} at ${address}` };
 }
 
