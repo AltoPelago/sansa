@@ -21,6 +21,10 @@ const maxPositionIndexInput = document.querySelector('#maxPositionIndex');
 const optionInputs = Array.from(document.querySelectorAll('.budget-row input'));
 const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]'));
 const requestKindInputs = Array.from(document.querySelectorAll('input[name="requestKind"]'));
+const defaultExampleByRequestKind = {
+  structured: 'replace-sku',
+  instruction: 'instruction-replace',
+};
 
 const examples = [
   {
@@ -259,8 +263,8 @@ document.querySelectorAll('input[name="outputMode"]').forEach((input) => {
 
 for (const input of requestKindInputs) {
   input.addEventListener('change', () => {
-    updateRequestKindLabel();
-    requestStatus.textContent = `${requestKindLabel()} mode`;
+    setExampleForRequestKind(input.value);
+    void runMutation('plan');
   });
 }
 
@@ -312,8 +316,9 @@ function renderExamples() {
 function setExample(id) {
   const example = examples.find((entry) => entry.id === id) ?? examples[0];
   exampleSelect.value = example.id;
-  setRequestKind(example.requestKind ?? 'structured');
-  requestInput.value = example.requestKind === 'instruction'
+  const kind = exampleRequestKind(example);
+  setRequestKind(kind);
+  requestInput.value = kind === 'instruction'
     ? example.request
     : JSON.stringify(example.request, null, 2);
   requestStatus.textContent = 'example loaded';
@@ -323,6 +328,16 @@ function setExample(id) {
   maxValueDepthInput.value = example.options?.maxValueDepth ?? '';
   maxStringLengthInput.value = example.options?.maxStringLength ?? '';
   maxPositionIndexInput.value = example.options?.maxPositionIndex ?? '';
+}
+
+function setExampleForRequestKind(kind) {
+  const currentExample = examples.find((entry) => entry.id === exampleSelect.value);
+  if (currentExample && exampleRequestKind(currentExample) === kind) {
+    setRequestKind(kind);
+    requestStatus.textContent = `${requestKindLabel()} mode`;
+    return;
+  }
+  setExample(defaultExampleByRequestKind[kind] ?? examples[0].id);
 }
 
 async function runMutation(mode) {
@@ -404,6 +419,10 @@ function mutateOptions() {
 
 function requestKind() {
   return document.querySelector('input[name="requestKind"]:checked')?.value ?? 'structured';
+}
+
+function exampleRequestKind(example) {
+  return example.requestKind ?? 'structured';
 }
 
 function setRequestKind(kind) {
