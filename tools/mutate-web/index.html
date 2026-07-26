@@ -38,10 +38,21 @@
 
         <section class="panel request-panel">
           <div class="panel-head">
-            <label for="requestInput">Mutation Request JSON</label>
+            <label id="requestInputLabel" for="requestInput">Mutation Request JSON</label>
             <span id="requestStatus">example loaded</span>
           </div>
           <textarea id="requestInput" spellcheck="false"></textarea>
+
+          <div class="mode-row" role="group" aria-label="Input format">
+            <label>
+              <input type="radio" name="requestKind" value="structured" checked>
+              Structured JSON
+            </label>
+            <label>
+              <input type="radio" name="requestKind" value="instruction">
+              Instruction
+            </label>
+          </div>
 
           <div class="mode-row" role="group" aria-label="Output format">
             <label>

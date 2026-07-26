@@ -1,4 +1,4 @@
-import { applyMutationPlan, planMutation } from '../../src/index.js';
+import { applyMutationPlan, planInstruction, planMutation } from '../../src/index.js';
 import { namespaceFromAeonSource } from '../query-web/runtime.mjs';
 
 const HANDLE_PROPERTY = '__sansaMutateWorkbenchHandle';
@@ -8,6 +8,7 @@ const AEON_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export async function runMutationForWorkbench({
   source,
   requestSource,
+  requestKind = 'structured',
   mode = 'plan',
   options = {},
 }) {
@@ -19,24 +20,22 @@ export async function runMutationForWorkbench({
     };
   }
 
-  let request;
-  try {
-    request = JSON.parse(requestSource);
-  } catch (error) {
-    return errorResult('SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON', error.message, mode);
-  }
-
   const root = getRoot(namespaceResult.namespace);
   assignStableHandles(root);
   const namespace = mutableNamespace(namespaceResult.namespace);
   const planOptions = mutationPlanOptions(options);
   const applyOptions = mutationApplyOptions(options);
-  const planResult = planMutation(request, namespace, planOptions);
+  const planResult = requestKind === 'instruction'
+    ? planInstruction(String(requestSource ?? ''), namespace, planOptions)
+    : planStructuredWorkbenchRequest(requestSource, namespace, planOptions);
 
   if (!planResult.ok) {
     return {
       ok: false,
       mode,
+      requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
+      ...(planResult.phase === undefined ? {} : { phase: planResult.phase }),
+      ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       text: renderDiagnosticText(planResult.errors),
       errors: normalizeDiagnostics(planResult.errors),
       source: renderBindingTree(root),
@@ -48,8 +47,10 @@ export async function runMutationForWorkbench({
     return {
       ok: true,
       mode: 'plan',
+      requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
       text: renderPlanText(planResult.plan),
       plan,
+      ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       source: renderBindingTree(root),
       diagnostics: normalizeDiagnostics(planResult.diagnostics ?? []),
     };
@@ -71,8 +72,10 @@ export async function runMutationForWorkbench({
   return {
     ok: true,
     mode: 'apply',
+    requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
     text: renderApplyText(applied),
     plan,
+    ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
     result: {
       planId: applied.planId,
       stateBefore: sanitizeJsonValue(applied.stateBefore),
@@ -82,6 +85,22 @@ export async function runMutationForWorkbench({
     },
     source: renderBindingTree(root),
   };
+}
+
+function planStructuredWorkbenchRequest(requestSource, namespace, planOptions) {
+  let request;
+  try {
+    request = JSON.parse(requestSource);
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [{
+        code: 'SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON',
+        message: error.message,
+      }],
+    };
+  }
+  return planMutation(request, namespace, planOptions);
 }
 
 function mutableNamespace(namespace) {

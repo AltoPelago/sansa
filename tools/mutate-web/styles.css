@@ -115,7 +115,7 @@ button {
 }
 
 .request-panel {
-  grid-template-rows: auto minmax(160px, 0.48fr) auto auto auto auto minmax(180px, 0.52fr);
+  grid-template-rows: auto minmax(150px, 0.46fr) auto auto auto auto auto minmax(180px, 0.54fr);
 }
 
 .panel-head {

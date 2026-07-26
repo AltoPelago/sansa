@@ -56,6 +56,34 @@ testAeonRuntime('mutate web runtime plans structured mutation requests', async (
   assert.match(result.text, /operations: 1/);
 });
 
+testAeonRuntime('mutate web runtime plans instruction requests', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: [
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.requestKind, 'instruction');
+  assert.equal(result.plan.operations[0].op, 'replace');
+  assert.equal(result.plan.operations[0].target.canonicalAddress, '$.inventory.items[1].qty');
+  assert.equal(result.plan.operations[0].datatype, 'int32');
+  assert.deepEqual(result.loweredRequest, {
+    op: 'replace',
+    target: '$.inventory.items[1].qty',
+    datatype: 'int32',
+    kind: 'number',
+    value: 10,
+  });
+  assert.match(result.text, /operations: 1/);
+});
+
 testAeonRuntime('mutate web runtime applies mutations to an isolated source tree', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
@@ -82,6 +110,30 @@ testAeonRuntime('mutate web runtime applies mutations to an isolated source tree
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
+testAeonRuntime('mutate web runtime applies instruction requests', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestKind: 'instruction',
+    requestSource: [
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.requestKind, 'instruction');
+  assert.equal(result.result.operationResults[0].targetAddress, '$.inventory.items[1].qty');
+  assert.match(result.source, /sku@\{origin:string = "catalog"\}:string = "B-200"/);
+  assert.match(result.source, /qty:int32 = 10/);
+  assert.match(result.text, /applied: 1/);
+
+  const rendered = await namespaceFromAeonSource(result.source);
+  assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
 testAeonRuntime('mutate web runtime reports invalid mutation JSON', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
@@ -92,6 +144,22 @@ testAeonRuntime('mutate web runtime reports invalid mutation JSON', async () => 
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON');
+});
+
+testAeonRuntime('mutate web runtime reports instruction diagnostics', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'from $.inventory.items.*\nreplace .missing with "x"',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.requestKind, 'instruction');
+  assert.equal(result.phase, 'lower');
+  assert.equal(result.errors[0].code, 'SANSA_INSTRUCTION_TARGET_MISS');
+  assert.match(result.text, /SANSA_INSTRUCTION_TARGET_MISS \[lower\]/);
 });
 
 testAeonRuntime('mutate web runtime reports create against non-container parents', async () => {

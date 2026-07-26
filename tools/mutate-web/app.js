@@ -1,6 +1,7 @@
 const sourceInput = document.querySelector('#sourceInput');
 const sourceResultOutput = document.querySelector('#sourceResultOutput');
 const requestInput = document.querySelector('#requestInput');
+const requestInputLabel = document.querySelector('#requestInputLabel');
 const resultOutput = document.querySelector('#resultOutput');
 const sourceStatus = document.querySelector('#sourceStatus');
 const requestStatus = document.querySelector('#requestStatus');
@@ -19,6 +20,7 @@ const maxStringLengthInput = document.querySelector('#maxStringLength');
 const maxPositionIndexInput = document.querySelector('#maxPositionIndex');
 const optionInputs = Array.from(document.querySelectorAll('.budget-row input'));
 const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]'));
+const requestKindInputs = Array.from(document.querySelectorAll('input[name="requestKind"]'));
 
 const examples = [
   {
@@ -33,6 +35,26 @@ const examples = [
       ],
       provenance: { source: 'mutate-workbench' },
     },
+  },
+  {
+    id: 'instruction-replace',
+    label: 'Instruction Replace',
+    requestKind: 'instruction',
+    request: [
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  },
+  {
+    id: 'instruction-create',
+    label: 'Instruction Create',
+    requestKind: 'instruction',
+    request: [
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'create status with "active"',
+    ].join('\n'),
   },
   {
     id: 'create-status',
@@ -235,6 +257,13 @@ document.querySelectorAll('input[name="outputMode"]').forEach((input) => {
   });
 });
 
+for (const input of requestKindInputs) {
+  input.addEventListener('change', () => {
+    updateRequestKindLabel();
+    requestStatus.textContent = `${requestKindLabel()} mode`;
+  });
+}
+
 for (const button of sourceTabButtons) {
   button.addEventListener('click', () => {
     activeSourceTab = button.dataset.sourceTab;
@@ -283,7 +312,10 @@ function renderExamples() {
 function setExample(id) {
   const example = examples.find((entry) => entry.id === id) ?? examples[0];
   exampleSelect.value = example.id;
-  requestInput.value = JSON.stringify(example.request, null, 2);
+  setRequestKind(example.requestKind ?? 'structured');
+  requestInput.value = example.requestKind === 'instruction'
+    ? example.request
+    : JSON.stringify(example.request, null, 2);
   requestStatus.textContent = 'example loaded';
   maxOperationsInput.value = example.options?.maxOperations ?? '';
   maxPreconditionsInput.value = example.options?.maxPreconditions ?? '';
@@ -298,6 +330,7 @@ async function runMutation(mode) {
   const payload = await mutateApi({
     source: sourceInput.value,
     requestSource: requestInput.value,
+    requestKind: requestKind(),
     mode,
     options: mutateOptions(),
   });
@@ -367,6 +400,27 @@ function mutateOptions() {
     if (Number.isSafeInteger(number) && number >= 0) options[input.id] = number;
   }
   return options;
+}
+
+function requestKind() {
+  return document.querySelector('input[name="requestKind"]:checked')?.value ?? 'structured';
+}
+
+function setRequestKind(kind) {
+  for (const input of requestKindInputs) {
+    input.checked = input.value === kind;
+  }
+  updateRequestKindLabel();
+}
+
+function updateRequestKindLabel() {
+  requestInputLabel.textContent = requestKind() === 'instruction'
+    ? 'SANSA Instruction'
+    : 'Mutation Request JSON';
+}
+
+function requestKindLabel() {
+  return requestKind() === 'instruction' ? 'instruction' : 'structured JSON';
 }
 
 function outputMode() {

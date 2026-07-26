@@ -94,6 +94,7 @@ function handleMutateApi(request, response) {
       const result = await runMutationForWorkbench({
         source: String(payload.source ?? ''),
         requestSource: String(payload.requestSource ?? ''),
+        requestKind: payload.requestKind === 'instruction' ? 'instruction' : 'structured',
         mode: payload.mode === 'apply' ? 'apply' : 'plan',
         options: payload.options,
       });

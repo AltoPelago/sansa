@@ -68,9 +68,11 @@ Then open `http://127.0.0.1:4173/tools/query-web/`.
 
 The same server also exposes the experimental SANSA Mutate Workbench at
 `http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon`
-source input plus a structured JSON mutation request editor, then runs
-`planMutation(...)` or `applyMutationPlan(...)` against a fresh in-memory
-namespace for each request.
+source input plus an editor that can accept structured JSON mutation requests
+or proposal-stage SANSA Instruction source. Structured JSON runs
+`planMutation(...)` directly. Instruction source runs `planInstruction(...)`,
+then uses the returned plan for the same apply preview path. Each request runs
+against a fresh in-memory namespace.
 
 For command-line testing of proposal-stage SANSA.Instruction, use the
 standalone Instruction tool:

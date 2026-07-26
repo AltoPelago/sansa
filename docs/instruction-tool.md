@@ -2,6 +2,8 @@
 
 The package includes an experimental instruction tool for exercising
 SANSA.Instruction parse, lower, and plan behavior from the command line.
+The browser Mutate Workbench also accepts Instruction source through its input
+mode toggle.
 
 ```bash
 npm run instruction -- --mode parse --instruction 'replace $.inventory.items[1].qty with :int32 10'
