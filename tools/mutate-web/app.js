@@ -21,237 +21,496 @@ const maxPositionIndexInput = document.querySelector('#maxPositionIndex');
 const optionInputs = Array.from(document.querySelectorAll('.budget-row input'));
 const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]'));
 const requestKindInputs = Array.from(document.querySelectorAll('input[name="requestKind"]'));
-const defaultExampleByRequestKind = {
-  structured: 'replace-sku',
-  instruction: 'instruction-replace',
-};
 
 const examples = [
   {
     id: 'replace-sku',
     label: 'Replace SKU',
-    request: {
-      operations: [
-        { op: 'replace', target: '$.inventory.items[0].sku', value: 'A-101' },
-      ],
-      preconditions: [
-        { expression: '$.inventory.items[0].sku == "A-100"' },
-      ],
-      provenance: { source: 'mutate-workbench' },
+    group: 'Core Mutations',
+    variants: {
+      structured: {
+        request: {
+          operations: [
+            { op: 'replace', target: '$.inventory.items[0].sku', value: 'A-101' },
+          ],
+          preconditions: [
+            { expression: '$.inventory.items[0].sku == "A-100"' },
+          ],
+          provenance: { source: 'mutate-workbench' },
+        },
+      },
+      instruction: {
+        request: [
+          'from $.inventory.items[0]',
+          'where .sku == "A-100"',
+          'replace .sku with "A-101"',
+        ].join('\n'),
+      },
     },
   },
   {
-    id: 'instruction-replace',
-    label: 'Instruction Replace',
-    requestKind: 'instruction',
-    request: [
-      'from $.inventory.items.*',
-      'where .sku == "B-200"',
-      'replace .qty with :int32, 10',
-    ].join('\n'),
-  },
-  {
-    id: 'instruction-create',
-    label: 'Instruction Create',
-    requestKind: 'instruction',
-    request: [
-      'from $.inventory.items.*',
-      'where .sku == "C-300"',
-      'create status with "pending"',
-    ].join('\n'),
-  },
-  {
-    id: 'instruction-create-attribute',
-    label: 'Instruction Attribute',
-    requestKind: 'instruction',
-    request: 'create $.types.color.@.selector with :sansa, $.inventory.items.*',
-  },
-  {
-    id: 'instruction-create-kind',
-    label: 'Instruction Kind',
-    requestKind: 'instruction',
-    request: 'create $.types.brand with :brandColor, #ff00aa',
-  },
-  {
-    id: 'instruction-insert',
-    label: 'Instruction Insert',
-    requestKind: 'instruction',
-    request: 'insert last in $.inventory.items[1].roles with "admin"',
-  },
-  {
-    id: 'instruction-move',
-    label: 'Instruction Move',
-    requestKind: 'instruction',
-    request: 'move $.inventory.items[0].roles[0] after $.inventory.items[0].roles[1] in $.inventory.items[0].roles',
-  },
-  {
-    id: 'instruction-remove',
-    label: 'Instruction Remove',
-    requestKind: 'instruction',
-    request: 'remove $.inventory.items[2].metric',
+    id: 'replace-qty',
+    label: 'Replace Qty',
+    group: 'Core Mutations',
+    variants: {
+      instruction: {
+        request: [
+          'from $.inventory.items.*',
+          'where .sku == "B-200"',
+          'replace .qty with :int32, 10',
+        ].join('\n'),
+      },
+    },
   },
   {
     id: 'create-status',
     label: 'Create Status',
-    request: {
-      op: 'create',
-      parent: '$.inventory.items[0]',
-      name: 'status',
-      value: 'active',
+    group: 'Core Mutations',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.inventory.items[2]',
+          name: 'status',
+          value: 'pending',
+        },
+      },
+      instruction: {
+        request: [
+          'from $.inventory.items.*',
+          'where .sku == "C-300"',
+          'create status with "pending"',
+        ].join('\n'),
+      },
     },
   },
   {
     id: 'create-attribute',
     label: 'Create Attribute',
-    request: {
-      op: 'create',
-      parent: '$.types.color.@',
-      name: 'selector',
-      datatype: 'sansa',
-      value: '$.inventory.items.*',
+    group: 'Attributes and Kinds',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types.color.@',
+          name: 'selector',
+          datatype: 'sansa',
+          value: '$.inventory.items.*',
+        },
+      },
+      instruction: {
+        request: 'create $.types.color.@.selector with :sansa, $.inventory.items.*',
+      },
     },
   },
   {
     id: 'create-kind',
     label: 'Create Kind',
-    request: {
-      op: 'create',
-      parent: '$.types',
-      name: 'brand',
-      datatype: 'brandColor',
-      kind: 'hex',
-      value: 'ff00aa',
+    group: 'Attributes and Kinds',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'brand',
+          datatype: 'brandColor',
+          kind: 'hex',
+          value: 'ff00aa',
+        },
+      },
+      instruction: {
+        request: 'create $.types.brand with :brandColor, #ff00aa',
+      },
+    },
+  },
+  {
+    id: 'remove-metric',
+    label: 'Remove Metric',
+    group: 'Core Mutations',
+    variants: {
+      structured: {
+        request: {
+          op: 'remove',
+          target: '$.inventory.items[2].metric',
+        },
+      },
+      instruction: {
+        request: 'remove $.inventory.items[2].metric',
+      },
+    },
+  },
+  {
+    id: 'insert-role',
+    label: 'Insert Role',
+    group: 'Ordered Containers',
+    variants: {
+      structured: {
+        request: {
+          op: 'insert',
+          container: '$.inventory.items[1].roles',
+          placement: 'last',
+          value: 'admin',
+        },
+      },
+      instruction: {
+        request: 'insert last in $.inventory.items[1].roles with "admin"',
+      },
+    },
+  },
+  {
+    id: 'move-role',
+    label: 'Move Role',
+    group: 'Ordered Containers',
+    variants: {
+      structured: {
+        request: {
+          op: 'move',
+          source: '$.inventory.items[0].roles[0]',
+          container: '$.inventory.items[0].roles',
+          placement: { kind: 'after', anchor: '$.inventory.items[0].roles[1]' },
+        },
+      },
+      instruction: {
+        request: 'move $.inventory.items[0].roles[0] after $.inventory.items[0].roles[1] in $.inventory.items[0].roles',
+      },
+    },
+  },
+  {
+    id: 'create-sansa-value',
+    label: 'Create SANSA Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'selectorWorkbench',
+          datatype: 'sansa',
+          value: '$.inventory.items.*',
+        },
+      },
+      instruction: {
+        request: 'create $.types.selectorWorkbench with :sansa, $.inventory.items.*',
+      },
+    },
+  },
+  {
+    id: 'create-sep-value',
+    label: 'Create Sep Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'versionWorkbench',
+          datatype: 'version',
+          kind: 'sep',
+          value: '0.11.0',
+        },
+      },
+      instruction: {
+        request: 'create $.types.versionWorkbench with :version, ^0.11.0',
+      },
+    },
+  },
+  {
+    id: 'create-null-value',
+    label: 'Create Null Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'absentWorkbench',
+          datatype: 'null<string>',
+          kind: 'null',
+          value: 'notApplicable',
+        },
+      },
+      instruction: {
+        request: 'create $.types.absentWorkbench with :null<string>, !notApplicable',
+      },
+    },
+  },
+  {
+    id: 'create-reference-value',
+    label: 'Create Reference Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$',
+          name: 'cloneWorkbench',
+          datatype: 'number',
+          kind: 'cloneReference',
+          value: 'target',
+        },
+      },
+      instruction: {
+        request: 'create $.cloneWorkbench with :number, ~target',
+      },
+    },
+  },
+  {
+    id: 'create-object-value',
+    label: 'Create Object Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'settingsWorkbench',
+          datatype: 'object',
+          value: { enabled: true },
+        },
+      },
+      instruction: {
+        request: 'create $.types.settingsWorkbench with :object, { enabled = true }',
+      },
+    },
+  },
+  {
+    id: 'create-list-value',
+    label: 'Create List Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'aliasesWorkbench',
+          datatype: 'list<string>',
+          value: ['adapter', 'driver'],
+        },
+      },
+      instruction: {
+        request: 'create $.types.aliasesWorkbench with :list<string>, ["adapter", "driver"]',
+      },
+    },
+  },
+  {
+    id: 'create-tuple-value',
+    label: 'Create Tuple Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'pairingWorkbench',
+          datatype: 'tuple',
+          value: ['sku', 7],
+        },
+      },
+      instruction: {
+        request: 'create $.types.pairingWorkbench with :tuple, ("sku", 7)',
+      },
+    },
+  },
+  {
+    id: 'create-node-value',
+    label: 'Create Node Value',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'badgeWorkbench',
+          datatype: 'node',
+          value: { tag: 'badge', children: ['new', 3] },
+        },
+      },
+      instruction: {
+        request: 'create $.types.badgeWorkbench with :node, <badge("new", 3)>',
+      },
     },
   },
   {
     id: 'create-scalars',
     label: 'Create Scalars',
-    request: {
-      operations: [
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'selectorCopy',
-          datatype: 'sansa',
-          value: '$.inventory.items.*',
+    group: 'Batch Requests',
+    variants: {
+      structured: {
+        request: {
+          operations: [
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'selectorCopy',
+              datatype: 'sansa',
+              value: '$.inventory.items.*',
+            },
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'versionCopy',
+              datatype: 'version',
+              kind: 'sep',
+              value: '0.11.0',
+            },
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'absentCopy',
+              datatype: 'null<string>',
+              kind: 'null',
+              value: 'notApplicable',
+            },
+            {
+              op: 'create',
+              parent: '$',
+              name: 'cloneCopy',
+              datatype: 'number',
+              kind: 'cloneReference',
+              value: 'target',
+            },
+          ],
         },
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'versionCopy',
-          datatype: 'version',
-          kind: 'sep',
-          value: '0.11.0',
-        },
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'absentCopy',
-          datatype: 'null<string>',
-          kind: 'null',
-          value: 'notApplicable',
-        },
-        {
-          op: 'create',
-          parent: '$',
-          name: 'cloneCopy',
-          datatype: 'number',
-          kind: 'cloneReference',
-          value: 'target',
-        },
-      ],
+      },
     },
   },
   {
     id: 'create-containers',
     label: 'Create Containers',
-    request: {
-      operations: [
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'settings',
-          datatype: 'object',
-          value: { enabled: true },
+    group: 'Batch Requests',
+    variants: {
+      structured: {
+        request: {
+          operations: [
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'settings',
+              datatype: 'object',
+              value: { enabled: true },
+            },
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'aliases',
+              datatype: 'list<string>',
+              value: ['adapter', 'driver'],
+            },
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'pairing',
+              datatype: 'tuple',
+              value: ['sku', 7],
+            },
+            {
+              op: 'create',
+              parent: '$.types',
+              name: 'badge',
+              datatype: 'node',
+              value: { tag: 'badge', children: ['new', 3] },
+            },
+          ],
         },
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'aliases',
-          datatype: 'list<string>',
-          value: ['adapter', 'driver'],
-        },
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'pairing',
-          datatype: 'tuple',
-          value: ['sku', 7],
-        },
-        {
-          op: 'create',
-          parent: '$.types',
-          name: 'badge',
-          datatype: 'node',
-          value: { tag: 'badge', children: ['new', 3] },
-        },
-      ],
+      },
     },
   },
   {
     id: 'insert-item',
     label: 'Insert Item',
-    request: {
-      op: 'insert',
-      container: '$.inventory.items',
-      placement: { kind: 'before', anchor: '$.inventory.items[1]' },
-      value: {
-        sku: 'B-150',
-        name: 'Brace',
-        qty: 4,
-        category: 'hardware',
+    group: 'Ordered Containers',
+    variants: {
+      structured: {
+        request: {
+          op: 'insert',
+          container: '$.inventory.items',
+          placement: { kind: 'before', anchor: '$.inventory.items[1]' },
+          value: {
+            sku: 'B-150',
+            name: 'Brace',
+            qty: 4,
+            category: 'hardware',
+          },
+        },
+      },
+      instruction: {
+        request: 'insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }',
       },
     },
   },
   {
     id: 'move-item',
     label: 'Move Item',
-    request: {
-      op: 'move',
-      source: '$.inventory.items[0]',
-      container: '$.inventory.items',
-      placement: 'last',
+    group: 'Ordered Containers',
+    variants: {
+      structured: {
+        request: {
+          op: 'move',
+          source: '$.inventory.items[0]',
+          container: '$.inventory.items',
+          placement: 'last',
+        },
+      },
+      instruction: {
+        request: 'move $.inventory.items[0] last in $.inventory.items',
+      },
     },
   },
   {
     id: 'budget-fail',
     label: 'Budget Failure',
-    options: { maxOperations: 1 },
-    request: [
-      { op: 'replace', target: '$.inventory.items[0].qty', value: 9 },
-      { op: 'replace', target: '$.inventory.items[1].qty', value: 2 },
-    ],
+    group: 'Failure Cases',
+    variants: {
+      structured: {
+        options: { maxOperations: 1 },
+        request: [
+          { op: 'replace', target: '$.inventory.items[0].qty', value: 9 },
+          { op: 'replace', target: '$.inventory.items[1].qty', value: 2 },
+        ],
+      },
+      instruction: {
+        options: { maxOperations: 1 },
+        request: [
+          'from $.inventory.items[0..1]',
+          'replace .qty with 9',
+        ].join('\n'),
+      },
+    },
   },
   {
     id: 'value-budget-fail',
     label: 'Value Budget',
-    options: { maxStringLength: 4 },
-    request: {
-      op: 'replace',
-      target: '$.inventory.items[0].sku',
-      value: 'ABCDEFGHIJ',
+    group: 'Failure Cases',
+    variants: {
+      structured: {
+        options: { maxStringLength: 4 },
+        request: {
+          op: 'replace',
+          target: '$.inventory.items[0].sku',
+          value: 'ABCDEFGHIJ',
+        },
+      },
+      instruction: {
+        options: { maxStringLength: 4 },
+        request: 'replace $.inventory.items[0].sku with "ABCDEFGHIJ"',
+      },
     },
   },
   {
     id: 'capability-fail',
     label: 'Precondition Failure',
-    request: {
-      operations: [
-        { op: 'replace', target: '$.inventory.items[0].sku', value: 'A-101' },
-      ],
-      preconditions: [
-        { expression: '$.inventory.items[0].sku == "Z-999"' },
-      ],
+    group: 'Failure Cases',
+    variants: {
+      structured: {
+        request: {
+          operations: [
+            { op: 'replace', target: '$.inventory.items[0].sku', value: 'A-101' },
+          ],
+          preconditions: [
+            { expression: '$.inventory.items[0].sku == "Z-999"' },
+          ],
+        },
+      },
     },
   },
 ];
@@ -293,7 +552,7 @@ document.querySelectorAll('input[name="outputMode"]').forEach((input) => {
 
 for (const input of requestKindInputs) {
   input.addEventListener('change', () => {
-    setExampleForRequestKind(input.value);
+    setExampleVariant(currentExample(), input.value);
     void runMutation('plan');
   });
 }
@@ -335,39 +594,43 @@ async function loadDefaults() {
 }
 
 function renderExamples() {
-  exampleSelect.replaceChildren(...examples.map((example) => {
+  const groupedOptions = new Map();
+  for (const example of examples) {
+    const group = example.group ?? 'Examples';
+    const groupOptions = groupedOptions.get(group) ?? [];
     const option = document.createElement('option');
     option.value = example.id;
     option.textContent = example.label;
-    return option;
+    groupOptions.push(option);
+    groupedOptions.set(group, groupOptions);
+  }
+
+  exampleSelect.replaceChildren(...Array.from(groupedOptions, ([label, options]) => {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    group.replaceChildren(...options);
+    return group;
   }));
 }
 
 function setExample(id) {
   const example = examples.find((entry) => entry.id === id) ?? examples[0];
   exampleSelect.value = example.id;
-  const kind = exampleRequestKind(example);
-  setRequestKind(kind);
-  requestInput.value = kind === 'instruction'
-    ? example.request
-    : JSON.stringify(example.request, null, 2);
-  requestStatus.textContent = 'example loaded';
-  maxOperationsInput.value = example.options?.maxOperations ?? '';
-  maxPreconditionsInput.value = example.options?.maxPreconditions ?? '';
-  maxValueNodesInput.value = example.options?.maxValueNodes ?? '';
-  maxValueDepthInput.value = example.options?.maxValueDepth ?? '';
-  maxStringLengthInput.value = example.options?.maxStringLength ?? '';
-  maxPositionIndexInput.value = example.options?.maxPositionIndex ?? '';
+  const kind = requestKindForExample(example, requestKind());
+  setExampleVariant(example, kind);
 }
 
-function setExampleForRequestKind(kind) {
-  const currentExample = examples.find((entry) => entry.id === exampleSelect.value);
-  if (currentExample && exampleRequestKind(currentExample) === kind) {
-    setRequestKind(kind);
-    requestStatus.textContent = `${requestKindLabel()} mode`;
-    return;
-  }
-  setExample(defaultExampleByRequestKind[kind] ?? examples[0].id);
+function setExampleVariant(example, kind) {
+  if (!example) return;
+  const selectedKind = requestKindForExample(example, kind);
+  const variant = example.variants[selectedKind];
+  updateRequestKindAvailability(example);
+  setRequestKind(selectedKind);
+  requestInput.value = selectedKind === 'instruction'
+    ? variant.request
+    : JSON.stringify(variant.request, null, 2);
+  requestStatus.textContent = 'example loaded';
+  setOptionInputs(variant.options ?? {});
 }
 
 async function runMutation(mode) {
@@ -451,8 +714,29 @@ function requestKind() {
   return document.querySelector('input[name="requestKind"]:checked')?.value ?? 'structured';
 }
 
-function exampleRequestKind(example) {
-  return example.requestKind ?? 'structured';
+function currentExample() {
+  return examples.find((entry) => entry.id === exampleSelect.value) ?? examples[0];
+}
+
+function requestKindForExample(example, preferredKind) {
+  if (example.variants[preferredKind]) return preferredKind;
+  if (example.variants.structured) return 'structured';
+  if (example.variants.instruction) return 'instruction';
+  return 'structured';
+}
+
+function updateRequestKindAvailability(example) {
+  for (const input of requestKindInputs) {
+    const available = Boolean(example.variants[input.value]);
+    input.disabled = !available;
+    const label = input.closest('label');
+    label?.classList.toggle('is-disabled', !available);
+    if (label) {
+      label.title = available
+        ? ''
+        : `${input.value === 'instruction' ? 'Instruction' : 'Structured JSON'} is not available for this example`;
+    }
+  }
 }
 
 function setRequestKind(kind) {
@@ -470,6 +754,15 @@ function updateRequestKindLabel() {
 
 function requestKindLabel() {
   return requestKind() === 'instruction' ? 'instruction' : 'structured JSON';
+}
+
+function setOptionInputs(options) {
+  maxOperationsInput.value = options.maxOperations ?? '';
+  maxPreconditionsInput.value = options.maxPreconditions ?? '';
+  maxValueNodesInput.value = options.maxValueNodes ?? '';
+  maxValueDepthInput.value = options.maxValueDepth ?? '';
+  maxStringLengthInput.value = options.maxStringLength ?? '';
+  maxPositionIndexInput.value = options.maxPositionIndex ?? '';
 }
 
 function outputMode() {

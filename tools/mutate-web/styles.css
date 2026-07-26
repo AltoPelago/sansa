@@ -230,6 +230,15 @@ pre {
   accent-color: var(--accent);
 }
 
+.mode-row label.is-disabled {
+  opacity: 0.42;
+}
+
+.mode-row label.is-disabled,
+.mode-row label.is-disabled input {
+  cursor: not-allowed;
+}
+
 .budget-row {
   flex-wrap: wrap;
 }

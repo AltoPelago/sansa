@@ -139,6 +139,14 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
   const examples = [
     {
       instruction: [
+        'from $.inventory.items[0]',
+        'where .sku == "A-100"',
+        'replace .sku with "A-101"',
+      ].join('\n'),
+      match: /sku:string = "A-101"/,
+    },
+    {
+      instruction: [
         'from $.inventory.items.*',
         'where .sku == "C-300"',
         'create status with "pending"',
@@ -164,6 +172,42 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
     {
       instruction: 'remove $.inventory.items[2].metric',
       reject: /metric:nan<number> = NaN/,
+    },
+    {
+      instruction: 'create $.types.versionCopyInstruction with :version, ^0.11.0',
+      match: /versionCopyInstruction:version = \^0\.11\.0/,
+    },
+    {
+      instruction: 'create $.types.absentCopyInstruction with :null<string>, !notApplicable',
+      match: /absentCopyInstruction:null<string> = !notApplicable/,
+    },
+    {
+      instruction: 'create $.cloneCopyInstruction with :number, ~target',
+      match: /cloneCopyInstruction:number = ~target/,
+    },
+    {
+      instruction: 'create $.types.settingsInstruction with :object, { enabled = true }',
+      match: /settingsInstruction:object = \{\s*enabled:boolean = true\s*\}/,
+    },
+    {
+      instruction: 'create $.types.aliasesInstruction with :list<string>, ["adapter", "driver"]',
+      match: /aliasesInstruction:list<string> = \[\s*"adapter"\s*"driver"\s*\]/,
+    },
+    {
+      instruction: 'create $.types.pairingInstruction with :tuple, ("sku", 7)',
+      match: /pairingInstruction:tuple = \(\s*"sku"\s*7\s*\)/,
+    },
+    {
+      instruction: 'create $.types.badgeInstruction with :node, <badge("new", 3)>',
+      match: /badgeInstruction:node = <badge\(\s*"new"\s*3\s*\)>/,
+    },
+    {
+      instruction: 'insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }',
+      match: /sku:string = "B-150"/,
+    },
+    {
+      instruction: 'move $.inventory.items[0] last in $.inventory.items',
+      match: /items:list<object> = \[[\s\S]*sku@\{origin:string = "catalog"\}:string = "B-200"[\s\S]*sku@\{origin:string = "catalog"\}:string = "A-100"/,
     },
   ];
 

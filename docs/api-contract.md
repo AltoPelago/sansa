@@ -101,6 +101,19 @@ list:
 { ok: false, errors }
 ```
 
+Instruction values support scalar literal families, SANSA address literals,
+reference forms, and a conservative container-literal slice:
+
+```text
+:object, { enabled = true }
+:list<string>, ["adapter", "driver"]
+:tuple, ("sku", 7)
+:node, <badge("new", 3)>
+```
+
+Container literal members must recursively be instruction values. This keeps
+Instruction values separate from arbitrary Query expressions.
+
 `planInstruction` preserves the same boundary, then calls `planMutation(...)`
 with the lowered structured request:
 

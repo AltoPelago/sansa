@@ -169,6 +169,38 @@ test('parses instruction value literal families', () => {
   const csv = parseOk('create $.inventory.format with :csv[","], "sku,name"');
   assert.equal(csv.mutation.value.datatype, 'csv[","]');
   assert.equal(csv.mutation.value.kind, 'string');
+
+  const absent = parseOk('create $.inventory.status with :null<string>, !notApplicable');
+  assert.equal(absent.mutation.value.datatype, 'null<string>');
+  assert.equal(absent.mutation.value.kind, 'null');
+  assert.equal(absent.mutation.value.value, 'notApplicable');
+
+  const reference = parseOk('create $.inventory.copy with :number, ~target');
+  assert.equal(reference.mutation.value.datatype, 'number');
+  assert.equal(reference.mutation.value.kind, 'cloneReference');
+  assert.equal(reference.mutation.value.value, 'target');
+});
+
+test('parses instruction container value literals', () => {
+  const object = parseOk('create $.types.settings with :object, { enabled = true }');
+  assert.equal(object.mutation.value.datatype, 'object');
+  assert.equal(object.mutation.value.kind, 'object');
+  assert.deepEqual(object.mutation.value.value, { enabled: true });
+
+  const list = parseOk('create $.types.aliases with :list<string>, ["adapter", "driver"]');
+  assert.equal(list.mutation.value.datatype, 'list<string>');
+  assert.equal(list.mutation.value.kind, 'list');
+  assert.deepEqual(list.mutation.value.value, ['adapter', 'driver']);
+
+  const tuple = parseOk('create $.types.pairing with :tuple, ("sku", 7)');
+  assert.equal(tuple.mutation.value.datatype, 'tuple');
+  assert.equal(tuple.mutation.value.kind, 'tuple');
+  assert.deepEqual(tuple.mutation.value.value, ['sku', 7]);
+
+  const node = parseOk('create $.types.badge with :node, <badge("new", 3)>');
+  assert.equal(node.mutation.value.datatype, 'node');
+  assert.equal(node.mutation.value.kind, 'node');
+  assert.deepEqual(node.mutation.value.value, { tag: 'badge', children: ['new', 3] });
 });
 
 test('lowers direct instructions to mutate request operations', () => {
@@ -214,6 +246,15 @@ test('lowers direct instructions to mutate request operations', () => {
     source: '$.tags[0]',
     container: '$.tags',
     placement: { kind: 'after', anchor: '$.tags[2]' },
+  });
+
+  assert.deepEqual(lowerOk('create $.types.settings with :object, { enabled = true }'), {
+    op: 'create',
+    parent: '$.types',
+    name: 'settings',
+    datatype: 'object',
+    kind: 'object',
+    value: { enabled: true },
   });
 });
 

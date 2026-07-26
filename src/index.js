@@ -4988,6 +4988,11 @@ class InstructionParser {
   }
 
   parseValueLiteral(source, offset) {
+    if (source.startsWith('{')) return this.parseObjectValueLiteral(source, offset);
+    if (source.startsWith('[')) return this.parseListValueLiteral(source, offset);
+    if (source.startsWith('(')) return this.parseTupleValueLiteral(source, offset);
+    if (source.startsWith('<')) return this.parseNodeValueLiteral(source, offset);
+    if (source.startsWith('~')) return this.parseReferenceValueLiteral(source, offset);
     if (source.startsWith('$') || source.startsWith('?')) {
       const address = this.parseAddress(source, offset).address;
       return {
@@ -5010,9 +5015,96 @@ class InstructionParser {
     return {
       type: 'instructionValueLiteral',
       kind: result.expression.kind,
-      value: result.expression.value,
+      value: result.expression.kind === 'null'
+        ? result.expression.nullReason
+        : result.expression.value,
       expression: result.expression,
       canonical: renderQueryExpression(result.expression),
+    };
+  }
+
+  parseObjectValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '{', '}', offset);
+    const fields = splitProjectionFields(body).map((field) => {
+      const value = this.parseInstructionValue(field.expression, offset + 1 + body.indexOf(field.expression));
+      return { name: field.name, value };
+    });
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'object',
+      value: Object.fromEntries(fields.map((field) => [field.name, field.value.value])),
+      fields,
+      canonical: `{ ${fields.map((field) => `${field.name} = ${field.value.canonical}`).join(' ')} }`,
+    };
+  }
+
+  parseListValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '[', ']', offset);
+    const items = parseInstructionValueItems(body, offset + 1, this);
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'list',
+      value: items.map((item) => item.value),
+      items,
+      canonical: `[${items.map((item) => item.canonical).join(', ')}]`,
+    };
+  }
+
+  parseTupleValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '(', ')', offset);
+    const items = parseInstructionValueItems(body, offset + 1, this);
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'tuple',
+      value: items.map((item) => item.value),
+      items,
+      canonical: `(${items.map((item) => item.canonical).join(', ')})`,
+    };
+  }
+
+  parseNodeValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '<', '>', offset).trim();
+    if (body.length === 0) {
+      this.fail('Expected node tag in instruction node value', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1);
+    }
+    let cursor = 0;
+    if (!isIdentifierStart(body[cursor])) {
+      this.fail('Expected node tag in instruction node value', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1);
+    }
+    cursor += 1;
+    while (isIdentifierContinue(body[cursor] ?? '')) cursor += 1;
+    const tag = body.slice(0, cursor);
+    while (isLayout(body[cursor] ?? '')) cursor += 1;
+    let children = [];
+    if (cursor < body.length) {
+      if (body[cursor] !== '(') {
+        this.fail('Expected node children after instruction node tag', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1 + cursor);
+      }
+      const childSource = body.slice(cursor);
+      const childBody = unwrapInstructionDelimitedLiteral(childSource, '(', ')', offset + 1 + cursor);
+      children = parseInstructionValueItems(childBody, offset + 1 + cursor + 1, this);
+    }
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'node',
+      value: { tag, children: children.map((child) => child.value) },
+      tag,
+      children,
+      canonical: `<${tag}${children.length === 0 ? '' : `(${children.map((child) => child.canonical).join(', ')})`}>`,
+    };
+  }
+
+  parseReferenceValueLiteral(source, offset) {
+    const pointer = source.startsWith('~>');
+    const target = pointer ? source.slice(2) : source.slice(1);
+    if (target.length === 0 || target.trim() !== target || /\s/.test(target)) {
+      this.fail('Invalid reference literal', 'SANSA_INSTRUCTION_INVALID_REFERENCE_LITERAL', offset);
+    }
+    return {
+      type: 'instructionValueLiteral',
+      kind: pointer ? 'pointerReference' : 'cloneReference',
+      value: target,
+      canonical: `${pointer ? '~>' : '~'}${target}`,
     };
   }
 
@@ -6073,6 +6165,106 @@ function readInstructionDatatypeToken(source, start) {
     if (bracketDepth === 0 && angleDepth === 0 && (isLayout(char) || char === ',')) break;
   }
   return { token: source.slice(tokenStart, cursor), start: tokenStart, end: cursor };
+}
+
+function unwrapInstructionDelimitedLiteral(source, open, close, offset) {
+  if (!source.startsWith(open)) {
+    throw new SansaParseError(`Expected '${open}'`, offset, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  }
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+
+    if (
+      char === close
+      && parenDepth === (open === '(' ? 0 : 0)
+      && bracketDepth === (open === '[' ? 0 : 0)
+      && braceDepth === (open === '{' ? 0 : 0)
+      && angleDepth === (open === '<' ? 0 : 0)
+    ) {
+      if (source.slice(index + 1).trim().length !== 0) {
+        throw new SansaParseError('Unexpected token after instruction value literal', offset + index + 1, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+      }
+      return source.slice(1, index);
+    }
+  }
+  throw new SansaParseError(`Unterminated instruction value literal '${open}'`, offset, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+}
+
+function parseInstructionValueItems(source, offset, parser) {
+  const parts = splitTopLevelInstructionValueList(source, offset);
+  return parts.map((part) => parser.parseInstructionValue(part.source, part.offset));
+}
+
+function splitTopLevelInstructionValueList(source, offset) {
+  const trimmed = source.trim();
+  if (trimmed.length === 0) return [];
+  const parts = [];
+  let start = 0;
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+    if (char !== ',' || parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) {
+      continue;
+    }
+    parts.push(instructionValueListPart(source, start, index, offset));
+    start = index + 1;
+  }
+  parts.push(instructionValueListPart(source, start, source.length, offset));
+  return parts;
+}
+
+function instructionValueListPart(source, start, end, offset) {
+  let itemStart = start;
+  let itemEnd = end;
+  while (isLayout(source[itemStart] ?? '')) itemStart += 1;
+  while (itemEnd > itemStart && isLayout(source[itemEnd - 1] ?? '')) itemEnd -= 1;
+  if (itemStart >= itemEnd) {
+    throw new SansaParseError('Expected instruction value item', offset + start, 'SANSA_INSTRUCTION_EXPECTED_VALUE');
+  }
+  return { source: source.slice(itemStart, itemEnd), offset: offset + itemStart };
 }
 
 function normalizeInstructionAddressSource(source) {

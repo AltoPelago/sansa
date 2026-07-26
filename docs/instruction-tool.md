@@ -88,10 +88,33 @@ Values use the same type-first intent style as AEON-facing examples:
 ```text
 create $.types.brand with :brandColor, #ff00aa
 create $.types.color.@.selector with :sansa, $.inventory.items.*
+create $.types.absentCopy with :null<string>, !notApplicable
+create $.cloneCopy with :number, ~target
 ```
 
 The optional comma after a datatype annotation is accepted for readability:
 `:int32 10` and `:int32, 10` are equivalent.
+
+Instruction values also include a conservative container-literal slice for
+testing structured mutation payloads:
+
+```text
+create $.types.settings with :object, { enabled = true }
+create $.types.aliases with :list<string>, ["adapter", "driver"]
+create $.types.pairing with :tuple, ("sku", 7)
+create $.types.badge with :node, <badge("new", 3)>
+insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }
+```
+
+List, tuple, and node-child values use commas between items in this prototype.
+Object fields use AEON-like `name = value` fields and may be separated by
+layout.
+
+This is not yet a full replacement for structured mutation-request JSON.
+Instruction currently does not preserve separate mutation preconditions or
+provenance fields, and it does not express heterogeneous multi-operation
+requests as a single instruction. Use structured JSON for those cases until a
+later instruction/vocabulary slice defines them.
 
 ## Diagnostics
 
