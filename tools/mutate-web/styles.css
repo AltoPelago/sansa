@@ -256,6 +256,16 @@ pre {
   accent-color: var(--accent);
 }
 
+.mode-row select {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--ink);
+  padding: 0 28px 0 8px;
+  font: inherit;
+}
+
 #policyInput {
   font-size: 12px;
   line-height: 1.45;

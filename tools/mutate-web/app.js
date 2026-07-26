@@ -13,6 +13,7 @@ const applyButton = document.querySelector('#applyButton');
 const requireAtomicInput = document.querySelector('#requireAtomic');
 const recheckPreconditionsInput = document.querySelector('#recheckPreconditions');
 const enforcePolicyInput = document.querySelector('#enforcePolicy');
+const targetFormatInput = document.querySelector('#targetFormat');
 const policyInput = document.querySelector('#policyInput');
 const policyStatus = document.querySelector('#policyStatus');
 const policyTabButton = document.querySelector('#detailTabPolicy');
@@ -784,6 +785,7 @@ function mutateOptions() {
   const options = {
     requireAtomic: requireAtomicInput.checked,
     recheckPreconditions: recheckPreconditionsInput.checked,
+    targetFormat: targetFormatInput.value,
   };
   if (enforcePolicyInput.checked) {
     options.policySource = policyInput.value;

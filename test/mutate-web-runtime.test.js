@@ -450,7 +450,8 @@ testAeonRuntime('mutate web runtime rejects scalar values that cannot render as 
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.equal(result.phase, 'target');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.match(result.text, /Toggle literals must be one of yes, no, on, or off/);
   assert.doesNotMatch(result.source, /consentCopy:toggle/);
 });
@@ -588,7 +589,7 @@ testAeonRuntime('mutate web runtime rejects AEON-invalid container member names'
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
     source,
-    mode: 'apply',
+    mode: 'plan',
     requestSource: JSON.stringify({
       op: 'create',
       parent: '$.types',
@@ -599,8 +600,80 @@ testAeonRuntime('mutate web runtime rejects AEON-invalid container member names'
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.errors[0].code, 'SANSA_MUTATE_APPLY_FAILED');
+  assert.equal(result.phase, 'target');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.match(result.text, /SANSA_MUTATE_WORKBENCH_INVALID_AEON_VALUE/);
   assert.match(result.text, /Keys must not be empty/);
   assert.doesNotMatch(result.source, /settings:object/);
+});
+
+testAeonRuntime('mutate web runtime rejects datatypes outside the AEON target surface', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.textProbe with :string<null>, ""',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'target');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(result.errors[0].targetFormat, 'aeon');
+  assert.equal(result.errors[0].datatype, 'string<null>');
+  assert.match(result.text, /does not allow generic parameters on datatype 'string'/);
+});
+
+testAeonRuntime('mutate web runtime applies JSON-compatible target surface checks', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const compatible = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].sku',
+      value: 'A-101',
+    }),
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(compatible.ok, true, JSON.stringify(compatible.errors ?? []));
+
+  const attribute = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types.color.@',
+      name: 'selector',
+      datatype: 'sansa',
+      value: '$.inventory.items.*',
+    }),
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(attribute.ok, false);
+  assert.equal(attribute.phase, 'target');
+  assert.equal(attribute.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(attribute.errors[0].targetFormat, 'json');
+  assert.match(attribute.text, /cannot represent AEON attribute-space mutations/);
+
+  const typed = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'create',
+      parent: '$.types',
+      name: 'selectorJsonProbe',
+      datatype: 'sansa',
+      value: '$.inventory.items.*',
+    }),
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(typed.ok, false);
+  assert.equal(typed.phase, 'target');
+  assert.equal(typed.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(typed.errors[0].datatype, 'sansa');
+  assert.match(typed.text, /Target 'json' does not support datatype 'sansa'/);
 });
