@@ -50,6 +50,7 @@
       "boundaries": [
         "lowering emits SANSA.Mutate request operations",
         "planning delegates to SANSA.Mutate plan API",
+        "target-surface validation remains a downstream Mutate/adapter boundary",
         "apply remains SANSA.Mutate adapter responsibility"
       ]
     },

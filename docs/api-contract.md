@@ -138,9 +138,10 @@ Failures keep their phase:
 { ok: false, phase: "plan", loweredRequest, errors } // mutate planning failed
 ```
 
-This function is a convenience bridge. Authorization, schema checks, apply,
-transactions, and host-specific mutation policy remain outside Instruction and
-inside the consumer or mutation adapter boundary.
+This function is a convenience bridge. Target-surface validation,
+authorization, schema checks, apply, transactions, and host-specific mutation
+policy remain outside Instruction and inside the consumer or mutation adapter
+boundary.
 
 `evaluateQuery` accepts either a query string or a parsed `SansaQuery` and returns:
 
