@@ -145,12 +145,14 @@ function compareLoweredOperations(expected, actual, failures) {
     const current = operations[index] ?? {};
     compareField(expected[index].op, current.op, `operations[${index}].op`, failures);
     compareField(expected[index].target, current.target ?? current.parent ?? current.container ?? current.source, `operations[${index}].target`, failures);
+    compareField(expected[index].parent, current.parent, `operations[${index}].parent`, failures);
+    compareField(expected[index].container, current.container, `operations[${index}].container`, failures);
+    compareField(expected[index].source, current.source, `operations[${index}].source`, failures);
     compareField(expected[index].name, current.name, `operations[${index}].name`, failures);
     compareField(expected[index].datatype, current.datatype, `operations[${index}].datatype`, failures);
     compareField(expected[index].kind, current.kind, `operations[${index}].kind`, failures);
-    if (Object.hasOwn(expected[index], 'value') && !Object.is(expected[index].value, current.value)) {
-      failures.push(`operations[${index}].value mismatch: expected ${JSON.stringify(expected[index].value)}, got ${JSON.stringify(current.value)}`);
-    }
+    comparePlacement(expected[index].placement, current.placement, `operations[${index}].placement`, failures);
+    if (Object.hasOwn(expected[index], 'value')) compareJsonLike(expected[index].value, current.value, `operations[${index}].value`, failures);
   }
 }
 
@@ -167,12 +169,33 @@ function comparePlannedOperations(expected, actual, failures) {
       ?? current.parent?.canonicalAddress
       ?? current.container?.canonicalAddress;
     compareField(expected[index].target, actualTarget, `operations[${index}].target`, failures);
+    compareField(expected[index].parent, current.parent?.canonicalAddress, `operations[${index}].parent`, failures);
+    compareField(expected[index].container, current.container?.canonicalAddress, `operations[${index}].container`, failures);
+    compareField(expected[index].source, current.source?.canonicalAddress, `operations[${index}].source`, failures);
     compareField(expected[index].name, current.name, `operations[${index}].name`, failures);
     compareField(expected[index].datatype, current.datatype, `operations[${index}].datatype`, failures);
     compareField(expected[index].kind, current.kind, `operations[${index}].kind`, failures);
-    if (Object.hasOwn(expected[index], 'value') && !Object.is(expected[index].value, current.value)) {
-      failures.push(`operations[${index}].value mismatch: expected ${JSON.stringify(expected[index].value)}, got ${JSON.stringify(current.value)}`);
-    }
+    const actualPlacement = current.placement === undefined
+      ? undefined
+      : {
+          kind: current.placement.kind,
+          ...(current.placement.anchor?.canonicalAddress === undefined ? {} : { anchor: current.placement.anchor.canonicalAddress }),
+        };
+    comparePlacement(expected[index].placement, actualPlacement, `operations[${index}].placement`, failures);
+    if (Object.hasOwn(expected[index], 'value')) compareJsonLike(expected[index].value, current.value, `operations[${index}].value`, failures);
+  }
+}
+
+function comparePlacement(expected, actual, label, failures) {
+  if (expected === undefined) return;
+  compareJsonLike(expected, actual, label, failures);
+}
+
+function compareJsonLike(expected, actual, label, failures) {
+  const expectedJson = JSON.stringify(expected);
+  const actualJson = JSON.stringify(actual);
+  if (expectedJson !== actualJson) {
+    failures.push(`${label} mismatch: expected ${expectedJson}, got ${actualJson}`);
   }
 }
 
