@@ -89,6 +89,29 @@
         "supportsStableBindingIdentity",
         "supportsAtomicApply"
       ]
+    },
+    {
+      "id": "sansa.mutate.policy.workbench.v1",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-policy-gate",
+      "maturity": "experimental",
+      "surface": "workbench",
+      "entryPoints": [
+        "tools/mutate-web",
+        "/api/mutate options.policySource"
+      ],
+      "diagnostics": [
+        "SANSA_MUTATE_POLICY_INVALID_JSON",
+        "SANSA_MUTATE_POLICY_INVALID",
+        "SANSA_MUTATE_POLICY_INVALID_ADDRESS",
+        "SANSA_MUTATE_POLICY_DENIED"
+      ],
+      "boundaries": [
+        "policy is trusted consumer input, not document input",
+        "policy authorizes or denies already planned mutation intent",
+        "policy must not rewrite mutation plans or make schema-invalid values valid",
+        "policy remains outside SANSA.Mutate core conformance"
+      ]
     }
   ],
   "policies": [

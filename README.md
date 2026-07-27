@@ -27,6 +27,7 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 - experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
 - experimental SANSA.Mutate value-intent preservation and operation, precondition, and value budgets
 - experimental SANSA.Mutate target-surface validation for AEON, JSON-compatible, and custom target representability checks
+- experimental workbench-only SANSA.Mutate policy gate for trusted consumer authorization tests
 - experimental mutation apply through explicit host mutation hooks with stale-target checks
 - experimental SANSA.Instruction parsing, candidate-relative lowering, and mutation-planner bridging for conservative mutation verbs
 
