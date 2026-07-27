@@ -40,6 +40,12 @@ versions may still include breaking changes when the SANSA specifications move.
   stable/atomic apply capability advertisement.
 - Added an experimental browser SANSA Mutate Workbench for structured JSON
   mutation requests against `.aeon` source fixtures.
+- Added experimental SANSA.Instruction parsing, lowering, CLI tooling, and
+  Mutate Workbench integration for conservative mutation verbs.
+- Added experimental SANSA.Mutate target-surface validation for AEON,
+  JSON-compatible, and custom representability checks.
+- Added a workbench-only experimental SANSA.Mutate policy gate for trusted
+  consumer authorization tests.
 
 ### Changed
 
