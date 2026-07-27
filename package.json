@@ -53,6 +53,7 @@
     "cts:resolve": "node scripts/cts-resolve.mjs",
     "cts:query": "node scripts/cts-query.mjs",
     "cts:query:experimental": "node scripts/cts-query.mjs --include-experimental",
+    "cts:instruction": "node scripts/cts-instruction.mjs",
     "cts:mutate": "node scripts/cts-mutate.mjs",
     "instruction": "node scripts/instruction.mjs",
     "query": "node scripts/query.mjs",
