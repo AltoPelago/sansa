@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { lowerInstruction, parseInstruction, planInstruction } from '../src/index.js';
+import { lowerInstruction, parseInstruction, planInstruction, validateMutationPlanTarget } from '../src/index.js';
 
 function parseOk(source) {
   const result = parseInstruction(source);
@@ -346,6 +346,22 @@ test('plans lowered instructions through the mutate planner', () => {
     { op: 'create', parent: '$.inventory.items[0]', name: 'status', value: 'active' },
     { op: 'create', parent: '$.inventory.items[1]', name: 'status', value: 'active' },
   ]);
+});
+
+test('validates instruction plans against target surfaces after planning', () => {
+  const namespace = sampleNamespace();
+
+  const compatible = planOk('replace $.inventory.items[0].sku with "B-200"', namespace);
+  const compatibleTarget = validateMutationPlanTarget(compatible.plan, 'aeon');
+  assert.equal(compatibleTarget.ok, true, JSON.stringify(compatibleTarget.errors ?? []));
+
+  const jsonIncompatible = planOk('create $.inventory.selectorProbe with :sansa, $.inventory.items.*', namespace);
+  const jsonTarget = validateMutationPlanTarget(jsonIncompatible.plan, 'json');
+  assert.equal(jsonTarget.ok, false);
+  assert.equal(jsonTarget.errors[0].phase, 'target');
+  assert.equal(jsonTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(jsonTarget.errors[0].targetFormat, 'json');
+  assert.equal(jsonTarget.errors[0].datatype, 'sansa');
 });
 
 test('preserves instruction lower and mutate plan failure phases', () => {

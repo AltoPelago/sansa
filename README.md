@@ -131,7 +131,8 @@ import {
   parseQuery,
   parseQueryExpression,
   renderAddress,
-  resolveAddress
+  resolveAddress,
+  validateMutationPlanTarget
 } from "@altopelago/sansa";
 
 const result = parseAddress('$.inventory:csv[","]');
@@ -198,16 +199,20 @@ const mutation = planMutation({ op: "replace", target: "$.inventory.sku", value:
 });
 
 if (mutation.ok) {
-  const applied = applyMutationPlan(mutation.plan, {
-    root,
-    mutate: {
-      replace(target, value) {
-        target.value = value;
-        return { binding: target };
+  const targetSurface = validateMutationPlanTarget(mutation.plan, "aeon");
+
+  if (targetSurface.ok) {
+    const applied = applyMutationPlan(mutation.plan, {
+      root,
+      mutate: {
+        replace(target, value) {
+          target.value = value;
+          return { binding: target };
+        }
       }
-    }
-  });
-  console.log(applied.ok);
+    });
+    console.log(applied.ok);
+  }
 }
 
 const instructionPlan = planInstruction(
