@@ -567,6 +567,65 @@ testAeonRuntime('mutate web runtime supports explicit experimental policy deny r
   assert.equal(result.errors[0].ruleIndex, 0);
 });
 
+testAeonRuntime('mutate web runtime requires explicit experimental policy decisions', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        operations: ['replace'],
+        target: '$.inventory.items.*.sku',
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].sku',
+      value: 'A-101',
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'policy');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
+  assert.equal(result.errors[0].ruleIndex, 0);
+  assert.match(result.text, /allow as true or false/);
+});
+
+testAeonRuntime('mutate web runtime policy authorizes without rewriting planned intent', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: '$.inventory.items.*.status',
+        values: ['pending'],
+        rewrite: { value: 'active' },
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[1].status',
+      value: 'pending',
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.match(result.source, /status:string = "pending"/);
+  assert.doesNotMatch(result.source, /status:string = "active"/);
+});
+
 testAeonRuntime('mutate web runtime reports invalid experimental mutation policy input', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

@@ -51,8 +51,9 @@ The current prototype shape is deliberately small:
 }
 ```
 
-`default` is either `"deny"` or `"allow"`. Rules are evaluated in order. A
-matching rule with `"allow": false` denies the operation. A matching rule with
+`default` is either `"deny"` or `"allow"`. Each rule must explicitly declare
+`"allow": true` or `"allow": false`. Rules are evaluated in order. A matching
+rule with `"allow": false` denies the operation. A matching rule with
 `"allow": true` allows it. If no rule matches, `default` decides.
 
 ## Rule Fields

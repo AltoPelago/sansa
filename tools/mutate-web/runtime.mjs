@@ -169,6 +169,21 @@ function normalizeWorkbenchPolicy(policy) {
       error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be a list'),
     };
   }
+  for (let ruleIndex = 0; ruleIndex < policy.rules.length; ruleIndex += 1) {
+    const rule = policy.rules[ruleIndex];
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      return {
+        ok: false,
+        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be objects', { ruleIndex }),
+      };
+    }
+    if (rule.allow !== true && rule.allow !== false) {
+      return {
+        ok: false,
+        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must declare allow as true or false', { ruleIndex }),
+      };
+    }
+  }
   return {
     ok: true,
     policy: {
@@ -214,9 +229,6 @@ function authorizeWorkbenchOperation(operation, operationIndex, policy, namespac
 }
 
 function workbenchPolicyRuleMatches(operation, rule, namespace) {
-  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
-    return { ok: false, code: 'SANSA_MUTATE_POLICY_INVALID', message: 'Mutation policy rules must be objects' };
-  }
   if (!matchesPolicyList(rule.operations ?? rule.operation, operation.op)) return { ok: true, matched: false };
   if (!matchesPolicyList(rule.names ?? rule.name, operation.name)) return { ok: true, matched: false };
   if (!matchesPolicyList(rule.datatypes ?? rule.datatype, effectiveMutationDatatype(operation))) return { ok: true, matched: false };
