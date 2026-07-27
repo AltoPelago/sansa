@@ -16,6 +16,11 @@ The document being mutated must not define the authority rules for its own
 mutation. Policies are supplied by a trusted consumer, host, AEOS profile,
 application, or adapter boundary.
 
+Policy authorizes or denies already planned intent. It must not silently rewrite
+the plan, reinterpret runtime strings as SANSA Instruction source, or make
+schema-invalid values valid. If a policy wants a different operation, the
+consumer should request and plan that operation explicitly.
+
 ## Workbench Prototype
 
 The Mutate Workbench includes an experimental JSON policy gate. When enabled,
