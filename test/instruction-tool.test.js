@@ -72,6 +72,53 @@ test('instruction tool plans lowered instructions against the default fixture', 
   assert.match(result.stdout, /plan: 1 operation/);
 });
 
+test('instruction tool renders claimed source provenance in plan summaries', () => {
+  const result = runTool([
+    '--mode',
+    'plan',
+    '--instruction',
+    [
+      'because "manual correction"',
+      'by "Bob"',
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.match(result.stdout, /provenance:/);
+  assert.match(result.stdout, /because "manual correction"/);
+  assert.match(result.stdout, /by "Bob"/);
+  assert.match(result.stdout, /replace \$\.inventory\.items\[1\]\.qty = 10 \(datatype:int32, kind:number\)/);
+});
+
+test('instruction tool emits claimed source provenance in JSON plan summaries', () => {
+  const result = runTool([
+    '--format',
+    'json',
+    '--mode',
+    'plan',
+    '--instruction',
+    [
+      'because "manual correction"',
+      'by "Bob"',
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.plan.sourceProvenance.reason, 'manual correction');
+  assert.equal(payload.plan.sourceProvenance.claimedAuthor, 'Bob');
+  assert.equal(payload.plan.operations[0].provenance, undefined);
+});
+
 test('instruction tool validates planned instructions against target surfaces', () => {
   const ok = runTool([
     '--mode',
