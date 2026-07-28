@@ -152,6 +152,10 @@ provenance fields, and it does not express heterogeneous multi-operation
 requests as a single instruction. Use structured JSON for those cases until a
 later instruction/vocabulary slice defines them.
 
+The Mutate Workbench labels examples that only exist on one input surface as
+`structured-only` or `instruction-only` so this boundary is visible while
+testing.
+
 ## Diagnostics
 
 Failures preserve the phase boundary:

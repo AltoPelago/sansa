@@ -781,7 +781,7 @@ function setExampleVariant(example, kind) {
   requestInput.value = selectedKind === 'instruction'
     ? variant.request
     : JSON.stringify(variant.request, null, 2);
-  requestStatus.textContent = 'example loaded';
+  requestStatus.textContent = exampleVariantStatus(example);
   setOptionInputs(variant.options ?? {});
 }
 
@@ -911,6 +911,15 @@ function updateRequestKindAvailability(example) {
         : `${input.value === 'instruction' ? 'Instruction' : 'Structured JSON'} is not available for this example`;
     }
   }
+}
+
+function exampleVariantStatus(example) {
+  const hasStructured = Boolean(example.variants.structured);
+  const hasInstruction = Boolean(example.variants.instruction);
+  if (hasStructured && hasInstruction) return 'example loaded';
+  if (hasStructured) return 'structured-only example';
+  if (hasInstruction) return 'instruction-only example';
+  return 'example loaded';
 }
 
 function setRequestKind(kind) {
