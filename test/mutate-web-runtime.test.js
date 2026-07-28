@@ -764,6 +764,37 @@ testAeonRuntime('mutate web runtime rejects unsupported top-level policy fields'
   assert.match(result.text, /field 'actor' is not supported/);
 });
 
+testAeonRuntime('mutate web runtime rejects non-string policy address matchers', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: ['$.inventory.items.*.qty'],
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].qty',
+      value: 10,
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'policy');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
+  assert.equal(result.errors[0].operationIndex, 0);
+  assert.equal(result.errors[0].ruleIndex, 0);
+  assert.match(result.text, /address matchers must be non-empty strings/);
+});
+
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
