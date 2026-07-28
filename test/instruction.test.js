@@ -478,6 +478,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('from $.items.*\norder by .sku\nreplace .qty with 1', 'SANSA_INSTRUCTION_UNSUPPORTED_QUERY_CLAUSE');
   parseBad('from $.a\nfrom $.b\nreplace .qty with 1', 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE');
   parseBad('because "one"\nbecause "two"\nreplace $.qty with 1', 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE');
+  parseBad('by "Bob"\nbecause "manual correction"\nreplace $.qty with 1', 'SANSA_INSTRUCTION_INVALID_CLAUSE_ORDER');
   parseBad('because Bob\nreplace $.qty with 1', 'SANSA_INSTRUCTION_EXPECTED_BECAUSE_TEXT');
   parseBad('by\nreplace $.qty with 1', 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT');
   parseBad('from $.a\nrequire\nreplace .qty with 1', 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION');

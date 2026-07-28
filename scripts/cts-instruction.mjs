@@ -80,6 +80,8 @@ function runTest(test, namespaces) {
   if (mode === 'parse') {
     compareField(expected.canonical, result.instruction.canonical, 'canonical', failures);
     compareArray(expected.clauses, result.instruction.clauses, 'clauses', failures);
+    compareField(expected.provenanceReason, result.instruction.provenance?.reason, 'provenanceReason', failures);
+    compareField(expected.provenanceClaimedAuthor, result.instruction.provenance?.claimedAuthor, 'provenanceClaimedAuthor', failures);
     return failures;
   }
 

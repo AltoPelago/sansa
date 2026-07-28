@@ -5289,7 +5289,7 @@ class InstructionParser {
     }
 
     const mutationClause = mutationClauses[0];
-    const order = new Map([['because', 0], ['by', 0], ['from', 1], ['where', 2], ['require', 3], [mutationClause.name, 4]]);
+    const order = new Map([['because', 0], ['by', 1], ['from', 2], ['where', 3], ['require', 4], [mutationClause.name, 5]]);
     let previousOrder = -1;
     for (const clause of clauses) {
       const currentOrder = order.get(clause.name);

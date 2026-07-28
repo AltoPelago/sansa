@@ -111,10 +111,13 @@ SANSA.Instruction parse, lower, and plan behavior:
 ```bash
 npm run instruction -- --mode parse --instruction 'replace $.inventory.items[1].qty with :int32 10'
 npm run instruction -- --mode lower --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
-npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+npm run instruction -- --mode plan --instruction $'because "manual correction"\nby "Bob"\nfrom $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
 ```
 
 The default fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json).
+Instruction `because` and `by` clauses are preserved as claimed source
+provenance only; authorization, actor identity, and audit evidence remain host
+responsibilities.
 Full details live in [docs/instruction-tool.md](docs/instruction-tool.md).
 
 ## Release Notes
