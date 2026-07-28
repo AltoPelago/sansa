@@ -1003,7 +1003,7 @@ export interface SansaInstruction {
   readonly canonical: string;
 }
 
-export type SansaInstructionClauseName = 'from' | 'where' | 'create' | 'replace' | 'remove' | 'insert' | 'move';
+export type SansaInstructionClauseName = 'from' | 'where' | 'create' | 'replace' | 'remove' | 'insert' | 'append' | 'move';
 
 export interface SansaInstructionFromClause {
   readonly type: 'fromClause';

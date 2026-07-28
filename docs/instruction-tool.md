@@ -82,9 +82,14 @@ create $.inventory.status with "active"
 replace $.inventory.qty with :int32, 10
 remove $.inventory.oldStatus
 insert last in $.inventory.tags with "sale"
+append $.inventory.tags with "sale"
 insert before $.inventory.tags[1] in $.inventory.tags with :string, "featured"
 move $.inventory.tags[0] after $.inventory.tags[2] in $.inventory.tags
 ```
+
+`append <container> with <value>` and `append in <container> with <value>` are
+source-level aliases for `insert last in <container> with <value>`. They lower
+to an ordinary SANSA.Mutate `insert` operation with `placement: "last"`.
 
 Instructions may also use `from` and `where` clauses to lower
 candidate-relative targets into exact mutation requests:

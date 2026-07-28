@@ -108,6 +108,11 @@ list:
 { ok: false, errors }
 ```
 
+Instruction `append <container> with <value>` and
+`append in <container> with <value>` canonicalize and lower as
+`insert last in <container> with <value>`. They produce an ordinary structured
+`insert` request with `placement: "last"`.
+
 Instruction values support scalar literal families, SANSA address literals,
 reference forms, and a conservative container-literal slice:
 

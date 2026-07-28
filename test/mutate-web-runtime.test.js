@@ -190,6 +190,10 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
       match: /roles:list<string> = \[\s*"user"\s*"admin"\s*\]/,
     },
     {
+      instruction: 'append $.inventory.items[1].roles with "admin"',
+      match: /roles:list<string> = \[\s*"user"\s*"admin"\s*\]/,
+    },
+    {
       instruction: 'move $.inventory.items[0].roles[0] after $.inventory.items[0].roles[1] in $.inventory.items[0].roles',
       match: /roles:list<string> = \[\s*"user"\s*"admin"\s*\]/,
     },

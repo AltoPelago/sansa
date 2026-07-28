@@ -5305,6 +5305,8 @@ class InstructionParser {
         return this.parseRemoveClause(clause);
       case 'insert':
         return this.parseInsertClause(clause);
+      case 'append':
+        return this.parseAppendClause(clause);
       case 'move':
         return this.parseMoveClause(clause);
       default:
@@ -5366,6 +5368,28 @@ class InstructionParser {
       verb: 'insert',
       placement: this.parsePlacement(placementSource, clause.bodyStart + beforeValue.indexOf(placementSource)),
       container: this.parseAddress(containerSource, clause.bodyStart + inIndex + 'in'.length + beforeValue.slice(inIndex + 'in'.length).indexOf(containerSource)),
+      value: this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length),
+    };
+  }
+
+  parseAppendClause(clause) {
+    const withIndex = findTopLevelInstructionKeyword(clause.body, 'with');
+    if (withIndex < 0) {
+      this.fail("Expected 'with' in append instruction", 'SANSA_INSTRUCTION_EXPECTED_WITH', clause.bodyStart);
+    }
+    let containerSource = clause.body.slice(0, withIndex).trim();
+    if (containerSource.startsWith('in') && isInstructionClauseBoundaryAfter(containerSource, 'in'.length)) {
+      containerSource = containerSource.slice('in'.length).trim();
+    }
+    if (containerSource.length === 0) {
+      this.fail("Expected container address after 'append'", 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', clause.bodyStart);
+    }
+    const valueSource = clause.body.slice(withIndex + 'with'.length);
+    return {
+      type: 'mutationClause',
+      verb: 'insert',
+      placement: { type: 'placement', kind: 'last' },
+      container: this.parseAddress(containerSource, clause.bodyStart + clause.body.indexOf(containerSource)),
       value: this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length),
     };
   }
@@ -6538,12 +6562,12 @@ function matchInstructionClauseKeyword(source, index) {
       return { name, label: name, category: 'unsupportedQuery', end: index + name.length };
     }
   }
-  for (const name of ['create', 'replace', 'remove', 'insert', 'move']) {
+  for (const name of ['create', 'replace', 'remove', 'insert', 'append', 'move']) {
     if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
       return { name, label: name, category: 'mutation', end: index + name.length };
     }
   }
-  for (const name of ['rename', 'copy', 'clone', 'merge', 'patch', 'upsert', 'clear', 'append']) {
+  for (const name of ['rename', 'copy', 'clone', 'merge', 'patch', 'upsert', 'clear']) {
     if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
       return { name, label: name, category: 'deferredVerb', end: index + name.length };
     }

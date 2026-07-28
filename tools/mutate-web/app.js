@@ -191,7 +191,7 @@ const examples = [
   },
   {
     id: 'insert-role',
-    label: 'Insert Role',
+    label: 'Append Role',
     group: 'Ordered Containers',
     variants: {
       structured: {
@@ -203,7 +203,7 @@ const examples = [
         },
       },
       instruction: {
-        request: 'insert last in $.inventory.items[1].roles with "admin"',
+        request: 'append $.inventory.items[1].roles with "admin"',
       },
     },
   },
