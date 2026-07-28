@@ -113,6 +113,7 @@
         "policy is trusted consumer input, not document input",
         "policy authorizes or denies already planned mutation intent",
         "policy must not rewrite mutation plans or make schema-invalid values valid",
+        "unsupported policy fields fail closed instead of being ignored",
         "policy remains outside SANSA.Mutate core conformance"
       ]
     }

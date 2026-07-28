@@ -4,6 +4,24 @@ import { namespaceFromAeonSource } from '../query-web/runtime.mjs';
 const HANDLE_PROPERTY = '__sansaMutateWorkbenchHandle';
 const HANDLE_PREFIX = 'mutate-workbench';
 const AEON_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const WORKBENCH_POLICY_TOP_LEVEL_FIELDS = new Set(['default', 'rules']);
+const WORKBENCH_POLICY_RULE_FIELDS = new Set([
+  'allow',
+  'operations',
+  'operation',
+  'target',
+  'parent',
+  'container',
+  'source',
+  'names',
+  'name',
+  'datatypes',
+  'datatype',
+  'kinds',
+  'kind',
+  'values',
+  'value',
+]);
 
 export async function runMutationForWorkbench({
   source,
@@ -157,6 +175,13 @@ function normalizeWorkbenchPolicy(policy) {
       error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy must be an object'),
     };
   }
+  const unsupportedTopLevelField = Object.keys(policy).find((field) => !WORKBENCH_POLICY_TOP_LEVEL_FIELDS.has(field));
+  if (unsupportedTopLevelField !== undefined) {
+    return {
+      ok: false,
+      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', `Mutation policy field '${unsupportedTopLevelField}' is not supported`),
+    };
+  }
   if (policy.default !== undefined && policy.default !== 'allow' && policy.default !== 'deny') {
     return {
       ok: false,
@@ -175,6 +200,13 @@ function normalizeWorkbenchPolicy(policy) {
       return {
         ok: false,
         error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be objects', { ruleIndex }),
+      };
+    }
+    const unsupportedRuleField = Object.keys(rule).find((field) => !WORKBENCH_POLICY_RULE_FIELDS.has(field));
+    if (unsupportedRuleField !== undefined) {
+      return {
+        ok: false,
+        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', `Mutation policy rule field '${unsupportedRuleField}' is not supported`, { ruleIndex }),
       };
     }
     if (rule.allow !== true && rule.allow !== false) {

@@ -648,7 +648,7 @@ testAeonRuntime('mutate web runtime requires explicit experimental policy decisi
   assert.match(result.text, /allow as true or false/);
 });
 
-testAeonRuntime('mutate web runtime policy authorizes without rewriting planned intent', async () => {
+testAeonRuntime('mutate web runtime rejects unsupported policy rewrite fields', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const policy = {
     default: 'deny',
@@ -673,9 +673,46 @@ testAeonRuntime('mutate web runtime policy authorizes without rewriting planned 
     options: { policySource: JSON.stringify(policy) },
   });
 
-  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
-  assert.match(result.source, /status:string = "pending"/);
-  assert.doesNotMatch(result.source, /status:string = "active"/);
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'policy');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
+  assert.equal(result.errors[0].ruleIndex, 0);
+  assert.match(result.text, /field 'rewrite' is not supported/);
+});
+
+testAeonRuntime('mutate web runtime rejects claimed provenance as policy authority', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: '$.inventory.items.*.qty',
+        datatypes: ['number', 'int32'],
+        by: 'Bob',
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: [
+      'because "manual correction"',
+      'by "Bob"',
+      'from $.inventory.items.*',
+      'where .sku == "B-200"',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'policy');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
+  assert.equal(result.errors[0].ruleIndex, 0);
+  assert.match(result.text, /field 'by' is not supported/);
 });
 
 testAeonRuntime('mutate web runtime reports invalid experimental mutation policy input', async () => {
@@ -694,6 +731,37 @@ testAeonRuntime('mutate web runtime reports invalid experimental mutation policy
   assert.equal(result.ok, false);
   assert.equal(result.phase, 'policy');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID_JSON');
+});
+
+testAeonRuntime('mutate web runtime rejects unsupported top-level policy fields', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    actor: 'Bob',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: '$.inventory.items.*.qty',
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].qty',
+      value: 10,
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'policy');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
+  assert.equal(result.errors[0].ruleIndex, undefined);
+  assert.match(result.text, /field 'actor' is not supported/);
 });
 
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {

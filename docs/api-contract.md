@@ -521,6 +521,12 @@ returns the structured plan/result plus an AEON-ish rendered source tree after
 apply. It is a technical testing surface for structured mutation requests and
 proposal-stage instructions, not a canonical AEON source rewriter.
 
+When the experimental mutation policy gate is enabled, policy JSON is trusted
+consumer input and is validated before authorization. Unsupported top-level or
+rule fields fail with `SANSA_MUTATE_POLICY_INVALID` instead of being ignored, so
+claimed provenance such as Instruction `by` metadata cannot accidentally become
+policy authority.
+
 Target representability is checked explicitly with
 `validateMutationPlanTarget(plan, targetSurface)`. This API is separate from
 `planMutation(...)` so mutation planning remains target-neutral:

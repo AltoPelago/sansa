@@ -21,6 +21,10 @@ the plan, reinterpret runtime strings as SANSA Instruction source, or make
 schema-invalid values valid. If a policy wants a different operation, the
 consumer should request and plan that operation explicitly.
 
+Unsupported policy fields are invalid rather than ignored. This keeps attempted
+future behavior, such as `rewrite`, and claimed provenance, such as `by`, from
+being mistaken for active authority.
+
 ## Workbench Prototype
 
 The Mutate Workbench includes an experimental JSON policy gate. When enabled,
@@ -92,7 +96,8 @@ Invalid policy documents fail before authorization:
 - `SANSA_MUTATE_POLICY_INVALID_ADDRESS`
 
 The response may include `operationIndex` and `ruleIndex` to identify the
-affected operation or rule.
+affected operation or rule. Unsupported top-level policy fields and unsupported
+rule fields are reported as invalid policy input.
 
 ## Open Design Questions
 
