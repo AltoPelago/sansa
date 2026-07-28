@@ -871,6 +871,11 @@ function renderPlanText(plan) {
     const target = operation.target ?? operation.parent ?? operation.source ?? operation.container;
     lines.push(`${index}: ${operation.op} ${target?.canonicalAddress ?? ''}`.trim());
   }
+  if (plan.sourceProvenance?.reason !== undefined || plan.sourceProvenance?.claimedAuthor !== undefined) {
+    lines.push('', 'provenance:');
+    if (plan.sourceProvenance.reason !== undefined) lines.push(`because ${JSON.stringify(plan.sourceProvenance.reason)}`);
+    if (plan.sourceProvenance.claimedAuthor !== undefined) lines.push(`by ${JSON.stringify(plan.sourceProvenance.claimedAuthor)}`);
+  }
   if ((plan.preconditions ?? []).length > 0) {
     lines.push('', `preconditions: ${plan.preconditions.length}`);
     for (const [index, precondition] of plan.preconditions.entries()) {

@@ -93,6 +93,8 @@ function runTest(test, namespaces) {
     comparePlannedOperations(expected.operations ?? [], result.plan.operations, failures);
     compareArray(expected.preconditions, result.plan.preconditions.map((precondition) => precondition.canonical), 'preconditions', failures);
     compareField(expected.sourceProvenanceType, result.plan.sourceProvenance?.type, 'sourceProvenanceType', failures);
+    compareField(expected.sourceProvenanceReason, result.plan.sourceProvenance?.reason, 'sourceProvenanceReason', failures);
+    compareField(expected.sourceProvenanceClaimedAuthor, result.plan.sourceProvenance?.claimedAuthor, 'sourceProvenanceClaimedAuthor', failures);
     return failures;
   }
 

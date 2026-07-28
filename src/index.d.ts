@@ -63,6 +63,8 @@ export type SansaParseErrorCode =
   | 'SANSA_INSTRUCTION_EXPECTED_FROM_ADDRESS'
   | 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION'
   | 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION'
+  | 'SANSA_INSTRUCTION_EXPECTED_BECAUSE_TEXT'
+  | 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT'
   | 'SANSA_INSTRUCTION_EXPECTED_WITH'
   | 'SANSA_INSTRUCTION_EXPECTED_IN'
   | 'SANSA_INSTRUCTION_EXPECTED_ADDRESS'
@@ -666,6 +668,7 @@ export type SansaLowerInstructionResult =
   | {
       readonly ok: true;
       readonly request: SansaMutationRequestEnvelope | SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly provenance: SansaInstructionProvenance;
       readonly diagnostics: readonly SansaInstructionLowerDiagnostic[];
       readonly warnings: readonly SansaWarning[];
     }
@@ -997,6 +1000,7 @@ export interface SansaQueryProjectionField {
 
 export interface SansaInstruction {
   readonly type: 'SansaInstruction';
+  readonly provenance: SansaInstructionProvenance;
   readonly from: SansaInstructionFromClause | null;
   readonly where: SansaInstructionWhereClause | null;
   readonly requires: readonly SansaInstructionRequireClause[];
@@ -1005,7 +1009,12 @@ export interface SansaInstruction {
   readonly canonical: string;
 }
 
-export type SansaInstructionClauseName = 'from' | 'where' | 'require' | 'create' | 'replace' | 'remove' | 'insert' | 'append' | 'move';
+export interface SansaInstructionProvenance {
+  readonly reason?: string;
+  readonly claimedAuthor?: string;
+}
+
+export type SansaInstructionClauseName = 'because' | 'by' | 'from' | 'where' | 'require' | 'create' | 'replace' | 'remove' | 'insert' | 'append' | 'move';
 
 export interface SansaInstructionFromClause {
   readonly type: 'fromClause';

@@ -184,6 +184,7 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
     return {
       ok: true,
       request,
+      provenance: parsed.instruction.provenance,
       diagnostics: [],
       warnings: parsed.warnings ?? [],
     };
@@ -216,6 +217,8 @@ export function planInstruction(input, namespace, options = {}) {
     provenance: {
       type: 'SansaInstruction',
       source: typeof input === 'string' ? input : input?.canonical,
+      ...(lowered.provenance?.reason === undefined ? {} : { reason: lowered.provenance.reason }),
+      ...(lowered.provenance?.claimedAuthor === undefined ? {} : { claimedAuthor: lowered.provenance.claimedAuthor }),
     },
   };
   const planned = planMutation(request, namespace, options.mutate ?? options);
@@ -5277,7 +5280,7 @@ class InstructionParser {
 
     const seen = new Set();
     for (const clause of clauses) {
-      if (clause.category !== 'query') continue;
+      if (clause.category !== 'query' && clause.category !== 'metadata') continue;
       if (clause.name === 'require') continue;
       if (seen.has(clause.name)) {
         this.fail(`Duplicate SANSA instruction clause '${clause.label}'`, 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE', clause.start);
@@ -5286,7 +5289,7 @@ class InstructionParser {
     }
 
     const mutationClause = mutationClauses[0];
-    const order = new Map([['from', 0], ['where', 1], ['require', 2], [mutationClause.name, 3]]);
+    const order = new Map([['because', 0], ['by', 0], ['from', 1], ['where', 2], ['require', 3], [mutationClause.name, 4]]);
     let previousOrder = -1;
     for (const clause of clauses) {
       const currentOrder = order.get(clause.name);
@@ -5298,6 +5301,7 @@ class InstructionParser {
     }
 
     const clauseByName = new Map(clauses.map((clause) => [clause.name, clause]));
+    const provenance = this.parseProvenanceClauses(clauseByName);
     const from = clauseByName.has('from') ? this.parseFromClause(clauseByName.get('from')) : null;
     const where = clauseByName.has('where') ? this.parseWhereClause(clauseByName.get('where')) : null;
     const requires = clauses
@@ -5306,6 +5310,7 @@ class InstructionParser {
     const mutation = this.parseMutationClause(mutationClause);
     const instruction = {
       type: 'SansaInstruction',
+      provenance,
       from,
       where,
       requires,
@@ -5323,6 +5328,31 @@ class InstructionParser {
     }
     const address = this.parseAddress(body, clause.bodyStart + clause.body.indexOf(body));
     return { type: 'fromClause', source: 'address', address: address.address };
+  }
+
+  parseProvenanceClauses(clauseByName) {
+    return {
+      ...(clauseByName.has('because') ? { reason: this.parseMetadataTextClause(clauseByName.get('because'), 'because', 'SANSA_INSTRUCTION_EXPECTED_BECAUSE_TEXT') } : {}),
+      ...(clauseByName.has('by') ? { claimedAuthor: this.parseMetadataTextClause(clauseByName.get('by'), 'by', 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT') } : {}),
+    };
+  }
+
+  parseMetadataTextClause(clause, label, code) {
+    const body = clause.body.trim();
+    if (body.length === 0) {
+      this.fail(`Expected quoted text after '${label}'`, code, clause.bodyStart);
+    }
+    const parser = new AddressParser(body, this.options.address ?? this.options);
+    try {
+      const value = parser.parseQuotedPayload();
+      parser.expectEnd();
+      return value;
+    } catch (error) {
+      if (error instanceof SansaParseError) {
+        this.fail(`Expected quoted text after '${label}'`, code, clause.bodyStart + clause.body.indexOf(body) + error.index);
+      }
+      throw error;
+    }
   }
 
   parseWhereClause(clause) {
@@ -6495,6 +6525,8 @@ function stripQueryComments(input) {
 
 function renderInstruction(instruction) {
   const lines = [];
+  if (instruction.provenance?.reason !== undefined) lines.push(`because ${quotePayload(instruction.provenance.reason)}`);
+  if (instruction.provenance?.claimedAuthor !== undefined) lines.push(`by ${quotePayload(instruction.provenance.claimedAuthor)}`);
   if (instruction.from) lines.push(`from ${renderInstructionAddress(instruction.from.address)}`);
   if (instruction.where) lines.push(`where ${renderQueryExpression(instruction.where.ast)}`);
   for (const requirement of instruction.requires ?? []) {
@@ -6614,6 +6646,11 @@ function matchInstructionClauseKeyword(source, index) {
   for (const name of ['from', 'where', 'require']) {
     if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
       return { name, label: name, category: 'query', end: index + name.length };
+    }
+  }
+  for (const name of ['because', 'by']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'metadata', end: index + name.length };
     }
   }
   for (const name of ['select', 'offset', 'limit']) {

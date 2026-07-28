@@ -148,6 +148,8 @@ test('parses core instruction mutation verbs', () => {
 
 test('parses candidate-relative instruction clauses', () => {
   const instruction = parseOk([
+    'because "manual correction"',
+    'by "Bob"',
     'from $.inventory.items.*',
     'where .qty == 0',
     'require .sku == "A-100"',
@@ -157,8 +159,11 @@ test('parses candidate-relative instruction clauses', () => {
   assert.equal(instruction.from.address.canonical, '$.inventory.items.*');
   assert.equal(instruction.where.expression, '.qty == 0');
   assert.equal(instruction.requires[0].expression, '.sku == "A-100"');
+  assert.deepEqual(instruction.provenance, { reason: 'manual correction', claimedAuthor: 'Bob' });
   assert.equal(instruction.mutation.target.address.canonical, '?.qty');
   assert.equal(instruction.canonical, [
+    'because "manual correction"',
+    'by "Bob"',
     'from $.inventory.items.*',
     'where .qty == 0',
     'require .sku == "A-100"',
@@ -292,6 +297,17 @@ test('lowers direct instructions to mutate request operations', () => {
   });
 });
 
+test('preserves inert instruction provenance metadata while lowering', () => {
+  const result = lowerInstruction([
+    'because "manual correction"',
+    'by "Bob"',
+    'replace $.inventory.items[0].qty with :int32, 10',
+  ].join('\n'));
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.provenance, { reason: 'manual correction', claimedAuthor: 'Bob' });
+  assert.equal(result.request.provenance, undefined);
+});
+
 test('lowers query-shaped instructions through namespace candidates', () => {
   const namespace = sampleNamespace();
 
@@ -374,6 +390,16 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(replace.plan.operations[0].value, 10);
   assert.equal(replace.plan.sourceProvenance.type, 'SansaInstruction');
 
+  const attributed = planOk([
+    'because "manual correction"',
+    'by "Bob"',
+    'replace $.inventory.items[0].qty with :int32, 10',
+  ].join('\n'), namespace);
+  assert.equal(attributed.plan.sourceProvenance.type, 'SansaInstruction');
+  assert.equal(attributed.plan.sourceProvenance.reason, 'manual correction');
+  assert.equal(attributed.plan.sourceProvenance.claimedAuthor, 'Bob');
+  assert.equal(attributed.plan.operations[0].provenance, undefined);
+
   const guarded = planOk([
     'from $.inventory.items.*',
     'where .sku == "A-100"',
@@ -451,6 +477,9 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.inventory.status, "active"', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('from $.items.*\norder by .sku\nreplace .qty with 1', 'SANSA_INSTRUCTION_UNSUPPORTED_QUERY_CLAUSE');
   parseBad('from $.a\nfrom $.b\nreplace .qty with 1', 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE');
+  parseBad('because "one"\nbecause "two"\nreplace $.qty with 1', 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE');
+  parseBad('because Bob\nreplace $.qty with 1', 'SANSA_INSTRUCTION_EXPECTED_BECAUSE_TEXT');
+  parseBad('by\nreplace $.qty with 1', 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT');
   parseBad('from $.a\nrequire\nreplace .qty with 1', 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION');
   parseBad('replace .qty with 10\nremove .oldQty', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS');
   parseBad('insert "sale" after $.tags[1]', 'SANSA_INSTRUCTION_EXPECTED_WITH');

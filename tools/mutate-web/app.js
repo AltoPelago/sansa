@@ -91,6 +91,8 @@ const examples = [
       },
       instruction: {
         request: [
+          'because "manual correction"',
+          'by "Bob"',
           'from $.inventory.items[0]',
           'where .sku == "A-100"',
           'replace .sku with "A-101"',

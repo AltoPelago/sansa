@@ -86,6 +86,10 @@ renderQualifierTerm(term)
 ```
 
 `parseInstructionOrThrow` returns `instruction` or throws `SansaParseError`.
+Parsed instructions include `provenance.reason` for `because "..."` clauses
+and `provenance.claimedAuthor` for `by "..."` clauses when present. These
+fields are claimed source metadata only; they are not authorization,
+authentication, signatures, or audit proof.
 
 `lowerInstruction` accepts either an instruction string or parsed
 `SansaInstruction`. Direct instructions lower without a namespace when their
@@ -105,13 +109,18 @@ Successful lowering returns one requested mutation operation, an operation list,
 or a request envelope when `require` preconditions are present:
 
 ```js
-{ ok: true, request, diagnostics, warnings }
+{ ok: true, request, diagnostics, warnings, provenance }
 { ok: false, errors }
 ```
 
 For candidate-relative instructions, each surviving candidate receives its own
 precondition target. `where` filters candidates; `require` creates fail-closed
 mutation guards.
+
+`lowerInstruction` returns parsed source provenance separately from the lowered
+mutation request. It does not place `because` or `by` on operation provenance,
+because those clauses describe the instruction source rather than individual
+mutation operations.
 
 Instruction `append <container> with <value>` and
 `append in <container> with <value>` canonicalize and lower as
@@ -152,6 +161,11 @@ This function is a convenience bridge. Target-surface validation,
 authorization, schema checks, apply, transactions, and host-specific mutation
 policy remain outside Instruction and inside the consumer or mutation adapter
 boundary.
+
+Successful `planInstruction` results preserve `because` and `by` on
+`plan.sourceProvenance` alongside `{ type: "SansaInstruction", source }`.
+Consumers may display these fields, but must treat them as claimed source
+metadata rather than trusted actor identity.
 
 `evaluateQuery` accepts either a query string or a parsed `SansaQuery` and returns:
 

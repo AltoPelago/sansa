@@ -95,6 +95,8 @@ Instructions may also use `from` and `where` clauses to lower
 candidate-relative targets into exact mutation requests:
 
 ```text
+because "manual correction"
+by "Bob"
 from $.inventory.items.*
 where .sku == "C-300"
 create status with "pending"
@@ -113,6 +115,22 @@ replace .qty with :int32, 10
 For candidate-relative instructions, each surviving candidate receives a
 candidate-scoped precondition target. This keeps filtering and fail-closed
 mutation guards separate.
+
+`because` and `by` are optional source-provenance clauses. They are preserved as
+inert metadata on the lowered instruction and plan source:
+
+```text
+because "manual correction"
+by "Bob"
+from $.inventory.items.*
+where .sku == "A-100"
+replace .qty with :int32, 10
+```
+
+`because` is a human-readable reason. `by` is claimed attribution. Neither
+clause provides authorization, authentication, approval, signature material, or
+audit proof. Real actor identity, delegation, policy checks, and audit evidence
+belong to the host envelope or mutation adapter.
 
 Values use the same type-first intent style as AEON-facing examples:
 
@@ -161,10 +179,9 @@ AEON-only features such as attributes, typed SANSA values, parameterized
 datatypes, tuples, nodes, references, NaN, and Infinity.
 
 This is not yet a full replacement for structured mutation-request JSON.
-Instruction currently does not preserve separate provenance fields, and it does
-not express heterogeneous multi-operation requests as a single instruction. Use
-structured JSON for those cases until a later instruction/vocabulary slice
-defines them.
+Instruction preserves source-level claimed provenance, but it does not express
+heterogeneous multi-operation requests as a single instruction. Use structured
+JSON for those cases until a later instruction/vocabulary slice defines them.
 
 The Mutate Workbench labels examples that only exist on one input surface as
 `structured-only` or `instruction-only` so this boundary is visible while

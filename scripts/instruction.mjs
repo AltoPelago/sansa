@@ -268,10 +268,16 @@ function renderRequestedOperation(operation) {
 }
 
 function renderPlanSummary(plan) {
-  return [
+  const lines = [
     `plan: ${plan.operations.length} operation${plan.operations.length === 1 ? '' : 's'}`,
     ...plan.operations.map((operation, index) => `${index + 1}. ${renderPlannedOperation(operation)}`),
-  ].join('\n');
+  ];
+  if (plan.sourceProvenance?.reason !== undefined || plan.sourceProvenance?.claimedAuthor !== undefined) {
+    lines.push('provenance:');
+    if (plan.sourceProvenance.reason !== undefined) lines.push(`because ${JSON.stringify(plan.sourceProvenance.reason)}`);
+    if (plan.sourceProvenance.claimedAuthor !== undefined) lines.push(`by ${JSON.stringify(plan.sourceProvenance.claimedAuthor)}`);
+  }
+  return lines.join('\n');
 }
 
 function renderPlannedOperation(operation) {

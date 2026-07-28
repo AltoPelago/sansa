@@ -63,6 +63,8 @@ testAeonRuntime('mutate web runtime plans instruction requests', async () => {
     mode: 'plan',
     requestKind: 'instruction',
     requestSource: [
+      'because "manual correction"',
+      'by "Bob"',
       'from $.inventory.items.*',
       'where .sku == "B-200"',
       'replace .qty with :int32, 10',
@@ -74,6 +76,9 @@ testAeonRuntime('mutate web runtime plans instruction requests', async () => {
   assert.equal(result.plan.operations[0].op, 'replace');
   assert.equal(result.plan.operations[0].target.canonicalAddress, '$.inventory.items[1].qty');
   assert.equal(result.plan.operations[0].datatype, 'int32');
+  assert.equal(result.plan.sourceProvenance.reason, 'manual correction');
+  assert.equal(result.plan.sourceProvenance.claimedAuthor, 'Bob');
+  assert.equal(result.plan.operations[0].provenance, undefined);
   assert.deepEqual(result.loweredRequest, {
     op: 'replace',
     target: '$.inventory.items[1].qty',
@@ -82,6 +87,8 @@ testAeonRuntime('mutate web runtime plans instruction requests', async () => {
     value: 10,
   });
   assert.match(result.text, /operations: 1/);
+  assert.match(result.text, /because "manual correction"/);
+  assert.match(result.text, /by "Bob"/);
 });
 
 testAeonRuntime('mutate web runtime applies mutations to an isolated source tree', async () => {

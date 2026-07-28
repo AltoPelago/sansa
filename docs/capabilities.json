@@ -51,6 +51,7 @@
       "boundaries": [
         "lowering emits SANSA.Mutate request operations",
         "require clauses lower into SANSA.Mutate preconditions",
+        "because and by clauses are inert claimed provenance, not authorization or authentication",
         "planning delegates to SANSA.Mutate plan API",
         "target-surface validation remains a downstream Mutate/adapter boundary",
         "apply remains SANSA.Mutate adapter responsibility"
