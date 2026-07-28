@@ -66,6 +66,10 @@ function runTest(test, namespaces) {
   const planResult = planMutation(request, fixture.namespace, planOptions);
   const mode = test.input?.mode ?? 'plan';
   const target = test.input?.target;
+  if (mode === 'policy' && test.input?.policy === undefined) {
+    failures.push('policy mode requires input.policy');
+    return failures;
+  }
   const result = target && planResult.ok
     ? validateMutationPlanTarget(planResult.plan, target)
     : mode === 'policy' && planResult.ok

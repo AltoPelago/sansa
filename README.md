@@ -54,7 +54,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane runs core conformance and skips experimental extension cases. `cts:query:experimental` includes experimental extension coverage.
-The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage.
+The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy-boundary cases.
 
 ## Query Tool
 
