@@ -62,6 +62,7 @@ export type SansaParseErrorCode =
   | 'SANSA_INSTRUCTION_INVALID_CLAUSE_ORDER'
   | 'SANSA_INSTRUCTION_EXPECTED_FROM_ADDRESS'
   | 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION'
+  | 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION'
   | 'SANSA_INSTRUCTION_EXPECTED_WITH'
   | 'SANSA_INSTRUCTION_EXPECTED_IN'
   | 'SANSA_INSTRUCTION_EXPECTED_ADDRESS'
@@ -664,7 +665,7 @@ export interface SansaLowerInstructionOptions {
 export type SansaLowerInstructionResult =
   | {
       readonly ok: true;
-      readonly request: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly request: SansaMutationRequestEnvelope | SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
       readonly diagnostics: readonly SansaInstructionLowerDiagnostic[];
       readonly warnings: readonly SansaWarning[];
     }
@@ -681,7 +682,7 @@ export type SansaPlanInstructionResult<TBinding extends object = SansaResolveBin
   | {
       readonly ok: true;
       readonly plan: SansaMutationPlan<TBinding>;
-      readonly loweredRequest: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly loweredRequest: SansaMutationRequestEnvelope | SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
       readonly diagnostics: readonly SansaMutateDiagnostic[];
       readonly warnings: readonly SansaWarning[];
     }
@@ -693,7 +694,7 @@ export type SansaPlanInstructionResult<TBinding extends object = SansaResolveBin
   | {
       readonly ok: false;
       readonly phase: 'plan';
-      readonly loweredRequest: SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
+      readonly loweredRequest: SansaMutationRequestEnvelope | SansaRequestedMutationOperation | readonly SansaRequestedMutationOperation[];
       readonly errors: readonly SansaMutateDiagnostic[];
       readonly warnings: readonly SansaWarning[];
     };
@@ -998,12 +999,13 @@ export interface SansaInstruction {
   readonly type: 'SansaInstruction';
   readonly from: SansaInstructionFromClause | null;
   readonly where: SansaInstructionWhereClause | null;
+  readonly requires: readonly SansaInstructionRequireClause[];
   readonly mutation: SansaInstructionMutationClause;
   readonly clauses: readonly SansaInstructionClauseName[];
   readonly canonical: string;
 }
 
-export type SansaInstructionClauseName = 'from' | 'where' | 'create' | 'replace' | 'remove' | 'insert' | 'append' | 'move';
+export type SansaInstructionClauseName = 'from' | 'where' | 'require' | 'create' | 'replace' | 'remove' | 'insert' | 'append' | 'move';
 
 export interface SansaInstructionFromClause {
   readonly type: 'fromClause';
@@ -1013,6 +1015,12 @@ export interface SansaInstructionFromClause {
 
 export interface SansaInstructionWhereClause {
   readonly type: 'whereClause';
+  readonly expression: string;
+  readonly ast: SansaQueryExpression;
+}
+
+export interface SansaInstructionRequireClause {
+  readonly type: 'requireClause';
   readonly expression: string;
   readonly ast: SansaQueryExpression;
 }

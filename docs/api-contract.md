@@ -91,22 +91,27 @@ renderQualifierTerm(term)
 `SansaInstruction`. Direct instructions lower without a namespace when their
 targets are already absolute. Query-shaped instructions with `from` or `where`
 require a host namespace so candidates can be resolved and candidate-relative
-targets can become exact structured mutation requests:
+targets can become exact structured mutation requests. `require` clauses lower
+to structured Mutate preconditions and are preserved for planning/apply recheck:
 
 ```js
 lowerInstruction(
-  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nreplace .qty with :int32, 10",
+  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nrequire .qty == 4\nreplace .qty with :int32, 10",
   namespace
 )
 ```
 
-Successful lowering returns one requested mutation operation or an operation
-list:
+Successful lowering returns one requested mutation operation, an operation list,
+or a request envelope when `require` preconditions are present:
 
 ```js
 { ok: true, request, diagnostics, warnings }
 { ok: false, errors }
 ```
+
+For candidate-relative instructions, each surviving candidate receives its own
+precondition target. `where` filters candidates; `require` creates fail-closed
+mutation guards.
 
 Instruction `append <container> with <value>` and
 `append in <container> with <value>` canonicalize and lower as

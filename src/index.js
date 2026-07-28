@@ -175,9 +175,15 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
   }
   try {
     const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
+    const request = lowered.preconditions.length === 0
+      ? lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations
+      : {
+          operations: lowered.operations,
+          preconditions: lowered.preconditions,
+        };
     return {
       ok: true,
-      request: lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations,
+      request,
       diagnostics: [],
       warnings: parsed.warnings ?? [],
     };
@@ -199,9 +205,14 @@ export function planInstruction(input, namespace, options = {}) {
     };
   }
 
-  const operations = Array.isArray(lowered.request) ? lowered.request : [lowered.request];
+  const operations = Array.isArray(lowered.request)
+    ? lowered.request
+    : Array.isArray(lowered.request?.operations)
+      ? lowered.request.operations
+      : [lowered.request];
   const request = {
     operations,
+    ...(Array.isArray(lowered.request?.preconditions) ? { preconditions: lowered.request.preconditions } : {}),
     provenance: {
       type: 'SansaInstruction',
       source: typeof input === 'string' ? input : input?.canonical,
@@ -2295,6 +2306,7 @@ function isLikelyResolveNamespace(value) {
 }
 
 function lowerParsedInstruction(instruction, namespace, options = {}) {
+  const requires = instruction.requires ?? [];
   if (instruction.from || instruction.where) {
     if (!namespace) {
       throw new SansaInstructionLowerError(instructionLowerError(
@@ -2305,7 +2317,10 @@ function lowerParsedInstruction(instruction, namespace, options = {}) {
     }
     return lowerInstructionWithCandidates(instruction, namespace, options);
   }
-  return { operations: [lowerInstructionMutationDirect(instruction.mutation)] };
+  return {
+    operations: [lowerInstructionMutationDirect(instruction.mutation)],
+    preconditions: lowerInstructionRequiresDirect(requires),
+  };
 }
 
 function lowerInstructionMutationDirect(mutation) {
@@ -2353,10 +2368,12 @@ function lowerInstructionMutationDirect(mutation) {
 function lowerInstructionWithCandidates(instruction, namespace, options) {
   const selected = selectInstructionCandidates(instruction, namespace, options);
   const operations = [];
+  const preconditions = [];
   for (const candidate of selected) {
     operations.push(lowerInstructionMutationForCandidate(instruction.mutation, candidate, namespace, options));
+    preconditions.push(...lowerInstructionRequiresForCandidate(instruction.requires ?? [], candidate));
   }
-  return { operations };
+  return { operations, preconditions };
 }
 
 function selectInstructionCandidates(instruction, namespace, options) {
@@ -2587,6 +2604,28 @@ function lowerInstructionPlacementForCandidate(placement, candidate, namespace, 
     kind: placement.kind,
     anchor: resolveInstructionExactAddress(placement.anchor, candidate, namespace, options, 'anchor'),
   };
+}
+
+function lowerInstructionRequiresDirect(requires) {
+  return requires.map((requirement) => ({
+    expression: requirement.expression,
+  }));
+}
+
+function lowerInstructionRequiresForCandidate(requires, candidate) {
+  if (requires.length === 0) return [];
+  const candidateAddress = getBindingAddress(candidate);
+  if (!candidateAddress) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_CANDIDATE_ADDRESS_UNAVAILABLE',
+      'Candidate binding does not expose a canonical address for require lowering',
+      { phase: 'lower' },
+    ));
+  }
+  return requires.map((requirement) => ({
+    expression: requirement.expression,
+    target: candidateAddress,
+  }));
 }
 
 function withInstructionValueIntent(operation, instructionValue) {
@@ -5239,6 +5278,7 @@ class InstructionParser {
     const seen = new Set();
     for (const clause of clauses) {
       if (clause.category !== 'query') continue;
+      if (clause.name === 'require') continue;
       if (seen.has(clause.name)) {
         this.fail(`Duplicate SANSA instruction clause '${clause.label}'`, 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE', clause.start);
       }
@@ -5246,7 +5286,7 @@ class InstructionParser {
     }
 
     const mutationClause = mutationClauses[0];
-    const order = new Map([['from', 0], ['where', 1], [mutationClause.name, 2]]);
+    const order = new Map([['from', 0], ['where', 1], ['require', 2], [mutationClause.name, 3]]);
     let previousOrder = -1;
     for (const clause of clauses) {
       const currentOrder = order.get(clause.name);
@@ -5260,11 +5300,15 @@ class InstructionParser {
     const clauseByName = new Map(clauses.map((clause) => [clause.name, clause]));
     const from = clauseByName.has('from') ? this.parseFromClause(clauseByName.get('from')) : null;
     const where = clauseByName.has('where') ? this.parseWhereClause(clauseByName.get('where')) : null;
+    const requires = clauses
+      .filter((clause) => clause.name === 'require')
+      .map((clause) => this.parseRequireClause(clause));
     const mutation = this.parseMutationClause(mutationClause);
     const instruction = {
       type: 'SansaInstruction',
       from,
       where,
+      requires,
       mutation,
       clauses: clauses.filter((clause) => clause.category !== 'unsupportedQuery').map((clause) => clause.name),
     };
@@ -5282,9 +5326,21 @@ class InstructionParser {
   }
 
   parseWhereClause(clause) {
+    return this.parseQueryExpressionClause(clause, 'whereClause', 'where');
+  }
+
+  parseRequireClause(clause) {
+    return this.parseQueryExpressionClause(clause, 'requireClause', 'require');
+  }
+
+  parseQueryExpressionClause(clause, type, label) {
     const expression = normalizeQueryExpression(clause.body);
     if (expression.length === 0) {
-      this.fail("Expected expression after 'where'", 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION', clause.bodyStart);
+      this.fail(
+        `Expected expression after '${label}'`,
+        label === 'require' ? 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION' : 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION',
+        clause.bodyStart,
+      );
     }
     const result = parseQueryExpression(expression, this.expressionOptions());
     if (!result.ok) {
@@ -5292,7 +5348,7 @@ class InstructionParser {
       this.fail(first.message, first.code, clause.bodyStart + clause.body.indexOf(expression) + first.index);
     }
     this.warnings.push(...result.warnings);
-    return { type: 'whereClause', expression: renderQueryExpression(result.expression), ast: result.expression };
+    return { type, expression: renderQueryExpression(result.expression), ast: result.expression };
   }
 
   parseMutationClause(clause) {
@@ -6441,6 +6497,9 @@ function renderInstruction(instruction) {
   const lines = [];
   if (instruction.from) lines.push(`from ${renderInstructionAddress(instruction.from.address)}`);
   if (instruction.where) lines.push(`where ${renderQueryExpression(instruction.where.ast)}`);
+  for (const requirement of instruction.requires ?? []) {
+    lines.push(`require ${renderQueryExpression(requirement.ast)}`);
+  }
   lines.push(renderInstructionMutation(instruction.mutation));
   return lines.join('\n');
 }
@@ -6552,7 +6611,7 @@ function matchInstructionClauseKeyword(source, index) {
       return { name: 'order', label: 'order by', category: 'unsupportedQuery', end: cursor + 2 };
     }
   }
-  for (const name of ['from', 'where']) {
+  for (const name of ['from', 'where', 'require']) {
     if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
       return { name, label: name, category: 'query', end: index + name.length };
     }

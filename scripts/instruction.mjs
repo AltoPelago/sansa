@@ -232,11 +232,22 @@ function formatJsonResult(result, mode, fixturePath, target, targetResult) {
 }
 
 function renderLoweredRequest(request) {
-  const operations = Array.isArray(request) ? request : [request];
-  return operations.map((operation, index) => {
+  const operations = Array.isArray(request)
+    ? request
+    : Array.isArray(request?.operations)
+      ? request.operations
+      : [request];
+  const lines = operations.map((operation, index) => {
     const prefix = operations.length > 1 ? `${index + 1}. ` : '';
     return `${prefix}${renderRequestedOperation(operation)}`;
-  }).join('\n');
+  });
+  if (Array.isArray(request?.preconditions) && request.preconditions.length > 0) {
+    lines.push(...request.preconditions.map((precondition, index) => {
+      const prefix = request.preconditions.length > 1 ? `${index + 1}. ` : '';
+      return `${prefix}require ${precondition.expression}${precondition.target === undefined ? '' : ` at ${precondition.target}`}`;
+    }));
+  }
+  return lines.join('\n');
 }
 
 function renderRequestedOperation(operation) {

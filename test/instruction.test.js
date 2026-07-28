@@ -150,15 +150,18 @@ test('parses candidate-relative instruction clauses', () => {
   const instruction = parseOk([
     'from $.inventory.items.*',
     'where .qty == 0',
+    'require .sku == "A-100"',
     'replace .qty with :int32, 10',
   ].join('\n'));
 
   assert.equal(instruction.from.address.canonical, '$.inventory.items.*');
   assert.equal(instruction.where.expression, '.qty == 0');
+  assert.equal(instruction.requires[0].expression, '.sku == "A-100"');
   assert.equal(instruction.mutation.target.address.canonical, '?.qty');
   assert.equal(instruction.canonical, [
     'from $.inventory.items.*',
     'where .qty == 0',
+    'require .sku == "A-100"',
     'replace .qty with :int32, 10',
   ].join('\n'));
 });
@@ -331,6 +334,29 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       value: 'sale',
     },
   ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'where .sku == "A-100"',
+    'require .qty == 0',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace), {
+    operations: [
+      {
+        op: 'replace',
+        target: '$.inventory.items[0].qty',
+        datatype: 'int32',
+        kind: 'number',
+        value: 10,
+      },
+    ],
+    preconditions: [
+      {
+        expression: '.qty == 0',
+        target: '$.inventory.items[0]',
+      },
+    ],
+  });
 });
 
 test('plans lowered instructions through the mutate planner', () => {
@@ -347,6 +373,20 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(replace.plan.operations[0].datatype, 'int32');
   assert.equal(replace.plan.operations[0].value, 10);
   assert.equal(replace.plan.sourceProvenance.type, 'SansaInstruction');
+
+  const guarded = planOk([
+    'from $.inventory.items.*',
+    'where .sku == "A-100"',
+    'require .qty == 0',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace);
+  assert.deepEqual(guarded.plan.preconditions.map((precondition) => ({
+    expression: precondition.expression,
+    canonical: precondition.canonical,
+    target: precondition.target.canonicalAddress,
+  })), [
+    { expression: '.qty == 0', canonical: '.qty == 0', target: '$.inventory.items[0]' },
+  ]);
 
   const create = planOk([
     'from $.inventory.items.*',
@@ -384,6 +424,16 @@ test('preserves instruction lower and mutate plan failure phases', () => {
 
   planBad('from $.inventory.items.*\nreplace .missing with "x"', namespace, 'lower', 'SANSA_INSTRUCTION_TARGET_MISS');
 
+  const failedRequire = planBad([
+    'from $.inventory.items.*',
+    'require .qty == 0',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace, 'plan', 'SANSA_MUTATE_PRECONDITION_FAILED');
+  assert.deepEqual(failedRequire.loweredRequest.preconditions.map((precondition) => precondition.target), [
+    '$.inventory.items[0]',
+    '$.inventory.items[1]',
+  ]);
+
   const duplicate = planBad([
     'from $.inventory.items.*',
     'create sku with "duplicate"',
@@ -401,6 +451,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.inventory.status, "active"', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('from $.items.*\norder by .sku\nreplace .qty with 1', 'SANSA_INSTRUCTION_UNSUPPORTED_QUERY_CLAUSE');
   parseBad('from $.a\nfrom $.b\nreplace .qty with 1', 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE');
+  parseBad('from $.a\nrequire\nreplace .qty with 1', 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION');
   parseBad('replace .qty with 10\nremove .oldQty', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS');
   parseBad('insert "sale" after $.tags[1]', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('replace $.inventory.qty with .other', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');

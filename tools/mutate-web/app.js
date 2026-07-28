@@ -113,6 +113,31 @@ const examples = [
     },
   },
   {
+    id: 'guarded-replace-qty',
+    label: 'Require Qty Before Replace',
+    group: 'Preconditions',
+    variants: {
+      structured: {
+        request: {
+          operations: [
+            { op: 'replace', target: '$.inventory.items[0].qty', datatype: 'int32', value: 10 },
+          ],
+          preconditions: [
+            { expression: '.qty == 7', target: '$.inventory.items[0]' },
+          ],
+        },
+      },
+      instruction: {
+        request: [
+          'from $.inventory.items.*',
+          'where .sku == "A-100"',
+          'require .qty == 1',
+          'replace .qty with :int32, 10',
+        ].join('\n'),
+      },
+    },
+  },
+  {
     id: 'create-status',
     label: 'Create Status',
     group: 'Core Mutations',
@@ -736,7 +761,7 @@ async function loadDefaults() {
   defaultSource = await fetchText('/fixtures/query-inventory.aeon', [
     'inventory = {',
     '  items:list<object> = [',
-    '    { sku:string = "A-100" name:string = "Adapter" qty:int = 7 }',
+    '    { sku:string = "A-100" name:string = "Adapter" qty:int = 1 }',
     '    { sku:string = "B-200" name:string = "Bolt" qty:int = 3 }',
     '  ]',
     '}',

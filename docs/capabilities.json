@@ -40,6 +40,7 @@
         "replace",
         "remove",
         "insert",
+        "append",
         "move"
       ],
       "entryPoints": [
@@ -49,6 +50,7 @@
       ],
       "boundaries": [
         "lowering emits SANSA.Mutate request operations",
+        "require clauses lower into SANSA.Mutate preconditions",
         "planning delegates to SANSA.Mutate plan API",
         "target-surface validation remains a downstream Mutate/adapter boundary",
         "apply remains SANSA.Mutate adapter responsibility"

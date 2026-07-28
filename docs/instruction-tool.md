@@ -100,6 +100,20 @@ where .sku == "C-300"
 create status with "pending"
 ```
 
+`where` selects candidate bindings. `require` preserves a Mutate precondition
+that must hold during planning and, by default, again before apply:
+
+```text
+from $.inventory.items.*
+where .sku == "A-100"
+require .qty == 1
+replace .qty with :int32, 10
+```
+
+For candidate-relative instructions, each surviving candidate receives a
+candidate-scoped precondition target. This keeps filtering and fail-closed
+mutation guards separate.
+
 Values use the same type-first intent style as AEON-facing examples:
 
 ```text
@@ -147,10 +161,10 @@ AEON-only features such as attributes, typed SANSA values, parameterized
 datatypes, tuples, nodes, references, NaN, and Infinity.
 
 This is not yet a full replacement for structured mutation-request JSON.
-Instruction currently does not preserve separate mutation preconditions or
-provenance fields, and it does not express heterogeneous multi-operation
-requests as a single instruction. Use structured JSON for those cases until a
-later instruction/vocabulary slice defines them.
+Instruction currently does not preserve separate provenance fields, and it does
+not express heterogeneous multi-operation requests as a single instruction. Use
+structured JSON for those cases until a later instruction/vocabulary slice
+defines them.
 
 The Mutate Workbench labels examples that only exist on one input surface as
 `structured-only` or `instruction-only` so this boundary is visible while

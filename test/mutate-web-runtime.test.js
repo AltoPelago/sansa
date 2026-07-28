@@ -172,6 +172,15 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
     {
       instruction: [
         'from $.inventory.items.*',
+        'where .sku == "A-100"',
+        'require .qty == 1',
+        'replace .qty with :int32, 10',
+      ].join('\n'),
+      match: /qty:int32 = 10/,
+    },
+    {
+      instruction: [
+        'from $.inventory.items.*',
         'where .sku == "C-300"',
         'create status with "pending"',
       ].join('\n'),

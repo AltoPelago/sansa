@@ -85,11 +85,13 @@ function runTest(test, namespaces) {
 
   if (mode === 'lower') {
     compareLoweredOperations(expected.operations ?? [], result.request, failures);
+    compareLoweredPreconditions(expected.preconditions, result.request, failures);
     return failures;
   }
 
   if (mode === 'plan') {
     comparePlannedOperations(expected.operations ?? [], result.plan.operations, failures);
+    compareArray(expected.preconditions, result.plan.preconditions.map((precondition) => precondition.canonical), 'preconditions', failures);
     compareField(expected.sourceProvenanceType, result.plan.sourceProvenance?.type, 'sourceProvenanceType', failures);
     return failures;
   }
@@ -136,7 +138,11 @@ function compareError(expected, result, failures) {
 }
 
 function compareLoweredOperations(expected, actual, failures) {
-  const operations = Array.isArray(actual) ? actual : [actual];
+  const operations = Array.isArray(actual)
+    ? actual
+    : Array.isArray(actual?.operations)
+      ? actual.operations
+      : [actual];
   if (expected.length !== operations.length) {
     failures.push(`operations length mismatch: expected ${expected.length}, got ${operations.length}`);
     return;
@@ -154,6 +160,12 @@ function compareLoweredOperations(expected, actual, failures) {
     comparePlacement(expected[index].placement, current.placement, `operations[${index}].placement`, failures);
     if (Object.hasOwn(expected[index], 'value')) compareJsonLike(expected[index].value, current.value, `operations[${index}].value`, failures);
   }
+}
+
+function compareLoweredPreconditions(expected, actual, failures) {
+  if (expected === undefined) return;
+  const preconditions = Array.isArray(actual?.preconditions) ? actual.preconditions : [];
+  compareJsonLike(expected, preconditions, 'preconditions', failures);
 }
 
 function comparePlannedOperations(expected, actual, failures) {

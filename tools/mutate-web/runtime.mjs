@@ -871,6 +871,12 @@ function renderPlanText(plan) {
     const target = operation.target ?? operation.parent ?? operation.source ?? operation.container;
     lines.push(`${index}: ${operation.op} ${target?.canonicalAddress ?? ''}`.trim());
   }
+  if ((plan.preconditions ?? []).length > 0) {
+    lines.push('', `preconditions: ${plan.preconditions.length}`);
+    for (const [index, precondition] of plan.preconditions.entries()) {
+      lines.push(`${index}: require ${precondition.canonical}${precondition.target?.canonicalAddress === undefined ? '' : ` at ${precondition.target.canonicalAddress}`}`);
+    }
+  }
   if ((plan.portabilityWarnings ?? []).length > 0) {
     lines.push('', 'portabilityWarnings:', ...plan.portabilityWarnings.map((warning) => `- ${warning.code}: ${warning.message}`));
   }

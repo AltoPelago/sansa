@@ -44,6 +44,8 @@ versions may still include breaking changes when the SANSA specifications move.
   Mutate Workbench integration for conservative mutation verbs.
 - Added SANSA.Instruction `append` source syntax as an alias for
   `insert last`.
+- Added SANSA.Instruction `require` clauses that lower into structured
+  SANSA.Mutate preconditions.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy gate for trusted
