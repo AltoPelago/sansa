@@ -519,6 +519,38 @@ testAeonRuntime('mutate web runtime enforces experimental mutation policy allow 
   assert.equal(result.plan.operations[0].target.canonicalAddress, '$.inventory.items[1].qty');
 });
 
+testAeonRuntime('mutate web runtime policy authorizes instruction operations with require preconditions', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: '$.inventory.items.*.qty',
+        datatypes: ['number', 'int32'],
+      },
+    ],
+  };
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: [
+      'from $.inventory.items.*',
+      'where .sku == "A-100"',
+      'require .qty == 1',
+      'replace .qty with :int32, 10',
+    ].join('\n'),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.plan.operations[0].target.canonicalAddress, '$.inventory.items[0].qty');
+  assert.equal(result.plan.preconditions[0].target.canonicalAddress, '$.inventory.items[0]');
+  assert.match(result.text, /preconditions: 1/);
+});
+
 testAeonRuntime('mutate web runtime denies mutations outside the experimental policy surface', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const policy = {
