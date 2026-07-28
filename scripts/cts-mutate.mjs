@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyMutationPlan, planMutation, validateMutationPlanTarget } from '../src/index.js';
+import { enforceMutationPolicyForWorkbench } from '../tools/mutate-web/runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -67,6 +68,8 @@ function runTest(test, namespaces) {
   const target = test.input?.target;
   const result = target && planResult.ok
     ? validateMutationPlanTarget(planResult.plan, target)
+    : mode === 'policy' && planResult.ok
+      ? enforceMutationPolicyForWorkbench(planResult.plan, fixture.namespace, JSON.stringify(test.input?.policy ?? {}))
     : mode === 'apply' && planResult.ok
       ? applyPlannedMutation(test, planResult.plan, fixture, applyOptions)
       : planResult;
@@ -87,6 +90,12 @@ function runTest(test, namespaces) {
       const actualIndex = result.errors?.[0]?.operationIndex;
       if (actualIndex !== expected.operationIndex) {
         failures.push(`operationIndex mismatch: expected ${expected.operationIndex}, got ${actualIndex ?? null}`);
+      }
+    }
+    if (Number.isInteger(expected.ruleIndex)) {
+      const actualIndex = result.errors?.[0]?.ruleIndex;
+      if (actualIndex !== expected.ruleIndex) {
+        failures.push(`ruleIndex mismatch: expected ${expected.ruleIndex}, got ${actualIndex ?? null}`);
       }
     }
     if (typeof expected.errorPhase === 'string') {

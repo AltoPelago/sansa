@@ -135,7 +135,7 @@ export async function runMutationForWorkbench({
   };
 }
 
-function enforceMutationPolicyForWorkbench(plan, namespace, policySource) {
+export function enforceMutationPolicyForWorkbench(plan, namespace, policySource) {
   if (policySource === undefined || policySource === null || String(policySource).trim().length === 0) {
     return { ok: true, diagnostics: [] };
   }
