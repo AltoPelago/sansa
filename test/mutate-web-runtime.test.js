@@ -53,6 +53,7 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
     assert.ok(example.variants.structured || example.variants.instruction);
     for (const variant of Object.values(example.variants)) {
       assert.ok(Object.hasOwn(variant, 'request'));
+      assert.equal(typeof variant.expected?.ok, 'boolean');
       if (variant.options?.targetFormat !== undefined) {
         assert.ok(['aeon', 'json'].includes(variant.options.targetFormat));
       }
@@ -64,6 +65,31 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(byId.get('target-json-parameterized-object-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-node-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-reference-fail')?.variants.instruction.options.targetFormat, 'json');
+});
+
+testAeonRuntime('mutate web runtime exercises declared catalog expectations', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  for (const example of mutateExamples) {
+    for (const [kind, variant] of Object.entries(example.variants)) {
+      const expected = variant.expected;
+      const result = await runMutationForWorkbench({
+        source,
+        mode: 'plan',
+        requestKind: kind,
+        requestSource: kind === 'instruction' ? variant.request : JSON.stringify(variant.request),
+        options: variant.options ?? {},
+      });
+      const label = `${example.id}:${kind}`;
+      assert.equal(result.ok, expected.ok, `${label}\n${JSON.stringify(result.errors ?? [])}`);
+      if (Object.hasOwn(expected, 'phase')) assert.equal(result.phase, expected.phase, label);
+      if (expected.code !== undefined) assert.equal(result.errors?.[0]?.code, expected.code, label);
+      if (expected.targetFormat !== undefined) {
+        assert.equal(result.errors?.[0]?.targetFormat, expected.targetFormat, label);
+      }
+      if (expected.datatype !== undefined) assert.equal(result.errors?.[0]?.datatype, expected.datatype, label);
+      if (expected.budget !== undefined) assert.equal(result.errors?.[0]?.budget, expected.budget, label);
+    }
+  }
 });
 
 testAeonRuntime('mutate web runtime plans structured mutation requests', async () => {

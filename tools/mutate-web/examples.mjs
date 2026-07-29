@@ -790,6 +790,134 @@ export const mutateExamples = [
   },
 ];
 
+const mutateExampleExpectationOverrides = {
+  'guarded-replace-qty:structured': {
+    ok: false,
+    code: 'SANSA_MUTATE_PRECONDITION_FAILED',
+  },
+  'target-aeon-generic-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'aeon',
+    datatype: 'string<null>',
+  },
+  'target-json-attribute-fail:structured': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+    targetFormat: 'json',
+  },
+  'target-json-attribute-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+    targetFormat: 'json',
+  },
+  'target-json-typed-sansa-fail:structured': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'sansa',
+  },
+  'target-json-typed-sansa-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'sansa',
+  },
+  'target-json-parameterized-list-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'list<string>',
+  },
+  'target-json-parameterized-object-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'object<node>',
+  },
+  'target-json-tuple-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'tuple',
+  },
+  'target-json-node-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'node',
+  },
+  'target-json-reference-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+    targetFormat: 'json',
+    datatype: 'cloneReference',
+  },
+  'instruction-duplicate-object-field-fail:instruction': {
+    ok: false,
+    phase: 'parse',
+    code: 'SANSA_INSTRUCTION_PARSE_FAILED',
+  },
+  'instruction-literal-only-fail:instruction': {
+    ok: false,
+    phase: 'parse',
+    code: 'SANSA_INSTRUCTION_PARSE_FAILED',
+  },
+  'instruction-invalid-create-name-fail:instruction': {
+    ok: false,
+    phase: 'parse',
+    code: 'SANSA_INSTRUCTION_PARSE_FAILED',
+  },
+  'budget-fail:structured': {
+    ok: false,
+    phase: 'plan',
+    code: 'SANSA_MUTATE_BUDGET_EXCEEDED',
+    budget: 'maxOperations',
+  },
+  'budget-fail:instruction': {
+    ok: false,
+    phase: 'plan',
+    code: 'SANSA_MUTATE_BUDGET_EXCEEDED',
+    budget: 'maxOperations',
+  },
+  'value-budget-fail:structured': {
+    ok: false,
+    phase: 'plan',
+    code: 'SANSA_MUTATE_BUDGET_EXCEEDED',
+    budget: 'maxStringLength',
+  },
+  'value-budget-fail:instruction': {
+    ok: false,
+    phase: 'plan',
+    code: 'SANSA_MUTATE_BUDGET_EXCEEDED',
+    budget: 'maxStringLength',
+  },
+  'capability-fail:structured': {
+    ok: false,
+    code: 'SANSA_MUTATE_PRECONDITION_FAILED',
+  },
+  'capability-fail:instruction': {
+    ok: false,
+    phase: 'plan',
+    code: 'SANSA_MUTATE_PRECONDITION_FAILED',
+  },
+};
+
+for (const example of mutateExamples) {
+  for (const [kind, variant] of Object.entries(example.variants)) {
+    variant.expected = mutateExampleExpectationOverrides[`${example.id}:${kind}`] ?? { ok: true };
+  }
+}
 
 export const mutateExampleGroups = Array.from(mutateExamples.reduce((groups, example) => {
   const group = example.group ?? 'Examples';

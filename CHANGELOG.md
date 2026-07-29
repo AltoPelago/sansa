@@ -98,6 +98,8 @@ versions may still include breaking changes when the SANSA specifications move.
   ordered inserts and AEON parameterized container datatype families.
 - Moved Mutate Workbench examples into a shared catalog module so UI rendering
   and runtime tests use the same grouped example source.
+- Added declared Mutate Workbench catalog expectations and runtime coverage for
+  every structured and Instruction example variant.
 
 ### Security
 
