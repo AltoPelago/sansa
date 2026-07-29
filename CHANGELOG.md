@@ -50,8 +50,8 @@ versions may still include breaking changes when the SANSA specifications move.
   source-level claimed provenance.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
-- Added a workbench-only experimental SANSA.Mutate policy gate for trusted
-  consumer authorization tests.
+- Added a workbench-only experimental SANSA.Mutate policy plan filter for
+  trusted consumer authorization tests.
 
 ### Changed
 

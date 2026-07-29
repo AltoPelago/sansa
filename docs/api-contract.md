@@ -1,10 +1,10 @@
 # SANSA Parser API Contract
 
-Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental instruction parse/lower/plan bridge, experimental mutation-plan API, experimental workbench mutation-policy gate, and standalone query/instruction tooling slices.
+Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental instruction parse/lower/plan bridge, experimental mutation-plan API, experimental workbench mutation-policy plan filter, and standalone query/instruction tooling slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental instruction parser validates human-authored change intents and can lower them into structured mutation requests before handing them to the mutation planner. The experimental mutation planner constructs exact-target mutation plans, the target-surface validator checks post-plan representability, and apply runs only through host-supplied mutation hooks. Core SANSA.Mutate does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers. The browser workbench includes a separate experimental mutation-policy gate for testing host-side authorization.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental instruction parser validates human-authored change intents and can lower them into structured mutation requests before handing them to the mutation planner. The experimental mutation planner constructs exact-target mutation plans, the target-surface validator checks post-plan representability, and apply runs only through host-supplied mutation hooks. Core SANSA.Mutate does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers. The browser workbench includes a separate experimental mutation-policy plan filter for testing host-side authorization.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, experimental `SANSA.Instruction` parsing/lowering/planning bridge behavior, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental mutation-policy gate.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, experimental `SANSA.Instruction` parsing/lowering/planning bridge behavior, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental `sansa.mutate.policy.planFilter` slice.
 
 CTS lanes:
 
@@ -508,7 +508,7 @@ The workbench server serves [tools/query-web](../tools/query-web) and [tools/mut
 The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon`
 source, plan/apply mode, operation/precondition/value mutation budgets, parse
 position-limit input, apply options such as `requireAtomic` and
-`recheckPreconditions`, an optional experimental mutation policy gate, and one
+`recheckPreconditions`, an optional experimental mutation policy plan filter, and one
 of two request input forms:
 
 - `requestKind: "structured"` with a structured JSON mutation request, which
@@ -523,7 +523,7 @@ returns the structured plan/result plus an AEON-ish rendered source tree after
 apply. It is a technical testing surface for structured mutation requests and
 proposal-stage instructions, not a canonical AEON source rewriter.
 
-When the experimental mutation policy gate is enabled, policy JSON is trusted
+When the experimental mutation policy plan filter is enabled, policy JSON is trusted
 consumer input and is validated before authorization. Unsupported top-level or
 rule fields fail with `SANSA_MUTATE_POLICY_INVALID` instead of being ignored, so
 claimed provenance such as Instruction `by` metadata cannot accidentally become

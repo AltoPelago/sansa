@@ -1,4 +1,4 @@
-# Experimental SANSA Mutate Policy
+# Experimental SANSA Mutate Policy Plan Filter
 
 SANSA.Mutate describes requested changes. A mutation policy authorizes and
 constrains those changes before a host adapter applies them.
@@ -27,9 +27,10 @@ being mistaken for active authority.
 
 ## Workbench Prototype
 
-The Mutate Workbench includes an experimental JSON policy gate. When enabled,
-the workbench runs mutation planning first, then evaluates the planned
-operations against the policy. Denied plans are not applied.
+The Mutate Workbench includes an experimental JSON policy plan filter advertised
+as `sansa.mutate.policy.planFilter`. When enabled, the workbench runs mutation
+planning first, then evaluates the planned operations against the policy. Denied
+plans are not applied.
 
 The current prototype shape is deliberately small:
 
@@ -100,8 +101,9 @@ affected operation or rule. Unsupported top-level policy fields and unsupported
 rule fields are reported as invalid policy input.
 
 The experimental `npm run cts:mutate` lane includes policy-boundary cases for
-allowed rules, unsupported fields, and claimed provenance that must not become
-policy authority.
+allowed and denied rules, singular and plural matcher aliases, selector address
+matchers, unsupported fields, invalid address matchers, and claimed provenance
+that must not become policy authority.
 
 ## Open Design Questions
 
