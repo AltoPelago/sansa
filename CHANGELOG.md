@@ -94,6 +94,8 @@ versions may still include breaking changes when the SANSA specifications move.
 - Improved experimental policy diagnostics so Workbench and CTS output can
   identify the affected rule, policy field, policy scope, and invalid matcher
   address when available.
+- Expanded Instruction/Mutate target-surface coverage for type-first values on
+  ordered inserts and AEON parameterized container datatype families.
 
 ### Security
 

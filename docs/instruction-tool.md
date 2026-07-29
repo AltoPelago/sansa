@@ -195,10 +195,12 @@ testing structured mutation payloads:
 
 ```text
 create $.types.settings with :object, { enabled = true }
+create $.types.settingsGeneric with :object<node>, { enabled = true }
 create $.types.aliases with :list<string>, ["adapter", "driver"]
-create $.types.pairing with :tuple, ("sku", 7)
-create $.types.badge with :node, <badge("new", 3)>
+create $.types.pairing with :tuple<string>, ("sku", "A-100")
+create $.types.badge with :node<node>, <badge(<label("new")>)>
 insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }
+append in $.inventory.items[1].roles with :csv[","], "admin,editor"
 ```
 
 List, tuple, and node-child values use commas between items in this prototype.
@@ -240,6 +242,9 @@ datatypes, tuples, nodes, references, NaN, and Infinity.
 | `:object, { enabled = true }` | accepted | accepted |
 | `:list, ["adapter"]` | accepted | accepted |
 | `:list<string>, ["adapter"]` | accepted | rejected: parameterized datatype |
+| `:object<node>, { enabled = true }` | accepted | rejected: parameterized datatype |
+| `:tuple<string>, ("sku", "A-100")` | accepted | rejected: parameterized datatype |
+| `:node<node>, <badge(<label("new")>)>` | accepted | rejected: parameterized datatype |
 | `:sansa, $.inventory.items.*` | accepted | rejected: SANSA datatype |
 | `:tuple, ("sku", 7)` | accepted | rejected: tuple datatype |
 | `:node, <badge("new")>` | accepted | rejected: node datatype |

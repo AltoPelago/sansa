@@ -276,6 +276,11 @@ test('parses instruction comments and complex datatype intent', () => {
   assert.equal(complexDatatype.mutation.value.datatype, 'relationship<sibling>[brother]');
   assert.equal(complexDatatype.mutation.value.kind, 'string');
   assert.equal(complexDatatype.canonical, 'create $.relationship with :relationship<sibling>[brother], "Bob"');
+
+  const replaceWithoutDelimiter = parseOk('replace $.inventory.qty with :int32 10');
+  assert.equal(replaceWithoutDelimiter.mutation.value.datatype, 'int32');
+  assert.equal(replaceWithoutDelimiter.mutation.value.kind, 'number');
+  assert.equal(replaceWithoutDelimiter.canonical, 'replace $.inventory.qty with :int32, 10');
 });
 
 test('lowers direct instructions to mutate request operations', () => {
@@ -569,6 +574,15 @@ test('plans lowered instructions through the mutate planner', () => {
     { op: 'create', parent: '$.inventory.items[0]', name: 'status', value: 'active' },
     { op: 'create', parent: '$.inventory.items[1]', name: 'status', value: 'active' },
   ]);
+
+  const append = planOk('append in $.inventory.items[0].tags with :csv[","], "new,tag"', namespace);
+  assert.equal(append.plan.operations.length, 1);
+  assert.equal(append.plan.operations[0].op, 'insert');
+  assert.equal(append.plan.operations[0].container.canonicalAddress, '$.inventory.items[0].tags');
+  assert.equal(append.plan.operations[0].placement.kind, 'last');
+  assert.equal(append.plan.operations[0].datatype, 'csv[","]');
+  assert.equal(append.plan.operations[0].kind, 'string');
+  assert.equal(append.plan.operations[0].value, 'new,tag');
 });
 
 test('validates instruction plans against target surfaces after planning', () => {
@@ -625,6 +639,18 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(referenceTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(referenceTarget.errors[0].targetFormat, 'json');
   assert.equal(referenceTarget.errors[0].datatype, 'cloneReference');
+
+  const aeonParameterizedObject = planOk('create $.inventory.settingsGeneric with :object<node>, { enabled = true }', namespace);
+  const aeonParameterizedObjectTarget = validateMutationPlanTarget(aeonParameterizedObject.plan, 'aeon');
+  assert.equal(aeonParameterizedObjectTarget.ok, true, JSON.stringify(aeonParameterizedObjectTarget.errors ?? []));
+
+  const aeonParameterizedTuple = planOk('create $.inventory.pairGeneric with :tuple<string>, ("sku", "A-100")', namespace);
+  const aeonParameterizedTupleTarget = validateMutationPlanTarget(aeonParameterizedTuple.plan, 'aeon');
+  assert.equal(aeonParameterizedTupleTarget.ok, true, JSON.stringify(aeonParameterizedTupleTarget.errors ?? []));
+
+  const aeonParameterizedNode = planOk('create $.inventory.badgeGeneric with :node<node>, <badge(<label("new")>)>', namespace);
+  const aeonParameterizedNodeTarget = validateMutationPlanTarget(aeonParameterizedNode.plan, 'aeon');
+  assert.equal(aeonParameterizedNodeTarget.ok, true, JSON.stringify(aeonParameterizedNodeTarget.errors ?? []));
 });
 
 test('preserves instruction lower and mutate plan failure phases', () => {
