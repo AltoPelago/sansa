@@ -75,7 +75,7 @@ parsing, lowering, or mutation planning.
 ## Instruction Surface
 
 This prototype accepts the conservative mutation verbs currently supported by
-the SANSA.Mutate planner:
+the SANSA.Mutate planner, plus source-level aliases that lower to those verbs:
 
 ```text
 create $.inventory.status with "active"
