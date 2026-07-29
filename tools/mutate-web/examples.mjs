@@ -791,9 +791,39 @@ export const mutateExamples = [
 ];
 
 const mutateExampleExpectationOverrides = {
+  'replace-sku:structured': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: replace $.inventory.items[0].sku', 'preconditions: 1'],
+  },
+  'replace-sku:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: replace $.inventory.items[0].sku', 'because "manual correction"', 'by "Bob"'],
+  },
+  'replace-qty:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: replace $.inventory.items[1].qty'],
+  },
   'guarded-replace-qty:structured': {
     ok: false,
     code: 'SANSA_MUTATE_PRECONDITION_FAILED',
+  },
+  'create-status:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: create $.inventory.items[2]'],
+  },
+  'create-attribute:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: create $.types.color.@'],
+  },
+  'append-typed-role:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: insert $.inventory.items[1].roles'],
   },
   'target-aeon-generic-fail:instruction': {
     ok: false,
@@ -910,6 +940,36 @@ const mutateExampleExpectationOverrides = {
     ok: false,
     phase: 'plan',
     code: 'SANSA_MUTATE_PRECONDITION_FAILED',
+  },
+  'target-aeon-container-generic-ok:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: create $.types'],
+  },
+  'target-json-container-ok:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: create $.types'],
+  },
+  'insert-item:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: insert $.inventory.items'],
+  },
+  'move-item:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: move $.inventory.items[0]'],
+  },
+  'create-scalars:structured': {
+    ok: true,
+    operationCount: 4,
+    textIncludes: ['operations: 4', '3: create $'],
+  },
+  'create-containers:structured': {
+    ok: true,
+    operationCount: 4,
+    textIncludes: ['operations: 4'],
   },
 };
 

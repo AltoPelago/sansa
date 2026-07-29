@@ -100,6 +100,8 @@ versions may still include breaking changes when the SANSA specifications move.
   and runtime tests use the same grouped example source.
 - Added declared Mutate Workbench catalog expectations and runtime coverage for
   every structured and Instruction example variant.
+- Added operation-count and selected text-snippet assertions for representative
+  successful Mutate Workbench catalog examples.
 
 ### Security
 

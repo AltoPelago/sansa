@@ -282,7 +282,8 @@ duplicate object fields, literal-only value failures, invalid create member
 names, and target-surface rejection. Workbench examples are defined in
 [tools/mutate-web/examples.mjs](../tools/mutate-web/examples.mjs) so the UI and
 runtime tests consume the same catalog. Catalog variants also declare expected
-plan behavior so example drift is caught by the package test suite.
+plan behavior, operation counts, and selected text snippets so example drift is
+caught by the package test suite.
 
 ## Diagnostics
 

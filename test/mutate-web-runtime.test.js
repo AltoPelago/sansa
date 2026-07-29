@@ -34,6 +34,10 @@ function testAeonRuntime(name, fn) {
   });
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(firstMutateExampleId(), 'replace-sku');
   assert.ok(mutateExampleGroups.length > 0);
@@ -88,6 +92,15 @@ testAeonRuntime('mutate web runtime exercises declared catalog expectations', as
       }
       if (expected.datatype !== undefined) assert.equal(result.errors?.[0]?.datatype, expected.datatype, label);
       if (expected.budget !== undefined) assert.equal(result.errors?.[0]?.budget, expected.budget, label);
+      if (expected.operationCount !== undefined) {
+        assert.equal(result.plan?.operations?.length, expected.operationCount, label);
+      }
+      for (const snippet of expected.textIncludes ?? []) {
+        assert.match(result.text ?? '', new RegExp(escapeRegExp(snippet)), label);
+      }
+      for (const snippet of expected.sourceIncludes ?? []) {
+        assert.match(result.source ?? '', new RegExp(escapeRegExp(snippet)), label);
+      }
     }
   }
 });
