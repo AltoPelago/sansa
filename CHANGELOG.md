@@ -96,6 +96,8 @@ versions may still include breaking changes when the SANSA specifications move.
   address when available.
 - Expanded Instruction/Mutate target-surface coverage for type-first values on
   ordered inserts and AEON parameterized container datatype families.
+- Moved Mutate Workbench examples into a shared catalog module so UI rendering
+  and runtime tests use the same grouped example source.
 
 ### Security
 

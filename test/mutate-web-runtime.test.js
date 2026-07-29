@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { firstMutateExampleId, mutateExampleGroups, mutateExamples } from '../tools/mutate-web/examples.mjs';
 import { runMutationForWorkbench } from '../tools/mutate-web/runtime.mjs';
 import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
@@ -32,6 +33,38 @@ function testAeonRuntime(name, fn) {
     await fn(t);
   });
 }
+
+test('mutate web example catalog is grouped and uniquely keyed', () => {
+  assert.equal(firstMutateExampleId(), 'replace-sku');
+  assert.ok(mutateExampleGroups.length > 0);
+  assert.equal(
+    mutateExampleGroups.reduce((count, group) => count + group.examples.length, 0),
+    mutateExamples.length,
+  );
+
+  const ids = mutateExamples.map((example) => example.id);
+  assert.equal(new Set(ids).size, ids.length);
+
+  for (const example of mutateExamples) {
+    assert.match(example.id, /^[a-z0-9-]+$/);
+    assert.equal(typeof example.label, 'string');
+    assert.ok(example.label.length > 0);
+    assert.equal(typeof example.group, 'string');
+    assert.ok(example.variants.structured || example.variants.instruction);
+    for (const variant of Object.values(example.variants)) {
+      assert.ok(Object.hasOwn(variant, 'request'));
+      if (variant.options?.targetFormat !== undefined) {
+        assert.ok(['aeon', 'json'].includes(variant.options.targetFormat));
+      }
+    }
+  }
+
+  const byId = new Map(mutateExamples.map((example) => [example.id, example]));
+  assert.equal(byId.get('target-aeon-container-generic-ok')?.variants.instruction.options.targetFormat, 'aeon');
+  assert.equal(byId.get('target-json-parameterized-object-fail')?.variants.instruction.options.targetFormat, 'json');
+  assert.equal(byId.get('target-json-node-fail')?.variants.instruction.options.targetFormat, 'json');
+  assert.equal(byId.get('target-json-reference-fail')?.variants.instruction.options.targetFormat, 'json');
+});
 
 testAeonRuntime('mutate web runtime plans structured mutation requests', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
