@@ -159,6 +159,7 @@ function parseBudgetLimit(value, flag) {
 
 function buildEvaluateOptions({ policy, transformEnabled, valueSemantics, budget }) {
   return {
+    addressActivation: 'trusted',
     ...(policy ? { policy } : {}),
     ...(transformEnabled ? {} : { extensions: { transform: false } }),
     ...(valueSemantics ? { valueSemantics } : {}),

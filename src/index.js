@@ -2143,8 +2143,25 @@ export function resolveAddress(input, namespace, options = {}) {
   const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
 
+  const maxBindings = options.maxBindings;
+  if (maxBindings !== undefined && (!Number.isSafeInteger(maxBindings) || maxBindings < 0)) {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [resolveError('SANSA_RESOLVE_INVALID_BINDING_LIMIT', 'Resolve maxBindings must be a non-negative safe integer')],
+    };
+  }
+
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+
+  if (maxBindings === 0 && parsed.address.selectors.length === 0) {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [resolveBindingLimitError(maxBindings, 1)],
+    };
+  }
 
   let current = [rootResult.binding];
   for (let index = 0; index < parsed.address.selectors.length; index += 1) {
@@ -2158,10 +2175,18 @@ export function resolveAddress(input, namespace, options = {}) {
         effectiveRoot: options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
         parentTraversal: options.parentTraversal,
         failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
+        maxBindings,
       },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
     current = selected.bindings;
+    if (maxBindings !== undefined && current.length > maxBindings) {
+      return {
+        ok: false,
+        bindings: [],
+        errors: [resolveBindingLimitError(maxBindings, current.length, index)],
+      };
+    }
     if (current.length === 0) break;
   }
 
@@ -3001,17 +3026,247 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   const activated = activateAddressLiteral(scalar.value, options.parse?.address);
   if (!activated.ok) return activated;
 
+  const activation = authorizeAddressActivation(
+    activated.address,
+    currentBinding,
+    options.addressActivation,
+    options.parse?.address,
+  );
+  if (!activation.ok) return activation;
+
   const resolved = resolveAddress(activated.address, namespace, {
     ...(options.resolve ?? {}),
     contextualRoot: currentBinding,
+    ...(activation.allowParentFromEffectiveRoot ? { allowParentFromEffectiveRoot: true } : {}),
+    ...(activation.maxBindings === undefined ? {} : { maxBindings: activation.maxBindings }),
   });
-  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  if (!resolved.ok) {
+    const error = resolved.errors[0];
+    if (error.code === 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED') {
+      return {
+        ok: false,
+        error: queryEvaluateError(
+          'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED',
+          error.message,
+          { limit: error.limit, observed: error.observed },
+        ),
+      };
+    }
+    return { ok: false, error };
+  }
+  if (activation.maxBindings !== undefined && resolved.bindings.length > activation.maxBindings) {
+    return {
+      ok: false,
+      error: queryEvaluateError(
+        'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED',
+        `Activated address produced ${resolved.bindings.length} bindings, exceeding limit ${activation.maxBindings}`,
+        {
+          limit: activation.maxBindings,
+          observed: resolved.bindings.length,
+        },
+      ),
+    };
+  }
   return {
     ok: true,
     value: {
       type: 'bindingSet',
       bindings: resolved.bindings,
     },
+  };
+}
+
+const ADDRESS_ACTIVATION_SELECTOR_FEATURE = new Map([
+  ['member', 'member'],
+  ['position', 'position'],
+  ['positionRange', 'range'],
+  ['directExpansion', 'wildcard'],
+  ['descendantExpansion', 'recursive'],
+  ['namePattern', 'pattern'],
+  ['semanticTypeFilter', 'semanticFilter'],
+  ['representationKindFilter', 'representationFilter'],
+  ['attributeSpace', 'attribute'],
+  ['localSpace', 'local'],
+  ['parent', 'parent'],
+]);
+
+function authorizeAddressActivation(address, currentBinding, policy, parseOptions) {
+  if (policy === 'trusted' || policy?.mode === 'trusted') {
+    return { ok: true };
+  }
+  if (policy === undefined || policy === null) {
+    return {
+      ok: false,
+      error: queryEvaluateError(
+        'SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED',
+        "Function 'path' requires an explicit address-activation policy",
+      ),
+    };
+  }
+  if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+    return invalidAddressActivationPolicy('Address-activation policy must be a constrained policy object or trusted mode');
+  }
+  if (policy.mode !== undefined && policy.mode !== 'constrained') {
+    return invalidAddressActivationPolicy(`Unknown address-activation mode '${policy.mode}'`);
+  }
+  if (policy.allowContextualRoot !== undefined && typeof policy.allowContextualRoot !== 'boolean') {
+    return invalidAddressActivationPolicy("Address-activation 'allowContextualRoot' must be Boolean");
+  }
+
+  const maxAddressDepth = normalizeAddressActivationLimit(policy.maxAddressDepth);
+  if (!maxAddressDepth.ok) return maxAddressDepth;
+  const maxBindings = normalizeAddressActivationLimit(policy.maxBindings);
+  if (!maxBindings.ok) return maxBindings;
+  if (maxAddressDepth.value !== undefined && address.selectors.length > maxAddressDepth.value) {
+    return deniedAddressActivation(
+      `Activated address depth ${address.selectors.length} exceeds limit ${maxAddressDepth.value}`,
+      { limit: maxAddressDepth.value, observed: address.selectors.length },
+    );
+  }
+
+  const allowedFeatures = normalizeAddressActivationFeatures(policy.allowedSelectors);
+  if (!allowedFeatures.ok) return allowedFeatures;
+  for (const selector of address.selectors) {
+    const feature = ADDRESS_ACTIVATION_SELECTOR_FEATURE.get(selector.type);
+    if (!feature || !allowedFeatures.features.has(feature)) {
+      return deniedAddressActivation(`Activated address selector '${feature ?? selector.type}' is not permitted`, {
+        selector: feature ?? selector.type,
+      });
+    }
+  }
+
+  if (address.root.kind === 'contextual' && policy.allowContextualRoot !== true) {
+    return deniedAddressActivation('Contextual-root address activation is not permitted');
+  }
+
+  const effective = effectiveActivatedAddress(address, currentBinding, parseOptions);
+  if (!effective.ok) return effective;
+  const normalized = normalizeActivatedAddressForScope(effective.address);
+  if (!normalized.ok) return normalized;
+
+  const roots = normalizeAddressActivationRoots(policy.allowedRoots, parseOptions);
+  if (!roots.ok) return roots;
+  if (!roots.roots.some((root) => addressHasStructuralPrefix(normalized.address, root))) {
+    return deniedAddressActivation('Activated address is outside every permitted root', {
+      address: normalized.address.canonical,
+    });
+  }
+
+  return {
+    ok: true,
+    maxBindings: maxBindings.value,
+    allowParentFromEffectiveRoot: allowedFeatures.features.has('parent'),
+  };
+}
+
+function normalizeAddressActivationLimit(value) {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (!Number.isSafeInteger(value) || value < 0) {
+    return invalidAddressActivationPolicy('Address-activation limits must be non-negative safe integers');
+  }
+  return { ok: true, value };
+}
+
+function normalizeAddressActivationFeatures(input) {
+  const values = input === undefined ? ['member', 'position'] : input;
+  if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
+    return invalidAddressActivationPolicy("Address-activation 'allowedSelectors' must be a string list");
+  }
+  const known = new Set(ADDRESS_ACTIVATION_SELECTOR_FEATURE.values());
+  for (const feature of values) {
+    if (!known.has(feature)) {
+      return invalidAddressActivationPolicy(`Unknown address-activation selector capability '${feature}'`);
+    }
+  }
+  return { ok: true, features: new Set(values) };
+}
+
+function normalizeAddressActivationRoots(input, parseOptions) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return invalidAddressActivationPolicy("Constrained address activation requires at least one 'allowedRoots' entry");
+  }
+  const roots = [];
+  for (const root of input) {
+    const parsed = typeof root === 'string' ? parseAddress(root, parseOptions) : { ok: true, address: root };
+    if (!parsed.ok || !parsed.address || parsed.address.type !== 'SansaAddress') {
+      return invalidAddressActivationPolicy('Address-activation roots must be valid SANSA addresses');
+    }
+    if (parsed.address.root.kind !== 'absolute' || !parsed.address.isExact || parsed.address.qualifierExpression) {
+      return invalidAddressActivationPolicy('Address-activation roots must be unqualified exact absolute addresses');
+    }
+    roots.push(parsed.address);
+  }
+  return { ok: true, roots };
+}
+
+function effectiveActivatedAddress(address, currentBinding, parseOptions) {
+  if (address.root.kind === 'absolute') return { ok: true, address };
+  const currentAddress = getBindingAddress(currentBinding);
+  if (typeof currentAddress !== 'string') {
+    return deniedAddressActivation('Cannot establish contextual address scope because the current binding has no canonical address');
+  }
+  const parsedCurrent = parseAddress(currentAddress, parseOptions);
+  if (!parsedCurrent.ok || !parsedCurrent.address.isExact || parsedCurrent.address.root.kind !== 'absolute') {
+    return deniedAddressActivation('Cannot establish contextual address scope from the current binding address');
+  }
+  return {
+    ok: true,
+    address: {
+      type: 'SansaAddress',
+      root: parsedCurrent.address.root,
+      selectors: [...parsedCurrent.address.selectors, ...address.selectors],
+      qualifierExpression: address.qualifierExpression,
+      isExact: address.isExact,
+      canonical: `${parsedCurrent.address.canonical}${address.canonical.slice(1)}`,
+    },
+  };
+}
+
+function normalizeActivatedAddressForScope(address) {
+  const selectors = [];
+  for (const selector of address.selectors) {
+    if (selector.type !== 'parent') {
+      selectors.push(selector);
+      continue;
+    }
+    const previous = selectors.at(-1);
+    if (!previous || !isExactSelector(previous)) {
+      return deniedAddressActivation('Activated parent traversal cannot be proven to remain within scope');
+    }
+    selectors.pop();
+  }
+  const normalized = {
+    ...address,
+    selectors,
+    isExact: selectors.every(isExactSelector),
+  };
+  normalized.canonical = renderAddress(normalized);
+  return { ok: true, address: normalized };
+}
+
+function addressHasStructuralPrefix(address, root) {
+  if (address.root.kind !== root.root.kind || root.selectors.length > address.selectors.length) return false;
+  return root.selectors.every((selector, index) => exactAddressSelectorEquals(selector, address.selectors[index]));
+}
+
+function exactAddressSelectorEquals(left, right) {
+  if (!left || !right || left.type !== right.type) return false;
+  if (left.type === 'member' || left.type === 'localSpace') return left.name === right.name;
+  if (left.type === 'position') return left.index === right.index;
+  return left.type === 'attributeSpace';
+}
+
+function invalidAddressActivationPolicy(message) {
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY', message),
+  };
+}
+
+function deniedAddressActivation(message, details = {}) {
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_PATH_ACTIVATION_DENIED', message, details),
   };
 }
 
@@ -4685,25 +4940,26 @@ function scalarMetadataFromInfo(info) {
 function applyResolveSelector(selector, bindings, namespace, selectorIndex, policy = {}) {
   switch (selector.type) {
     case 'member':
-      return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateMembers(namespace, binding, selector.name), policy.maxBindings) };
     case 'position':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPosition(namespace, binding, selector.index)) };
     case 'positionRange':
-      return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iteratePositionRange(namespace, binding, selector.start, selector.end), policy.maxBindings) };
     case 'parent':
       return selectParents(namespace, bindings, selectorIndex, policy);
     case 'directExpansion':
-      return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => getChildren(namespace, binding), policy.maxBindings) };
     case 'descendantExpansion':
-      return { ok: true, bindings: bindings.flatMap((binding) => getDescendants(namespace, binding)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateDescendants(namespace, binding), policy.maxBindings) };
     case 'namePattern': {
       const pattern = globPatternToRegExp(selector.pattern);
       return {
         ok: true,
-        bindings: bindings.flatMap((binding) => getChildren(namespace, binding).filter((child) => {
-          const name = getBindingName(namespace, child);
-          return typeof name === 'string' && pattern.test(name);
-        })),
+        bindings: collectSelectedBindings(
+          bindings,
+          (binding) => iterateNamePatternMatches(namespace, binding, pattern),
+          policy.maxBindings,
+        ),
       };
     }
     case 'semanticTypeFilter':
@@ -4734,6 +4990,17 @@ function selectMember(namespace, binding, name) {
   return getChildren(namespace, binding).filter((child) => getBindingName(namespace, child) === name);
 }
 
+function* iterateMembers(namespace, binding, name) {
+  if (typeof namespace.member === 'function') {
+    const selected = namespace.member(binding, name);
+    if (selected) yield selected;
+    return;
+  }
+  for (const child of getChildren(namespace, binding)) {
+    if (getBindingName(namespace, child) === name) yield child;
+  }
+}
+
 function selectPosition(namespace, binding, index) {
   if (typeof namespace.position === 'function') {
     const selected = namespace.position(binding, index);
@@ -4745,16 +5012,18 @@ function selectPosition(namespace, binding, index) {
   return children[index] ? [children[index]] : [];
 }
 
-function selectPositionRange(namespace, binding, start, end) {
+function* iteratePositionRange(namespace, binding, start, end) {
   const lower = start ?? 0;
   const upper = end ?? Number.POSITIVE_INFINITY;
-  if (lower > upper) return [];
+  if (lower > upper) return;
 
-  return getChildren(namespace, binding).filter((child, ordinal) => {
+  const children = getChildren(namespace, binding);
+  for (let ordinal = 0; ordinal < children.length; ordinal += 1) {
+    const child = children[ordinal];
     const explicitIndex = getBindingIndex(namespace, child);
     const position = Number.isInteger(explicitIndex) ? explicitIndex : ordinal;
-    return position >= lower && position <= upper;
-  });
+    if (position >= lower && position <= upper) yield child;
+  }
 }
 
 function selectParents(namespace, bindings, selectorIndex, policy) {
@@ -4845,9 +5114,34 @@ function getChildren(namespace, binding) {
 }
 
 function getDescendants(namespace, binding) {
-  const output = [];
+  return Array.from(iterateDescendants(namespace, binding));
+}
+
+function* iterateDescendants(namespace, binding) {
+  const stack = [...getChildren(namespace, binding)].reverse();
+  while (stack.length > 0) {
+    const child = stack.pop();
+    yield child;
+    const children = getChildren(namespace, child);
+    for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
+  }
+}
+
+function* iterateNamePatternMatches(namespace, binding, pattern) {
   for (const child of getChildren(namespace, binding)) {
-    output.push(child, ...getDescendants(namespace, child));
+    const name = getBindingName(namespace, child);
+    if (typeof name === 'string' && pattern.test(name)) yield child;
+  }
+}
+
+function collectSelectedBindings(bindings, select, maxBindings) {
+  const output = [];
+  const stopAt = maxBindings === undefined ? Number.POSITIVE_INFINITY : maxBindings + 1;
+  for (const binding of bindings) {
+    for (const selected of select(binding)) {
+      output.push(selected);
+      if (output.length >= stopAt) return output;
+    }
   }
   return output;
 }
@@ -4879,11 +5173,21 @@ function matchesRepresentationKind(namespace, binding, expected) {
   return typeof actual === 'string' && lowerFirst(actual) === expected;
 }
 
-function resolveError(code, message, selectorIndex) {
+function resolveBindingLimitError(limit, observed, selectorIndex) {
+  return resolveError(
+    'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED',
+    `Resolve produced more than ${limit} bindings`,
+    selectorIndex,
+    { limit, observed },
+  );
+}
+
+function resolveError(code, message, selectorIndex, details = {}) {
   return {
     code,
     message,
     ...(selectorIndex === undefined ? {} : { selectorIndex }),
+    ...details,
   };
 }
 

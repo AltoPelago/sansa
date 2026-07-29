@@ -61,6 +61,13 @@ versions may still include breaking changes when the SANSA specifications move.
 - Kept default Query string ordering on deterministic Unicode scalar value
   order unless an explicit value-semantics profile is supplied.
 
+### Security
+
+- Require explicit trusted or constrained activation authority before Query
+  `path(...)` resolves a structured SANSA Address Literal, with parsed
+  structural-root checks, selector capability restrictions, contextual and
+  parent containment checks, and dynamic binding bounds.
+
 ## 0.9.0 - 2026-07-24
 
 Initial public pre-1.0 release of `@altopelago/sansa`.

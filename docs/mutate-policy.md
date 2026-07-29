@@ -13,8 +13,10 @@ This layer is intentionally outside the conservative Mutate core:
 - The host adapter applies allowed operations.
 
 The document being mutated must not define the authority rules for its own
-mutation. Policies are supplied by a trusted consumer, host, AEOS profile,
-application, or adapter boundary.
+mutation. Policies are supplied by a trusted consumer, host, ASP layer,
+application, or adapter boundary. An externally selected AEOS schema or
+validator may determine whether the proposed state is legal, but it does not
+authorize the mutation.
 
 Policy authorizes or denies already planned intent. It must not silently rewrite
 the plan, reinterpret runtime strings as SANSA Instruction source, or make

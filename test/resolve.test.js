@@ -147,6 +147,28 @@ test('resolves direct and descendant expansion selectors', () => {
   assert.deepEqual(addresses(resolveAddress('$.**.unit', namespace)), []);
 });
 
+test('bounds resolve binding materialization without partial results', () => {
+  const direct = resolveAddress('$.inventory.items.*', namespace, { maxBindings: 1 });
+  assert.equal(direct.ok, false);
+  assert.deepEqual(direct.bindings, []);
+  assert.equal(direct.errors[0].code, 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED');
+  assert.equal(direct.errors[0].limit, 1);
+  assert.equal(direct.errors[0].observed, 2);
+
+  const recursive = resolveAddress('$.inventory.**', namespace, { maxBindings: 3 });
+  assert.equal(recursive.ok, false);
+  assert.deepEqual(recursive.bindings, []);
+  assert.equal(recursive.errors[0].code, 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED');
+  assert.equal(recursive.errors[0].limit, 3);
+  assert.equal(recursive.errors[0].observed, 4);
+
+  assert.deepEqual(addresses(resolveAddress('$.missing', namespace, { maxBindings: 0 })), []);
+
+  const invalid = resolveAddress('$', namespace, { maxBindings: -1 });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.errors[0].code, 'SANSA_RESOLVE_INVALID_BINDING_LIMIT');
+});
+
 test('resolves inclusive position range selectors', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[0..1]', namespace)), [
     '$.inventory.items[0]',

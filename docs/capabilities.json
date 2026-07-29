@@ -120,6 +120,17 @@
   ],
   "policies": [
     {
+      "id": "dynamic-address-activation",
+      "capability": "SANSA.Query",
+      "category": "authority",
+      "maturity": "proposal",
+      "requiredFor": "path",
+      "modes": [
+        "trusted",
+        "constrained"
+      ]
+    },
+    {
       "id": "validation",
       "capability": "SANSA.Query",
       "category": "policy",

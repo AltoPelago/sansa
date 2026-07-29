@@ -198,6 +198,44 @@ evaluateQuery(query, namespace, { policy: "validation" })
 
 This policy rejects presentation and transform behavior before evaluation: `order by`, `offset`, `limit`, object projection expressions, and transform-library helpers. Rejections use `SANSA_QUERY_POLICY_VIOLATION` with `phase: "policy"`.
 
+Dynamic Address values require an explicit activation policy. Trusted local
+consumers may opt into unrestricted activation deliberately:
+
+```js
+evaluateQuery(query, namespace, { addressActivation: "trusted" })
+```
+
+Consumers crossing a trust boundary should instead provide a constrained
+policy over parsed address structure:
+
+```js
+evaluateQuery(query, namespace, {
+  addressActivation: {
+    allowedRoots: ["$.contacts"],
+    allowedSelectors: ["member", "position"],
+    allowContextualRoot: true,
+    maxAddressDepth: 4,
+    maxBindings: 1
+  }
+})
+```
+
+Supported selector capability names are `member`, `position`, `range`,
+`wildcard`, `recursive`, `pattern`, `semanticFilter`,
+`representationFilter`, `attribute`, `local`, and `parent`. Omitted
+`allowedSelectors` defaults to `member` and `position`. `allowedRoots` must
+contain unqualified exact absolute SANSA addresses. Constrained contextual
+activation also requires `allowContextualRoot: true` and an exact canonical
+address on the current binding so the effective target can be checked.
+
+No activation policy produces `SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED`.
+Invalid host policy produces `SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY`.
+Root, selector, contextual-root, parent-containment, and address-depth denial
+produce `SANSA_QUERY_PATH_ACTIVATION_DENIED`. Exceeding `maxBindings` produces
+`SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED` and no partial query
+result. Reading the binding that stores an Address value never grants authority
+to resolve that address.
+
 Query evaluation budgets are optional and fail closed:
 
 ```js
@@ -256,6 +294,20 @@ Custom profile objects must provide a complete string contract: `compareStrings`
 Parse errors are returned through the same `ok: false` shape. Normal no-match resolution returns `ok: true` with an empty `bindings` array.
 
 Resolve distinguishes a **resolution miss** from a **resolution failure**. A miss occurs when a valid, supported selector applies to the namespace but finds no exposed structure on one or more branches; that branch contributes no bindings. A failure occurs when resolution cannot safely or validly continue, such as an unsupported selector capability, missing contextual root, forbidden boundary escape, implementation limit failure, or exact-expression multiplicity violation.
+
+Callers may bound intermediate and final Binding Set materialization with
+`maxBindings`:
+
+```js
+resolveAddress('$.inventory.**', namespace, { maxBindings: 1000 })
+```
+
+The resolver stops when the first binding beyond the limit would be retained
+and returns `SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED` with an empty Binding Set,
+`limit`, and `observed`. Invalid limits return
+`SANSA_RESOLVE_INVALID_BINDING_LIMIT`. Query dynamic-address activation maps
+this bounded failure to
+`SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED`.
 
 Resolve invariants:
 
@@ -422,7 +474,12 @@ If a mutation hook rejects or throws during consumer-selected non-atomic apply, 
 
 The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. For AEON-backed bindings this summary preserves `semanticType`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, and a JSON-safe `value` where available, so tools can inspect applied literal-family metadata without parsing the rendered Source Result text.
 
-This API does not authorize operations, validate proposed values against schemas, follow references implicitly, or provide storage transactions. Those remain consumer, AEOS, ASP, or adapter responsibilities. See [mutate-policy.md](mutate-policy.md) for the separate workbench policy prototype that exercises this boundary.
+This API does not authorize operations, validate proposed values against
+schemas, follow references implicitly, or provide storage transactions.
+Externally selected AEOS schemas or domain validators may check proposed-state
+legality; authorization remains with the consumer, ASP, application, or adapter
+boundary. See [mutate-policy.md](mutate-policy.md) for the separate workbench
+policy prototype that exercises this boundary.
 
 Parent traversal defaults to the conservative structural model: traversal from the effective resolution root resolves to an empty Binding Set. The effective resolution root is the root binding established by `$`, `?`, or the root of a dynamic resolution context for the current branch. Callers that need stricter boundary diagnostics can pass:
 
@@ -916,6 +973,14 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
+
+Activation is checked after the operand becomes a structured Address value and
+before that address is resolved. Structural root checks do not use string
+prefixes. Parent traversal is normalized for containment and fails closed when
+its reach cannot be proven. The standalone CLI and browser workbench explicitly
+use trusted activation because they operate as local technical test tools over
+fixtures selected by the user; embedding applications must choose their own
+trusted or constrained policy.
 
 SANSA Address Literal values remain selectable as values with `#sansa` and
 `%sansa`. Those filters select the literal binding itself and do not activate

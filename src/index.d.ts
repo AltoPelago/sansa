@@ -136,12 +136,18 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_UNSUPPORTED_PARENT'
   | 'SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN'
   | 'SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN'
+  | 'SANSA_RESOLVE_INVALID_BINDING_LIMIT'
+  | 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED'
   | 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION'
   | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
 
 export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_POLICY_VIOLATION'
   | 'SANSA_QUERY_BUDGET_EXCEEDED'
+  | 'SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED'
+  | 'SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY'
+  | 'SANSA_QUERY_PATH_ACTIVATION_DENIED'
+  | 'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION'
   | 'SANSA_QUERY_EVALUATE_UNSUPPORTED_EXTENSION'
   | 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL'
@@ -197,6 +203,8 @@ export interface SansaResolveDiagnostic {
   readonly message: string;
   readonly index?: number;
   readonly selectorIndex?: number;
+  readonly limit?: number;
+  readonly observed?: number;
 }
 
 export interface SansaQueryEvaluateDiagnostic {
@@ -207,6 +215,7 @@ export interface SansaQueryEvaluateDiagnostic {
   readonly index?: number;
   readonly selectorIndex?: number;
   readonly extension?: string;
+  readonly selector?: string;
   readonly budget?: string;
   readonly limit?: number;
   readonly observed?: number;
@@ -277,6 +286,7 @@ export interface SansaResolveOptions<TBinding extends object = SansaResolveBindi
   readonly allowParentFromEffectiveRoot?: boolean;
   readonly parentTraversal?: 'allow' | 'forbid';
   readonly failOnParentFromEffectiveRoot?: boolean;
+  readonly maxBindings?: number;
 }
 
 export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
@@ -286,6 +296,7 @@ export type SansaResolveResult<TBinding extends object = SansaResolveBinding> =
 export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolveBinding> {
   readonly parse?: SansaQueryParseOptions;
   readonly resolve?: SansaResolveOptions<TBinding>;
+  readonly addressActivation?: 'trusted' | SansaAddressActivationPolicy;
   readonly valueSemantics?: AeonValueSemanticsProfileInput;
   readonly policy?: 'validation' | { readonly mode?: 'validation'; readonly validation?: boolean };
   readonly extensions?: {
@@ -300,6 +311,28 @@ export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolv
     readonly maxOrderCandidates?: number;
     readonly maxResultRecords?: number;
   };
+}
+
+export type SansaAddressActivationSelectorCapability =
+  | 'member'
+  | 'position'
+  | 'range'
+  | 'wildcard'
+  | 'recursive'
+  | 'pattern'
+  | 'semanticFilter'
+  | 'representationFilter'
+  | 'attribute'
+  | 'local'
+  | 'parent';
+
+export interface SansaAddressActivationPolicy {
+  readonly mode?: 'constrained' | 'trusted';
+  readonly allowedRoots?: readonly (string | SansaAddress)[];
+  readonly allowedSelectors?: readonly SansaAddressActivationSelectorCapability[];
+  readonly allowContextualRoot?: boolean;
+  readonly maxAddressDepth?: number;
+  readonly maxBindings?: number;
 }
 
 export type SansaQueryEvaluateResult<TBinding extends object = SansaResolveBinding> =

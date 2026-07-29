@@ -62,6 +62,7 @@ export async function evaluateQueryForWorkbench({
   ];
 
   const options = {
+    addressActivation: 'trusted',
     ...(policy === 'validation' ? { policy: 'validation' } : {}),
     ...(transformExtensions === false ? { extensions: { transform: false } } : {}),
     ...(valueSemantics ? { valueSemantics } : {}),

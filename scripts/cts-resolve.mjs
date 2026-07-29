@@ -65,6 +65,9 @@ function runTest(test, namespaces) {
   if (test.input?.failOnParentFromEffectiveRoot === true) {
     options.failOnParentFromEffectiveRoot = true;
   }
+  if (Number.isSafeInteger(test.input?.maxBindings)) {
+    options.maxBindings = test.input.maxBindings;
+  }
 
   const result = resolveAddress(source, fixture.namespace, options);
 
@@ -85,6 +88,12 @@ function runTest(test, namespaces) {
       if (actualSelectorIndex !== expected.selectorIndex) {
         failures.push(`selectorIndex mismatch: expected ${expected.selectorIndex}, got ${actualSelectorIndex ?? null}`);
       }
+    }
+    if (Number.isSafeInteger(expected.limit) && result.errors?.[0]?.limit !== expected.limit) {
+      failures.push(`limit mismatch: expected ${expected.limit}, got ${result.errors?.[0]?.limit ?? null}`);
+    }
+    if (Number.isSafeInteger(expected.observed) && result.errors?.[0]?.observed !== expected.observed) {
+      failures.push(`observed mismatch: expected ${expected.observed}, got ${result.errors?.[0]?.observed ?? null}`);
     }
     return failures;
   }

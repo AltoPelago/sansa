@@ -104,6 +104,12 @@ case-mapping behavior under different consumer contexts.
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).
 
+Library use of Query `path(...)` requires explicit dynamic-address authority.
+Use `addressActivation: "trusted"` only when the caller already controls the
+query, Address values, and exposed namespace. Cross-boundary consumers should
+provide constrained structural roots, selector capabilities, and result bounds;
+reading an Address value does not authorize resolving it.
+
 ## Instruction Tool
 
 The package includes an experimental instruction tool for exercising

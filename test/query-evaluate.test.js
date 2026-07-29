@@ -155,6 +155,27 @@ const params = binding({
       value: { type: 'SansaAddressLiteral', address: '$.inventory.items.*' },
     }),
     binding({
+      name: 'parentField',
+      address: '$.<"params">.parentField',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '?.^.category' },
+    }),
+    binding({
+      name: 'localTarget',
+      address: '$.<"params">.localTarget',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.<"params">.field' },
+    }),
+    binding({
+      name: 'attributeTarget',
+      address: '$.<"params">.attributeTarget',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.inventory.@.source' },
+    }),
+    binding({
       name: 'fieldText',
       address: '$.<"params">.fieldText',
       semanticType: 'string',
@@ -2142,18 +2163,19 @@ test('applies validation query policy restrictions before evaluation', () => {
 });
 
 test('evaluates path over structured address literal values', () => {
+  const trustedActivation = { addressActivation: 'trusted' };
   const scalarParam = evaluateQuery([
     'from $.inventory.items.*',
     'where .name == $.<"params">.name',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(scalarParam.ok, true, JSON.stringify(scalarParam.errors ?? []));
   assert.deepEqual(scalarParam.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[0].sku']);
 
   const selected = evaluateQuery([
     'from $.inventory.items[1]',
     'select path($.<"params">.field)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
   assert.deepEqual(selected.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[1].sku']);
 
@@ -2162,7 +2184,7 @@ test('evaluates path over structured address literal values', () => {
     'where path($.<"params">.active) == false',
     'order by path($.<"params">.sort) desc',
     'select { sku = path($.<"params">.field) qty = .qty }',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
   assert.deepEqual(projected.results.map((entry) => entry.value), [
     {
@@ -2184,38 +2206,39 @@ test('evaluates path over structured address literal values', () => {
   const absolute = evaluateQuery([
     'from $',
     'select path($.<"params">.label)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(absolute.ok, true, JSON.stringify(absolute.errors ?? []));
   assert.deepEqual(absolute.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.categoryLabels.tooling']);
 
   const stringValue = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.fieldText)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(stringValue.ok, false);
   assert.equal(stringValue.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
 
   const invalidAddressLiteral = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.badPath)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(invalidAddressLiteral.ok, false);
   assert.equal(invalidAddressLiteral.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
 
   const invalidArity = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.field, $.<"params">.sort)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(invalidArity.ok, false);
   assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates dynamic from path source expressions', () => {
+  const trustedActivation = { addressActivation: 'trusted' };
   const selected = evaluateQuery([
     'from path($.<"params">.source)',
     'where .qty >= 4',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
   assert.deepEqual(selected.results.map((entry) => entry.binding.address), [
     '$.inventory.items[1]',
@@ -2231,7 +2254,7 @@ test('evaluates dynamic from path source expressions', () => {
   const stringSource = evaluateQuery([
     'from path($.<"params">.sourceText)',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(stringSource.ok, false);
   assert.equal(stringSource.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
   assert.equal(stringSource.errors[0].phase, 'from');
@@ -2240,7 +2263,7 @@ test('evaluates dynamic from path source expressions', () => {
     'from path($.<"params">.source)',
     'where isValue(path($.<"params">.active))',
     'select path($.<"params">.field)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(valuePredicate.ok, true, JSON.stringify(valuePredicate.errors ?? []));
   assert.deepEqual(valuePredicate.results.map((entry) => entry.binding.address), [
     '$.inventory.items[0]',
@@ -2248,6 +2271,122 @@ test('evaluates dynamic from path source expressions', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+});
+
+test('requires explicit authority before activating dynamic addresses', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED');
+  assert.equal(result.errors[0].phase, 'select');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
+});
+
+test('constrains dynamic address roots and selector capabilities before resolution', () => {
+  const contextual = evaluateQuery([
+    'from $.inventory.items[1]',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+      allowContextualRoot: true,
+      maxAddressDepth: 2,
+      maxBindings: 1,
+    },
+  });
+  assert.equal(contextual.ok, true, JSON.stringify(contextual.errors ?? []));
+  assert.deepEqual(contextual.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[1].sku']);
+
+  const outsideRoot = evaluateQuery([
+    'from $',
+    'select path($.<"params">.label)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+    },
+  });
+  assert.equal(outsideRoot.ok, false);
+  assert.equal(outsideRoot.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+
+  const wildcard = evaluateQuery([
+    'from path($.<"params">.source)',
+    'select .sku',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+    },
+  });
+  assert.equal(wildcard.ok, false);
+  assert.equal(wildcard.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+  assert.equal(wildcard.errors[0].selector, 'wildcard');
+});
+
+test('fails closed for parent, local, and attribute activation outside the grant', () => {
+  const parent = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.parentField)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items[0]'],
+      allowedSelectors: ['member', 'position', 'parent'],
+      allowContextualRoot: true,
+    },
+  });
+  assert.equal(parent.ok, false);
+  assert.equal(parent.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+
+  for (const [param, feature] of [['localTarget', 'local'], ['attributeTarget', 'attribute']]) {
+    const result = evaluateQuery([
+      'from $',
+      `select path($.<"params">.${param})`,
+    ].join('\n'), namespace, {
+      addressActivation: {
+        allowedRoots: ['$'],
+        allowedSelectors: ['member', 'position'],
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+    assert.equal(result.errors[0].selector, feature);
+  }
+});
+
+test('bounds dynamic address depth and result cardinality', () => {
+  const depth = evaluateQuery([
+    'from $',
+    'select path($.<"params">.label)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$'],
+      allowedSelectors: ['member'],
+      maxAddressDepth: 2,
+    },
+  });
+  assert.equal(depth.ok, false);
+  assert.equal(depth.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+  assert.equal(depth.errors[0].limit, 2);
+  assert.equal(depth.errors[0].observed, 3);
+
+  const bindings = evaluateQuery([
+    'from path($.<"params">.source)',
+    'select .sku',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'wildcard'],
+      maxBindings: 2,
+    },
+  });
+  assert.equal(bindings.ok, false);
+  assert.equal(bindings.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED');
+  assert.equal(bindings.errors[0].limit, 2);
+  assert.equal(bindings.errors[0].observed, 3);
 });
 
 test('evaluates fallback over missing scalar values', () => {

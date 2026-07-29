@@ -223,6 +223,14 @@ positions such as `select`, `where`, and `order by`, it resolves in the current
 candidate context and returns a Binding Set. In `from path(...)`, it supplies
 the source Binding Set for the query. It does not parse plain strings as
 addresses.
+
+Library callers must explicitly authorize dynamic activation with either
+`addressActivation: "trusted"` or a constrained policy containing structural
+`allowedRoots`, selector capabilities, contextual-root permission, and optional
+depth and binding limits. The CLI and browser workbench deliberately use trusted
+activation because they are local fixture-testing tools. Applications accepting
+queries or Address values from another trust boundary should use a constrained
+policy or a pre-scoped namespace view.
 SANSA Address Literal values remain selectable as values with `#sansa` and
 `%sansa`; those filters do not activate the address. Activation is always
 explicit through `path(...)`.
