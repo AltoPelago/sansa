@@ -370,6 +370,25 @@ const examples = [
     },
   },
   {
+    id: 'create-generic-object-value',
+    label: 'Create object<node>',
+    group: 'Typed Values',
+    variants: {
+      structured: {
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'settingsGenericWorkbench',
+          datatype: 'object<node>',
+          value: { enabled: true },
+        },
+      },
+      instruction: {
+        request: 'create $.types.settingsGenericWorkbench with :object<node>, { enabled = true }',
+      },
+    },
+  },
+  {
     id: 'create-tuple-value',
     label: 'Create Tuple Value',
     group: 'Typed Values',
@@ -408,6 +427,26 @@ const examples = [
     },
   },
   {
+    id: 'append-typed-role',
+    label: 'Append Typed Role',
+    group: 'Ordered Containers',
+    variants: {
+      structured: {
+        request: {
+          op: 'insert',
+          container: '$.inventory.items[1].roles',
+          placement: 'last',
+          datatype: 'string',
+          kind: 'string',
+          value: 'admin,editor',
+        },
+      },
+      instruction: {
+        request: 'append in $.inventory.items[1].roles with :string, "admin,editor"',
+      },
+    },
+  },
+  {
     id: 'target-aeon-generic-fail',
     label: 'AEON Rejects string<null>',
     group: 'Target Surfaces',
@@ -415,6 +454,17 @@ const examples = [
       instruction: {
         options: { targetFormat: 'aeon' },
         request: 'create $.types.textProbe with :string<null>, ""',
+      },
+    },
+  },
+  {
+    id: 'target-aeon-container-generic-ok',
+    label: 'AEON Allows object<node>',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'aeon' },
+        request: 'create $.types.settingsAeonProbe with :object<node>, { enabled = true }',
       },
     },
   },
@@ -506,6 +556,17 @@ const examples = [
     },
   },
   {
+    id: 'target-json-parameterized-object-fail',
+    label: 'JSON Rejects object<node>',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.settingsJsonGenericProbe with :object<node>, { enabled = true }',
+      },
+    },
+  },
+  {
     id: 'target-json-tuple-fail',
     label: 'JSON Rejects Tuple',
     group: 'Target Surfaces',
@@ -513,6 +574,28 @@ const examples = [
       instruction: {
         options: { targetFormat: 'json' },
         request: 'create $.types.pairingJsonProbe with :tuple, ("sku", 7)',
+      },
+    },
+  },
+  {
+    id: 'target-json-node-fail',
+    label: 'JSON Rejects Node',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.badgeJsonProbe with :node, <badge("new", 3)>',
+      },
+    },
+  },
+  {
+    id: 'target-json-reference-fail',
+    label: 'JSON Rejects Reference',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.cloneJsonProbe with :number, ~target',
       },
     },
   },

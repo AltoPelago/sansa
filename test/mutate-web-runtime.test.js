@@ -242,6 +242,10 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
       match: /aliasesInstruction:list<string> = \[\s*"adapter"\s*"driver"\s*\]/,
     },
     {
+      instruction: 'create $.types.settingsGenericInstruction with :object<node>, { enabled = true }',
+      match: /settingsGenericInstruction:object<node> = \{\s*enabled:boolean = true\s*\}/,
+    },
+    {
       instruction: 'create $.types.pairingInstruction with :tuple, ("sku", 7)',
       match: /pairingInstruction:tuple = \(\s*"sku"\s*7\s*\)/,
     },
@@ -252,6 +256,10 @@ testAeonRuntime('mutate web runtime applies representative instruction example f
     {
       instruction: 'insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }',
       match: /sku:string = "B-150"/,
+    },
+    {
+      instruction: 'append in $.inventory.items[1].roles with :string, "admin,editor"',
+      match: /roles:list<string> = \[\s*"user"\s*"admin,editor"\s*\]/,
     },
     {
       instruction: 'move $.inventory.items[0] last in $.inventory.items',
@@ -884,6 +892,16 @@ testAeonRuntime('mutate web runtime rejects datatypes outside the AEON target su
   assert.equal(result.errors[0].datatype, 'string<null>');
   assert.match(result.text, /target aeon, datatype string<null>/);
   assert.match(result.text, /does not allow generic parameters on datatype 'string'/);
+
+  const parameterizedContainer = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.settingsAeonProbe with :object<node>, { enabled = true }',
+    options: { targetFormat: 'aeon' },
+  });
+
+  assert.equal(parameterizedContainer.ok, true, JSON.stringify(parameterizedContainer.errors ?? []));
 });
 
 testAeonRuntime('mutate web runtime applies JSON-compatible target surface checks', async () => {
@@ -941,6 +959,21 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   assert.match(typed.text, /target json, datatype sansa/);
   assert.match(typed.text, /Target 'json' does not support datatype 'sansa'/);
 
+  const parameterizedObject = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.settingsJsonGenericProbe with :object<node>, { enabled = true }',
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(parameterizedObject.ok, false);
+  assert.equal(parameterizedObject.phase, 'target');
+  assert.equal(parameterizedObject.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(parameterizedObject.errors[0].targetFormat, 'json');
+  assert.equal(parameterizedObject.errors[0].datatype, 'object<node>');
+  assert.match(parameterizedObject.text, /Target 'json' does not support parameterized datatype 'object<node>'/);
+
   const tuple = await runMutationForWorkbench({
     source,
     mode: 'plan',
@@ -955,4 +988,34 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   assert.equal(tuple.errors[0].targetFormat, 'json');
   assert.equal(tuple.errors[0].datatype, 'tuple');
   assert.match(tuple.text, /Target 'json' does not support datatype 'tuple'/);
+
+  const node = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.badgeJsonProbe with :node, <badge("new", 3)>',
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(node.ok, false);
+  assert.equal(node.phase, 'target');
+  assert.equal(node.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(node.errors[0].targetFormat, 'json');
+  assert.equal(node.errors[0].datatype, 'node');
+  assert.match(node.text, /Target 'json' does not support datatype 'node'/);
+
+  const reference = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.cloneJsonProbe with :number, ~target',
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(reference.ok, false);
+  assert.equal(reference.phase, 'target');
+  assert.equal(reference.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(reference.errors[0].targetFormat, 'json');
+  assert.equal(reference.errors[0].datatype, 'cloneReference');
+  assert.match(reference.text, /Target 'json' does not support kind 'cloneReference'/);
 });

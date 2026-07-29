@@ -170,7 +170,7 @@ clause provides authorization, authentication, approval, signature material, or
 audit proof. Real actor identity, delegation, policy checks, and audit evidence
 belong to the host envelope or mutation adapter.
 
-Values use the same type-first intent style as AEON-facing examples:
+Values use type-first intent in the same broad style as AEON-facing examples:
 
 ```text
 create $.types.brand with :brandColor, #ff00aa
@@ -200,8 +200,13 @@ create $.types.aliases with :list<string>, ["adapter", "driver"]
 create $.types.pairing with :tuple<string>, ("sku", "A-100")
 create $.types.badge with :node<node>, <badge(<label("new")>)>
 insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B-150" name = "Brace" qty = 4 category = "hardware" }
-append in $.inventory.items[1].roles with :csv[","], "admin,editor"
+append in $.inventory.items[1].roles with :string, "admin,editor"
 ```
+
+Some datatype annotations are valid Instruction intent but may still be
+rejected by a selected target surface. For example, `csv[","]` can be planned as
+SANSA.Mutate intent, while the current AEON target surface rejects square
+bracket arguments on `csv`.
 
 List, tuple, and node-child values use commas between items in this prototype.
 Object fields use AEON-like `name = value` fields and may be separated by
