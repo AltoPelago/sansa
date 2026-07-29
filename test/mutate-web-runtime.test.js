@@ -652,6 +652,7 @@ testAeonRuntime('mutate web runtime supports explicit experimental policy deny r
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_DENIED');
   assert.equal(result.errors[0].ruleIndex, 0);
+  assert.match(result.text, /SANSA_MUTATE_POLICY_DENIED \[policy\] operation 0 rule 0/);
 });
 
 testAeonRuntime('mutate web runtime requires explicit experimental policy decisions', async () => {
@@ -680,6 +681,9 @@ testAeonRuntime('mutate web runtime requires explicit experimental policy decisi
   assert.equal(result.phase, 'policy');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
   assert.equal(result.errors[0].ruleIndex, 0);
+  assert.equal(result.errors[0].policyField, 'allow');
+  assert.equal(result.errors[0].policyScope, 'rule');
+  assert.match(result.text, /\(field allow, scope rule\)/);
   assert.match(result.text, /allow as true or false/);
 });
 
@@ -712,6 +716,9 @@ testAeonRuntime('mutate web runtime rejects unsupported policy rewrite fields', 
   assert.equal(result.phase, 'policy');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
   assert.equal(result.errors[0].ruleIndex, 0);
+  assert.equal(result.errors[0].policyField, 'rewrite');
+  assert.equal(result.errors[0].policyScope, 'rule');
+  assert.match(result.text, /rule 0 \(field rewrite, scope rule\)/);
   assert.match(result.text, /field 'rewrite' is not supported/);
 });
 
@@ -747,6 +754,9 @@ testAeonRuntime('mutate web runtime rejects claimed provenance as policy authori
   assert.equal(result.phase, 'policy');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
   assert.equal(result.errors[0].ruleIndex, 0);
+  assert.equal(result.errors[0].policyField, 'by');
+  assert.equal(result.errors[0].policyScope, 'rule');
+  assert.match(result.text, /rule 0 \(field by, scope rule\)/);
   assert.match(result.text, /field 'by' is not supported/);
 });
 
@@ -796,6 +806,9 @@ testAeonRuntime('mutate web runtime rejects unsupported top-level policy fields'
   assert.equal(result.phase, 'policy');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
   assert.equal(result.errors[0].ruleIndex, undefined);
+  assert.equal(result.errors[0].policyField, 'actor');
+  assert.equal(result.errors[0].policyScope, 'topLevel');
+  assert.match(result.text, /\(field actor, scope topLevel\)/);
   assert.match(result.text, /field 'actor' is not supported/);
 });
 
@@ -827,6 +840,9 @@ testAeonRuntime('mutate web runtime rejects non-string policy address matchers',
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_POLICY_INVALID');
   assert.equal(result.errors[0].operationIndex, 0);
   assert.equal(result.errors[0].ruleIndex, 0);
+  assert.equal(result.errors[0].policyField, 'target');
+  assert.equal(result.errors[0].policyScope, 'matcher');
+  assert.match(result.text, /operation 0 rule 0 \(field target, scope matcher\)/);
   assert.match(result.text, /address matchers must be non-empty strings/);
 });
 

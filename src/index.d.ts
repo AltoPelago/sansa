@@ -224,9 +224,13 @@ export interface SansaQueryEvaluateDiagnostic {
 export interface SansaMutateDiagnostic {
   readonly code: SansaMutateErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
   readonly message: string;
-  readonly phase?: 'plan' | 'target' | 'apply';
+  readonly phase?: 'plan' | 'policy' | 'target' | 'apply';
   readonly operationIndex?: number;
   readonly preconditionIndex?: number;
+  readonly ruleIndex?: number;
+  readonly policyField?: string;
+  readonly policyScope?: string;
+  readonly policyAddress?: string;
   readonly targetFormat?: string;
   readonly datatype?: string;
   readonly valuePath?: string;

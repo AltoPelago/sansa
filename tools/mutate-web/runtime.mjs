@@ -180,19 +180,31 @@ function normalizeWorkbenchPolicy(policy) {
   if (unsupportedTopLevelField !== undefined) {
     return {
       ok: false,
-      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', `Mutation policy field '${unsupportedTopLevelField}' is not supported`),
+      error: workbenchPolicyError(
+        'SANSA_MUTATE_POLICY_INVALID',
+        `Mutation policy field '${unsupportedTopLevelField}' is not supported`,
+        { policyScope: 'topLevel', policyField: unsupportedTopLevelField },
+      ),
     };
   }
   if (policy.default !== undefined && policy.default !== 'allow' && policy.default !== 'deny') {
     return {
       ok: false,
-      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy default must be "allow" or "deny"'),
+      error: workbenchPolicyError(
+        'SANSA_MUTATE_POLICY_INVALID',
+        'Mutation policy default must be "allow" or "deny"',
+        { policyScope: 'topLevel', policyField: 'default' },
+      ),
     };
   }
   if (!Array.isArray(policy.rules)) {
     return {
       ok: false,
-      error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be a list'),
+      error: workbenchPolicyError(
+        'SANSA_MUTATE_POLICY_INVALID',
+        'Mutation policy rules must be a list',
+        { policyScope: 'topLevel', policyField: 'rules' },
+      ),
     };
   }
   for (let ruleIndex = 0; ruleIndex < policy.rules.length; ruleIndex += 1) {
@@ -200,20 +212,32 @@ function normalizeWorkbenchPolicy(policy) {
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
       return {
         ok: false,
-        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must be objects', { ruleIndex }),
+        error: workbenchPolicyError(
+          'SANSA_MUTATE_POLICY_INVALID',
+          'Mutation policy rules must be objects',
+          { ruleIndex, policyScope: 'rule' },
+        ),
       };
     }
     const unsupportedRuleField = Object.keys(rule).find((field) => !WORKBENCH_POLICY_RULE_FIELDS.has(field));
     if (unsupportedRuleField !== undefined) {
       return {
         ok: false,
-        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', `Mutation policy rule field '${unsupportedRuleField}' is not supported`, { ruleIndex }),
+        error: workbenchPolicyError(
+          'SANSA_MUTATE_POLICY_INVALID',
+          `Mutation policy rule field '${unsupportedRuleField}' is not supported`,
+          { ruleIndex, policyScope: 'rule', policyField: unsupportedRuleField },
+        ),
       };
     }
     if (rule.allow !== true && rule.allow !== false) {
       return {
         ok: false,
-        error: workbenchPolicyError('SANSA_MUTATE_POLICY_INVALID', 'Mutation policy rules must declare allow as true or false', { ruleIndex }),
+        error: workbenchPolicyError(
+          'SANSA_MUTATE_POLICY_INVALID',
+          'Mutation policy rules must declare allow as true or false',
+          { ruleIndex, policyScope: 'rule', policyField: 'allow' },
+        ),
       };
     }
   }
@@ -231,9 +255,10 @@ function authorizeWorkbenchOperation(operation, operationIndex, policy, namespac
     const rule = policy.rules[ruleIndex];
     const match = workbenchPolicyRuleMatches(operation, rule, namespace);
     if (!match.ok) {
+      const { ok: _ok, matched: _matched, code, message, ...details } = match;
       return {
         ok: false,
-        error: workbenchPolicyError(match.code, match.message, { operationIndex, ruleIndex }),
+        error: workbenchPolicyError(code, message, { ...details, operationIndex, ruleIndex }),
       };
     }
     if (!match.matched) continue;
@@ -272,15 +297,21 @@ function workbenchPolicyRuleMatches(operation, rule, namespace) {
     if (rule[role] === undefined) continue;
     const target = operation[role];
     if (!target?.canonicalAddress) return { ok: true, matched: false };
-    const addressMatch = workbenchPolicyAddressMatches(rule[role], target.canonicalAddress, namespace);
+    const addressMatch = workbenchPolicyAddressMatches(rule[role], target.canonicalAddress, namespace, role);
     if (!addressMatch.ok || !addressMatch.matched) return addressMatch;
   }
   return { ok: true, matched: true };
 }
 
-function workbenchPolicyAddressMatches(expression, canonicalAddress, namespace) {
+function workbenchPolicyAddressMatches(expression, canonicalAddress, namespace, policyField) {
   if (typeof expression !== 'string' || expression.trim().length === 0) {
-    return { ok: false, code: 'SANSA_MUTATE_POLICY_INVALID', message: 'Mutation policy address matchers must be non-empty strings' };
+    return {
+      ok: false,
+      code: 'SANSA_MUTATE_POLICY_INVALID',
+      message: 'Mutation policy address matchers must be non-empty strings',
+      policyScope: 'matcher',
+      policyField,
+    };
   }
   const resolved = resolveAddress(expression, namespace);
   if (!resolved.ok) {
@@ -288,6 +319,9 @@ function workbenchPolicyAddressMatches(expression, canonicalAddress, namespace) 
       ok: false,
       code: 'SANSA_MUTATE_POLICY_INVALID_ADDRESS',
       message: `Mutation policy address matcher '${expression}' is invalid or unsupported`,
+      policyScope: 'matcher',
+      policyField,
+      policyAddress: expression,
     };
   }
   return {
@@ -1060,13 +1094,14 @@ function renderDiagnosticText(errors) {
   return errors.map((error) => {
     const phase = typeof error.phase === 'string' ? ` [${error.phase}]` : '';
     const operation = Number.isInteger(error.operationIndex) ? ` operation ${error.operationIndex}` : '';
+    const rule = Number.isInteger(error.ruleIndex) ? ` rule ${error.ruleIndex}` : '';
     const budget = typeof error.budget === 'string' ? ` ${error.budget}` : '';
     const location = Number.isInteger(error.index) ? ` index ${error.index}` : '';
     const details = renderDiagnosticDetails(error);
     const cause = error.cause && typeof error.cause === 'object'
       ? `\n  cause ${renderDiagnosticText([error.cause])}`
       : '';
-    return `${error.code}${phase}${operation}${budget}${location}${details}: ${error.message}${cause}`;
+    return `${error.code}${phase}${operation}${rule}${budget}${location}${details}: ${error.message}${cause}`;
   }).join('\n');
 }
 
@@ -1075,6 +1110,9 @@ function renderDiagnosticDetails(error) {
   if (typeof error.targetFormat === 'string') parts.push(`target ${error.targetFormat}`);
   if (typeof error.datatype === 'string') parts.push(`datatype ${error.datatype}`);
   if (typeof error.valuePath === 'string') parts.push(`value ${error.valuePath}`);
+  if (typeof error.policyField === 'string') parts.push(`field ${error.policyField}`);
+  if (typeof error.policyScope === 'string') parts.push(`scope ${error.policyScope}`);
+  if (typeof error.policyAddress === 'string') parts.push(`address ${error.policyAddress}`);
   return parts.length === 0 ? '' : ` (${parts.join(', ')})`;
 }
 
@@ -1086,6 +1124,9 @@ function normalizeDiagnostics(errors) {
     ...(Number.isInteger(error.operationIndex) ? { operationIndex: error.operationIndex } : {}),
     ...(Number.isInteger(error.preconditionIndex) ? { preconditionIndex: error.preconditionIndex } : {}),
     ...(Number.isInteger(error.ruleIndex) ? { ruleIndex: error.ruleIndex } : {}),
+    ...(typeof error.policyField === 'string' ? { policyField: error.policyField } : {}),
+    ...(typeof error.policyScope === 'string' ? { policyScope: error.policyScope } : {}),
+    ...(typeof error.policyAddress === 'string' ? { policyAddress: error.policyAddress } : {}),
     ...(typeof error.budget === 'string' ? { budget: error.budget } : {}),
     ...(typeof error.targetFormat === 'string' ? { targetFormat: error.targetFormat } : {}),
     ...(typeof error.datatype === 'string' ? { datatype: error.datatype } : {}),

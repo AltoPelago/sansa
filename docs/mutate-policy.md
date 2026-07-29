@@ -98,6 +98,7 @@ Policy failures use workbench diagnostics with `phase: "policy"`:
 
 ```text
 SANSA_MUTATE_POLICY_DENIED [policy] operation 0: Mutation policy has no allow rule for create
+SANSA_MUTATE_POLICY_INVALID [policy] rule 0 (field by, scope rule): Mutation policy rule field 'by' is not supported
 ```
 
 Invalid policy documents fail before authorization:
@@ -107,8 +108,11 @@ Invalid policy documents fail before authorization:
 - `SANSA_MUTATE_POLICY_INVALID_ADDRESS`
 
 The response may include `operationIndex` and `ruleIndex` to identify the
-affected operation or rule. Unsupported top-level policy fields and unsupported
-rule fields are reported as invalid policy input.
+affected operation or rule. Invalid policy shape may also include
+`policyField`, `policyScope`, and `policyAddress` so tools can highlight the
+failing top-level field, rule field, matcher role, or unsupported matcher
+address. Unsupported top-level policy fields and unsupported rule fields are
+reported as invalid policy input.
 
 The experimental `npm run cts:mutate` lane includes policy plan-filter cases for
 allowed and denied rules, singular and plural matcher aliases, selector address

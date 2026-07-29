@@ -102,6 +102,24 @@ function runTest(test, namespaces) {
         failures.push(`ruleIndex mismatch: expected ${expected.ruleIndex}, got ${actualIndex ?? null}`);
       }
     }
+    if (typeof expected.errorPolicyField === 'string') {
+      const actualPolicyField = result.errors?.[0]?.policyField ?? null;
+      if (actualPolicyField !== expected.errorPolicyField) {
+        failures.push(`errorPolicyField mismatch: expected ${expected.errorPolicyField}, got ${actualPolicyField}`);
+      }
+    }
+    if (typeof expected.errorPolicyScope === 'string') {
+      const actualPolicyScope = result.errors?.[0]?.policyScope ?? null;
+      if (actualPolicyScope !== expected.errorPolicyScope) {
+        failures.push(`errorPolicyScope mismatch: expected ${expected.errorPolicyScope}, got ${actualPolicyScope}`);
+      }
+    }
+    if (typeof expected.errorPolicyAddress === 'string') {
+      const actualPolicyAddress = result.errors?.[0]?.policyAddress ?? null;
+      if (actualPolicyAddress !== expected.errorPolicyAddress) {
+        failures.push(`errorPolicyAddress mismatch: expected ${expected.errorPolicyAddress}, got ${actualPolicyAddress}`);
+      }
+    }
     if (typeof expected.errorPhase === 'string') {
       const actualPhase = result.errors?.[0]?.phase ?? null;
       if (actualPhase !== expected.errorPhase) {

@@ -632,7 +632,11 @@ When the workbench policy toggle is enabled, the endpoint accepts
 first, checks the planned operations against the policy, and only applies the
 plan when every operation is authorized. Policy diagnostics use
 `phase: "policy"` and workbench-specific codes such as
-`SANSA_MUTATE_POLICY_DENIED`. This remains outside the core planner.
+`SANSA_MUTATE_POLICY_DENIED`. Policy diagnostics may include
+`operationIndex`, `ruleIndex`, `policyField`, `policyScope`, and
+`policyAddress` so workbench clients can highlight the failed operation, rule,
+field, matcher scope, or unsupported matcher address. This remains outside the
+core planner.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 

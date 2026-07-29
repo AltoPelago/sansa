@@ -91,6 +91,9 @@ versions may still include breaking changes when the SANSA specifications move.
   JSON-compatible containers and parameterized datatype rejection.
 - Improved target-surface diagnostics so CLI and Workbench text output expose
   target format, rejected datatype, and rejected value path when available.
+- Improved experimental policy diagnostics so Workbench and CTS output can
+  identify the affected rule, policy field, policy scope, and invalid matcher
+  address when available.
 
 ### Security
 
