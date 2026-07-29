@@ -85,6 +85,8 @@ versions may still include breaking changes when the SANSA specifications move.
   direct `require` precondition planning failures.
 - Clarified Instruction ordered placement vocabulary and added coverage for
   append canonicalization plus direct `insert after` and `move last` forms.
+- Clarified Instruction value-intent boundaries for typed scalars, typed
+  containers, nested container literals, and target-neutral lowering.
 
 ### Security
 

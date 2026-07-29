@@ -174,6 +174,7 @@ Values use the same type-first intent style as AEON-facing examples:
 
 ```text
 create $.types.brand with :brandColor, #ff00aa
+create $.types.format with :csv[","], "sku,name"
 create $.types.color.@.selector with :sansa, $.inventory.items.*
 create $.types.@.selector with :sansa, $.inventory.items.*
 create $.types.absentCopy with :null<string>, !notApplicable
@@ -182,6 +183,12 @@ create $.cloneCopy with :number, ~target
 
 The optional comma after a datatype annotation is accepted for readability:
 `:int32 10` and `:int32, 10` are equivalent.
+
+The datatype annotation is operation intent. The literal still supplies the
+representation family: `:csv[","], "sku,name"` is string-shaped payload with
+`csv[","]` datatype intent, while `:tuple, ("sku", 7)` is tuple-shaped payload
+with `tuple` datatype intent. Top-level datatype and representation kind are
+preserved on the structured mutation operation.
 
 Instruction values also include a conservative container-literal slice for
 testing structured mutation payloads:
@@ -202,6 +209,12 @@ authoring never silently applies last-value-wins behavior:
 ```text
 create $.types.settings with :object, { enabled = true, status = false }
 ```
+
+Nested value annotations inside container literals are retained in the parsed
+Instruction AST and canonical source, but the conservative structured Mutate
+operation currently carries the plain container payload plus top-level value
+intent. Child-specific datatype intent needs separate exact operations or a
+future structured value-intent model.
 
 Instruction values are literal payloads. Query expressions such as
 `lower("A")`, membership expressions, and candidate-relative value expressions
