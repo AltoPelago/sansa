@@ -90,7 +90,10 @@ The Mutate Workbench accepts either structured mutation-request JSON or
 proposal-stage SANSA Instruction source, then uses the same plan/apply preview
 surface. It also includes an experimental target selector so planned mutations
 can be checked against AEON or JSON-compatible representation surfaces before
-apply/render.
+apply/render. Its phase model is intentionally explicit: parse Instruction
+source when present, lower to exact structured mutation operations, plan through
+SANSA.Mutate, run optional consumer policy, run optional target-surface
+validation, then preview or apply through host mutation hooks.
 The optional policy panel is a workbench-only prototype of the experimental
 `sansa.mutate.policy.planFilter` slice for trusted consumer authorization tests;
 its current boundary is documented in

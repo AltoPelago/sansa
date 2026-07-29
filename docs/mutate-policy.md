@@ -34,6 +34,14 @@ as `sansa.mutate.policy.planFilter`. When enabled, the workbench runs mutation
 planning first, then evaluates the planned operations against the policy. Denied
 plans are not applied.
 
+In the current workbench pipeline, policy runs after Instruction parsing,
+lowering, and SANSA.Mutate planning, and before target-surface validation or
+apply. That ordering keeps policy decisions over exact planned operations while
+still allowing a denied plan to avoid later target rendering work. Other
+consumers may choose a different post-plan ordering for policy and
+target-surface checks, but both checks remain outside Instruction source and
+before apply.
+
 The current prototype shape is deliberately small:
 
 ```json

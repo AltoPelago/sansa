@@ -72,6 +72,26 @@ The target check runs after planning by calling
 `validateMutationPlanTarget(plan, target)`. It does not change instruction
 parsing, lowering, or mutation planning.
 
+## Phase Model
+
+Instruction tooling keeps the conservative mutation phases visible:
+
+```text
+Instruction Source
+  -> Parsed Instruction
+  -> Lowered Structured Operations
+  -> Mutation Plan
+  -> Consumer Policy / Authorization
+  -> Target Surface Check
+  -> Preview / Apply
+```
+
+The command-line tool stops at parse, lower, or plan unless `--target` is
+provided. The browser Mutate Workbench can additionally run its experimental
+policy plan filter after planning and before target-surface validation. Policy
+and target-surface checks are post-plan consumer checks; neither one is encoded
+by the Instruction source.
+
 ## Instruction Surface
 
 This prototype accepts the conservative mutation verbs currently supported by
@@ -217,7 +237,8 @@ Failures preserve the phase boundary:
 - parse failures come from `parseInstruction(...)`;
 - lower failures come from instruction lowering, candidate resolution, or
   candidate-relative target resolution;
-- plan failures come from `planMutation(...)`.
+- plan failures come from `planMutation(...)`;
+- policy failures come from a trusted consumer or workbench policy layer;
 - target-surface failures come from a target renderer/adapter deciding that the
   planned value cannot be represented by that target.
 
