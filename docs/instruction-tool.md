@@ -214,6 +214,10 @@ Failures preserve the phase boundary:
 - target-surface failures come from a target renderer/adapter deciding that the
   planned value cannot be represented by that target.
 
+Candidate-relative misses are lowering failures. Structural mutation legality,
+such as inserting into a non-ordered container or moving across containers,
+remains a Mutate planning failure after lowering has produced exact addresses.
+
 For example, a missing candidate-relative target fails during lowering:
 
 ```bash

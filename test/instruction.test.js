@@ -96,6 +96,14 @@ function sampleNamespace() {
         name: 'inventory',
         children: [
           binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
+          binding({
+            address: '$.inventory.otherTags',
+            name: 'otherTags',
+            representationKind: 'list',
+            children: [
+              binding({ address: '$.inventory.otherTags[0]', index: 0, value: 'other', representationKind: 'string', semanticType: 'string' }),
+            ],
+          }),
         ],
       }),
     ],
@@ -564,6 +572,20 @@ test('preserves instruction lower and mutate plan failure phases', () => {
     { op: 'create', parent: '$.inventory.items[0]', name: 'sku', kind: 'string', value: 'duplicate' },
     { op: 'create', parent: '$.inventory.items[1]', name: 'sku', kind: 'string', value: 'duplicate' },
   ]);
+
+  planBad('from $.inventory.items.*\nremove .missing', namespace, 'lower', 'SANSA_INSTRUCTION_TARGET_MISS');
+  planBad('from $.inventory.items.*\nappend .sku with "x"', namespace, 'plan', 'SANSA_MUTATE_CONTAINER_NOT_ORDERED');
+  planBad('from $.inventory.items.*\ninsert after .tags[99] in .tags with "x"', namespace, 'lower', 'SANSA_INSTRUCTION_TARGET_MISS');
+  planBad('insert before $.inventory.otherTags[0] in $.inventory.items[0].tags with "x"', namespace, 'plan', 'SANSA_MUTATE_INVALID_ANCHOR');
+  planBad('from $.inventory.items.*\nmove .tags[99] first in .tags', namespace, 'lower', 'SANSA_INSTRUCTION_TARGET_MISS');
+  planBad('from $.inventory.items.*\nmove .sku first in .sku', namespace, 'plan', 'SANSA_MUTATE_CONTAINER_NOT_ORDERED');
+  planBad('move $.inventory.items[0].tags[0] last in $.inventory.otherTags', namespace, 'plan', 'SANSA_MUTATE_INVALID_MOVE_CONTAINER');
+  planBad(
+    'move $.inventory.items[0].tags[0] before $.inventory.items[0].tags[0] in $.inventory.items[0].tags',
+    namespace,
+    'plan',
+    'SANSA_MUTATE_INVALID_MOVE_ANCHOR',
+  );
 });
 
 test('rejects invalid instruction parse seeds', () => {

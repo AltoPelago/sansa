@@ -52,6 +52,9 @@ versions may still include breaking changes when the SANSA specifications move.
   attribute-space create destinations, candidate-relative remove/append/move,
   repeated require preconditions, target-surface datatype rejection, and illegal
   positional create destinations.
+- Added SANSA.Instruction negative CTS coverage for candidate-relative lowering
+  misses and downstream Mutate planning failures for non-ordered containers,
+  invalid anchors, and cross-container or self-anchored moves.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for
