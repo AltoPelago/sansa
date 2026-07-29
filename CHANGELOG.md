@@ -83,6 +83,8 @@ versions may still include breaking changes when the SANSA specifications move.
   policy, target-surface, and apply phase boundaries.
 - Added Instruction coverage for repeated same-verb mutation rejection and
   direct `require` precondition planning failures.
+- Clarified Instruction ordered placement vocabulary and added coverage for
+  append canonicalization plus direct `insert after` and `move last` forms.
 
 ### Security
 

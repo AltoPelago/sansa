@@ -102,15 +102,25 @@ create $.inventory.status with "active"
 create "display name" with "Adapter"
 replace $.inventory.qty with :int32, 10
 remove $.inventory.oldStatus
+insert first in $.inventory.tags with "new"
 insert last in $.inventory.tags with "sale"
 append $.inventory.tags with "sale"
 insert before $.inventory.tags[1] in $.inventory.tags with :string, "featured"
+insert after $.inventory.tags[1] in $.inventory.tags with :string, "clearance"
+move $.inventory.tags[0] first in $.inventory.tags
+move $.inventory.tags[0] last in $.inventory.tags
+move $.inventory.tags[0] before $.inventory.tags[2] in $.inventory.tags
 move $.inventory.tags[0] after $.inventory.tags[2] in $.inventory.tags
 ```
 
 `append <container> with <value>` and `append in <container> with <value>` are
 source-level aliases for `insert last in <container> with <value>`. They lower
-to an ordinary SANSA.Mutate `insert` operation with `placement: "last"`.
+to an ordinary SANSA.Mutate `insert` operation with `placement: "last"` and
+canonicalize as `insert last ...`.
+
+For `insert` and `move`, `first` and `last` describe a destination within the
+named container. `before <anchor>` and `after <anchor>` additionally name an
+anchor that must resolve to a child of that same container during planning.
 
 Instructions may also use `from` and `where` clauses to lower
 candidate-relative targets into exact mutation requests:

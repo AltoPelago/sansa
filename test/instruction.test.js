@@ -141,6 +141,12 @@ test('parses core instruction mutation verbs', () => {
   assert.equal(insert.mutation.placement.anchor.address.canonical, '$.tags[2]');
   assert.equal(insert.mutation.container.address.canonical, '$.tags');
 
+  const insertAfter = parseOk('insert after $.tags[1] in $.tags with "clearance"');
+  assert.equal(insertAfter.mutation.verb, 'insert');
+  assert.equal(insertAfter.mutation.placement.kind, 'after');
+  assert.equal(insertAfter.mutation.placement.anchor.address.canonical, '$.tags[1]');
+  assert.equal(insertAfter.canonical, 'insert after $.tags[1] in $.tags with "clearance"');
+
   const append = parseOk('append $.tags with "sale"');
   assert.equal(append.mutation.verb, 'insert');
   assert.equal(append.mutation.placement.kind, 'last');
@@ -148,10 +154,23 @@ test('parses core instruction mutation verbs', () => {
   assert.equal(append.canonical, 'insert last in $.tags with "sale"');
   assert.deepEqual(append.clauses, ['append']);
 
+  const appendIn = parseOk('append in $.tags with "sale"');
+  assert.equal(appendIn.mutation.verb, 'insert');
+  assert.equal(appendIn.mutation.placement.kind, 'last');
+  assert.equal(appendIn.mutation.container.address.canonical, '$.tags');
+  assert.equal(appendIn.canonical, 'insert last in $.tags with "sale"');
+  assert.deepEqual(appendIn.clauses, ['append']);
+
   const move = parseOk('move $.tags[0] after $.tags[2] in $.tags');
   assert.equal(move.mutation.verb, 'move');
   assert.equal(move.mutation.source.address.canonical, '$.tags[0]');
   assert.equal(move.mutation.placement.kind, 'after');
+
+  const moveLast = parseOk('move $.tags[0] last in $.tags');
+  assert.equal(moveLast.mutation.verb, 'move');
+  assert.equal(moveLast.mutation.source.address.canonical, '$.tags[0]');
+  assert.equal(moveLast.mutation.placement.kind, 'last');
+  assert.equal(moveLast.canonical, 'move $.tags[0] last in $.tags');
 });
 
 test('parses candidate-relative instruction clauses', () => {
@@ -297,6 +316,22 @@ test('lowers direct instructions to mutate request operations', () => {
     value: 'sale',
   });
 
+  assert.deepEqual(lowerOk('insert first in $.tags with "new"'), {
+    op: 'insert',
+    container: '$.tags',
+    placement: 'first',
+    kind: 'string',
+    value: 'new',
+  });
+
+  assert.deepEqual(lowerOk('insert after $.tags[1] in $.tags with "clearance"'), {
+    op: 'insert',
+    container: '$.tags',
+    placement: { kind: 'after', anchor: '$.tags[1]' },
+    kind: 'string',
+    value: 'clearance',
+  });
+
   assert.deepEqual(lowerOk('append in $.tags with "clearance"'), {
     op: 'insert',
     container: '$.tags',
@@ -310,6 +345,13 @@ test('lowers direct instructions to mutate request operations', () => {
     source: '$.tags[0]',
     container: '$.tags',
     placement: { kind: 'after', anchor: '$.tags[2]' },
+  });
+
+  assert.deepEqual(lowerOk('move $.tags[0] last in $.tags'), {
+    op: 'move',
+    source: '$.tags[0]',
+    container: '$.tags',
+    placement: 'last',
   });
 
   assert.deepEqual(lowerOk('create $.types.settings with :object, { enabled = true }'), {
