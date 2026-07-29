@@ -138,6 +138,12 @@ For candidate-relative instructions, each surviving candidate receives a
 candidate-scoped precondition target. This keeps filtering and fail-closed
 mutation guards separate.
 
+One Instruction contains one declared mutation intent. That intent may lower to
+multiple exact operations when a candidate selector matches multiple bindings,
+but repeated source-level mutation clauses are rejected rather than treated as a
+batch syntax. Use structured mutation-request JSON for heterogeneous or
+unrelated multi-operation batches.
+
 `because` and `by` are optional source-provenance clauses. They are preserved as
 inert metadata on the lowered instruction and plan source:
 

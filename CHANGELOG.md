@@ -81,6 +81,8 @@ versions may still include breaking changes when the SANSA specifications move.
   their parse phase and nested cause diagnostics in text mode.
 - Clarified Instruction and Mutate documentation around parse, lower, plan,
   policy, target-surface, and apply phase boundaries.
+- Added Instruction coverage for repeated same-verb mutation rejection and
+  direct `require` precondition planning failures.
 
 ### Security
 

@@ -618,6 +618,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('by\nreplace $.qty with 1', 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT');
   parseBad('from $.a\nrequire\nreplace .qty with 1', 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION');
   parseBad('replace .qty with 10\nremove .oldQty', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS');
+  parseBad('create $.inventory.status with "active"\ncreate $.inventory.flag with true', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS');
   parseBad('insert "sale" after $.tags[1]', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('replace $.inventory.qty with .other', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.qty with 1 /* unterminated', 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT');
@@ -637,4 +638,11 @@ test('surfaces initial lowering boundary diagnostics', () => {
   lowerBad('create $.tags[2] with "sale"', 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER');
   lowerBad('from $.inventory\ncreate status with "active"', 'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE');
   lowerBad('from $.inventory.items.*\nreplace .missing with "x"', 'SANSA_INSTRUCTION_TARGET_MISS', sampleNamespace());
+});
+
+test('surfaces direct require precondition failures during planning', () => {
+  planBad([
+    'require $.inventory.items[0].sku == "Z-999"',
+    'replace $.inventory.items[0].sku with "A-101"',
+  ].join('\n'), sampleNamespace(), 'plan', 'SANSA_MUTATE_PRECONDITION_FAILED');
 });

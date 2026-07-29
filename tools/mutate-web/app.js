@@ -705,6 +705,12 @@ const examples = [
           ],
         },
       },
+      instruction: {
+        request: [
+          'require $.inventory.items[0].sku == "Z-999"',
+          'replace $.inventory.items[0].sku with "A-101"',
+        ].join('\n'),
+      },
     },
   },
 ];
