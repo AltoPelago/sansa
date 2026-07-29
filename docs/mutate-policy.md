@@ -100,7 +100,7 @@ The response may include `operationIndex` and `ruleIndex` to identify the
 affected operation or rule. Unsupported top-level policy fields and unsupported
 rule fields are reported as invalid policy input.
 
-The experimental `npm run cts:mutate` lane includes policy-boundary cases for
+The experimental `npm run cts:mutate` lane includes policy plan-filter cases for
 allowed and denied rules, singular and plural matcher aliases, selector address
 matchers, unsupported fields, invalid address matchers, and claimed provenance
 that must not become policy authority.
