@@ -504,6 +504,9 @@ testAeonRuntime('mutate web runtime rejects scalar values that cannot render as 
   assert.equal(result.ok, false);
   assert.equal(result.phase, 'target');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(result.errors[0].targetFormat, 'aeon');
+  assert.equal(result.errors[0].valuePath, 'operations[0].value');
+  assert.match(result.text, /target aeon, value operations\[0\]\.value/);
   assert.match(result.text, /Toggle literals must be one of yes, no, on, or off/);
   assert.doesNotMatch(result.source, /consentCopy:toggle/);
 });
@@ -863,6 +866,7 @@ testAeonRuntime('mutate web runtime rejects datatypes outside the AEON target su
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(result.errors[0].targetFormat, 'aeon');
   assert.equal(result.errors[0].datatype, 'string<null>');
+  assert.match(result.text, /target aeon, datatype string<null>/);
   assert.match(result.text, /does not allow generic parameters on datatype 'string'/);
 });
 
@@ -916,7 +920,9 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   assert.equal(typed.ok, false);
   assert.equal(typed.phase, 'target');
   assert.equal(typed.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(typed.errors[0].targetFormat, 'json');
   assert.equal(typed.errors[0].datatype, 'sansa');
+  assert.match(typed.text, /target json, datatype sansa/);
   assert.match(typed.text, /Target 'json' does not support datatype 'sansa'/);
 
   const tuple = await runMutationForWorkbench({

@@ -120,6 +120,12 @@ function runTest(test, namespaces) {
         failures.push(`errorDatatype mismatch: expected ${expected.errorDatatype}, got ${actualDatatype}`);
       }
     }
+    if (typeof expected.errorValuePath === 'string') {
+      const actualValuePath = result.errors?.[0]?.valuePath ?? null;
+      if (actualValuePath !== expected.errorValuePath) {
+        failures.push(`errorValuePath mismatch: expected ${expected.errorValuePath}, got ${actualValuePath}`);
+      }
+    }
     if (typeof expected.errorBudget === 'string') {
       const actualBudget = result.errors?.[0]?.budget ?? null;
       if (actualBudget !== expected.errorBudget) {

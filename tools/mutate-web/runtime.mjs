@@ -1062,11 +1062,20 @@ function renderDiagnosticText(errors) {
     const operation = Number.isInteger(error.operationIndex) ? ` operation ${error.operationIndex}` : '';
     const budget = typeof error.budget === 'string' ? ` ${error.budget}` : '';
     const location = Number.isInteger(error.index) ? ` index ${error.index}` : '';
+    const details = renderDiagnosticDetails(error);
     const cause = error.cause && typeof error.cause === 'object'
       ? `\n  cause ${renderDiagnosticText([error.cause])}`
       : '';
-    return `${error.code}${phase}${operation}${budget}${location}: ${error.message}${cause}`;
+    return `${error.code}${phase}${operation}${budget}${location}${details}: ${error.message}${cause}`;
   }).join('\n');
+}
+
+function renderDiagnosticDetails(error) {
+  const parts = [];
+  if (typeof error.targetFormat === 'string') parts.push(`target ${error.targetFormat}`);
+  if (typeof error.datatype === 'string') parts.push(`datatype ${error.datatype}`);
+  if (typeof error.valuePath === 'string') parts.push(`value ${error.valuePath}`);
+  return parts.length === 0 ? '' : ` (${parts.join(', ')})`;
 }
 
 function normalizeDiagnostics(errors) {
@@ -1080,6 +1089,7 @@ function normalizeDiagnostics(errors) {
     ...(typeof error.budget === 'string' ? { budget: error.budget } : {}),
     ...(typeof error.targetFormat === 'string' ? { targetFormat: error.targetFormat } : {}),
     ...(typeof error.datatype === 'string' ? { datatype: error.datatype } : {}),
+    ...(typeof error.valuePath === 'string' ? { valuePath: error.valuePath } : {}),
     ...(Number.isSafeInteger(error.limit) ? { limit: error.limit } : {}),
     ...(Number.isSafeInteger(error.observed) ? { observed: error.observed } : {}),
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),

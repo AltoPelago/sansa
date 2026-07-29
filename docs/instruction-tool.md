@@ -296,5 +296,8 @@ npm run instruction -- --mode lower --instruction $'from $.inventory.items.*\nre
 Workbench text diagnostics include nested parse causes when available, so an
 instruction parse wrapper can still expose the concrete source error such as
 `SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD`.
+Target-surface text diagnostics include available context such as target format,
+datatype, and value path, while JSON diagnostics expose those fields
+structurally as `targetFormat`, `datatype`, and `valuePath`.
 
 JSON diagnostics are available with `--format json`.

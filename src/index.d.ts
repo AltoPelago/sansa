@@ -229,6 +229,7 @@ export interface SansaMutateDiagnostic {
   readonly preconditionIndex?: number;
   readonly targetFormat?: string;
   readonly datatype?: string;
+  readonly valuePath?: string;
   readonly budget?: string;
   readonly limit?: number;
   readonly observed?: number;

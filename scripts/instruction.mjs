@@ -385,9 +385,19 @@ function appendMember(parent, name) {
 function renderDiagnostics(errors) {
   return (errors ?? []).map((error) => {
     const phase = error.phase ? ` [${error.phase}]` : '';
-    const details = error.candidateAddress ? ` at ${error.candidateAddress}` : '';
+    const details = diagnosticDetails(error);
     return `${error.code}${phase}${details}: ${error.message}`;
   }).join('\n');
+}
+
+function diagnosticDetails(error) {
+  const parts = [];
+  if (error.candidateAddress) parts.push(`at ${error.candidateAddress}`);
+  if (Number.isInteger(error.operationIndex)) parts.push(`operation ${error.operationIndex}`);
+  if (typeof error.targetFormat === 'string') parts.push(`target ${error.targetFormat}`);
+  if (typeof error.datatype === 'string') parts.push(`datatype ${error.datatype}`);
+  if (typeof error.valuePath === 'string') parts.push(`value ${error.valuePath}`);
+  return parts.length === 0 ? '' : ` (${parts.join(', ')})`;
 }
 
 function printHelp() {

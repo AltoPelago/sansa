@@ -1861,7 +1861,7 @@ function invalidAeonTargetValue(message, path, operationIndex) {
     error: mutationTargetSurfaceError(
       'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
       `Target 'aeon' cannot represent mutation value: ${message} at ${path}`,
-      { operationIndex, targetFormat: 'aeon' },
+      { operationIndex, targetFormat: 'aeon', valuePath: path },
     ),
   };
 }
@@ -1947,7 +1947,7 @@ function validateJsonTargetValue(value, operationIndex, path) {
         error: mutationTargetSurfaceError(
           'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
           `Target 'json' cannot represent non-finite numbers at ${path}`,
-          { operationIndex, targetFormat: 'json' },
+          { operationIndex, targetFormat: 'json', valuePath: path },
         ),
       };
   }
@@ -1965,7 +1965,7 @@ function validateJsonTargetValue(value, operationIndex, path) {
         error: mutationTargetSurfaceError(
           'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
           `Target 'json' cannot represent AEON reference forms at ${path}`,
-          { operationIndex, targetFormat: 'json' },
+          { operationIndex, targetFormat: 'json', valuePath: path },
         ),
       };
     }
@@ -1975,7 +1975,7 @@ function validateJsonTargetValue(value, operationIndex, path) {
         error: mutationTargetSurfaceError(
           'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
           `Target 'json' cannot represent AEON node values at ${path}`,
-          { operationIndex, targetFormat: 'json' },
+          { operationIndex, targetFormat: 'json', valuePath: path },
         ),
       };
     }
@@ -1990,7 +1990,7 @@ function validateJsonTargetValue(value, operationIndex, path) {
     error: mutationTargetSurfaceError(
       'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
       `Target 'json' cannot represent ${typeof value} values at ${path}`,
-      { operationIndex, targetFormat: 'json' },
+      { operationIndex, targetFormat: 'json', valuePath: path },
     ),
   };
 }

@@ -156,6 +156,19 @@ test('instruction tool validates planned instructions against target surfaces', 
   assert.equal(payload.phase, 'target');
   assert.equal(payload.target, 'json');
   assert.equal(payload.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+
+  const rejectedText = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'json',
+    '--instruction',
+    'create $.types.selectorCliProbeText with :sansa, $.inventory.items.*',
+  ]);
+
+  assert.equal(rejectedText.status, 1);
+  assert.equal(rejectedText.stdout, '');
+  assert.match(rejectedText.stderr, /SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE \[target\] \(operation 0, target json, datatype sansa\):/);
 });
 
 test('instruction tool emits JSON diagnostics', () => {

@@ -200,6 +200,19 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonResult.errors[0].targetFormat, 'aeon');
 
+  const aeonInvalidValue = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badToggle',
+    datatype: 'toggle',
+    value: 'maybe',
+  }, namespace);
+  const aeonValueResult = validateMutationPlanTarget(aeonInvalidValue, 'aeon');
+  assert.equal(aeonValueResult.ok, false);
+  assert.equal(aeonValueResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonValueResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonValueResult.errors[0].valuePath, 'operations[0].value');
+
   const jsonAttribute = planOk({
     op: 'create',
     parent: '$.inventory.sku.@',
@@ -212,6 +225,18 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(jsonResult.errors[0].phase, 'target');
   assert.equal(jsonResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
   assert.equal(jsonResult.errors[0].targetFormat, 'json');
+
+  const jsonInvalidValue = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badNumber',
+    value: Number.NaN,
+  }, namespace);
+  const jsonValueResult = validateMutationPlanTarget(jsonInvalidValue, 'json');
+  assert.equal(jsonValueResult.ok, false);
+  assert.equal(jsonValueResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(jsonValueResult.errors[0].targetFormat, 'json');
+  assert.equal(jsonValueResult.errors[0].valuePath, 'value');
 });
 
 test('validates mutation plans against custom target surfaces', () => {

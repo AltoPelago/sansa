@@ -606,6 +606,9 @@ planned operation. They use `phase: "target"` with codes such as
 `SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE`,
 `SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE`, and
 `SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION`.
+Target-surface diagnostics should preserve `targetFormat` when known. Datatype
+failures include `datatype`; value representability failures may include
+`valuePath` to identify the rejected planned value position.
 
 The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
 `"aeon"` and can be set to `"json"` through the browser target selector or the
