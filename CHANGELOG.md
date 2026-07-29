@@ -48,6 +48,9 @@ versions may still include breaking changes when the SANSA specifications move.
   SANSA.Mutate preconditions.
 - Added SANSA.Instruction `because` and `by` clauses that preserve inert
   source-level claimed provenance.
+- Added SANSA.Instruction CTS coverage for quoted create member names,
+  attribute-space create destinations, target-surface datatype rejection, and
+  illegal positional create destinations.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for
@@ -60,6 +63,8 @@ versions may still include breaking changes when the SANSA specifications move.
   NaN, and Binding Sets are not.
 - Kept default Query string ordering on deterministic Unicode scalar value
   order unless an explicit value-semantics profile is supplied.
+- Updated TypeScript declarations for SANSA.Instruction values to include
+  object, list, tuple, node, SANSA address, and reference literal payloads.
 
 ### Security
 

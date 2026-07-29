@@ -79,6 +79,7 @@ the SANSA.Mutate planner, plus source-level aliases that lower to those verbs:
 
 ```text
 create $.inventory.status with "active"
+create "display name" with "Adapter"
 replace $.inventory.qty with :int32, 10
 remove $.inventory.oldStatus
 insert last in $.inventory.tags with "sale"
@@ -137,6 +138,7 @@ Values use the same type-first intent style as AEON-facing examples:
 ```text
 create $.types.brand with :brandColor, #ff00aa
 create $.types.color.@.selector with :sansa, $.inventory.items.*
+create $.types.@.selector with :sansa, $.inventory.items.*
 create $.types.absentCopy with :null<string>, !notApplicable
 create $.cloneCopy with :number, ~target
 ```
@@ -177,6 +179,11 @@ The default target is AEON. JSON target mode is stricter and accepts only
 JSON-compatible object/list/string/number/boolean/null values while rejecting
 AEON-only features such as attributes, typed SANSA values, parameterized
 datatypes, tuples, nodes, references, NaN, and Infinity.
+
+Quoted create member names are accepted for member names that cannot be written
+as bare identifiers. Attribute creation uses ordinary SANSA attribute-space
+addressing (`.@.`) and lowers to a create operation whose parent is the
+attribute space.
 
 This is not yet a full replacement for structured mutation-request JSON.
 Instruction preserves source-level claimed provenance, but it does not express

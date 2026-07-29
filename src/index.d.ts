@@ -1146,12 +1146,29 @@ export interface SansaInstructionValue {
   readonly type: 'InstructionValue';
   readonly datatype?: string;
   readonly kind: SansaInstructionValueKind;
-  readonly value: string | number | boolean | null;
+  readonly value: SansaInstructionValuePayload;
   readonly literal: SansaInstructionValueLiteral;
   readonly canonical: string;
 }
 
-export type SansaInstructionValueKind = SansaQueryLiteralExpression['kind'] | 'sansa';
+export type SansaInstructionValueKind =
+  | SansaQueryLiteralExpression['kind']
+  | 'sansa'
+  | 'object'
+  | 'list'
+  | 'tuple'
+  | 'node';
+
+export type SansaInstructionScalarPayload = string | number | boolean | null;
+
+export type SansaInstructionValuePayload =
+  | SansaInstructionScalarPayload
+  | readonly SansaInstructionValuePayload[]
+  | { readonly [key: string]: SansaInstructionValuePayload }
+  | {
+      readonly tag: string;
+      readonly children: readonly SansaInstructionValuePayload[];
+    };
 
 export type SansaInstructionValueLiteral =
   | {
@@ -1166,6 +1183,41 @@ export type SansaInstructionValueLiteral =
       readonly kind: SansaQueryLiteralExpression['kind'];
       readonly value: string | number | boolean | null;
       readonly expression: SansaQueryLiteralExpression;
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: 'object';
+      readonly value: { readonly [key: string]: SansaInstructionValuePayload };
+      readonly fields: readonly {
+        readonly name: string;
+        readonly value: SansaInstructionValue;
+      }[];
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: 'list';
+      readonly value: readonly SansaInstructionValuePayload[];
+      readonly items: readonly SansaInstructionValue[];
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: 'tuple';
+      readonly value: readonly SansaInstructionValuePayload[];
+      readonly items: readonly SansaInstructionValue[];
+      readonly canonical: string;
+    }
+  | {
+      readonly type: 'instructionValueLiteral';
+      readonly kind: 'node';
+      readonly value: {
+        readonly tag: string;
+        readonly children: readonly SansaInstructionValuePayload[];
+      };
+      readonly tag: string;
+      readonly children: readonly SansaInstructionValue[];
       readonly canonical: string;
     };
 
