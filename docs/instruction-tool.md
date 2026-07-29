@@ -160,11 +160,16 @@ insert before $.inventory.items[1] in $.inventory.items with :object, { sku = "B
 
 List, tuple, and node-child values use commas between items in this prototype.
 Object fields use AEON-like `name = value` fields and may be separated by
-layout or commas:
+layout or commas. Duplicate object field names are rejected so instruction
+authoring never silently applies last-value-wins behavior:
 
 ```text
 create $.types.settings with :object, { enabled = true, status = false }
 ```
+
+Instruction values are literal payloads. Query expressions such as
+`lower("A")`, membership expressions, and candidate-relative value expressions
+are not accepted as replacement or create payloads in this conservative slice.
 
 Instruction parsing and lowering are target-neutral. A target format can reject
 value intent that SANSA can express. For example, `:string<null>` is valid

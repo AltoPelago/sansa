@@ -242,6 +242,23 @@ test('parses instruction container value literals', () => {
   assert.deepEqual(node.mutation.value.value, { tag: 'badge', children: ['new', 3] });
 });
 
+test('parses instruction comments and complex datatype intent', () => {
+  const commented = parseOk([
+    'because "manual correction" // source note',
+    '/* choose selected item */',
+    'replace $.inventory.qty with /* typed payload */ :int32, 10',
+  ].join('\n'));
+  assert.equal(commented.canonical, [
+    'because "manual correction"',
+    'replace $.inventory.qty with :int32, 10',
+  ].join('\n'));
+
+  const complexDatatype = parseOk('create $.relationship with :relationship<sibling>[brother], "Bob"');
+  assert.equal(complexDatatype.mutation.value.datatype, 'relationship<sibling>[brother]');
+  assert.equal(complexDatatype.mutation.value.kind, 'string');
+  assert.equal(complexDatatype.canonical, 'create $.relationship with :relationship<sibling>[brother], "Bob"');
+});
+
 test('lowers direct instructions to mutate request operations', () => {
   assert.deepEqual(lowerOk('create $.inventory.status with "active"'), {
     op: 'create',
@@ -603,6 +620,17 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('replace .qty with 10\nremove .oldQty', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS');
   parseBad('insert "sale" after $.tags[1]', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('replace $.inventory.qty with .other', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('replace $.qty with 1 /* unterminated', 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT');
+  parseBad('create "" with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
+  parseBad('create "display" extra with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
+  parseBad('create $.x with :object, { enabled = true', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :object, { enabled = true enabled = false }', 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');
+  parseBad('create $.x with :list, ["a", , "b"]', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
+  parseBad('create $.x with :tuple, ("a", )', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
+  parseBad('create $.x with :node, <123("a")>', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL');
+  parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
+  parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
 });
 
 test('surfaces initial lowering boundary diagnostics', () => {

@@ -5929,7 +5929,16 @@ class InstructionParser {
 
   parseObjectValueLiteral(source, offset) {
     const body = unwrapInstructionDelimitedLiteral(source, '{', '}', offset);
+    const seen = new Set();
     const fields = splitInstructionObjectFields(body).map((field) => {
+      if (seen.has(field.name)) {
+        this.fail(
+          `Duplicate object field '${field.name}' in instruction value`,
+          'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD',
+          offset + 1 + field.nameOffset,
+        );
+      }
+      seen.add(field.name);
       const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset);
       return { name: field.name, value };
     });
@@ -7440,7 +7449,7 @@ function splitInstructionObjectFields(source) {
     if (expression.length === 0) {
       throw new SansaParseError('Expected object field value', expressionStart, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
     }
-    fields.push({ name, expression, expressionOffset });
+    fields.push({ name, nameOffset: nameStart, expression, expressionOffset });
     cursor = expressionEnd;
     if (source[cursor] === ',') cursor += 1;
   }

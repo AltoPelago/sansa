@@ -55,6 +55,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added SANSA.Instruction negative CTS coverage for candidate-relative lowering
   misses and downstream Mutate planning failures for non-ordered containers,
   invalid anchors, and cross-container or self-anchored moves.
+- Added SANSA.Instruction parse/value CTS coverage for comments, complex
+  datatype intent, malformed container literals, invalid quoted create
+  destinations, nested datatype unions, and literal-only value payloads.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for
@@ -69,6 +72,8 @@ versions may still include breaking changes when the SANSA specifications move.
   order unless an explicit value-semantics profile is supplied.
 - Updated TypeScript declarations for SANSA.Instruction values to include
   object, list, tuple, node, SANSA address, and reference literal payloads.
+- Rejected duplicate object field names in SANSA.Instruction object value
+  literals instead of silently keeping the last value.
 
 ### Security
 
