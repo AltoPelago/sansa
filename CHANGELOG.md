@@ -87,6 +87,8 @@ versions may still include breaking changes when the SANSA specifications move.
   append canonicalization plus direct `insert after` and `move last` forms.
 - Clarified Instruction value-intent boundaries for typed scalars, typed
   containers, nested container literals, and target-neutral lowering.
+- Clarified Instruction target-surface behavior for AEON and JSON, including
+  JSON-compatible containers and parameterized datatype rejection.
 
 ### Security
 

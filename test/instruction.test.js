@@ -578,6 +578,18 @@ test('validates instruction plans against target surfaces after planning', () =>
   const compatibleTarget = validateMutationPlanTarget(compatible.plan, 'aeon');
   assert.equal(compatibleTarget.ok, true, JSON.stringify(compatibleTarget.errors ?? []));
 
+  const aeonParameterizedList = planOk('create $.inventory.aliases with :list<string>, ["adapter", "driver"]', namespace);
+  const aeonParameterizedListTarget = validateMutationPlanTarget(aeonParameterizedList.plan, 'aeon');
+  assert.equal(aeonParameterizedListTarget.ok, true, JSON.stringify(aeonParameterizedListTarget.errors ?? []));
+
+  const jsonObjectCompatible = planOk('create $.inventory.settings with :object, { enabled = true }', namespace);
+  const jsonObjectTarget = validateMutationPlanTarget(jsonObjectCompatible.plan, 'json');
+  assert.equal(jsonObjectTarget.ok, true, JSON.stringify(jsonObjectTarget.errors ?? []));
+
+  const jsonListCompatible = planOk('create $.inventory.aliasesJson with :list, ["adapter", "driver"]', namespace);
+  const jsonListTarget = validateMutationPlanTarget(jsonListCompatible.plan, 'json');
+  assert.equal(jsonListTarget.ok, true, JSON.stringify(jsonListTarget.errors ?? []));
+
   const jsonIncompatible = planOk('create $.inventory.selectorProbe with :sansa, $.inventory.items.*', namespace);
   const jsonTarget = validateMutationPlanTarget(jsonIncompatible.plan, 'json');
   assert.equal(jsonTarget.ok, false);
@@ -585,6 +597,13 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(jsonTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonTarget.errors[0].datatype, 'sansa');
+
+  const jsonParameterizedListIncompatible = planOk('create $.inventory.aliasesTypedJson with :list<string>, ["adapter"]', namespace);
+  const jsonParameterizedListTarget = validateMutationPlanTarget(jsonParameterizedListIncompatible.plan, 'json');
+  assert.equal(jsonParameterizedListTarget.ok, false);
+  assert.equal(jsonParameterizedListTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(jsonParameterizedListTarget.errors[0].targetFormat, 'json');
+  assert.equal(jsonParameterizedListTarget.errors[0].datatype, 'list<string>');
 
   const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
   const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');

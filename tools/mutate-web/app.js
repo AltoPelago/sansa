@@ -442,6 +442,17 @@ const examples = [
     },
   },
   {
+    id: 'target-json-container-ok',
+    label: 'JSON Allows Container',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.settingsJsonProbe with :object, { enabled = true }',
+      },
+    },
+  },
+  {
     id: 'target-json-attribute-fail',
     label: 'JSON Rejects Attribute',
     group: 'Target Surfaces',
@@ -480,6 +491,17 @@ const examples = [
       instruction: {
         options: { targetFormat: 'json' },
         request: 'create $.types.selectorJsonProbe with :sansa, $.inventory.items.*',
+      },
+    },
+  },
+  {
+    id: 'target-json-parameterized-list-fail',
+    label: 'JSON Rejects list<string>',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.aliasesJsonProbe with :list<string>, ["adapter", "driver"]',
       },
     },
   },

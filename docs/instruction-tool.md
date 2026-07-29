@@ -235,9 +235,21 @@ JSON-compatible object/list/string/number/boolean/null values while rejecting
 AEON-only features such as attributes, typed SANSA values, parameterized
 datatypes, tuples, nodes, references, NaN, and Infinity.
 
+| Instruction intent | AEON target | JSON target |
+| --- | --- | --- |
+| `:object, { enabled = true }` | accepted | accepted |
+| `:list, ["adapter"]` | accepted | accepted |
+| `:list<string>, ["adapter"]` | accepted | rejected: parameterized datatype |
+| `:sansa, $.inventory.items.*` | accepted | rejected: SANSA datatype |
+| `:tuple, ("sku", 7)` | accepted | rejected: tuple datatype |
+| `:node, <badge("new")>` | accepted | rejected: node datatype |
+| `:number, ~target` | accepted | rejected: reference-family payload |
+| `$.item.@.selector with :sansa, $.path` | accepted when AEON attribute-space exists | rejected: attribute-space mutation |
+
 Examples that lower successfully but fail JSON target-surface validation:
 
 ```text
+create $.inventory.aliases with :list<string>, ["adapter"]
 create $.inventory.pair with :tuple, ("sku", 7)
 create $.inventory.badge with :node, <badge("new", 3)>
 create $.inventory.copy with :number, ~target
