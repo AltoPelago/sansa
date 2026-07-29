@@ -94,9 +94,9 @@
       ]
     },
     {
-      "id": "sansa.mutate.policy.workbench.v1",
+      "id": "sansa.mutate.policy.planFilter",
       "capability": "SANSA.Mutate",
-      "category": "mutation-policy-gate",
+      "category": "policy",
       "maturity": "experimental",
       "surface": "workbench",
       "entryPoints": [

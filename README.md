@@ -4,7 +4,7 @@ Shared Semantic Address NameSpace Abstraction (SANSA) address, resolve, query, i
 
 This package is the first implementation package for SANSA Address, SANSA Resolve, and SANSA.Query, with experimental SANSA.Instruction parsing/lowering and an experimental structured-plan API for SANSA.Mutate. It parses and renders SANSA address expressions, resolves those expressions against a host-supplied namespace adapter, parses the SANSA.Query clause and expression surfaces, and evaluates a bounded query subset over host-neutral bindings. It also exposes the Shared AEON Value Semantics minimum consumer contract used by Query for concrete value predicates, equality, ordering behavior, and string profile hooks. The experimental Instruction API parses human-authored change intents, lowers them into structured Mutate requests, and can bridge into mutation planning. The experimental Mutate API plans exact create, replace, remove, insert, and same-container move operations, preserves datatype/kind value intent, enforces operation/precondition/value budgets, validates target-surface representability through a separate post-plan API, and applies plans only through host-supplied mutation hooks. It does not inspect host values directly beyond host-exposed binding metadata, apply host-specific authorization, provide transactions, decide schema legality, or assign semantics to qualifiers.
 
-Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, experimental `SANSA.Instruction` parse/lower/plan bridging, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental mutation-policy gate.
+Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, experimental `SANSA.Instruction` parse/lower/plan bridging, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental `sansa.mutate.policy.planFilter` slice.
 
 ## Current Scope
 
@@ -27,7 +27,7 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 - experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
 - experimental SANSA.Mutate value-intent preservation and operation, precondition, and value budgets
 - experimental SANSA.Mutate target-surface validation for AEON, JSON-compatible, and custom target representability checks
-- experimental workbench-only SANSA.Mutate policy gate for trusted consumer authorization tests
+- experimental workbench-only SANSA.Mutate policy plan filter for trusted consumer authorization tests
 - experimental mutation apply through explicit host mutation hooks with stale-target checks
 - experimental SANSA.Instruction parsing, candidate-relative lowering, and mutation-planner bridging for conservative mutation verbs
 
@@ -91,8 +91,9 @@ proposal-stage SANSA Instruction source, then uses the same plan/apply preview
 surface. It also includes an experimental target selector so planned mutations
 can be checked against AEON or JSON-compatible representation surfaces before
 apply/render.
-The optional policy panel is a workbench-only prototype for trusted consumer
-authorization tests; its current boundary is documented in
+The optional policy panel is a workbench-only prototype of the experimental
+`sansa.mutate.policy.planFilter` slice for trusted consumer authorization tests;
+its current boundary is documented in
 [docs/mutate-policy.md](docs/mutate-policy.md).
 
 Both the CLI and browser workbench can select an explicit query value-semantics
