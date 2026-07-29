@@ -206,7 +206,9 @@ JSON for those cases until a later instruction/vocabulary slice defines them.
 
 The Mutate Workbench labels examples that only exist on one input surface as
 `structured-only` or `instruction-only` so this boundary is visible while
-testing.
+testing. The workbench also includes instruction-only diagnostic examples for
+duplicate object fields, literal-only value failures, invalid create member
+names, and target-surface rejection.
 
 ## Diagnostics
 
@@ -228,5 +230,9 @@ For example, a missing candidate-relative target fails during lowering:
 ```bash
 npm run instruction -- --mode lower --instruction $'from $.inventory.items.*\nreplace .missing with "x"'
 ```
+
+Workbench text diagnostics include nested parse causes when available, so an
+instruction parse wrapper can still expose the concrete source error such as
+`SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD`.
 
 JSON diagnostics are available with `--format json`.

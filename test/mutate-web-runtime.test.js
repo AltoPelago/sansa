@@ -306,6 +306,38 @@ testAeonRuntime('mutate web runtime reports instruction diagnostics', async () =
   assert.match(result.text, /SANSA_INSTRUCTION_TARGET_MISS \[lower\]/);
 });
 
+testAeonRuntime('mutate web runtime reports instruction parse value diagnostics clearly', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  const duplicate = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.settingsWorkbench with :object, { enabled = true enabled = false }',
+  });
+
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.requestKind, 'instruction');
+  assert.equal(duplicate.phase, 'parse');
+  assert.equal(duplicate.errors[0].code, 'SANSA_INSTRUCTION_PARSE_FAILED');
+  assert.equal(duplicate.errors[0].phase, 'parse');
+  assert.equal(duplicate.errors[0].cause.code, 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');
+  assert.match(duplicate.text, /SANSA_INSTRUCTION_PARSE_FAILED \[parse\]/);
+  assert.match(duplicate.text, /cause SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD index \d+/);
+
+  const functionValue = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'replace $.inventory.items[0].sku with lower("A")',
+  });
+
+  assert.equal(functionValue.ok, false);
+  assert.equal(functionValue.phase, 'parse');
+  assert.equal(functionValue.errors[0].cause.code, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  assert.match(functionValue.text, /Instruction value must be a literal payload/);
+  assert.match(functionValue.text, /cause SANSA_INSTRUCTION_INVALID_VALUE_LITERAL index \d+/);
+});
+
 testAeonRuntime('mutate web runtime reports create against non-container parents', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
@@ -886,4 +918,19 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   assert.equal(typed.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(typed.errors[0].datatype, 'sansa');
   assert.match(typed.text, /Target 'json' does not support datatype 'sansa'/);
+
+  const tuple = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestKind: 'instruction',
+    requestSource: 'create $.types.pairingWorkbench with :tuple, ("sku", 7)',
+    options: { targetFormat: 'json' },
+  });
+
+  assert.equal(tuple.ok, false);
+  assert.equal(tuple.phase, 'target');
+  assert.equal(tuple.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(tuple.errors[0].targetFormat, 'json');
+  assert.equal(tuple.errors[0].datatype, 'tuple');
+  assert.match(tuple.text, /Target 'json' does not support datatype 'tuple'/);
 });

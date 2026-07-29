@@ -48,14 +48,15 @@ export async function runMutationForWorkbench({
     : planStructuredWorkbenchRequest(requestSource, namespace, planOptions);
 
   if (!planResult.ok) {
+    const errors = normalizeDiagnostics(planResult.errors);
     return {
       ok: false,
       mode,
       requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
-      ...(planResult.phase === undefined ? {} : { phase: planResult.phase }),
+      phase: primaryDiagnosticPhase(errors, planResult.phase),
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       text: renderDiagnosticText(planResult.errors),
-      errors: normalizeDiagnostics(planResult.errors),
+      errors,
       source: renderBindingTree(root),
     };
   }
@@ -1061,7 +1062,10 @@ function renderDiagnosticText(errors) {
     const operation = Number.isInteger(error.operationIndex) ? ` operation ${error.operationIndex}` : '';
     const budget = typeof error.budget === 'string' ? ` ${error.budget}` : '';
     const location = Number.isInteger(error.index) ? ` index ${error.index}` : '';
-    return `${error.code}${phase}${operation}${budget}${location}: ${error.message}`;
+    const cause = error.cause && typeof error.cause === 'object'
+      ? `\n  cause ${renderDiagnosticText([error.cause])}`
+      : '';
+    return `${error.code}${phase}${operation}${budget}${location}: ${error.message}${cause}`;
   }).join('\n');
 }
 
@@ -1081,6 +1085,13 @@ function normalizeDiagnostics(errors) {
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),
     ...(error.cause ? { cause: normalizeDiagnostics([error.cause])[0] } : {}),
   }));
+}
+
+function primaryDiagnosticPhase(errors, fallback) {
+  const first = Array.isArray(errors) ? errors[0] : null;
+  if (typeof first?.phase === 'string') return first.phase;
+  if (typeof fallback === 'string') return fallback;
+  return undefined;
 }
 
 function errorResult(code, message, mode) {

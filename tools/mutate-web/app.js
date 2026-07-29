@@ -484,6 +484,47 @@ const examples = [
     },
   },
   {
+    id: 'target-json-tuple-fail',
+    label: 'JSON Rejects Tuple',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.pairingJsonProbe with :tuple, ("sku", 7)',
+      },
+    },
+  },
+  {
+    id: 'instruction-duplicate-object-field-fail',
+    label: 'Duplicate Object Field',
+    group: 'Instruction Diagnostics',
+    variants: {
+      instruction: {
+        request: 'create $.types.settingsWorkbench with :object, { enabled = true enabled = false }',
+      },
+    },
+  },
+  {
+    id: 'instruction-literal-only-fail',
+    label: 'Literal-Only Value',
+    group: 'Instruction Diagnostics',
+    variants: {
+      instruction: {
+        request: 'replace $.inventory.items[0].sku with lower("A")',
+      },
+    },
+  },
+  {
+    id: 'instruction-invalid-create-name-fail',
+    label: 'Invalid Create Name',
+    group: 'Instruction Diagnostics',
+    variants: {
+      instruction: {
+        request: 'create "" with "x"',
+      },
+    },
+  },
+  {
     id: 'create-scalars',
     label: 'Create Scalars',
     group: 'Batch Requests',

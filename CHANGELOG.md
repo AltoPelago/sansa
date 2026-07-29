@@ -58,6 +58,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added SANSA.Instruction parse/value CTS coverage for comments, complex
   datatype intent, malformed container literals, invalid quoted create
   destinations, nested datatype unions, and literal-only value payloads.
+- Added Mutate Workbench diagnostic examples for duplicate object fields,
+  literal-only value failures, invalid create member names, and JSON tuple
+  target rejection.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for
@@ -74,6 +77,8 @@ versions may still include breaking changes when the SANSA specifications move.
   object, list, tuple, node, SANSA address, and reference literal payloads.
 - Rejected duplicate object field names in SANSA.Instruction object value
   literals instead of silently keeping the last value.
+- Updated Mutate Workbench error responses so instruction parse failures expose
+  their parse phase and nested cause diagnostics in text mode.
 
 ### Security
 
