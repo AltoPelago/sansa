@@ -373,6 +373,81 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       },
     ],
   });
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'where .qty == 0',
+    'remove .sku',
+  ].join('\n'), namespace), {
+    op: 'remove',
+    target: '$.inventory.items[0].sku',
+  });
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'append in .tags with "new"',
+  ].join('\n'), namespace), [
+    {
+      op: 'insert',
+      container: '$.inventory.items[0].tags',
+      placement: 'last',
+      kind: 'string',
+      value: 'new',
+    },
+    {
+      op: 'insert',
+      container: '$.inventory.items[1].tags',
+      placement: 'last',
+      kind: 'string',
+      value: 'new',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'move .tags[0] first in .tags',
+  ].join('\n'), namespace), [
+    {
+      op: 'move',
+      source: '$.inventory.items[0].tags[0]',
+      container: '$.inventory.items[0].tags',
+      placement: 'first',
+    },
+    {
+      op: 'move',
+      source: '$.inventory.items[1].tags[0]',
+      container: '$.inventory.items[1].tags',
+      placement: 'first',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'where .sku == "A-100"',
+    'require .qty == 0',
+    'require .sku == "A-100"',
+    'replace .qty with :int32, 10',
+  ].join('\n'), namespace), {
+    operations: [
+      {
+        op: 'replace',
+        target: '$.inventory.items[0].qty',
+        datatype: 'int32',
+        kind: 'number',
+        value: 10,
+      },
+    ],
+    preconditions: [
+      {
+        expression: '.qty == 0',
+        target: '$.inventory.items[0]',
+      },
+      {
+        expression: '.sku == "A-100"',
+        target: '$.inventory.items[0]',
+      },
+    ],
+  });
 });
 
 test('plans lowered instructions through the mutate planner', () => {
@@ -443,6 +518,27 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(jsonTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonTarget.errors[0].datatype, 'sansa');
+
+  const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
+  const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');
+  assert.equal(tupleTarget.ok, false);
+  assert.equal(tupleTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(tupleTarget.errors[0].targetFormat, 'json');
+  assert.equal(tupleTarget.errors[0].datatype, 'tuple');
+
+  const nodeIncompatible = planOk('create $.inventory.badge with :node, <badge("new", 3)>', namespace);
+  const nodeTarget = validateMutationPlanTarget(nodeIncompatible.plan, 'json');
+  assert.equal(nodeTarget.ok, false);
+  assert.equal(nodeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(nodeTarget.errors[0].targetFormat, 'json');
+  assert.equal(nodeTarget.errors[0].datatype, 'node');
+
+  const referenceIncompatible = planOk('create $.inventory.copy with :number, ~target', namespace);
+  const referenceTarget = validateMutationPlanTarget(referenceIncompatible.plan, 'json');
+  assert.equal(referenceTarget.ok, false);
+  assert.equal(referenceTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(referenceTarget.errors[0].targetFormat, 'json');
+  assert.equal(referenceTarget.errors[0].datatype, 'cloneReference');
 });
 
 test('preserves instruction lower and mutate plan failure phases', () => {

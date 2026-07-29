@@ -110,6 +110,7 @@ that must hold during planning and, by default, again before apply:
 from $.inventory.items.*
 where .sku == "A-100"
 require .qty == 1
+require .status == "open"
 replace .qty with :int32, 10
 ```
 
@@ -179,6 +180,14 @@ The default target is AEON. JSON target mode is stricter and accepts only
 JSON-compatible object/list/string/number/boolean/null values while rejecting
 AEON-only features such as attributes, typed SANSA values, parameterized
 datatypes, tuples, nodes, references, NaN, and Infinity.
+
+Examples that lower successfully but fail JSON target-surface validation:
+
+```text
+create $.inventory.pair with :tuple, ("sku", 7)
+create $.inventory.badge with :node, <badge("new", 3)>
+create $.inventory.copy with :number, ~target
+```
 
 Quoted create member names are accepted for member names that cannot be written
 as bare identifiers. Attribute creation uses ordinary SANSA attribute-space

@@ -49,8 +49,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added SANSA.Instruction `because` and `by` clauses that preserve inert
   source-level claimed provenance.
 - Added SANSA.Instruction CTS coverage for quoted create member names,
-  attribute-space create destinations, target-surface datatype rejection, and
-  illegal positional create destinations.
+  attribute-space create destinations, candidate-relative remove/append/move,
+  repeated require preconditions, target-surface datatype rejection, and illegal
+  positional create destinations.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for
