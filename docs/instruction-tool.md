@@ -92,6 +92,22 @@ policy plan filter after planning and before target-surface validation. Policy
 and target-surface checks are post-plan consumer checks; neither one is encoded
 by the Instruction source.
 
+Each phase has a different authority boundary:
+
+| Phase | Question Answered | Example Failure |
+| --- | --- | --- |
+| `parse` | Is this valid Instruction syntax and literal payload syntax? | `replace $.x with lower("A")` is rejected because values must be literals. |
+| `lower` | Can candidate-relative Instruction intent become exact structured mutation requests? | `from $.items.* replace .missing with "x"` fails when `.missing` resolves nowhere. |
+| `plan` | Are the exact mutation requests structurally legal against this namespace? | `append .sku with "x"` can lower, then fail because `.sku` is not an ordered container. |
+| `policy` | Does a trusted consumer authorize the already-planned operations? | A default-deny workbench policy rejects a create operation with no matching allow rule. |
+| `target` | Can the selected target format represent the planned value and datatype/kind intent? | JSON target mode rejects `:sansa, $.inventory.items.*`. |
+| `apply` | Can the host mutation adapter apply the already-planned operation now? | Apply fails if a target or ordered anchor has drifted since planning. |
+
+Target and policy phases are deliberately outside Instruction. An Instruction
+can be syntactically valid, lower successfully, and produce a valid mutation
+plan while still being denied by a consumer policy or rejected by a selected
+target renderer.
+
 ## Instruction Surface
 
 This prototype accepts the conservative mutation verbs currently supported by

@@ -159,6 +159,17 @@ Failures keep their phase:
 { ok: false, phase: "plan", loweredRequest, errors } // mutate planning failed
 ```
 
+The phase boundary is part of the contract:
+
+| Phase | Boundary |
+| --- | --- |
+| `parse` | Instruction syntax and literal payload syntax. |
+| `lower` | Candidate selection and candidate-relative address resolution into exact structured requests. |
+| `plan` | SANSA.Mutate structural legality against the host namespace. |
+| `policy` | Trusted consumer authorization of already-planned operations. |
+| `target` | Target-surface representability of planned datatype/kind/value intent. |
+| `apply` | Host adapter execution of an already-planned operation against current namespace state. |
+
 This function is a convenience bridge. Target-surface validation,
 authorization, schema checks, apply, transactions, and host-specific mutation
 policy remain outside Instruction and inside the consumer or mutation adapter
