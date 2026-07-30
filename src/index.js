@@ -1727,6 +1727,8 @@ function validateAeonTargetDatatype(datatype, operationIndex) {
       ),
     };
   }
+  const reserved = validateAeonReservedDatatypeSurface(datatype, base, operationIndex);
+  if (!reserved.ok) return reserved;
   return { ok: true };
 }
 
@@ -1807,13 +1809,13 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
         ? { ok: true }
         : invalidAeonTargetValue('Hex literals must be non-empty hexadecimal text without the # prefix', path, operationIndex);
     case 'radix':
-      return typeof value === 'string' && /^[A-Za-z0-9_]+$/.test(value)
+      return typeof value === 'string' && isAeonRadixPayload(value)
         ? { ok: true }
-        : invalidAeonTargetValue('Radix literals must be non-empty ASCII radix text without the % prefix', path, operationIndex);
+        : invalidAeonTargetValue('Radix literals must be valid AEON radix payload text without the % prefix', path, operationIndex);
     case 'encoding':
-      return typeof value === 'string' && value.length > 0
+      return typeof value === 'string' && isAeonEncodingPayload(value)
         ? { ok: true }
-        : invalidAeonTargetValue('Encoding literals must be non-empty text without the & prefix', path, operationIndex);
+        : invalidAeonTargetValue('Encoding literals must be valid AEON Base64URL payload text without the & prefix', path, operationIndex);
     case 'separator':
       return typeof value === 'string' && value.length > 0
         ? { ok: true }
@@ -1890,6 +1892,37 @@ function aeonDatatypeAllowsGeneric(base) {
 function aeonDatatypeAllowsArgument(base) {
   const lowered = typeof base === 'string' ? base.toLowerCase() : base;
   return ['sep', 'separator', 'kadot', 'radix'].includes(lowered);
+}
+
+function validateAeonReservedDatatypeSurface(datatype, base, operationIndex) {
+  const source = String(datatype).trim();
+  const lowered = source.toLowerCase();
+  const loweredBase = typeof base === 'string' ? base.toLowerCase() : base;
+  if (/^radix\d+$/.test(lowered) && !['radix2', 'radix6', 'radix8', 'radix12'].includes(lowered)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not define reserved radix alias '${source}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (loweredBase !== 'radix') return { ok: true };
+  if (!source.includes('[')) return { ok: true };
+  const match = /^radix\[\s*([1-9]\d*)\s*\]$/i.exec(source);
+  const baseNumber = match ? Number(match[1]) : NaN;
+  if (!match || baseNumber < 2 || baseNumber > 64) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' requires radix bracket metadata to be an integer from 2 to 64`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  return { ok: true };
 }
 
 function validateJsonTargetAddresses(operation, operationIndex) {
@@ -6445,7 +6478,7 @@ class QueryExpressionParser {
     const start = this.index;
     this.index += 1;
     const payload = this.readSimpleLiteralPayload();
-    if (!/^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload)) {
+    if (!isAeonRadixPayload(payload)) {
       this.fail('Invalid radix literal', 'SANSA_QUERY_INVALID_RADIX_LITERAL', start);
     }
     const value = payload.replaceAll('_', '');
@@ -6461,7 +6494,7 @@ class QueryExpressionParser {
     const start = this.index;
     this.index += 1;
     const payload = this.readSimpleLiteralPayload();
-    if (!/^[A-Za-z0-9_-]+={0,2}$/.test(payload)) {
+    if (!isAeonEncodingPayload(payload)) {
       this.fail('Invalid encoding literal', 'SANSA_QUERY_INVALID_ENCODING_LITERAL', start);
     }
     return {
@@ -7414,6 +7447,14 @@ function isValidTimeMatch(match, offset = 1) {
   if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
   if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
   return true;
+}
+
+function isAeonRadixPayload(payload) {
+  return /^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload);
+}
+
+function isAeonEncodingPayload(payload) {
+  return /^[A-Za-z0-9_-]+={0,2}$/.test(payload);
 }
 
 function splitTopLevelQueryList(source) {

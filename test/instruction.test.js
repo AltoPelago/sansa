@@ -675,6 +675,28 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonDateStringTarget.errors[0].datatype, 'date');
   assert.equal(aeonDateStringTarget.errors[0].valuePath, 'operations[0].value');
 
+  const aeonInvalidRadixDatatype = planOk('create $.inventory.badRadix with :radix[03], %101', namespace);
+  const aeonInvalidRadixDatatypeTarget = validateMutationPlanTarget(aeonInvalidRadixDatatype.plan, 'aeon');
+  assert.equal(aeonInvalidRadixDatatypeTarget.ok, false);
+  assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].datatype, 'radix[03]');
+
+  const aeonUnsupportedRadixAlias = planOk('create $.inventory.badRadixAlias with :radix16, %10', namespace);
+  const aeonUnsupportedRadixAliasTarget = validateMutationPlanTarget(aeonUnsupportedRadixAlias.plan, 'aeon');
+  assert.equal(aeonUnsupportedRadixAliasTarget.ok, false);
+  assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].datatype, 'radix16');
+
+  const aeonEncodingStringIncompatible = planOk('create $.inventory.badEncoding with :base64, "abc+/=="', namespace);
+  const aeonEncodingStringTarget = validateMutationPlanTarget(aeonEncodingStringIncompatible.plan, 'aeon');
+  assert.equal(aeonEncodingStringTarget.ok, false);
+  assert.equal(aeonEncodingStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonEncodingStringTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonEncodingStringTarget.errors[0].datatype, 'base64');
+  assert.equal(aeonEncodingStringTarget.errors[0].valuePath, 'operations[0].value');
+
   const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
   const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');
   assert.equal(tupleTarget.ok, false);

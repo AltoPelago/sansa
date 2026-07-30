@@ -266,6 +266,71 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(jsonValueResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(jsonValueResult.errors[0].targetFormat, 'json');
   assert.equal(jsonValueResult.errors[0].valuePath, 'value');
+
+  const aeonRadixRepresentable = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'radixProbe',
+    datatype: 'radix[2]',
+    kind: 'radix',
+    value: '1A',
+  }, namespace);
+  const aeonRadixRepresentableResult = validateMutationPlanTarget(aeonRadixRepresentable, 'aeon');
+  assert.equal(aeonRadixRepresentableResult.ok, true, JSON.stringify(aeonRadixRepresentableResult.errors ?? []));
+
+  const aeonInvalidRadixPayload = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badRadix',
+    kind: 'radix',
+    value: '1__0',
+  }, namespace);
+  const aeonInvalidRadixPayloadResult = validateMutationPlanTarget(aeonInvalidRadixPayload, 'aeon');
+  assert.equal(aeonInvalidRadixPayloadResult.ok, false);
+  assert.equal(aeonInvalidRadixPayloadResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidRadixPayloadResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidRadixPayloadResult.errors[0].valuePath, 'operations[0].value');
+
+  const aeonInvalidRadixDatatype = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badRadixDatatype',
+    datatype: 'radix[03]',
+    kind: 'radix',
+    value: '101',
+  }, namespace);
+  const aeonInvalidRadixDatatypeResult = validateMutationPlanTarget(aeonInvalidRadixDatatype, 'aeon');
+  assert.equal(aeonInvalidRadixDatatypeResult.ok, false);
+  assert.equal(aeonInvalidRadixDatatypeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidRadixDatatypeResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidRadixDatatypeResult.errors[0].datatype, 'radix[03]');
+
+  const aeonUnsupportedRadixAlias = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badRadixAlias',
+    datatype: 'radix16',
+    kind: 'radix',
+    value: '10',
+  }, namespace);
+  const aeonUnsupportedRadixAliasResult = validateMutationPlanTarget(aeonUnsupportedRadixAlias, 'aeon');
+  assert.equal(aeonUnsupportedRadixAliasResult.ok, false);
+  assert.equal(aeonUnsupportedRadixAliasResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonUnsupportedRadixAliasResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonUnsupportedRadixAliasResult.errors[0].datatype, 'radix16');
+
+  const aeonInvalidEncodingPayload = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badEncoding',
+    kind: 'encoding',
+    value: 'abc+/==',
+  }, namespace);
+  const aeonInvalidEncodingPayloadResult = validateMutationPlanTarget(aeonInvalidEncodingPayload, 'aeon');
+  assert.equal(aeonInvalidEncodingPayloadResult.ok, false);
+  assert.equal(aeonInvalidEncodingPayloadResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidEncodingPayloadResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidEncodingPayloadResult.errors[0].valuePath, 'operations[0].value');
 });
 
 test('validates mutation plans against custom target surfaces', () => {
