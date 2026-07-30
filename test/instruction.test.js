@@ -292,6 +292,15 @@ test('lowers direct instructions to mutate request operations', () => {
     value: 'active',
   });
 
+  assert.deepEqual(lowerOk('create $.inventory.["display name"] with :string, "Adapter"'), {
+    op: 'create',
+    parent: '$.inventory',
+    name: 'display name',
+    datatype: 'string',
+    kind: 'string',
+    value: 'Adapter',
+  });
+
   assert.deepEqual(lowerOk('create status with "active"'), {
     op: 'create',
     parent: '?',
@@ -583,6 +592,29 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(append.plan.operations[0].datatype, 'csv[","]');
   assert.equal(append.plan.operations[0].kind, 'string');
   assert.equal(append.plan.operations[0].value, 'new,tag');
+
+  const typedReplace = planOk('replace $.inventory.items[0].sku with :string, "A-101"', namespace);
+  assert.equal(typedReplace.plan.operations[0].op, 'replace');
+  assert.equal(typedReplace.plan.operations[0].target.canonicalAddress, '$.inventory.items[0].sku');
+  assert.equal(typedReplace.plan.operations[0].datatype, 'string');
+  assert.equal(typedReplace.plan.operations[0].kind, 'string');
+  assert.equal(typedReplace.plan.operations[0].value, 'A-101');
+
+  const date = planOk('create $.inventory.released with :date, 2026-10-10', namespace);
+  assert.equal(date.plan.operations[0].op, 'create');
+  assert.equal(date.plan.operations[0].parent.canonicalAddress, '$.inventory');
+  assert.equal(date.plan.operations[0].name, 'released');
+  assert.equal(date.plan.operations[0].datatype, 'date');
+  assert.equal(date.plan.operations[0].kind, 'date');
+  assert.equal(date.plan.operations[0].value, '2026-10-10');
+
+  const selector = planOk('create $.inventory.selectorProbe with :sansa, $.inventory.items[0..1].sku', namespace);
+  assert.equal(selector.plan.operations[0].op, 'create');
+  assert.equal(selector.plan.operations[0].parent.canonicalAddress, '$.inventory');
+  assert.equal(selector.plan.operations[0].name, 'selectorProbe');
+  assert.equal(selector.plan.operations[0].datatype, 'sansa');
+  assert.equal(selector.plan.operations[0].kind, 'sansa');
+  assert.equal(selector.plan.operations[0].value, '$.inventory.items[0..1].sku');
 });
 
 test('validates instruction plans against target surfaces after planning', () => {
@@ -723,6 +755,7 @@ test('rejects invalid instruction parse seeds', () => {
 
 test('surfaces initial lowering boundary diagnostics', () => {
   lowerBad('create $.tags[2] with "sale"', 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER');
+  lowerBad('create $.inventory.("display*") with "Adapter"', 'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER');
   lowerBad('from $.inventory\ncreate status with "active"', 'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE');
   lowerBad('from $.inventory.items.*\nreplace .missing with "x"', 'SANSA_INSTRUCTION_TARGET_MISS', sampleNamespace());
 });

@@ -58,6 +58,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added SANSA.Instruction parse/value CTS coverage for comments, complex
   datatype intent, malformed container literals, invalid quoted create
   destinations, nested datatype unions, and literal-only value payloads.
+- Added SANSA.Instruction CTS coverage for quoted address-member create
+  destinations, selector-as-create-destination rejection, typed replace values,
+  date values, and SANSA selector values.
 - Added Mutate Workbench diagnostic examples for duplicate object fields,
   literal-only value failures, invalid create member names, and JSON tuple
   target rejection.
