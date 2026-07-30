@@ -78,6 +78,8 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(byId.get('target-json-node-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-reference-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('instruction-duplicate-object-field-fail')?.group, 'Instruction Diagnostics');
+  assert.equal(byId.get('instruction-lower-target-miss')?.variants.instruction.expected.phase, 'lower');
+  assert.equal(byId.get('instruction-lower-anchor-miss')?.variants.instruction.expected.phase, 'lower');
   assert.equal(byId.get('target-json-reference-fail')?.group, 'Target Surfaces');
   assert.equal(byId.get('policy-explicit-deny-sku')?.group, 'Policy Boundaries');
 });

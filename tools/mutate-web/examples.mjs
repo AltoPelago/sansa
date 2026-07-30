@@ -673,6 +673,32 @@ export const mutateExamples = [
     },
   },
   {
+    id: 'instruction-lower-target-miss',
+    label: 'Lower Target Miss',
+    group: 'Instruction Diagnostics',
+    variants: {
+      instruction: {
+        request: [
+          'from $.inventory.items.*',
+          'replace .missing with "x"',
+        ].join('\n'),
+      },
+    },
+  },
+  {
+    id: 'instruction-lower-anchor-miss',
+    label: 'Lower Anchor Miss',
+    group: 'Instruction Diagnostics',
+    variants: {
+      instruction: {
+        request: [
+          'from $.inventory.items.*',
+          'insert after .roles[99] in .roles with "review"',
+        ].join('\n'),
+      },
+    },
+  },
+  {
     id: 'create-scalars',
     label: 'Create Scalars',
     group: 'Batch Requests',
@@ -1008,6 +1034,18 @@ const mutateExampleExpectationOverrides = {
     ok: false,
     phase: 'parse',
     code: 'SANSA_INSTRUCTION_PARSE_FAILED',
+  },
+  'instruction-lower-target-miss:instruction': {
+    ok: false,
+    phase: 'lower',
+    code: 'SANSA_INSTRUCTION_TARGET_MISS',
+    textIncludes: ['SANSA_INSTRUCTION_TARGET_MISS [lower]'],
+  },
+  'instruction-lower-anchor-miss:instruction': {
+    ok: false,
+    phase: 'lower',
+    code: 'SANSA_INSTRUCTION_TARGET_MISS',
+    textIncludes: ['SANSA_INSTRUCTION_TARGET_MISS [lower]'],
   },
   'budget-fail:structured': {
     ok: false,

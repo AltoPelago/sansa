@@ -62,8 +62,8 @@ versions may still include breaking changes when the SANSA specifications move.
   destinations, selector-as-create-destination rejection, typed replace values,
   date values, and SANSA selector values.
 - Added Mutate Workbench diagnostic examples for duplicate object fields,
-  literal-only value failures, invalid create member names, and JSON tuple
-  target rejection.
+  literal-only value failures, invalid create member names, lower-phase target
+  misses, lower-phase anchor misses, and JSON tuple target rejection.
 - Added Mutate Workbench policy-boundary examples for allowed operations,
   default-deny failures, and explicit-deny failures.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
