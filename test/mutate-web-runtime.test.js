@@ -105,6 +105,45 @@ testAeonRuntime('mutate web runtime exercises declared catalog expectations', as
   }
 });
 
+testAeonRuntime('mutate web runtime exercises declared catalog apply expectations', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
+  for (const example of mutateExamples) {
+    for (const [kind, variant] of Object.entries(example.variants)) {
+      if (variant.applyExpected === undefined) continue;
+      const expected = variant.applyExpected;
+      const result = await runMutationForWorkbench({
+        source,
+        mode: 'apply',
+        requestKind: kind,
+        requestSource: kind === 'instruction' ? variant.request : JSON.stringify(variant.request),
+        options: variant.options ?? {},
+      });
+      const label = `${example.id}:${kind}`;
+      assert.equal(result.ok, expected.ok, `${label}\n${JSON.stringify(result.errors ?? [])}`);
+      if (expected.operationStatuses !== undefined) {
+        assert.deepEqual(
+          (result.result?.operationResults ?? []).map((entry) => entry.status),
+          expected.operationStatuses,
+          label,
+        );
+      }
+      for (const snippet of expected.textIncludes ?? []) {
+        assert.match(result.text ?? '', new RegExp(escapeRegExp(snippet)), label);
+      }
+      for (const snippet of expected.sourceIncludes ?? []) {
+        assert.match(result.source ?? '', new RegExp(escapeRegExp(snippet)), label);
+      }
+      for (const snippet of expected.sourceExcludes ?? []) {
+        assert.doesNotMatch(result.source ?? '', new RegExp(escapeRegExp(snippet)), label);
+      }
+      if (result.ok && result.source !== undefined) {
+        const rendered = await namespaceFromAeonSource(result.source);
+        assert.equal(rendered.ok, true, `${label}\n${JSON.stringify(rendered.errors ?? [])}`);
+      }
+    }
+  }
+});
+
 testAeonRuntime('mutate web runtime plans structured mutation requests', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

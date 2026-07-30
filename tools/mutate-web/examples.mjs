@@ -973,9 +973,64 @@ const mutateExampleExpectationOverrides = {
   },
 };
 
+const mutateExampleApplyExpectationOverrides = {
+  'replace-sku:structured': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['sku@{origin:string = "catalog"}:string = "A-101"'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[0].sku -> $.inventory.items[0].sku'],
+  },
+  'replace-sku:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['sku@{origin:string = "catalog"}:string = "A-101"'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[0].sku -> $.inventory.items[0].sku'],
+  },
+  'replace-qty:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['qty:int32 = 10'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[1].qty -> $.inventory.items[1].qty'],
+  },
+  'create-status:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['status:string = "pending"'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[2] -> $.inventory.items[2].status'],
+  },
+  'create-attribute:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['color@{selector:sansa = $.inventory.items.*}:hex = #ff00aa'],
+    textIncludes: ['applied: 1', '0: applied $.types.color.@ -> $.types.color.@.selector'],
+  },
+  'remove-metric:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceExcludes: ['metric:nan<number> = NaN'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[2].metric -> $.inventory.items[2].metric'],
+  },
+  'append-typed-role:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['roles:list<string> = [\n        "user"\n        "admin,editor"\n      ]'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[1].roles -> $.inventory.items[1].roles[1]'],
+  },
+  'insert-item:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['sku:string = "B-150"'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items -> $.inventory.items[1]'],
+  },
+};
+
 for (const example of mutateExamples) {
   for (const [kind, variant] of Object.entries(example.variants)) {
-    variant.expected = mutateExampleExpectationOverrides[`${example.id}:${kind}`] ?? { ok: true };
+    const key = `${example.id}:${kind}`;
+    variant.expected = mutateExampleExpectationOverrides[key] ?? { ok: true };
+    if (mutateExampleApplyExpectationOverrides[key] !== undefined) {
+      variant.applyExpected = mutateExampleApplyExpectationOverrides[key];
+    }
   }
 }
 
