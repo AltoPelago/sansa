@@ -278,6 +278,8 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('23:59:60', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('query CTS cases match parser behavior', () => {

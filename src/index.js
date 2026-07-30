@@ -6850,7 +6850,7 @@ function stripQueryComments(input) {
       output += char;
       continue;
     }
-    if (char === '/' && next === '/') {
+    if (char === '/' && next === '/' && !isTemporalZoneCommentContext(input, index)) {
       output += '  ';
       index += 1;
       while (index + 1 < input.length && input[index + 1] !== '\n' && input[index + 1] !== '\r') {
@@ -6859,7 +6859,7 @@ function stripQueryComments(input) {
       }
       continue;
     }
-    if (char === '/' && next === '*') {
+    if (char === '/' && next === '*' && !isTemporalZoneCommentContext(input, index)) {
       const start = index;
       output += '  ';
       index += 1;
@@ -6884,6 +6884,17 @@ function stripQueryComments(input) {
     output += char;
   }
   return output;
+}
+
+function isTemporalZoneCommentContext(input, index) {
+  let cursor = index - 1;
+  while (cursor >= 0 && !isLayout(input[cursor]) && ![',', ')', '}', ']'].includes(input[cursor])) {
+    cursor -= 1;
+  }
+  const tokenPrefix = input.slice(cursor + 1, index);
+  const date = String.raw`\d{4}-\d{2}-\d{2}`;
+  const datetimeTime = String.raw`\d{2}(?::(?:\d{2})?)?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?`;
+  return new RegExp(`^${date}T${datetimeTime}&[A-Za-z0-9_+\\-/]*$`).test(tokenPrefix);
 }
 
 function renderInstruction(instruction) {

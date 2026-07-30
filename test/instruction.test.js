@@ -799,6 +799,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :date, 2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseBad('create $.x with :time, 24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseBad('create $.x with :zrut, 2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('surfaces initial lowering boundary diagnostics', () => {
