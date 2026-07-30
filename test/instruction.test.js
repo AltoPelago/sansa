@@ -608,6 +608,14 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(date.plan.operations[0].kind, 'date');
   assert.equal(date.plan.operations[0].value, '2026-10-10');
 
+  const datetime = planOk('create $.inventory.availableAt with :datetime, 2026-10-10T09Z', namespace);
+  assert.equal(datetime.plan.operations[0].op, 'create');
+  assert.equal(datetime.plan.operations[0].parent.canonicalAddress, '$.inventory');
+  assert.equal(datetime.plan.operations[0].name, 'availableAt');
+  assert.equal(datetime.plan.operations[0].datatype, 'datetime');
+  assert.equal(datetime.plan.operations[0].kind, 'datetime');
+  assert.equal(datetime.plan.operations[0].value, '2026-10-10T09Z');
+
   const selector = planOk('create $.inventory.selectorProbe with :sansa, $.inventory.items[0..1].sku', namespace);
   assert.equal(selector.plan.operations[0].op, 'create');
   assert.equal(selector.plan.operations[0].parent.canonicalAddress, '$.inventory');
@@ -767,6 +775,8 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :date, 2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseBad('create $.x with :time, 24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('surfaces initial lowering boundary diagnostics', () => {

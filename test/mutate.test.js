@@ -228,6 +228,20 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonKindResult.errors[0].datatype, 'toggle');
   assert.equal(aeonKindResult.errors[0].valuePath, 'operations[0].value');
 
+  const aeonInvalidTemporal = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badDate',
+    datatype: 'date',
+    kind: 'date',
+    value: '2025-02-29',
+  }, namespace);
+  const aeonTemporalResult = validateMutationPlanTarget(aeonInvalidTemporal, 'aeon');
+  assert.equal(aeonTemporalResult.ok, false);
+  assert.equal(aeonTemporalResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonTemporalResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonTemporalResult.errors[0].valuePath, 'operations[0].value');
+
   const jsonAttribute = planOk({
     op: 'create',
     parent: '$.inventory.sku.@',

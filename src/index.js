@@ -1843,9 +1843,9 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
     case 'time':
     case 'datetime':
     case 'zrut':
-      return typeof value === 'string' && value.length > 0
+      return typeof value === 'string' && isQueryTemporalLiteral(value, representation)
         ? { ok: true }
-        : invalidAeonTargetValue(`${representation} literals must be non-empty text`, path, operationIndex);
+        : invalidAeonTargetValue(`${representation} literals must use valid AEON temporal text`, path, operationIndex);
     case 'cloneReference':
     case 'pointerReference':
     case 'referenceForm':
@@ -7362,14 +7362,58 @@ function isQueryCurrentPositionalShorthand(source) {
 }
 
 function isQueryTemporalLiteral(source, kind) {
-  const date = String.raw`\d{4}-\d{2}-\d{2}`;
-  const time = String.raw`\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?`;
-  const zone = String.raw`[A-Za-z0-9_+\-/]+(?:/[A-Za-z0-9_+\-]+)*`;
-  if (kind === 'date') return new RegExp(`^${date}$`).test(source);
-  if (kind === 'time') return new RegExp(`^${time}$`).test(source);
-  if (kind === 'datetime') return new RegExp(`^${date}T${time}$`).test(source);
-  if (kind === 'zrut') return new RegExp(`^${date}T${time}&${zone}$`).test(source);
+  const date = String.raw`(\d{4})-(\d{2})-(\d{2})`;
+  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const zone = String.raw`[A-Za-z0-9_+\-]+(?:/[A-Za-z0-9_+\-]+)*`;
+  if (kind === 'date') {
+    const match = new RegExp(`^${date}$`).exec(source);
+    return Boolean(match) && isValidDateParts(match[1], match[2], match[3]);
+  }
+  if (kind === 'time') {
+    const match = new RegExp(`^${time}$`).exec(source);
+    return Boolean(match) && isValidTimeMatch(match);
+  }
+  if (kind === 'datetime') {
+    const match = new RegExp(`^${date}T${datetimeTime}$`).exec(source);
+    return Boolean(match)
+      && isValidDateParts(match[1], match[2], match[3])
+      && isValidTimeMatch(match, 4);
+  }
+  if (kind === 'zrut') {
+    const match = new RegExp(`^${date}T${datetimeTime}&(${zone})$`).exec(source);
+    return Boolean(match)
+      && isValidDateParts(match[1], match[2], match[3])
+      && isValidTimeMatch(match, 4);
+  }
   return false;
+}
+
+function isValidDateParts(yearText, monthText, dayText) {
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (month < 1 || month > 12) return false;
+  const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= days[month - 1];
+}
+
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function isValidTimeMatch(match, offset = 1) {
+  const hour = Number(match[offset]);
+  const minute = match[offset + 1] === undefined ? null : Number(match[offset + 1]);
+  const second = match[offset + 2] === undefined ? null : Number(match[offset + 2]);
+  const zoneHour = match[offset + 4] === undefined ? null : Number(match[offset + 4]);
+  const zoneMinute = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  if (hour < 0 || hour > 23) return false;
+  if (minute !== null && (minute < 0 || minute > 59)) return false;
+  if (second !== null && (second < 0 || second > 59)) return false;
+  if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
+  if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
+  return true;
 }
 
 function splitTopLevelQueryList(source) {

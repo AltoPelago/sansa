@@ -186,17 +186,35 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(time.value, '09:30:00Z');
   assert.equal(renderQueryExpression(time), '09:30:00Z');
 
+  const reducedTime = parseExpressionOk('09:');
+  assert.equal(reducedTime.type, 'literalExpression');
+  assert.equal(reducedTime.kind, 'time');
+  assert.equal(reducedTime.value, '09:');
+  assert.equal(renderQueryExpression(reducedTime), '09:');
+
   const datetime = parseExpressionOk('2026-07-25T09:30:00Z');
   assert.equal(datetime.type, 'literalExpression');
   assert.equal(datetime.kind, 'datetime');
   assert.equal(datetime.value, '2026-07-25T09:30:00Z');
   assert.equal(renderQueryExpression(datetime), '2026-07-25T09:30:00Z');
 
+  const reducedDatetime = parseExpressionOk('2026-07-25T09Z');
+  assert.equal(reducedDatetime.type, 'literalExpression');
+  assert.equal(reducedDatetime.kind, 'datetime');
+  assert.equal(reducedDatetime.value, '2026-07-25T09Z');
+  assert.equal(renderQueryExpression(reducedDatetime), '2026-07-25T09Z');
+
   const zrut = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
   assert.equal(zrut.type, 'literalExpression');
   assert.equal(zrut.kind, 'zrut');
   assert.equal(zrut.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
   assert.equal(renderQueryExpression(zrut), '2026-07-25T09:30:00Z&Australia/Melbourne');
+
+  const reducedZrut = parseExpressionOk('2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(reducedZrut.type, 'literalExpression');
+  assert.equal(reducedZrut.kind, 'zrut');
+  assert.equal(reducedZrut.value, '2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(renderQueryExpression(reducedZrut), '2026-07-25T09Z&Europe/Belgium/Brussels');
 
   const nullLiteral = parseExpressionOk('!notSet');
   assert.equal(nullLiteral.type, 'literalExpression');
@@ -255,6 +273,11 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('#_', 'SANSA_QUERY_INVALID_HEX_LITERAL');
   parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
   parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
+  parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:60', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('query CTS cases match parser behavior', () => {
