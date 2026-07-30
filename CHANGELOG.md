@@ -107,6 +107,9 @@ versions may still include breaking changes when the SANSA specifications move.
   every structured and Instruction example variant.
 - Added operation-count and selected text-snippet assertions for representative
   successful Mutate Workbench catalog examples.
+- Updated the Mutate Workbench status chip and catalog metadata so parse,
+  lower, plan, policy, target, and apply phases remain visible in the UI and
+  tests.
 
 ### Security
 

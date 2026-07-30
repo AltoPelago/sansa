@@ -169,6 +169,7 @@ function setExampleVariant(example, kind) {
 
 async function runMutation(mode) {
   resultStatus.textContent = mode === 'apply' ? 'applying' : 'planning';
+  resultStatus.dataset.phase = mode === 'apply' ? 'apply' : 'plan';
   const payload = await mutateApi({
     source: sourceInput.value,
     requestSource: requestInput.value,
@@ -177,9 +178,9 @@ async function runMutation(mode) {
     options: mutateOptions(),
   });
   lastPayload = payload;
-  resultStatus.textContent = payload.ok
-    ? mode === 'apply' ? 'apply ok' : 'plan ok'
-    : `${payload.errors?.length ?? 0} error${payload.errors?.length === 1 ? '' : 's'}`;
+  const status = mutationStatus(payload, mode);
+  resultStatus.textContent = status.label;
+  resultStatus.dataset.phase = status.phase;
   renderSourceResult(payload);
   renderPayload(payload);
 }
@@ -214,6 +215,17 @@ function renderPayload(payload) {
       resultOutput.textContent = payload.text ?? JSON.stringify(payload, null, 2);
       break;
   }
+}
+
+function mutationStatus(payload, requestedMode) {
+  if (payload?.ok) {
+    const phase = requestedMode === 'apply' ? 'apply' : 'plan';
+    return { phase, label: `${phase} ok` };
+  }
+  const phase = payload?.phase ?? payload?.errors?.[0]?.phase ?? 'error';
+  const count = payload?.errors?.length ?? 0;
+  const suffix = count > 1 ? ` ${count}` : '';
+  return { phase, label: `${phase} error${suffix}` };
 }
 
 function renderSourcePanel() {

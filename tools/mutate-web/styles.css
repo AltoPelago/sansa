@@ -189,6 +189,32 @@ label,
   color: rgba(255, 255, 255, 0.78);
 }
 
+.detail-tabs span[data-phase="parse"],
+.detail-tabs span[data-phase="lower"],
+.detail-tabs span[data-phase="plan"],
+.detail-tabs span[data-phase="policy"],
+.detail-tabs span[data-phase="target"],
+.detail-tabs span[data-phase="apply"] {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(36, 91, 79, 0.12);
+  color: var(--accent);
+}
+
+.detail-tabs span[data-phase="parse"],
+.detail-tabs span[data-phase="lower"],
+.detail-tabs span[data-phase="policy"],
+.detail-tabs span[data-phase="target"],
+.detail-tabs span[data-phase="error"] {
+  background: rgba(136, 54, 43, 0.12);
+  color: #88362b;
+}
+
+.detail-tabs button[aria-selected="true"] span[data-phase] {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
 .source-view,
 .detail-view {
   min-height: 0;

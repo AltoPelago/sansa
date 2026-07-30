@@ -5,6 +5,8 @@ import { firstMutateExampleId, mutateExampleGroups, mutateExamples } from '../to
 import { runMutationForWorkbench } from '../tools/mutate-web/runtime.mjs';
 import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
+const MUTATE_WORKBENCH_PHASES = new Set(['parse', 'lower', 'plan', 'policy', 'target', 'apply']);
+
 let aeonRuntimeProbe;
 
 async function hasAeonRuntime() {
@@ -58,6 +60,12 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
     for (const variant of Object.values(example.variants)) {
       assert.ok(Object.hasOwn(variant, 'request'));
       assert.equal(typeof variant.expected?.ok, 'boolean');
+      if (variant.expected?.ok === false) {
+        assert.ok(
+          MUTATE_WORKBENCH_PHASES.has(variant.expected.phase),
+          `${example.id} failing examples must declare a documented phase`,
+        );
+      }
       if (variant.options?.targetFormat !== undefined) {
         assert.ok(['aeon', 'json'].includes(variant.options.targetFormat));
       }
@@ -69,6 +77,9 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(byId.get('target-json-parameterized-object-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-node-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-reference-fail')?.variants.instruction.options.targetFormat, 'json');
+  assert.equal(byId.get('instruction-duplicate-object-field-fail')?.group, 'Instruction Diagnostics');
+  assert.equal(byId.get('target-json-reference-fail')?.group, 'Target Surfaces');
+  assert.equal(byId.get('policy-explicit-deny-sku')?.group, 'Policy Boundaries');
 });
 
 testAeonRuntime('mutate web runtime exercises declared catalog expectations', async () => {
@@ -410,6 +421,7 @@ testAeonRuntime('mutate web runtime reports invalid mutation JSON', async () => 
   });
 
   assert.equal(result.ok, false);
+  assert.equal(result.phase, 'parse');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON');
 });
 

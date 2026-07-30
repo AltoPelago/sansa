@@ -881,6 +881,7 @@ const mutateExampleExpectationOverrides = {
   },
   'guarded-replace-qty:structured': {
     ok: false,
+    phase: 'plan',
     code: 'SANSA_MUTATE_PRECONDITION_FAILED',
   },
   'create-status:instruction': {
@@ -1034,6 +1035,7 @@ const mutateExampleExpectationOverrides = {
   },
   'capability-fail:structured': {
     ok: false,
+    phase: 'plan',
     code: 'SANSA_MUTATE_PRECONDITION_FAILED',
   },
   'capability-fail:instruction': {

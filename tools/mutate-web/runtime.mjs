@@ -53,7 +53,7 @@ export async function runMutationForWorkbench({
       ok: false,
       mode,
       requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
-      phase: primaryDiagnosticPhase(errors, planResult.phase),
+      phase: primaryDiagnosticPhase(errors, planResult.phase ?? 'plan'),
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       text: renderDiagnosticText(planResult.errors),
       errors,
@@ -381,6 +381,7 @@ function planStructuredWorkbenchRequest(requestSource, namespace, planOptions) {
       errors: [{
         code: 'SANSA_MUTATE_WORKBENCH_INVALID_MUTATION_JSON',
         message: error.message,
+        phase: 'parse',
       }],
     };
   }
