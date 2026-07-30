@@ -651,6 +651,14 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonParameterizedListTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonParameterizedListTarget.errors[0].datatype, 'list<string>');
 
+  const aeonToggleStringIncompatible = planOk('create $.inventory.badToggle with :toggle, "maybe"', namespace);
+  const aeonToggleStringTarget = validateMutationPlanTarget(aeonToggleStringIncompatible.plan, 'aeon');
+  assert.equal(aeonToggleStringTarget.ok, false);
+  assert.equal(aeonToggleStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonToggleStringTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonToggleStringTarget.errors[0].datatype, 'toggle');
+  assert.equal(aeonToggleStringTarget.errors[0].valuePath, 'operations[0].value');
+
   const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
   const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');
   assert.equal(tupleTarget.ok, false);

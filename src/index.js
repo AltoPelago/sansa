@@ -1731,6 +1731,8 @@ function validateAeonTargetDatatype(datatype, operationIndex) {
 }
 
 function validateAeonTargetValue(value, hints, path, operationIndex) {
+  const compatibility = validateAeonDatatypeKindCompatibility(hints, path, operationIndex);
+  if (!compatibility.ok) return compatibility;
   const representation = representationKindFromMutationHints(hints);
   if (representation === 'node') return validateAeonTargetNodeValue(value, path, operationIndex);
   const scalarValidation = validateAeonTargetScalarValue(value, representation, path, operationIndex);
@@ -1855,13 +1857,28 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
   }
 }
 
-function invalidAeonTargetValue(message, path, operationIndex) {
+function validateAeonDatatypeKindCompatibility({ datatype, kind } = {}, path, operationIndex) {
+  if (datatype === undefined || kind === undefined) return { ok: true };
+  const datatypeRepresentation = representationKindFromMutationName(datatype, { allowUnknown: false });
+  const literalRepresentation = representationKindFromMutationName(kind, { allowUnknown: false });
+  if (datatypeRepresentation === undefined || literalRepresentation === undefined) return { ok: true };
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(literalRepresentation)) return { ok: true };
+  if (datatypeRepresentation === literalRepresentation) return { ok: true };
+  return invalidAeonTargetValue(
+    `Datatype '${datatype}' is not compatible with ${literalRepresentation} literal representation`,
+    path,
+    operationIndex,
+    { datatype },
+  );
+}
+
+function invalidAeonTargetValue(message, path, operationIndex, details = {}) {
   return {
     ok: false,
     error: mutationTargetSurfaceError(
       'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
       `Target 'aeon' cannot represent mutation value: ${message} at ${path}`,
-      { operationIndex, targetFormat: 'aeon', valuePath: path },
+      { operationIndex, targetFormat: 'aeon', valuePath: path, ...details },
     ),
   };
 }
