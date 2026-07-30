@@ -42,6 +42,29 @@ export const defaultPolicy = {
   ],
 };
 
+const allowQtyPolicySource = JSON.stringify({
+  default: 'deny',
+  rules: [
+    {
+      allow: true,
+      operations: ['replace'],
+      target: '$.inventory.items.*.qty',
+      datatypes: ['number', 'int32'],
+    },
+  ],
+}, null, 2);
+
+const denySkuPolicySource = JSON.stringify({
+  default: 'allow',
+  rules: [
+    {
+      allow: false,
+      operations: ['replace'],
+      target: '$.inventory.items.*.sku',
+    },
+  ],
+}, null, 2);
+
 export const mutateExamples = [
   {
     id: 'replace-sku',
@@ -570,6 +593,56 @@ export const mutateExamples = [
     },
   },
   {
+    id: 'policy-allow-qty',
+    label: 'Policy Allows Qty',
+    group: 'Policy Boundaries',
+    variants: {
+      instruction: {
+        options: { policySource: allowQtyPolicySource },
+        request: [
+          'from $.inventory.items.*',
+          'where .sku == "B-200"',
+          'replace .qty with :int32, 10',
+        ].join('\n'),
+      },
+    },
+  },
+  {
+    id: 'policy-deny-status-create',
+    label: 'Policy Denies Create',
+    group: 'Policy Boundaries',
+    variants: {
+      structured: {
+        options: { policySource: allowQtyPolicySource },
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'policyDeniedStatus',
+          value: 'active',
+        },
+      },
+      instruction: {
+        options: { policySource: allowQtyPolicySource },
+        request: 'create $.types.policyDeniedStatus with "active"',
+      },
+    },
+  },
+  {
+    id: 'policy-explicit-deny-sku',
+    label: 'Policy Explicit Deny',
+    group: 'Policy Boundaries',
+    variants: {
+      instruction: {
+        options: { policySource: denySkuPolicySource },
+        request: [
+          'from $.inventory.items[0]',
+          'where .sku == "A-100"',
+          'replace .sku with "A-101"',
+        ].join('\n'),
+      },
+    },
+  },
+  {
     id: 'instruction-duplicate-object-field-fail',
     label: 'Duplicate Object Field',
     group: 'Instruction Diagnostics',
@@ -893,6 +966,33 @@ const mutateExampleExpectationOverrides = {
     targetFormat: 'json',
     datatype: 'cloneReference',
   },
+  'policy-allow-qty:instruction': {
+    ok: true,
+    operationCount: 1,
+    textIncludes: ['0: replace $.inventory.items[1].qty'],
+  },
+  'policy-deny-status-create:structured': {
+    ok: false,
+    phase: 'policy',
+    code: 'SANSA_MUTATE_POLICY_DENIED',
+    operationIndex: 0,
+    textIncludes: ['SANSA_MUTATE_POLICY_DENIED [policy] operation 0'],
+  },
+  'policy-deny-status-create:instruction': {
+    ok: false,
+    phase: 'policy',
+    code: 'SANSA_MUTATE_POLICY_DENIED',
+    operationIndex: 0,
+    textIncludes: ['SANSA_MUTATE_POLICY_DENIED [policy] operation 0'],
+  },
+  'policy-explicit-deny-sku:instruction': {
+    ok: false,
+    phase: 'policy',
+    code: 'SANSA_MUTATE_POLICY_DENIED',
+    operationIndex: 0,
+    ruleIndex: 0,
+    textIncludes: ['SANSA_MUTATE_POLICY_DENIED [policy] operation 0 rule 0'],
+  },
   'instruction-duplicate-object-field-fail:instruction': {
     ok: false,
     phase: 'parse',
@@ -1021,6 +1121,12 @@ const mutateExampleApplyExpectationOverrides = {
     operationStatuses: ['applied'],
     sourceIncludes: ['sku:string = "B-150"'],
     textIncludes: ['applied: 1', '0: applied $.inventory.items -> $.inventory.items[1]'],
+  },
+  'policy-allow-qty:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['qty:int32 = 10'],
+    textIncludes: ['applied: 1', '0: applied $.inventory.items[1].qty -> $.inventory.items[1].qty'],
   },
 };
 

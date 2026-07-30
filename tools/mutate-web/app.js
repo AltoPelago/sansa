@@ -323,6 +323,17 @@ function requestKindLabel() {
 
 function setOptionInputs(options) {
   targetFormatInput.value = options.targetFormat ?? 'aeon';
+  if (options.policySource !== undefined) {
+    enforcePolicyInput.checked = true;
+    policyInput.value = options.policySource;
+    activeDetailTab = 'policy';
+  } else {
+    enforcePolicyInput.checked = false;
+    policyInput.value = JSON.stringify(defaultPolicy, null, 2);
+    if (activeDetailTab === 'policy') activeDetailTab = 'diagnostics';
+  }
+  renderPolicyControls();
+  renderDetailPanel();
   maxOperationsInput.value = options.maxOperations ?? '';
   maxPreconditionsInput.value = options.maxPreconditions ?? '';
   maxValueNodesInput.value = options.maxValueNodes ?? '';

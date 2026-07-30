@@ -279,11 +279,14 @@ The Mutate Workbench labels examples that only exist on one input surface as
 `structured-only` or `instruction-only` so this boundary is visible while
 testing. The workbench also includes instruction-only diagnostic examples for
 duplicate object fields, literal-only value failures, invalid create member
-names, and target-surface rejection. Workbench examples are defined in
+names, target-surface rejection, and policy-boundary behavior. Policy examples
+load their policy JSON into the Policy tab when selected, so the planned or
+applied operation and the trusted authorization surface can be inspected
+together. Workbench examples are defined in
 [tools/mutate-web/examples.mjs](../tools/mutate-web/examples.mjs) so the UI and
 runtime tests consume the same catalog. Catalog variants also declare expected
-plan behavior, operation counts, and selected text snippets so example drift is
-caught by the package test suite.
+plan behavior, operation counts, selected text snippets, and focused apply
+checks so example drift is caught by the package test suite.
 
 ## Diagnostics
 

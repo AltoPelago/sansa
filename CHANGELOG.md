@@ -61,6 +61,8 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added Mutate Workbench diagnostic examples for duplicate object fields,
   literal-only value failures, invalid create member names, and JSON tuple
   target rejection.
+- Added Mutate Workbench policy-boundary examples for allowed operations,
+  default-deny failures, and explicit-deny failures.
 - Added experimental SANSA.Mutate target-surface validation for AEON,
   JSON-compatible, and custom representability checks.
 - Added a workbench-only experimental SANSA.Mutate policy plan filter for

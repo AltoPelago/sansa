@@ -34,6 +34,11 @@ as `sansa.mutate.policy.planFilter`. When enabled, the workbench runs mutation
 planning first, then evaluates the planned operations against the policy. Denied
 plans are not applied.
 
+The browser example catalog includes policy-boundary examples for an allowed
+quantity replacement, a default-deny create failure, and an explicit-deny SKU
+replacement failure. Selecting one of those examples enables the Policy tab and
+loads the policy JSON used by the test case.
+
 In the current workbench pipeline, policy runs after Instruction parsing,
 lowering, and SANSA.Mutate planning, and before target-surface validation or
 apply. That ordering keeps policy decisions over exact planned operations while
