@@ -6143,6 +6143,13 @@ class InstructionParser {
       if (payload.length === 0) {
         this.fail('Expected instruction value after datatype annotation', 'SANSA_INSTRUCTION_EXPECTED_VALUE', valueOffset + cursor);
       }
+      if (payload.startsWith(',') || payload.endsWith(',')) {
+        this.fail(
+          'Comma delimiter may appear only once between datatype annotation and instruction value',
+          'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL',
+          payload.startsWith(',') ? payloadOffset : valueOffset + cursor + trimmed.slice(cursor).lastIndexOf(','),
+        );
+      }
     }
     const literal = this.parseValueLiteral(payload, payloadOffset);
     if (datatype !== undefined && context.nested === true) {

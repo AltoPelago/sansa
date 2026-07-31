@@ -923,6 +923,8 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('insert "sale" after $.tags[1]', 'SANSA_INSTRUCTION_EXPECTED_WITH');
   parseBad('replace $.inventory.qty with .other', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.qty with 1 /* unterminated', 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT');
+  parseBad('create $.x with :int32 344,', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :int32,, 344', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create "" with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
   parseBad('create "display" extra with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
   parseBad('create $.x with :object, { enabled = true', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
@@ -931,6 +933,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :tuple, ("a", )', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
   parseBad('create $.x with :string,', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
   parseBad('create $.x with :object, { label = :string, }', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
+  parseBad('create $.x with :object, { count = :int32,, 344 }', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :node, <123("a")>', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL');
   parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
