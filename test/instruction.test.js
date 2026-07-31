@@ -88,31 +88,39 @@ function sampleNamespace() {
       }),
     ],
   });
-  const root = binding({
-    address: '$',
+  const inventory = binding({
+    address: '$.inventory',
+    name: 'inventory',
     children: [
+      binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
       binding({
-        address: '$.inventory',
-        name: 'inventory',
+        address: '$.inventory.otherTags',
+        name: 'otherTags',
+        representationKind: 'list',
         children: [
-          binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
-          binding({
-            address: '$.inventory.otherTags',
-            name: 'otherTags',
-            representationKind: 'list',
-            children: [
-              binding({ address: '$.inventory.otherTags[0]', index: 0, value: 'other', representationKind: 'string', semanticType: 'string' }),
-            ],
-          }),
+          binding({ address: '$.inventory.otherTags[0]', index: 0, value: 'other', representationKind: 'string', semanticType: 'string' }),
         ],
       }),
     ],
+  });
+  inventory.attributeSpace = binding({
+    address: '$.inventory.@',
+    representationKind: 'attributeSpace',
+    children: [
+      binding({ address: '$.inventory.@.origin', name: 'origin', value: 'catalog', representationKind: 'string', semanticType: 'string' }),
+    ],
+  });
+
+  const root = binding({
+    address: '$',
+    children: [inventory],
   });
   return {
     root,
     contextualRoot: item0,
     children: (entry) => entry.children,
     parent: (entry) => entry.parent,
+    attributeSpace: (entry) => entry.attributeSpace,
   };
 }
 
@@ -362,6 +370,22 @@ test('lowers direct instructions to mutate request operations', () => {
     datatype: 'string',
     kind: 'string',
     value: 'Adapter',
+  });
+
+  assert.deepEqual(lowerOk('create $.inventory.@.["source role"] with "catalog"'), {
+    op: 'create',
+    parent: '$.inventory.@',
+    name: 'source role',
+    kind: 'string',
+    value: 'catalog',
+  });
+
+  assert.deepEqual(lowerOk('create $.inventory.["display name"].@.["source role"] with "catalog"'), {
+    op: 'create',
+    parent: '$.inventory.["display name"].@',
+    name: 'source role',
+    kind: 'string',
+    value: 'catalog',
   });
 
   assert.deepEqual(lowerOk('create status with "active"'), {
@@ -808,6 +832,14 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonQuotedObjectField = planOk('create $.inventory.badQuotedField with :object, { "bad.key" = "x" }', namespace);
   const aeonQuotedObjectFieldTarget = validateMutationPlanTarget(aeonQuotedObjectField.plan, 'aeon');
   assert.equal(aeonQuotedObjectFieldTarget.ok, true, JSON.stringify(aeonQuotedObjectFieldTarget.errors ?? []));
+
+  const jsonQuotedAttribute = planOk('create $.inventory.@.["source role"] with "catalog"', namespace);
+  assert.equal(jsonQuotedAttribute.plan.operations[0].parent.canonicalAddress, '$.inventory.@');
+  assert.equal(jsonQuotedAttribute.plan.operations[0].name, 'source role');
+  const jsonQuotedAttributeTarget = validateMutationPlanTarget(jsonQuotedAttribute.plan, 'json');
+  assert.equal(jsonQuotedAttributeTarget.ok, false);
+  assert.equal(jsonQuotedAttributeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(jsonQuotedAttributeTarget.errors[0].targetFormat, 'json');
 
   const aeonEmptyQuotedObjectField = planOk('create $.inventory.badEmptyField with :object, { "" = "x" }', namespace);
   const aeonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'aeon');
