@@ -344,6 +344,27 @@ export const mutateExamples = [
     },
   },
   {
+    id: 'create-object-quoted-field',
+    label: 'AEON Rejects Quoted Field',
+    group: 'Target Surfaces',
+    variants: {
+      structured: {
+        options: { targetFormat: 'aeon' },
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'quotedSettingsWorkbench',
+          datatype: 'object',
+          value: { 'display name': 'Adapter', enabled: true },
+        },
+      },
+      instruction: {
+        options: { targetFormat: 'aeon' },
+        request: 'create $.types.quotedSettingsWorkbench with :object, { ["display name"] = "Adapter", enabled = true }',
+      },
+    },
+  },
+  {
     id: 'create-list-value',
     label: 'Create List Value',
     group: 'Typed Values',
@@ -578,6 +599,17 @@ export const mutateExamples = [
       instruction: {
         options: { targetFormat: 'json' },
         request: 'create $.types.badgeJsonProbe with :node, <badge("new", 3)>',
+      },
+    },
+  },
+  {
+    id: 'target-json-quoted-field-node-fail',
+    label: 'JSON Rejects Quoted Field Node',
+    group: 'Target Surfaces',
+    variants: {
+      instruction: {
+        options: { targetFormat: 'json' },
+        request: 'create $.types.payloadJsonProbe with :object, { ["bad.key"] = :node, <badge("new")> }',
       },
     },
   },
@@ -985,6 +1017,27 @@ const mutateExampleExpectationOverrides = {
     code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
     targetFormat: 'json',
     datatype: 'node',
+  },
+  'create-object-quoted-field:structured': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+    targetFormat: 'aeon',
+    textIncludes: ['Object keys must be AEON identifiers', 'value operations[0].value["display name"]'],
+  },
+  'create-object-quoted-field:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+    targetFormat: 'aeon',
+    textIncludes: ['Object keys must be AEON identifiers', 'value operations[0].value["display name"]'],
+  },
+  'target-json-quoted-field-node-fail:instruction': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+    targetFormat: 'json',
+    textIncludes: ['value value["bad.key"]'],
   },
   'target-json-reference-fail:instruction': {
     ok: false,

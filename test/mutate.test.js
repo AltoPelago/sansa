@@ -279,7 +279,7 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonNestedQuotedKeyPathResult.ok, false);
   assert.equal(aeonNestedQuotedKeyPathResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(aeonNestedQuotedKeyPathResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].valuePath, 'operations[0].value["bad.key"][""]');
+  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].valuePath, 'operations[0].value["bad.key"]');
 
   const aeonInvalidNodeTag = planOk({
     op: 'create',

@@ -76,7 +76,10 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(byId.get('target-aeon-container-generic-ok')?.variants.instruction.options.targetFormat, 'aeon');
   assert.equal(byId.get('target-json-parameterized-object-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-node-fail')?.variants.instruction.options.targetFormat, 'json');
+  assert.equal(byId.get('target-json-quoted-field-node-fail')?.variants.instruction.options.targetFormat, 'json');
   assert.equal(byId.get('target-json-reference-fail')?.variants.instruction.options.targetFormat, 'json');
+  assert.equal(byId.get('create-object-quoted-field')?.variants.instruction.options.targetFormat, 'aeon');
+  assert.equal(byId.get('create-object-quoted-field')?.group, 'Target Surfaces');
   assert.equal(byId.get('instruction-duplicate-object-field-fail')?.group, 'Instruction Diagnostics');
   assert.equal(byId.get('instruction-lower-target-miss')?.variants.instruction.expected.phase, 'lower');
   assert.equal(byId.get('instruction-lower-anchor-miss')?.variants.instruction.expected.phase, 'lower');

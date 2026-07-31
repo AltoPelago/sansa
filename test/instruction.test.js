@@ -799,6 +799,13 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonNestedQuotedKeyTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonNestedQuotedKeyTarget.errors[0].valuePath, 'value["bad.key"]');
 
+  const aeonQuotedObjectField = planOk('create $.inventory.badQuotedField with :object, { ["bad.key"] = "x" }', namespace);
+  const aeonQuotedObjectFieldTarget = validateMutationPlanTarget(aeonQuotedObjectField.plan, 'aeon');
+  assert.equal(aeonQuotedObjectFieldTarget.ok, false);
+  assert.equal(aeonQuotedObjectFieldTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonQuotedObjectFieldTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonQuotedObjectFieldTarget.errors[0].valuePath, 'operations[0].value["bad.key"]');
+
   const aeonNestedCustomDatatype = planOk('create $.inventory.nestedRelationship with :object, { sibling = :relationship<sibling>[brother], "Bob" }', namespace);
   assert.deepEqual(
     aeonNestedCustomDatatype.warnings.map((warning) => warning.code),

@@ -527,8 +527,10 @@ function validateAeonWorkbenchValue(value, hints = {}, path = 'value') {
   }
   if (value && typeof value === 'object') {
     for (const [key, entry] of Object.entries(value)) {
-      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}[""]`);
-      const result = validateAeonWorkbenchValue(entry, {}, `${path}.${key}`);
+      const entryPath = `${path}${renderWorkbenchValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', entryPath);
+      if (!AEON_IDENTIFIER_PATTERN.test(key)) return invalidAeonWorkbenchValue('Object keys must be AEON identifiers', entryPath);
+      const result = validateAeonWorkbenchValue(entry, {}, entryPath);
       if (!result.ok) return result;
     }
   }
@@ -558,8 +560,10 @@ function validateAeonWorkbenchNodeValue(value, path) {
       return invalidAeonWorkbenchValue('Node attributes must be an object when provided', `${path}.attributes`);
     }
     for (const [key, entry] of Object.entries(value.attributes)) {
-      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', `${path}.attributes[""]`);
-      const result = validateAeonWorkbenchValue(entry, {}, `${path}.attributes.${key}`);
+      const entryPath = `${path}.attributes${renderWorkbenchValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', entryPath);
+      if (!AEON_IDENTIFIER_PATTERN.test(key)) return invalidAeonWorkbenchValue('Node attribute keys must be AEON identifiers', entryPath);
+      const result = validateAeonWorkbenchValue(entry, {}, entryPath);
       if (!result.ok) return result;
     }
   }
@@ -571,6 +575,10 @@ function invalidAeonWorkbenchValue(message, path) {
     ok: false,
     message: `SANSA_MUTATE_WORKBENCH_INVALID_AEON_VALUE: ${message} at ${path}`,
   };
+}
+
+function renderWorkbenchValuePathSegment(key) {
+  return AEON_IDENTIFIER_PATTERN.test(String(key)) ? `.${key}` : `[${JSON.stringify(String(key))}]`;
 }
 
 function validateAeonWorkbenchScalarValue(value, representation, path) {
