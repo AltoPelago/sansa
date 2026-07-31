@@ -61,6 +61,7 @@ function sampleNamespace() {
     children: [
       binding({ address: '$.inventory.items[0].sku', name: 'sku', value: 'A-100', representationKind: 'string', semanticType: 'string' }),
       binding({ address: '$.inventory.items[0].qty', name: 'qty', value: 0, representationKind: 'number', semanticType: 'number' }),
+      binding({ address: '$.inventory.items[0].["display name"]', name: 'display name', value: 'Adapter', representationKind: 'string', semanticType: 'string' }),
       binding({
         address: '$.inventory.items[0].tags',
         name: 'tags',
@@ -68,6 +69,15 @@ function sampleNamespace() {
         children: [
           binding({ address: '$.inventory.items[0].tags[0]', index: 0, value: 'old', representationKind: 'string', semanticType: 'string' }),
           binding({ address: '$.inventory.items[0].tags[1]', index: 1, value: 'clearance', representationKind: 'string', semanticType: 'string' }),
+        ],
+      }),
+      binding({
+        address: '$.inventory.items[0].["sale tags"]',
+        name: 'sale tags',
+        representationKind: 'list',
+        children: [
+          binding({ address: '$.inventory.items[0].["sale tags"][0]', index: 0, value: 'seasonal', representationKind: 'string', semanticType: 'string' }),
+          binding({ address: '$.inventory.items[0].["sale tags"][1]', index: 1, value: 'featured', representationKind: 'string', semanticType: 'string' }),
         ],
       }),
     ],
@@ -78,12 +88,22 @@ function sampleNamespace() {
     children: [
       binding({ address: '$.inventory.items[1].sku', name: 'sku', value: 'B-200', representationKind: 'string', semanticType: 'string' }),
       binding({ address: '$.inventory.items[1].qty', name: 'qty', value: 4, representationKind: 'number', semanticType: 'number' }),
+      binding({ address: '$.inventory.items[1].["display name"]', name: 'display name', value: 'Driver', representationKind: 'string', semanticType: 'string' }),
       binding({
         address: '$.inventory.items[1].tags',
         name: 'tags',
         representationKind: 'list',
         children: [
           binding({ address: '$.inventory.items[1].tags[0]', index: 0, value: 'new', representationKind: 'string', semanticType: 'string' }),
+        ],
+      }),
+      binding({
+        address: '$.inventory.items[1].["sale tags"]',
+        name: 'sale tags',
+        representationKind: 'list',
+        children: [
+          binding({ address: '$.inventory.items[1].["sale tags"][0]', index: 0, value: 'standard', representationKind: 'string', semanticType: 'string' }),
+          binding({ address: '$.inventory.items[1].["sale tags"][1]', index: 1, value: 'display', representationKind: 'string', semanticType: 'string' }),
         ],
       }),
     ],
@@ -658,6 +678,76 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       source: '$.inventory.items[1].tags[0]',
       container: '$.inventory.items[1].tags',
       placement: 'first',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'replace .["display name"] with "Renamed"',
+  ].join('\n'), namespace), [
+    {
+      op: 'replace',
+      target: '$.inventory.items[0].["display name"]',
+      kind: 'string',
+      value: 'Renamed',
+    },
+    {
+      op: 'replace',
+      target: '$.inventory.items[1].["display name"]',
+      kind: 'string',
+      value: 'Renamed',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'remove .["display name"]',
+  ].join('\n'), namespace), [
+    {
+      op: 'remove',
+      target: '$.inventory.items[0].["display name"]',
+    },
+    {
+      op: 'remove',
+      target: '$.inventory.items[1].["display name"]',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'insert after .["sale tags"][0] in .["sale tags"] with "quoted-sale"',
+  ].join('\n'), namespace), [
+    {
+      op: 'insert',
+      container: '$.inventory.items[0].["sale tags"]',
+      placement: { kind: 'after', anchor: '$.inventory.items[0].["sale tags"][0]' },
+      kind: 'string',
+      value: 'quoted-sale',
+    },
+    {
+      op: 'insert',
+      container: '$.inventory.items[1].["sale tags"]',
+      placement: { kind: 'after', anchor: '$.inventory.items[1].["sale tags"][0]' },
+      kind: 'string',
+      value: 'quoted-sale',
+    },
+  ]);
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'move .["sale tags"][0] after .["sale tags"][1] in .["sale tags"]',
+  ].join('\n'), namespace), [
+    {
+      op: 'move',
+      source: '$.inventory.items[0].["sale tags"][0]',
+      container: '$.inventory.items[0].["sale tags"]',
+      placement: { kind: 'after', anchor: '$.inventory.items[0].["sale tags"][1]' },
+    },
+    {
+      op: 'move',
+      source: '$.inventory.items[1].["sale tags"][0]',
+      container: '$.inventory.items[1].["sale tags"]',
+      placement: { kind: 'after', anchor: '$.inventory.items[1].["sale tags"][1]' },
     },
   ]);
 
