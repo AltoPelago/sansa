@@ -1196,6 +1196,7 @@ export type SansaInstructionValueLiteral =
       readonly value: { readonly [key: string]: SansaInstructionValuePayload };
       readonly fields: readonly {
         readonly name: string;
+        readonly canonicalName: string;
         readonly value: SansaInstructionValue;
       }[];
       readonly canonical: string;

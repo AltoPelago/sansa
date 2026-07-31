@@ -6241,14 +6241,14 @@ class InstructionParser {
       }
       seen.add(field.name);
       const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset, { nested: true });
-      return { name: field.name, value };
+      return { name: field.name, canonicalName: field.canonicalName, value };
     });
     return {
       type: 'instructionValueLiteral',
       kind: 'object',
       value: Object.fromEntries(fields.map((field) => [field.name, field.value.value])),
       fields,
-      canonical: `{ ${fields.map((field) => `${field.name} = ${field.value.canonical}`).join(' ')} }`,
+      canonical: `{ ${fields.map((field) => `${field.canonicalName} = ${field.value.canonical}`).join(' ')} }`,
     };
   }
 
@@ -7828,12 +7828,12 @@ function splitInstructionObjectFields(source) {
       throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
     }
     const nameStart = cursor;
-    if (!isIdentifierStart(source[cursor] ?? '')) {
+    const nameToken = readInstructionObjectFieldName(source, cursor);
+    if (!nameToken) {
       throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
     }
-    cursor += 1;
-    while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
-    const name = source.slice(nameStart, cursor);
+    cursor = nameToken.end;
+    const name = nameToken.name;
     while (isLayout(source[cursor] ?? '')) cursor += 1;
     if (source[cursor] !== '=') {
       throw new SansaParseError("Expected '=' after object field name", cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
@@ -7848,11 +7848,44 @@ function splitInstructionObjectFields(source) {
     if (expression.length === 0) {
       throw new SansaParseError('Expected object field value', expressionStart, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
     }
-    fields.push({ name, nameOffset: nameStart, expression, expressionOffset });
+    fields.push({ name, canonicalName: nameToken.canonicalName, nameOffset: nameStart, expression, expressionOffset });
     cursor = expressionEnd;
     if (source[cursor] === ',') cursor += 1;
   }
   return fields;
+}
+
+function readInstructionObjectFieldName(source, start) {
+  const char = source[start] ?? '';
+  if (isIdentifierStart(char)) {
+    let cursor = start + 1;
+    while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
+    const name = source.slice(start, cursor);
+    return { name, canonicalName: name, end: cursor };
+  }
+  if (char !== '[' || source[start + 1] !== '"') return null;
+  let cursor = start + 2;
+  let name = '';
+  while (cursor < source.length) {
+    const current = source[cursor];
+    if (current === '"') {
+      cursor += 1;
+      if (source[cursor] !== ']') return null;
+      return { name, canonicalName: `[${quotePayload(name)}]`, end: cursor + 1 };
+    }
+    if (current === '\n' || current === '\r') {
+      throw new SansaParseError('Quoted payloads must not contain raw newlines', cursor, 'SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD');
+    }
+    if (current === '\\') {
+      const escape = readQuotedPayloadEscape(source, cursor);
+      name += escape.value;
+      cursor = escape.end;
+      continue;
+    }
+    name += current;
+    cursor += 1;
+  }
+  throw new SansaParseError('Unterminated quoted payload', start + 1, 'SANSA_UNTERMINATED_QUOTED_PAYLOAD');
 }
 
 function findNextProjectionField(source, start) {
@@ -7935,15 +7968,51 @@ function findNextInstructionObjectField(source, start) {
 function isInstructionObjectFieldStart(source, start) {
   let cursor = start;
   while (isLayout(source[cursor] ?? '')) cursor += 1;
-  if (!isIdentifierStart(source[cursor] ?? '')) return false;
-  cursor += 1;
-  while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
+  const name = readInstructionObjectFieldName(source, cursor);
+  if (!name) return false;
+  cursor = name.end;
   while (isLayout(source[cursor] ?? '')) cursor += 1;
   return source[cursor] === '=' && source[cursor + 1] !== '=';
 }
 
 function isComparisonStart(char) {
   return char === '=' || char === '!' || char === '<' || char === '>';
+}
+
+function readQuotedPayloadEscape(source, start) {
+  const escape = source[start + 1];
+  if (!escape) throw new SansaParseError('Unterminated escape sequence', start, 'SANSA_UNTERMINATED_ESCAPE');
+  switch (escape) {
+    case '\\': return { value: '\\', end: start + 2 };
+    case '"': return { value: '"', end: start + 2 };
+    case "'": return { value: "'", end: start + 2 };
+    case '`': return { value: '`', end: start + 2 };
+    case 'n': return { value: '\n', end: start + 2 };
+    case 'r': return { value: '\r', end: start + 2 };
+    case 't': return { value: '\t', end: start + 2 };
+    case 'b': return { value: '\b', end: start + 2 };
+    case 'f': return { value: '\f', end: start + 2 };
+    case 'u':
+      return readUnicodePayloadEscape(source, start);
+    default:
+      throw new SansaParseError(`Invalid escape sequence \\${escape}`, start, 'SANSA_INVALID_ESCAPE');
+  }
+}
+
+function readUnicodePayloadEscape(source, start) {
+  let cursor = start + 2;
+  if (source[cursor] === '{') {
+    cursor += 1;
+    const rawStart = cursor;
+    while (cursor < source.length && source[cursor] !== '}') cursor += 1;
+    if (cursor >= source.length) throw new SansaParseError('Unterminated Unicode escape', start, 'SANSA_UNTERMINATED_UNICODE_ESCAPE');
+    const raw = source.slice(rawStart, cursor);
+    if (!/^[0-9A-Fa-f]{1,6}$/.test(raw)) throw new SansaParseError('Invalid Unicode escape', rawStart, 'SANSA_INVALID_UNICODE_ESCAPE');
+    return { value: codePointToString(Number.parseInt(raw, 16), rawStart), end: cursor + 1 };
+  }
+  const raw = source.slice(cursor, cursor + 4);
+  if (!/^[0-9A-Fa-f]{4}$/.test(raw)) throw new SansaParseError('Invalid Unicode escape', cursor, 'SANSA_INVALID_UNICODE_ESCAPE');
+  return { value: codePointToString(Number.parseInt(raw, 16), cursor), end: cursor + 4 };
 }
 
 function isExactSelector(selector) {
