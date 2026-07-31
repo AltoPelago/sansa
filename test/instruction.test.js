@@ -251,6 +251,12 @@ test('parses instruction container value literals', () => {
   assert.equal(objectWithQuotedField.mutation.value.literal.fields[0].canonicalName, '"bad.key"');
   assert.equal(objectWithQuotedField.mutation.value.literal.canonical, '{ "bad.key" = "x" enabled = true }');
 
+  const objectWithEscapedQuotedFields = parseOk('create $.types.settings with :object, { "display name" = "Adapter", "quote\\"key" = "ok" }');
+  assert.deepEqual(objectWithEscapedQuotedFields.mutation.value.value, { 'display name': 'Adapter', 'quote"key': 'ok' });
+  assert.equal(objectWithEscapedQuotedFields.mutation.value.literal.fields[0].canonicalName, '"display name"');
+  assert.equal(objectWithEscapedQuotedFields.mutation.value.literal.fields[1].canonicalName, '"quote\\"key"');
+  assert.equal(objectWithEscapedQuotedFields.mutation.value.literal.canonical, '{ "display name" = "Adapter" "quote\\"key" = "ok" }');
+
   const objectWithTypedComma = parseOk('create $.types.settings with :object, { csv = :csv[","], "sku,name", status = false }');
   assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.datatype, 'csv[","]');
   assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.kind, 'string');
