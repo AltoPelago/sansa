@@ -116,6 +116,15 @@ function sampleNamespace() {
       binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
       displayName,
       binding({
+        address: '$.inventory.["display tags"]',
+        name: 'display tags',
+        representationKind: 'list',
+        children: [
+          binding({ address: '$.inventory.["display tags"][0]', index: 0, value: 'primary', representationKind: 'string', semanticType: 'string' }),
+          binding({ address: '$.inventory.["display tags"][1]', index: 1, value: 'featured', representationKind: 'string', semanticType: 'string' }),
+        ],
+      }),
+      binding({
         address: '$.inventory.otherTags',
         name: 'otherTags',
         representationKind: 'list',
@@ -481,6 +490,14 @@ test('lowers direct instructions to mutate request operations', () => {
     value: 'clearance',
   });
 
+  assert.deepEqual(lowerOk('insert before $.inventory.["display tags"][1] in $.inventory.["display tags"] with "new"'), {
+    op: 'insert',
+    container: '$.inventory.["display tags"]',
+    placement: { kind: 'before', anchor: '$.inventory.["display tags"][1]' },
+    kind: 'string',
+    value: 'new',
+  });
+
   assert.deepEqual(lowerOk('append in $.tags with "clearance"'), {
     op: 'insert',
     container: '$.tags',
@@ -501,6 +518,13 @@ test('lowers direct instructions to mutate request operations', () => {
     source: '$.tags[0]',
     container: '$.tags',
     placement: 'last',
+  });
+
+  assert.deepEqual(lowerOk('move $.inventory.["display tags"][0] after $.inventory.["display tags"][1] in $.inventory.["display tags"]'), {
+    op: 'move',
+    source: '$.inventory.["display tags"][0]',
+    container: '$.inventory.["display tags"]',
+    placement: { kind: 'after', anchor: '$.inventory.["display tags"][1]' },
   });
 
   assert.deepEqual(lowerOk('create $.types.settings with :object, { enabled = true }'), {
@@ -736,6 +760,20 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(append.plan.operations[0].datatype, 'csv[","]');
   assert.equal(append.plan.operations[0].kind, 'string');
   assert.equal(append.plan.operations[0].value, 'new,tag');
+
+  const quotedInsert = planOk('insert before $.inventory.["display tags"][1] in $.inventory.["display tags"] with "new"', namespace);
+  assert.equal(quotedInsert.plan.operations[0].op, 'insert');
+  assert.equal(quotedInsert.plan.operations[0].container.canonicalAddress, '$.inventory.["display tags"]');
+  assert.equal(quotedInsert.plan.operations[0].placement.kind, 'before');
+  assert.equal(quotedInsert.plan.operations[0].placement.anchor.canonicalAddress, '$.inventory.["display tags"][1]');
+  assert.equal(quotedInsert.plan.operations[0].value, 'new');
+
+  const quotedMove = planOk('move $.inventory.["display tags"][0] after $.inventory.["display tags"][1] in $.inventory.["display tags"]', namespace);
+  assert.equal(quotedMove.plan.operations[0].op, 'move');
+  assert.equal(quotedMove.plan.operations[0].source.canonicalAddress, '$.inventory.["display tags"][0]');
+  assert.equal(quotedMove.plan.operations[0].container.canonicalAddress, '$.inventory.["display tags"]');
+  assert.equal(quotedMove.plan.operations[0].placement.kind, 'after');
+  assert.equal(quotedMove.plan.operations[0].placement.anchor.canonicalAddress, '$.inventory.["display tags"][1]');
 
   const typedReplace = planOk('replace $.inventory.items[0].sku with :string, "A-101"', namespace);
   assert.equal(typedReplace.plan.operations[0].op, 'replace');
