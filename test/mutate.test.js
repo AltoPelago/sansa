@@ -255,6 +255,33 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonTemporalResult.errors[0].targetFormat, 'aeon');
   assert.equal(aeonTemporalResult.errors[0].valuePath, 'operations[0].value');
 
+  const aeonNestedEmptyKey = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badNestedEmptyKey',
+    datatype: 'object',
+    value: { settings: { '': 'active' } },
+  }, namespace);
+  const aeonNestedEmptyKeyResult = validateMutationPlanTarget(aeonNestedEmptyKey, 'aeon');
+  assert.equal(aeonNestedEmptyKeyResult.ok, false);
+  assert.equal(aeonNestedEmptyKeyResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonNestedEmptyKeyResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonNestedEmptyKeyResult.errors[0].valuePath, 'operations[0].value.settings[""]');
+
+  const aeonInvalidNodeTag = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badNodeTag',
+    datatype: 'node',
+    kind: 'node',
+    value: { tag: 'bad-tag', children: [] },
+  }, namespace);
+  const aeonInvalidNodeTagResult = validateMutationPlanTarget(aeonInvalidNodeTag, 'aeon');
+  assert.equal(aeonInvalidNodeTagResult.ok, false);
+  assert.equal(aeonInvalidNodeTagResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidNodeTagResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidNodeTagResult.errors[0].valuePath, 'operations[0].value.tag');
+
   const aeonSansaSelector = planOk({
     op: 'create',
     parent: '$.inventory',
@@ -352,6 +379,32 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(jsonValueResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(jsonValueResult.errors[0].targetFormat, 'json');
   assert.equal(jsonValueResult.errors[0].valuePath, 'value');
+
+  const jsonNestedInvalidValue = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badJsonNestedNumber',
+    datatype: 'object',
+    value: { settings: { count: Number.NaN } },
+  }, namespace);
+  const jsonNestedValueResult = validateMutationPlanTarget(jsonNestedInvalidValue, 'json');
+  assert.equal(jsonNestedValueResult.ok, false);
+  assert.equal(jsonNestedValueResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(jsonNestedValueResult.errors[0].targetFormat, 'json');
+  assert.equal(jsonNestedValueResult.errors[0].valuePath, 'value.settings.count');
+
+  const jsonNestedNodeValue = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'jsonNestedNode',
+    datatype: 'object',
+    value: { badge: { tag: 'badge', children: ['new'] } },
+  }, namespace);
+  const jsonNestedNodeResult = validateMutationPlanTarget(jsonNestedNodeValue, 'json');
+  assert.equal(jsonNestedNodeResult.ok, false);
+  assert.equal(jsonNestedNodeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(jsonNestedNodeResult.errors[0].targetFormat, 'json');
+  assert.equal(jsonNestedNodeResult.errors[0].valuePath, 'value.badge');
 
   const aeonRadixRepresentable = planOk({
     op: 'create',
