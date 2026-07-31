@@ -2233,6 +2233,10 @@ function representationKindFromMutationHints({ datatype, kind } = {}) {
     : representationKindFromMutationName(kind, { allowUnknown: true });
 }
 
+function nestedInstructionLiteralKindFlattens(kind) {
+  return !['string', 'number', 'boolean', 'object', 'list'].includes(kind);
+}
+
 function representationKindFromMutationName(name, { allowUnknown = false } = {}) {
   if (typeof name !== 'string') return undefined;
   const base = datatypeBaseName(name);
@@ -6115,6 +6119,13 @@ class InstructionParser {
         message: 'Nested datatype intent is preserved in Instruction source but flattened out of conservative Mutate plans',
         index: valueOffset,
         datatype,
+      });
+    } else if (context.nested === true && nestedInstructionLiteralKindFlattens(literal.kind)) {
+      this.warnings.push({
+        code: 'SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED',
+        message: 'Nested literal representation family is preserved in Instruction source but flattened out of conservative Mutate plans',
+        index: valueOffset,
+        kind: literal.kind,
       });
     }
 

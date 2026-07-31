@@ -273,6 +273,17 @@ test('parses instruction container value literals', () => {
     ],
   );
 
+  const untypedNestedFamiliesResult = parseInstruction('create $.types.settings with :object, { when = 2026-10-10 copy = ~target pair = ("sku", 7) }');
+  assert.equal(untypedNestedFamiliesResult.ok, true);
+  assert.deepEqual(
+    untypedNestedFamiliesResult.warnings.map((warning) => `${warning.code}:${warning.kind}`),
+    [
+      'SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED:date',
+      'SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED:cloneReference',
+      'SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED:tuple',
+    ],
+  );
+
   parseBad(
     'create $.types.settings with :object, { when = :number, "2026-10-10" }',
     'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH',
@@ -724,6 +735,15 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.deepEqual(aeonNestedDateString.plan.operations[0].value, { when: '2026-10-10' });
   const aeonNestedDateStringTarget = validateMutationPlanTarget(aeonNestedDateString.plan, 'aeon');
   assert.equal(aeonNestedDateStringTarget.ok, true, JSON.stringify(aeonNestedDateStringTarget.errors ?? []));
+
+  const jsonNestedReference = planOk('create $.inventory.nestedReference with :object, { copy = ~target }', namespace);
+  assert.deepEqual(
+    jsonNestedReference.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED'],
+  );
+  assert.deepEqual(jsonNestedReference.plan.operations[0].value, { copy: 'target' });
+  const jsonNestedReferenceTarget = validateMutationPlanTarget(jsonNestedReference.plan, 'json');
+  assert.equal(jsonNestedReferenceTarget.ok, true, JSON.stringify(jsonNestedReferenceTarget.errors ?? []));
 
   const aeonSansaSelectorCompatible = planOk('create $.inventory.selectorProbeAeon with :sansa, $.inventory.items.*.sku', namespace);
   const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
