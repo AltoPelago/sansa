@@ -1822,9 +1822,9 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
         : invalidAeonTargetValue('Separator literals must be valid AEON separator payload text without the ^ prefix', path, operationIndex);
     case 'sansa':
     case 'sansaAddress':
-      return typeof value === 'string' && value.length > 0
+      return typeof value === 'string' && isValidSansaAddressValue(value)
         ? { ok: true }
-        : invalidAeonTargetValue('SANSA literals must be non-empty address text', path, operationIndex);
+        : invalidAeonTargetValue('SANSA literals must be valid SANSA address text', path, operationIndex);
     case 'toggle':
       return ['yes', 'no', 'on', 'off'].includes(value)
         ? { ok: true }
@@ -1851,9 +1851,9 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
     case 'cloneReference':
     case 'pointerReference':
     case 'referenceForm':
-      return typeof value === 'string' && value.length > 0
+      return typeof value === 'string' && isValidAeonReferenceTargetPath(value)
         ? { ok: true }
-        : invalidAeonTargetValue('Reference literals must be non-empty target text', path, operationIndex);
+        : invalidAeonTargetValue('Reference literals must use an exact AEON target path', path, operationIndex);
     default:
       return { ok: true };
   }
@@ -1951,6 +1951,55 @@ function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
     };
   }
   return { ok: true };
+}
+
+function isValidSansaAddressValue(value) {
+  const result = parseAddress(value);
+  return result.ok;
+}
+
+function isValidAeonReferenceTargetPath(value) {
+  const source = normalizeAeonReferenceTargetSource(value);
+  if (source === null) return false;
+  const result = parseAddress(source);
+  if (!result.ok) return false;
+  const address = result.address;
+  return address.root.kind === 'absolute'
+    && address.qualifierExpression === null
+    && address.isExact
+    && address.selectors.every((selector) => selector.type !== 'localSpace');
+}
+
+function normalizeAeonReferenceTargetSource(value) {
+  const source = String(value);
+  if (source.length === 0 || source.trim() !== source || /\s/.test(source)) return null;
+  if (source.startsWith('$')) return source;
+  if (source.startsWith('?') || source.startsWith('.')) return null;
+  if (source.startsWith('[')) {
+    return source[1] === '"' ? `$.${source}` : null;
+  }
+  if (source.startsWith('"')) {
+    const end = quotedPrefixEnd(source);
+    if (end === null) return null;
+    const rest = source.slice(end);
+    if (rest.length > 0 && rest[0] !== '.' && rest[0] !== '[') return null;
+    return `$.["${source.slice(1, end - 1)}"]${rest}`;
+  }
+  if (!isIdentifierStart(source[0])) return null;
+  return `$.${source}`;
+}
+
+function quotedPrefixEnd(source) {
+  for (let index = 1; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '\\') {
+      index += 1;
+      continue;
+    }
+    if (char === '"') return index + 1;
+    if (char === '\n' || char === '\r') return null;
+  }
+  return null;
 }
 
 function validateJsonTargetAddresses(operation, operationIndex) {

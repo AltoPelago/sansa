@@ -242,6 +242,54 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonTemporalResult.errors[0].targetFormat, 'aeon');
   assert.equal(aeonTemporalResult.errors[0].valuePath, 'operations[0].value');
 
+  const aeonSansaSelector = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'selectorProbe',
+    datatype: 'sansa',
+    kind: 'sansa',
+    value: '$.inventory.items.*.sku',
+  }, namespace);
+  const aeonSansaSelectorResult = validateMutationPlanTarget(aeonSansaSelector, 'aeon');
+  assert.equal(aeonSansaSelectorResult.ok, true, JSON.stringify(aeonSansaSelectorResult.errors ?? []));
+
+  const aeonInvalidSansaLiteral = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badSansa',
+    datatype: 'sansa',
+    kind: 'sansa',
+    value: '$.inventory..sku',
+  }, namespace);
+  const aeonInvalidSansaLiteralResult = validateMutationPlanTarget(aeonInvalidSansaLiteral, 'aeon');
+  assert.equal(aeonInvalidSansaLiteralResult.ok, false);
+  assert.equal(aeonInvalidSansaLiteralResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidSansaLiteralResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidSansaLiteralResult.errors[0].valuePath, 'operations[0].value');
+
+  const aeonInvalidReferenceTarget = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badReference',
+    kind: 'cloneReference',
+    value: 'target.*',
+  }, namespace);
+  const aeonInvalidReferenceTargetResult = validateMutationPlanTarget(aeonInvalidReferenceTarget, 'aeon');
+  assert.equal(aeonInvalidReferenceTargetResult.ok, false);
+  assert.equal(aeonInvalidReferenceTargetResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidReferenceTargetResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidReferenceTargetResult.errors[0].valuePath, 'operations[0].value');
+
+  const aeonQuotedReferenceTarget = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'quotedReference',
+    kind: 'cloneReference',
+    value: '["target.key"]',
+  }, namespace);
+  const aeonQuotedReferenceTargetResult = validateMutationPlanTarget(aeonQuotedReferenceTarget, 'aeon');
+  assert.equal(aeonQuotedReferenceTargetResult.ok, true, JSON.stringify(aeonQuotedReferenceTargetResult.errors ?? []));
+
   const jsonAttribute = planOk({
     op: 'create',
     parent: '$.inventory.sku.@',

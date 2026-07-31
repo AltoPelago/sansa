@@ -680,6 +680,17 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonDateStringTarget.errors[0].datatype, 'date');
   assert.equal(aeonDateStringTarget.errors[0].valuePath, 'operations[0].value');
 
+  const aeonSansaSelectorCompatible = planOk('create $.inventory.selectorProbeAeon with :sansa, $.inventory.items.*.sku', namespace);
+  const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
+  assert.equal(aeonSansaSelectorTarget.ok, true, JSON.stringify(aeonSansaSelectorTarget.errors ?? []));
+
+  const aeonReferenceSelectorIncompatible = planOk('create $.inventory.badReference with :number, ~target.*', namespace);
+  const aeonReferenceSelectorTarget = validateMutationPlanTarget(aeonReferenceSelectorIncompatible.plan, 'aeon');
+  assert.equal(aeonReferenceSelectorTarget.ok, false);
+  assert.equal(aeonReferenceSelectorTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonReferenceSelectorTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonReferenceSelectorTarget.errors[0].valuePath, 'operations[0].value');
+
   const aeonInvalidRadixDatatype = planOk('create $.inventory.badRadix with :radix[03], %101', namespace);
   const aeonInvalidRadixDatatypeTarget = validateMutationPlanTarget(aeonInvalidRadixDatatype.plan, 'aeon');
   assert.equal(aeonInvalidRadixDatatypeTarget.ok, false);
