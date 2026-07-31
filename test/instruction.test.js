@@ -245,11 +245,11 @@ test('parses instruction container value literals', () => {
   assert.deepEqual(objectWithComma.mutation.value.value, { enabled: true, status: false });
   assert.equal(objectWithComma.mutation.value.literal.canonical, '{ enabled = true status = false }');
 
-  const objectWithQuotedField = parseOk('create $.types.settings with :object, { ["bad.key"] = "x", enabled = true }');
+  const objectWithQuotedField = parseOk('create $.types.settings with :object, { "bad.key" = "x", enabled = true }');
   assert.deepEqual(objectWithQuotedField.mutation.value.value, { 'bad.key': 'x', enabled: true });
   assert.equal(objectWithQuotedField.mutation.value.literal.fields[0].name, 'bad.key');
-  assert.equal(objectWithQuotedField.mutation.value.literal.fields[0].canonicalName, '["bad.key"]');
-  assert.equal(objectWithQuotedField.mutation.value.literal.canonical, '{ ["bad.key"] = "x" enabled = true }');
+  assert.equal(objectWithQuotedField.mutation.value.literal.fields[0].canonicalName, '"bad.key"');
+  assert.equal(objectWithQuotedField.mutation.value.literal.canonical, '{ "bad.key" = "x" enabled = true }');
 
   const objectWithTypedComma = parseOk('create $.types.settings with :object, { csv = :csv[","], "sku,name", status = false }');
   assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.datatype, 'csv[","]');
@@ -792,14 +792,14 @@ test('validates instruction plans against target surfaces after planning', () =>
   const jsonNestedTupleTarget = validateMutationPlanTarget(jsonNestedTuple.plan, 'json');
   assert.equal(jsonNestedTupleTarget.ok, true, JSON.stringify(jsonNestedTupleTarget.errors ?? []));
 
-  const jsonNestedQuotedKey = planOk('create $.inventory.payloadQuoted with :object, { ["bad.key"] = :node, <badge("new")> }', namespace);
+  const jsonNestedQuotedKey = planOk('create $.inventory.payloadQuoted with :object, { "bad.key" = :node, <badge("new")> }', namespace);
   const jsonNestedQuotedKeyTarget = validateMutationPlanTarget(jsonNestedQuotedKey.plan, 'json');
   assert.equal(jsonNestedQuotedKeyTarget.ok, false);
   assert.equal(jsonNestedQuotedKeyTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(jsonNestedQuotedKeyTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonNestedQuotedKeyTarget.errors[0].valuePath, 'value["bad.key"]');
 
-  const aeonQuotedObjectField = planOk('create $.inventory.badQuotedField with :object, { ["bad.key"] = "x" }', namespace);
+  const aeonQuotedObjectField = planOk('create $.inventory.badQuotedField with :object, { "bad.key" = "x" }', namespace);
   const aeonQuotedObjectFieldTarget = validateMutationPlanTarget(aeonQuotedObjectField.plan, 'aeon');
   assert.equal(aeonQuotedObjectFieldTarget.ok, true, JSON.stringify(aeonQuotedObjectFieldTarget.errors ?? []));
 
@@ -1002,8 +1002,9 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create "display" extra with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
   parseBad('create $.x with :object, { enabled = true', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :object, { enabled = true enabled = false }', 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');
-  parseBad('create $.x with :object, { ["enabled"] = true enabled = false }', 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');
-  parseBad('create $.x with :object, { ["bad.key" = true }', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :object, { "enabled" = true enabled = false }', 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');
+  parseBad('create $.x with :object, { ["bad.key"] = true }', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :object, { "bad.key = true }', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :list, ["a", , "b"]', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
   parseBad('create $.x with :tuple, ("a", )', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
   parseBad('create $.x with :string,', 'SANSA_INSTRUCTION_EXPECTED_VALUE');

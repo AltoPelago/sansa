@@ -7863,15 +7863,14 @@ function readInstructionObjectFieldName(source, start) {
     const name = source.slice(start, cursor);
     return { name, canonicalName: name, end: cursor };
   }
-  if (char !== '[' || source[start + 1] !== '"') return null;
-  let cursor = start + 2;
+  if (char !== '"') return null;
+  let cursor = start + 1;
   let name = '';
   while (cursor < source.length) {
     const current = source[cursor];
     if (current === '"') {
       cursor += 1;
-      if (source[cursor] !== ']') return null;
-      return { name, canonicalName: `[${quotePayload(name)}]`, end: cursor + 1 };
+      return { name, canonicalName: quotePayload(name), end: cursor };
     }
     if (current === '\n' || current === '\r') {
       throw new SansaParseError('Quoted payloads must not contain raw newlines', cursor, 'SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD');

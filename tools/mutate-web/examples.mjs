@@ -358,7 +358,7 @@ export const mutateExamples = [
         },
       },
       instruction: {
-        request: 'create $.types.quotedSettingsWorkbench with :object, { ["display name"] = "Adapter", enabled = true }',
+        request: 'create $.types.quotedSettingsWorkbench with :object, { "display name" = "Adapter", enabled = true }',
       },
     },
   },
@@ -607,7 +607,7 @@ export const mutateExamples = [
     variants: {
       instruction: {
         options: { targetFormat: 'json' },
-        request: 'create $.types.payloadJsonProbe with :object, { ["bad.key"] = :node, <badge("new")> }',
+        request: 'create $.types.payloadJsonProbe with :object, { "bad.key" = :node, <badge("new")> }',
       },
     },
   },
