@@ -763,6 +763,17 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonParameterizedNode = planOk('create $.inventory.badgeGeneric with :node<node>, <badge(<label("new")>)>', namespace);
   const aeonParameterizedNodeTarget = validateMutationPlanTarget(aeonParameterizedNode.plan, 'aeon');
   assert.equal(aeonParameterizedNodeTarget.ok, true, JSON.stringify(aeonParameterizedNodeTarget.errors ?? []));
+
+  const aeonCustomNodeProfile = planOk('create $.inventory.htmlDoc with :node<html>, <html(<body>)>', namespace);
+  const aeonCustomNodeProfileTarget = validateMutationPlanTarget(aeonCustomNodeProfile.plan, 'aeon');
+  assert.equal(aeonCustomNodeProfileTarget.ok, true, JSON.stringify(aeonCustomNodeProfileTarget.errors ?? []));
+
+  const aeonReservedNodeChildClaim = planOk('create $.inventory.badNodeString with :node<string>, <title("Hello")>', namespace);
+  const aeonReservedNodeChildClaimTarget = validateMutationPlanTarget(aeonReservedNodeChildClaim.plan, 'aeon');
+  assert.equal(aeonReservedNodeChildClaimTarget.ok, false);
+  assert.equal(aeonReservedNodeChildClaimTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonReservedNodeChildClaimTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonReservedNodeChildClaimTarget.errors[0].datatype, 'node<string>');
 });
 
 test('preserves instruction lower and mutate plan failure phases', () => {

@@ -1707,6 +1707,8 @@ function validateAeonTargetDatatype(datatype, operationIndex) {
   const base = datatypeBaseName(datatype);
   const hasGeneric = String(datatype).includes('<');
   const hasArgument = String(datatype).includes('[');
+  const expression = parseAeonTargetDatatypeExpression(datatype, operationIndex);
+  if (!expression.ok) return expression;
   if (hasGeneric && !aeonDatatypeAllowsGeneric(base)) {
     return {
       ok: false,
@@ -1729,6 +1731,8 @@ function validateAeonTargetDatatype(datatype, operationIndex) {
   }
   const reserved = validateAeonReservedDatatypeSurface(datatype, base, operationIndex);
   if (!reserved.ok) return reserved;
+  const nodeGeneric = validateAeonNodeDatatypeSurface(expression.expression, datatype, operationIndex);
+  if (!nodeGeneric.ok) return nodeGeneric;
   return { ok: true };
 }
 
@@ -1951,6 +1955,103 @@ function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
     };
   }
   return { ok: true };
+}
+
+function parseAeonTargetDatatypeExpression(datatype, operationIndex) {
+  const source = String(datatype).trim();
+  try {
+    const parser = new AddressParser(source);
+    const expression = parser.parseQualifierExpression();
+    if (!parser.atEnd() || expression.terms.length !== 1) {
+      return invalidAeonTargetDatatype(
+        `Target 'aeon' requires datatype intent to be one datatype expression`,
+        operationIndex,
+        datatype,
+      );
+    }
+    return { ok: true, expression };
+  } catch (error) {
+    if (error instanceof SansaParseError) {
+      return invalidAeonTargetDatatype(
+        `Target 'aeon' cannot represent malformed datatype intent '${source}'`,
+        operationIndex,
+        datatype,
+      );
+    }
+    throw error;
+  }
+}
+
+function validateAeonNodeDatatypeSurface(expression, datatype, operationIndex) {
+  const term = expression.terms[0];
+  if (term.name !== 'node') return { ok: true };
+  const parameterGroups = term.parameterGroups ?? (term.parameters.length > 0 ? [term.parameters] : []);
+  for (const group of parameterGroups) {
+    for (const argument of group) {
+      const base = datatypeBaseName(renderQualifierTerm(argument));
+      if (base !== 'node' && isReservedAeonDatatypeBase(base)) {
+        return invalidAeonTargetDatatype(
+          "Target 'aeon' allows binding-side node<T> claims only for node<node> or custom node profile claims",
+          operationIndex,
+          datatype,
+        );
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function invalidAeonTargetDatatype(message, operationIndex, datatype) {
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+      message,
+      { operationIndex, targetFormat: 'aeon', datatype },
+    ),
+  };
+}
+
+function isReservedAeonDatatypeBase(base) {
+  const name = typeof base === 'string' ? base : '';
+  const lowered = name.toLowerCase();
+  return [
+    'string',
+    'trimtick',
+    'prose',
+    'number',
+    'n',
+    'int',
+    'uint',
+    'float',
+    'infinity',
+    'nan',
+    'boolean',
+    'bool',
+    'toggle',
+    'hex',
+    'radix',
+    'encoding',
+    'base64',
+    'embed',
+    'inline',
+    'date',
+    'time',
+    'datetime',
+    'zrut',
+    'sep',
+    'separator',
+    'kadot',
+    'sansa',
+    'object',
+    'obj',
+    'o',
+    'envelope',
+    'list',
+    'tuple',
+    'node',
+    'null',
+  ].includes(lowered) || /^(?:u?int|float)\d+$/.test(lowered) || /^radix\d+$/.test(lowered);
 }
 
 function isValidSansaAddressValue(value) {

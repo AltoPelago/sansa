@@ -200,6 +200,19 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonResult.errors[0].targetFormat, 'aeon');
 
+  const aeonMalformedDatatype = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'malformedDatatypeProbe',
+    datatype: 'list<',
+    value: [],
+  }, namespace);
+  const aeonMalformedDatatypeResult = validateMutationPlanTarget(aeonMalformedDatatype, 'aeon');
+  assert.equal(aeonMalformedDatatypeResult.ok, false);
+  assert.equal(aeonMalformedDatatypeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonMalformedDatatypeResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonMalformedDatatypeResult.errors[0].datatype, 'list<');
+
   const aeonInvalidValue = planOk({
     op: 'create',
     parent: '$.inventory',
@@ -289,6 +302,31 @@ test('validates mutation plans against built-in target surfaces', () => {
   }, namespace);
   const aeonQuotedReferenceTargetResult = validateMutationPlanTarget(aeonQuotedReferenceTarget, 'aeon');
   assert.equal(aeonQuotedReferenceTargetResult.ok, true, JSON.stringify(aeonQuotedReferenceTargetResult.errors ?? []));
+
+  const aeonNodeCustomProfile = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'nodeCustomProfile',
+    datatype: 'node<html>',
+    kind: 'node',
+    value: { tag: 'html', children: [] },
+  }, namespace);
+  const aeonNodeCustomProfileResult = validateMutationPlanTarget(aeonNodeCustomProfile, 'aeon');
+  assert.equal(aeonNodeCustomProfileResult.ok, true, JSON.stringify(aeonNodeCustomProfileResult.errors ?? []));
+
+  const aeonNodeReservedChildClaim = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'nodeReservedChildClaim',
+    datatype: 'node<string>',
+    kind: 'node',
+    value: { tag: 'title', children: ['hello'] },
+  }, namespace);
+  const aeonNodeReservedChildClaimResult = validateMutationPlanTarget(aeonNodeReservedChildClaim, 'aeon');
+  assert.equal(aeonNodeReservedChildClaimResult.ok, false);
+  assert.equal(aeonNodeReservedChildClaimResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonNodeReservedChildClaimResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonNodeReservedChildClaimResult.errors[0].datatype, 'node<string>');
 
   const jsonAttribute = planOk({
     op: 'create',
