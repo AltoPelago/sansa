@@ -6078,7 +6078,7 @@ class InstructionParser {
     return { type: 'createDestination', kind: 'address', address: address.address, canonical: renderInstructionAddress(address.address) };
   }
 
-  parseInstructionValue(source, offset) {
+  parseInstructionValue(source, offset, context = {}) {
     const trimmedStart = firstNonLayoutOffset(source);
     const trimmed = source.trim();
     const valueOffset = offset + trimmedStart;
@@ -6106,6 +6106,14 @@ class InstructionParser {
       if (payload.length === 0) {
         this.fail('Expected instruction value after datatype annotation', 'SANSA_INSTRUCTION_EXPECTED_VALUE', valueOffset + cursor);
       }
+    }
+    if (datatype !== undefined && context.nested === true) {
+      this.warnings.push({
+        code: 'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED',
+        message: 'Nested datatype intent is preserved in Instruction source but flattened out of conservative Mutate plans',
+        index: valueOffset,
+        datatype,
+      });
     }
 
     const literal = this.parseValueLiteral(payload, payloadOffset);
@@ -6167,7 +6175,7 @@ class InstructionParser {
         );
       }
       seen.add(field.name);
-      const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset);
+      const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset, { nested: true });
       return { name: field.name, value };
     });
     return {
@@ -7376,7 +7384,7 @@ function unwrapInstructionDelimitedLiteral(source, open, close, offset) {
 
 function parseInstructionValueItems(source, offset, parser) {
   const parts = splitTopLevelInstructionValueList(source, offset);
-  return parts.map((part) => parser.parseInstructionValue(part.source, part.offset));
+  return parts.map((part) => parser.parseInstructionValue(part.source, part.offset, { nested: true }));
 }
 
 function splitTopLevelInstructionValueList(source, offset) {

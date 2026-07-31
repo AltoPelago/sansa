@@ -57,6 +57,7 @@ function runTest(test, namespaces) {
       compareError(expected, result, failures);
       return failures;
     }
+    compareWarnings(expected, result, failures);
     const targetResult = validateMutationPlanTarget(result.plan, test.input?.target ?? 'aeon');
     if (targetResult.ok !== Boolean(expected.ok)) {
       failures.push(`target ok mismatch: expected ${Boolean(expected.ok)}, got ${targetResult.ok}`);
@@ -76,6 +77,8 @@ function runTest(test, namespaces) {
     compareError(expected, result, failures);
     return failures;
   }
+
+  compareWarnings(expected, result, failures);
 
   if (mode === 'parse') {
     compareField(expected.canonical, result.instruction.canonical, 'canonical', failures);
@@ -145,6 +148,10 @@ function compareError(expected, result, failures) {
       failures.push(`errorValuePath mismatch: expected ${expected.errorValuePath}, got ${actualValuePath}`);
     }
   }
+}
+
+function compareWarnings(expected, result, failures) {
+  compareArray(expected.warnings, (result.warnings ?? []).map((warning) => warning.code), 'warnings', failures);
 }
 
 function compareLoweredOperations(expected, actual, failures) {

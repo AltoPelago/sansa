@@ -250,10 +250,28 @@ test('parses instruction container value literals', () => {
   assert.equal(objectWithTypedComma.mutation.value.literal.fields[0].value.kind, 'string');
   assert.deepEqual(objectWithTypedComma.mutation.value.value, { csv: 'sku,name', status: false });
 
+  const typedObjectResult = parseInstruction('create $.types.settings with :object, { csv = :csv[","], "sku,name", status = false }');
+  assert.equal(typedObjectResult.ok, true);
+  assert.deepEqual(
+    typedObjectResult.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
+  assert.equal(typedObjectResult.warnings[0].datatype, 'csv[","]');
+
   const list = parseOk('create $.types.aliases with :list<string>, ["adapter", "driver"]');
   assert.equal(list.mutation.value.datatype, 'list<string>');
   assert.equal(list.mutation.value.kind, 'list');
   assert.deepEqual(list.mutation.value.value, ['adapter', 'driver']);
+
+  const typedListResult = parseInstruction('create $.types.values with :list, [:int32 3, :string "4"]');
+  assert.equal(typedListResult.ok, true);
+  assert.deepEqual(
+    typedListResult.warnings.map((warning) => warning.code),
+    [
+      'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED',
+      'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED',
+    ],
+  );
 
   const tuple = parseOk('create $.types.pairing with :tuple, ("sku", 7)');
   assert.equal(tuple.mutation.value.datatype, 'tuple');
@@ -560,6 +578,15 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(attributed.plan.sourceProvenance.reason, 'manual correction');
   assert.equal(attributed.plan.sourceProvenance.claimedAuthor, 'Bob');
   assert.equal(attributed.plan.operations[0].provenance, undefined);
+
+  const nestedIntent = planOk('create $.inventory.nestedIntent with :object, { csv = :csv[","], "sku,name" }', namespace);
+  assert.equal(nestedIntent.plan.operations[0].datatype, 'object');
+  assert.equal(nestedIntent.plan.operations[0].kind, 'object');
+  assert.deepEqual(nestedIntent.plan.operations[0].value, { csv: 'sku,name' });
+  assert.deepEqual(
+    nestedIntent.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
 
   const guarded = planOk([
     'from $.inventory.items.*',
