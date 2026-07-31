@@ -273,6 +273,14 @@ test('parses instruction container value literals', () => {
     ],
   );
 
+  const nestedCustomDatatypeResult = parseInstruction('create $.types.relationships with :object, { sibling = :relationship<sibling>[brother], "Bob" }');
+  assert.equal(nestedCustomDatatypeResult.ok, true);
+  assert.deepEqual(
+    nestedCustomDatatypeResult.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
+  assert.equal(nestedCustomDatatypeResult.warnings[0].datatype, 'relationship<sibling>[brother]');
+
   const untypedNestedFamiliesResult = parseInstruction('create $.types.settings with :object, { when = 2026-10-10 copy = ~target pair = ("sku", 7) }');
   assert.equal(untypedNestedFamiliesResult.ok, true);
   assert.deepEqual(
@@ -744,6 +752,24 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.deepEqual(jsonNestedReference.plan.operations[0].value, { copy: 'target' });
   const jsonNestedReferenceTarget = validateMutationPlanTarget(jsonNestedReference.plan, 'json');
   assert.equal(jsonNestedReferenceTarget.ok, true, JSON.stringify(jsonNestedReferenceTarget.errors ?? []));
+
+  const jsonNestedTuple = planOk('create $.inventory.nestedPair with :object, { pair = :tuple, ("sku", 7) }', namespace);
+  assert.deepEqual(
+    jsonNestedTuple.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
+  assert.deepEqual(jsonNestedTuple.plan.operations[0].value, { pair: ['sku', 7] });
+  const jsonNestedTupleTarget = validateMutationPlanTarget(jsonNestedTuple.plan, 'json');
+  assert.equal(jsonNestedTupleTarget.ok, true, JSON.stringify(jsonNestedTupleTarget.errors ?? []));
+
+  const aeonNestedCustomDatatype = planOk('create $.inventory.nestedRelationship with :object, { sibling = :relationship<sibling>[brother], "Bob" }', namespace);
+  assert.deepEqual(
+    aeonNestedCustomDatatype.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
+  assert.deepEqual(aeonNestedCustomDatatype.plan.operations[0].value, { sibling: 'Bob' });
+  const aeonNestedCustomDatatypeTarget = validateMutationPlanTarget(aeonNestedCustomDatatype.plan, 'aeon');
+  assert.equal(aeonNestedCustomDatatypeTarget.ok, true, JSON.stringify(aeonNestedCustomDatatypeTarget.errors ?? []));
 
   const aeonSansaSelectorCompatible = planOk('create $.inventory.selectorProbeAeon with :sansa, $.inventory.items.*.sku', namespace);
   const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
