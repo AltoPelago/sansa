@@ -985,6 +985,93 @@ testAeonRuntime('mutate web runtime rejects non-string policy address matchers',
   assert.match(result.text, /address matchers must be non-empty strings/);
 });
 
+testAeonRuntime('mutate web runtime policy matches quoted and escaped address roles', async () => {
+  const source = [
+    'inventory:object = {',
+    '  "quote\\"key":string = "quoted"',
+    '  "display object":object = {',
+    '    status:string = "old"',
+    '  }',
+    '  "display tags":list<string> = ["primary", "featured"]',
+    '}',
+  ].join('\n');
+
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['replace'],
+        target: '$.inventory.["quote\\"key"]',
+        datatype: 'string',
+      },
+      {
+        allow: true,
+        operations: ['create'],
+        parent: '$.inventory.["display object"]',
+        name: 'reviewed',
+        datatype: 'boolean',
+      },
+      {
+        allow: true,
+        operations: ['insert'],
+        container: '$.inventory.["display tags"]',
+        datatype: 'string',
+      },
+      {
+        allow: true,
+        operations: ['move'],
+        source: '$.inventory.["display tags"][0]',
+        container: '$.inventory.["display tags"]',
+      },
+    ],
+  };
+
+  const result = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      operations: [
+        {
+          op: 'replace',
+          target: '$.inventory.["quote\\"key"]',
+          datatype: 'string',
+          value: 'escaped',
+        },
+        {
+          op: 'create',
+          parent: '$.inventory.["display object"]',
+          name: 'reviewed',
+          datatype: 'boolean',
+          value: true,
+        },
+        {
+          op: 'insert',
+          container: '$.inventory.["display tags"]',
+          placement: 'last',
+          datatype: 'string',
+          value: 'sale',
+        },
+        {
+          op: 'move',
+          source: '$.inventory.["display tags"][0]',
+          container: '$.inventory.["display tags"]',
+          placement: { kind: 'after', anchor: '$.inventory.["display tags"][1]' },
+        },
+      ],
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.plan.operations.length, 4);
+  assert.equal(result.plan.operations[0].target.canonicalAddress, '$.inventory.["quote\\"key"]');
+  assert.equal(result.plan.operations[1].parent.canonicalAddress, '$.inventory.["display object"]');
+  assert.equal(result.plan.operations[2].container.canonicalAddress, '$.inventory.["display tags"]');
+  assert.equal(result.plan.operations[3].source.canonicalAddress, '$.inventory.["display tags"][0]');
+  assert.equal(result.plan.operations[3].container.canonicalAddress, '$.inventory.["display tags"]');
+});
+
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({

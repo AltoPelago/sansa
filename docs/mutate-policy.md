@@ -92,6 +92,10 @@ The prototype supports these rule fields:
 
 Address matchers are SANSA address expressions, so list/item matching uses
 `.*`, not `[*]`.
+They are parsed and resolved as addresses rather than compared as raw strings:
+quoted member selectors such as `$.inventory.["display tags"]` and escaped
+quoted selectors such as `$.inventory.["quote\"key"]` match the corresponding
+planned canonical address roles after resolution.
 
 For `replace`, effective datatype and kind fall back to the current target
 binding metadata when the mutation request does not provide explicit hints. For
