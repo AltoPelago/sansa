@@ -136,6 +136,13 @@ function sampleNamespace() {
       binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
       displayName,
       binding({
+        address: '$.inventory.["quote\\"key"]',
+        name: 'quote"key',
+        value: 'quoted',
+        representationKind: 'string',
+        semanticType: 'string',
+      }),
+      binding({
         address: '$.inventory.["display tags"]',
         name: 'display tags',
         representationKind: 'list',
@@ -428,6 +435,14 @@ test('lowers direct instructions to mutate request operations', () => {
     datatype: 'string',
     kind: 'string',
     value: 'Adapter',
+  });
+
+  assert.deepEqual(lowerOk(`create $.inventory.["quote\\"key"] with "escaped"`), {
+    op: 'create',
+    parent: '$.inventory',
+    name: 'quote"key',
+    kind: 'string',
+    value: 'escaped',
   });
 
   assert.deepEqual(lowerOk('create $.inventory.@.["source role"] with "catalog"'), {
@@ -801,6 +816,17 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       },
     ],
   });
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory',
+    `where .["quote\\"key"] == "quoted"`,
+    `replace .["quote\\"key"] with "escaped"`,
+  ].join('\n'), namespace), {
+    op: 'replace',
+    target: '$.inventory.["quote\\"key"]',
+    kind: 'string',
+    value: 'escaped',
+  });
 });
 
 test('plans lowered instructions through the mutate planner', () => {
@@ -894,6 +920,12 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(typedReplace.plan.operations[0].datatype, 'string');
   assert.equal(typedReplace.plan.operations[0].kind, 'string');
   assert.equal(typedReplace.plan.operations[0].value, 'A-101');
+
+  const escapedQuotedReplace = planOk(`replace $.inventory.["quote\\"key"] with "escaped"`, namespace);
+  assert.equal(escapedQuotedReplace.plan.operations[0].op, 'replace');
+  assert.equal(escapedQuotedReplace.plan.operations[0].target.canonicalAddress, '$.inventory.["quote\\"key"]');
+  assert.equal(escapedQuotedReplace.plan.operations[0].kind, 'string');
+  assert.equal(escapedQuotedReplace.plan.operations[0].value, 'escaped');
 
   const quotedAttributeReplace = planOk('replace $.inventory.["display name"].@.["source role"] with "system"', namespace);
   assert.equal(quotedAttributeReplace.plan.operations[0].op, 'replace');

@@ -354,11 +354,11 @@ export const mutateExamples = [
           parent: '$.types',
           name: 'quotedSettingsWorkbench',
           datatype: 'object',
-          value: { 'display name': 'Adapter', enabled: true },
+          value: { 'display name': 'Adapter', 'quote"key': 'ok', enabled: true },
         },
       },
       instruction: {
-        request: 'create $.types.quotedSettingsWorkbench with :object, { "display name" = "Adapter", enabled = true }',
+        request: `create $.types.quotedSettingsWorkbench with :object, { "display name" = "Adapter", "quote\\"key" = "ok", enabled = true }`,
       },
     },
   },
@@ -1178,13 +1178,13 @@ const mutateExampleApplyExpectationOverrides = {
   'create-object-quoted-field:structured': {
     ok: true,
     operationStatuses: ['applied'],
-    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', 'enabled:boolean = true'],
+    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', '"quote\\"key":string = "ok"', 'enabled:boolean = true'],
     textIncludes: ['applied: 1', '0: applied $.types -> $.types.quotedSettingsWorkbench'],
   },
   'create-object-quoted-field:instruction': {
     ok: true,
     operationStatuses: ['applied'],
-    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', 'enabled:boolean = true'],
+    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', '"quote\\"key":string = "ok"', 'enabled:boolean = true'],
     textIncludes: ['applied: 1', '0: applied $.types -> $.types.quotedSettingsWorkbench'],
   },
   'create-attribute:instruction': {

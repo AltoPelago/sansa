@@ -231,7 +231,13 @@ authoring never silently applies last-value-wins behavior:
 
 ```text
 create $.types.settings with :object, { enabled = true, status = false }
+create $.types.labels with :object, { "display name" = "Adapter", "quote\"key" = "ok" }
 ```
+
+Quoted object field names use AEON-style quoted keys, not address-style member
+selectors. For example, `"display name" = "Adapter"` is valid inside an
+Instruction object value, while `["display name"] = "Adapter"` is reserved for
+SANSA address/member selector syntax and is rejected in object values.
 
 Nested value annotations inside container literals are retained in the parsed
 Instruction AST and canonical source, but the conservative structured Mutate
