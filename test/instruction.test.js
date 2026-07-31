@@ -88,11 +88,33 @@ function sampleNamespace() {
       }),
     ],
   });
+  const displayName = binding({
+    address: '$.inventory.["display name"]',
+    name: 'display name',
+    value: 'Adapter',
+    representationKind: 'string',
+    semanticType: 'string',
+  });
+  displayName.attributeSpace = binding({
+    address: '$.inventory.["display name"].@',
+    representationKind: 'attributeSpace',
+    children: [
+      binding({
+        address: '$.inventory.["display name"].@.["source role"]',
+        name: 'source role',
+        value: 'catalog',
+        representationKind: 'string',
+        semanticType: 'string',
+      }),
+    ],
+  });
+
   const inventory = binding({
     address: '$.inventory',
     name: 'inventory',
     children: [
       binding({ address: '$.inventory.items', name: 'items', representationKind: 'list', children: [item0, item1] }),
+      displayName,
       binding({
         address: '$.inventory.otherTags',
         name: 'otherTags',
@@ -108,6 +130,13 @@ function sampleNamespace() {
     representationKind: 'attributeSpace',
     children: [
       binding({ address: '$.inventory.@.origin', name: 'origin', value: 'catalog', representationKind: 'string', semanticType: 'string' }),
+      binding({
+        address: '$.inventory.@.["source role"]',
+        name: 'source role',
+        value: 'catalog',
+        representationKind: 'string',
+        semanticType: 'string',
+      }),
     ],
   });
 
@@ -404,9 +433,28 @@ test('lowers direct instructions to mutate request operations', () => {
     value: 10,
   });
 
+  assert.deepEqual(lowerOk('replace $.inventory.@.["source role"] with "system"'), {
+    op: 'replace',
+    target: '$.inventory.@.["source role"]',
+    kind: 'string',
+    value: 'system',
+  });
+
+  assert.deepEqual(lowerOk('replace $.inventory.["display name"].@.["source role"] with "system"'), {
+    op: 'replace',
+    target: '$.inventory.["display name"].@.["source role"]',
+    kind: 'string',
+    value: 'system',
+  });
+
   assert.deepEqual(lowerOk('remove $.inventory.oldStatus'), {
     op: 'remove',
     target: '$.inventory.oldStatus',
+  });
+
+  assert.deepEqual(lowerOk('remove $.inventory.@.["source role"]'), {
+    op: 'remove',
+    target: '$.inventory.@.["source role"]',
   });
 
   assert.deepEqual(lowerOk('insert last in $.tags with "sale"'), {
@@ -696,6 +744,16 @@ test('plans lowered instructions through the mutate planner', () => {
   assert.equal(typedReplace.plan.operations[0].kind, 'string');
   assert.equal(typedReplace.plan.operations[0].value, 'A-101');
 
+  const quotedAttributeReplace = planOk('replace $.inventory.["display name"].@.["source role"] with "system"', namespace);
+  assert.equal(quotedAttributeReplace.plan.operations[0].op, 'replace');
+  assert.equal(quotedAttributeReplace.plan.operations[0].target.canonicalAddress, '$.inventory.["display name"].@.["source role"]');
+  assert.equal(quotedAttributeReplace.plan.operations[0].kind, 'string');
+  assert.equal(quotedAttributeReplace.plan.operations[0].value, 'system');
+
+  const quotedAttributeRemove = planOk('remove $.inventory.@.["source role"]', namespace);
+  assert.equal(quotedAttributeRemove.plan.operations[0].op, 'remove');
+  assert.equal(quotedAttributeRemove.plan.operations[0].target.canonicalAddress, '$.inventory.@.["source role"]');
+
   const date = planOk('create $.inventory.released with :date, 2026-10-10', namespace);
   assert.equal(date.plan.operations[0].op, 'create');
   assert.equal(date.plan.operations[0].parent.canonicalAddress, '$.inventory');
@@ -833,13 +891,25 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonQuotedObjectFieldTarget = validateMutationPlanTarget(aeonQuotedObjectField.plan, 'aeon');
   assert.equal(aeonQuotedObjectFieldTarget.ok, true, JSON.stringify(aeonQuotedObjectFieldTarget.errors ?? []));
 
-  const jsonQuotedAttribute = planOk('create $.inventory.@.["source role"] with "catalog"', namespace);
+  const jsonQuotedAttribute = planOk('create $.inventory.@.["source note"] with "catalog"', namespace);
   assert.equal(jsonQuotedAttribute.plan.operations[0].parent.canonicalAddress, '$.inventory.@');
-  assert.equal(jsonQuotedAttribute.plan.operations[0].name, 'source role');
+  assert.equal(jsonQuotedAttribute.plan.operations[0].name, 'source note');
   const jsonQuotedAttributeTarget = validateMutationPlanTarget(jsonQuotedAttribute.plan, 'json');
   assert.equal(jsonQuotedAttributeTarget.ok, false);
   assert.equal(jsonQuotedAttributeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
   assert.equal(jsonQuotedAttributeTarget.errors[0].targetFormat, 'json');
+
+  const jsonQuotedAttributeReplace = planOk('replace $.inventory.@.["source role"] with "system"', namespace);
+  const jsonQuotedAttributeReplaceTarget = validateMutationPlanTarget(jsonQuotedAttributeReplace.plan, 'json');
+  assert.equal(jsonQuotedAttributeReplaceTarget.ok, false);
+  assert.equal(jsonQuotedAttributeReplaceTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(jsonQuotedAttributeReplaceTarget.errors[0].targetFormat, 'json');
+
+  const jsonQuotedAttributeRemove = planOk('remove $.inventory.@.["source role"]', namespace);
+  const jsonQuotedAttributeRemoveTarget = validateMutationPlanTarget(jsonQuotedAttributeRemove.plan, 'json');
+  assert.equal(jsonQuotedAttributeRemoveTarget.ok, false);
+  assert.equal(jsonQuotedAttributeRemoveTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(jsonQuotedAttributeRemoveTarget.errors[0].targetFormat, 'json');
 
   const aeonEmptyQuotedObjectField = planOk('create $.inventory.badEmptyField with :object, { "" = "x" }', namespace);
   const aeonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'aeon');
