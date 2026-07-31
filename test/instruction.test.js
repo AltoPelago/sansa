@@ -273,6 +273,15 @@ test('parses instruction container value literals', () => {
     ],
   );
 
+  parseBad(
+    'create $.types.settings with :object, { when = :number, "2026-10-10" }',
+    'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH',
+  );
+  parseBad(
+    'create $.types.settings with :object, { when = :date, "2026-10-10" }',
+    'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH',
+  );
+
   const tuple = parseOk('create $.types.pairing with :tuple, ("sku", 7)');
   assert.equal(tuple.mutation.value.datatype, 'tuple');
   assert.equal(tuple.mutation.value.kind, 'tuple');
@@ -706,6 +715,15 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonDateStringTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonDateStringTarget.errors[0].datatype, 'date');
   assert.equal(aeonDateStringTarget.errors[0].valuePath, 'operations[0].value');
+
+  const aeonNestedDateString = planOk('create $.inventory.nestedDateString with :object, { when = :date, 2026-10-10 }', namespace);
+  assert.deepEqual(
+    aeonNestedDateString.warnings.map((warning) => warning.code),
+    ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
+  );
+  assert.deepEqual(aeonNestedDateString.plan.operations[0].value, { when: '2026-10-10' });
+  const aeonNestedDateStringTarget = validateMutationPlanTarget(aeonNestedDateString.plan, 'aeon');
+  assert.equal(aeonNestedDateStringTarget.ok, true, JSON.stringify(aeonNestedDateStringTarget.errors ?? []));
 
   const aeonSansaSelectorCompatible = planOk('create $.inventory.selectorProbeAeon with :sansa, $.inventory.items.*.sku', namespace);
   const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
