@@ -268,6 +268,19 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonNestedEmptyKeyResult.errors[0].targetFormat, 'aeon');
   assert.equal(aeonNestedEmptyKeyResult.errors[0].valuePath, 'operations[0].value.settings[""]');
 
+  const aeonNestedQuotedKeyPath = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badNestedQuotedKeyPath',
+    datatype: 'object',
+    value: { 'bad.key': { '': 'active' } },
+  }, namespace);
+  const aeonNestedQuotedKeyPathResult = validateMutationPlanTarget(aeonNestedQuotedKeyPath, 'aeon');
+  assert.equal(aeonNestedQuotedKeyPathResult.ok, false);
+  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].valuePath, 'operations[0].value["bad.key"][""]');
+
   const aeonInvalidNodeTag = planOk({
     op: 'create',
     parent: '$.inventory',
@@ -405,6 +418,19 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(jsonNestedNodeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(jsonNestedNodeResult.errors[0].targetFormat, 'json');
   assert.equal(jsonNestedNodeResult.errors[0].valuePath, 'value.badge');
+
+  const jsonNestedQuotedKeyPath = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'jsonNestedQuotedKeyPath',
+    datatype: 'object',
+    value: { 'bad.key': { tag: 'badge', children: ['new'] } },
+  }, namespace);
+  const jsonNestedQuotedKeyPathResult = validateMutationPlanTarget(jsonNestedQuotedKeyPath, 'json');
+  assert.equal(jsonNestedQuotedKeyPathResult.ok, false);
+  assert.equal(jsonNestedQuotedKeyPathResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(jsonNestedQuotedKeyPathResult.errors[0].targetFormat, 'json');
+  assert.equal(jsonNestedQuotedKeyPathResult.errors[0].valuePath, 'value["bad.key"]');
 
   const aeonRadixRepresentable = planOk({
     op: 'create',

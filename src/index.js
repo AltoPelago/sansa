@@ -1783,8 +1783,9 @@ function validateAeonTargetValue(value, hints, path, operationIndex) {
   }
   if (value && typeof value === 'object') {
     for (const [key, entry] of Object.entries(value)) {
-      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', `${path}[""]`, operationIndex);
-      const result = validateAeonTargetValue(entry, {}, `${path}.${key}`, operationIndex);
+      const entryPath = `${path}${renderMutationValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }
   }
@@ -1814,8 +1815,9 @@ function validateAeonTargetNodeValue(value, path, operationIndex) {
       return invalidAeonTargetValue('Node attributes must be an object when provided', `${path}.attributes`, operationIndex);
     }
     for (const [key, entry] of Object.entries(value.attributes)) {
-      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', `${path}.attributes[""]`, operationIndex);
-      const result = validateAeonTargetValue(entry, {}, `${path}.attributes.${key}`, operationIndex);
+      const entryPath = `${path}.attributes${renderMutationValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }
   }
@@ -2239,7 +2241,7 @@ function validateJsonTargetValue(value, operationIndex, path) {
       };
     }
     for (const [key, entry] of Object.entries(value)) {
-      const result = validateJsonTargetValue(entry, operationIndex, `${path}.${key}`);
+      const result = validateJsonTargetValue(entry, operationIndex, `${path}${renderMutationValuePathSegment(key)}`);
       if (!result.ok) return result;
     }
     return { ok: true };
