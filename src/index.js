@@ -1785,7 +1785,6 @@ function validateAeonTargetValue(value, hints, path, operationIndex) {
     for (const [key, entry] of Object.entries(value)) {
       const entryPath = `${path}${renderMutationValuePathSegment(key)}`;
       if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
-      if (!validAeonIdentifier(key)) return invalidAeonTargetValue('Object keys must be AEON identifiers', entryPath, operationIndex);
       const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }
@@ -1818,7 +1817,6 @@ function validateAeonTargetNodeValue(value, path, operationIndex) {
     for (const [key, entry] of Object.entries(value.attributes)) {
       const entryPath = `${path}.attributes${renderMutationValuePathSegment(key)}`;
       if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
-      if (!validAeonIdentifier(key)) return invalidAeonTargetValue('Node attribute keys must be AEON identifiers', entryPath, operationIndex);
       const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }

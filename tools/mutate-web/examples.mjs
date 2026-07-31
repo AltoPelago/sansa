@@ -345,11 +345,10 @@ export const mutateExamples = [
   },
   {
     id: 'create-object-quoted-field',
-    label: 'AEON Rejects Quoted Field',
-    group: 'Target Surfaces',
+    label: 'Create Quoted Field',
+    group: 'Typed Values',
     variants: {
       structured: {
-        options: { targetFormat: 'aeon' },
         request: {
           op: 'create',
           parent: '$.types',
@@ -359,7 +358,6 @@ export const mutateExamples = [
         },
       },
       instruction: {
-        options: { targetFormat: 'aeon' },
         request: 'create $.types.quotedSettingsWorkbench with :object, { ["display name"] = "Adapter", enabled = true }',
       },
     },
@@ -1018,20 +1016,6 @@ const mutateExampleExpectationOverrides = {
     targetFormat: 'json',
     datatype: 'node',
   },
-  'create-object-quoted-field:structured': {
-    ok: false,
-    phase: 'target',
-    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
-    targetFormat: 'aeon',
-    textIncludes: ['Object keys must be AEON identifiers', 'value operations[0].value["display name"]'],
-  },
-  'create-object-quoted-field:instruction': {
-    ok: false,
-    phase: 'target',
-    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
-    targetFormat: 'aeon',
-    textIncludes: ['Object keys must be AEON identifiers', 'value operations[0].value["display name"]'],
-  },
   'target-json-quoted-field-node-fail:instruction': {
     ok: false,
     phase: 'target',
@@ -1190,6 +1174,18 @@ const mutateExampleApplyExpectationOverrides = {
     operationStatuses: ['applied'],
     sourceIncludes: ['status:string = "pending"'],
     textIncludes: ['applied: 1', '0: applied $.inventory.items[2] -> $.inventory.items[2].status'],
+  },
+  'create-object-quoted-field:structured': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', 'enabled:boolean = true'],
+    textIncludes: ['applied: 1', '0: applied $.types -> $.types.quotedSettingsWorkbench'],
+  },
+  'create-object-quoted-field:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['quotedSettingsWorkbench:object = {', '"display name":string = "Adapter"', 'enabled:boolean = true'],
+    textIncludes: ['applied: 1', '0: applied $.types -> $.types.quotedSettingsWorkbench'],
   },
   'create-attribute:instruction': {
     ok: true,

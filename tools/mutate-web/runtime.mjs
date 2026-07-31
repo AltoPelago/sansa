@@ -529,7 +529,6 @@ function validateAeonWorkbenchValue(value, hints = {}, path = 'value') {
     for (const [key, entry] of Object.entries(value)) {
       const entryPath = `${path}${renderWorkbenchValuePathSegment(key)}`;
       if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', entryPath);
-      if (!AEON_IDENTIFIER_PATTERN.test(key)) return invalidAeonWorkbenchValue('Object keys must be AEON identifiers', entryPath);
       const result = validateAeonWorkbenchValue(entry, {}, entryPath);
       if (!result.ok) return result;
     }
@@ -562,7 +561,6 @@ function validateAeonWorkbenchNodeValue(value, path) {
     for (const [key, entry] of Object.entries(value.attributes)) {
       const entryPath = `${path}.attributes${renderWorkbenchValuePathSegment(key)}`;
       if (key.length === 0) return invalidAeonWorkbenchValue('Keys must not be empty', entryPath);
-      if (!AEON_IDENTIFIER_PATTERN.test(key)) return invalidAeonWorkbenchValue('Node attribute keys must be AEON identifiers', entryPath);
       const result = validateAeonWorkbenchValue(entry, {}, entryPath);
       if (!result.ok) return result;
     }
@@ -1045,7 +1043,7 @@ function renderAnonymousPrefix(binding) {
 }
 
 function renderBindingName(name) {
-  return AEON_IDENTIFIER_PATTERN.test(name) ? name : `[${JSON.stringify(String(name))}]`;
+  return AEON_IDENTIFIER_PATTERN.test(name) ? name : JSON.stringify(String(name));
 }
 
 function renderDatatype(binding) {
