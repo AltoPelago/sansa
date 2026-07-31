@@ -809,6 +809,22 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonQuotedObjectFieldTarget = validateMutationPlanTarget(aeonQuotedObjectField.plan, 'aeon');
   assert.equal(aeonQuotedObjectFieldTarget.ok, true, JSON.stringify(aeonQuotedObjectFieldTarget.errors ?? []));
 
+  const aeonEmptyQuotedObjectField = planOk('create $.inventory.badEmptyField with :object, { "" = "x" }', namespace);
+  const aeonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'aeon');
+  assert.equal(aeonEmptyQuotedObjectFieldTarget.ok, false);
+  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].valuePath, 'operations[0].value[""]');
+  const jsonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'json');
+  assert.equal(jsonEmptyQuotedObjectFieldTarget.ok, true, JSON.stringify(jsonEmptyQuotedObjectFieldTarget.errors ?? []));
+
+  const jsonNestedEscapedQuotedKey = planOk('create $.inventory.payloadQuotedEscaped with :object, { "quote\\"key" = :node, <badge("new")> }', namespace);
+  const jsonNestedEscapedQuotedKeyTarget = validateMutationPlanTarget(jsonNestedEscapedQuotedKey.plan, 'json');
+  assert.equal(jsonNestedEscapedQuotedKeyTarget.ok, false);
+  assert.equal(jsonNestedEscapedQuotedKeyTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(jsonNestedEscapedQuotedKeyTarget.errors[0].targetFormat, 'json');
+  assert.equal(jsonNestedEscapedQuotedKeyTarget.errors[0].valuePath, 'value["quote\\"key"]');
+
   const aeonNestedCustomDatatype = planOk('create $.inventory.nestedRelationship with :object, { sibling = :relationship<sibling>[brother], "Bob" }', namespace);
   assert.deepEqual(
     aeonNestedCustomDatatype.warnings.map((warning) => warning.code),
