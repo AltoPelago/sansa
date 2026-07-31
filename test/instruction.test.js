@@ -775,6 +775,14 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
   assert.equal(aeonSansaSelectorTarget.ok, true, JSON.stringify(aeonSansaSelectorTarget.errors ?? []));
 
+  const aeonSansaStringIncompatible = planOk('create $.inventory.badAddressDatatype with :string, $.inventory.items.*.sku', namespace);
+  const aeonSansaStringTarget = validateMutationPlanTarget(aeonSansaStringIncompatible.plan, 'aeon');
+  assert.equal(aeonSansaStringTarget.ok, false);
+  assert.equal(aeonSansaStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonSansaStringTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonSansaStringTarget.errors[0].datatype, 'string');
+  assert.equal(aeonSansaStringTarget.errors[0].valuePath, 'operations[0].value');
+
   const aeonReferenceSelectorIncompatible = planOk('create $.inventory.badReference with :number, ~target.*', namespace);
   const aeonReferenceSelectorTarget = validateMutationPlanTarget(aeonReferenceSelectorIncompatible.plan, 'aeon');
   assert.equal(aeonReferenceSelectorTarget.ok, false);
@@ -940,6 +948,9 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :csv[";", "a"', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('create $.x with :list<>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
+  parseBad('create $.x with :number, ~', 'SANSA_INSTRUCTION_INVALID_REFERENCE_LITERAL');
+  parseBad('create $.x with :number, ~ target', 'SANSA_INSTRUCTION_INVALID_REFERENCE_LITERAL');
+  parseBad('create $.x with :sansa, $.inventory..sku', 'SANSA_EXPECTED_IDENTIFIER');
   parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :sep, ^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
