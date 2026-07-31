@@ -331,6 +331,58 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonInvalidEncodingPayloadResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(aeonInvalidEncodingPayloadResult.errors[0].targetFormat, 'aeon');
   assert.equal(aeonInvalidEncodingPayloadResult.errors[0].valuePath, 'operations[0].value');
+
+  const aeonQuotedSeparatorPayload = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'quotedSeparator',
+    datatype: 'sep[|]',
+    kind: 'separator',
+    value: '"hello world"|"this, [is] fine"',
+  }, namespace);
+  const aeonQuotedSeparatorPayloadResult = validateMutationPlanTarget(aeonQuotedSeparatorPayload, 'aeon');
+  assert.equal(aeonQuotedSeparatorPayloadResult.ok, true, JSON.stringify(aeonQuotedSeparatorPayloadResult.errors ?? []));
+
+  const aeonInvalidSeparatorPayload = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badSeparator',
+    kind: 'separator',
+    value: 'root/main',
+  }, namespace);
+  const aeonInvalidSeparatorPayloadResult = validateMutationPlanTarget(aeonInvalidSeparatorPayload, 'aeon');
+  assert.equal(aeonInvalidSeparatorPayloadResult.ok, false);
+  assert.equal(aeonInvalidSeparatorPayloadResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonInvalidSeparatorPayloadResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidSeparatorPayloadResult.errors[0].valuePath, 'operations[0].value');
+
+  const aeonInvalidSeparatorDatatype = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badSeparatorDatatype',
+    datatype: 'sep[","]',
+    kind: 'separator',
+    value: '"hello, world"',
+  }, namespace);
+  const aeonInvalidSeparatorDatatypeResult = validateMutationPlanTarget(aeonInvalidSeparatorDatatype, 'aeon');
+  assert.equal(aeonInvalidSeparatorDatatypeResult.ok, false);
+  assert.equal(aeonInvalidSeparatorDatatypeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidSeparatorDatatypeResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidSeparatorDatatypeResult.errors[0].datatype, 'sep[","]');
+
+  const aeonInvalidKadotMetadata = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badKadot',
+    datatype: 'kadot[.]',
+    kind: 'separator',
+    value: '1.2.3',
+  }, namespace);
+  const aeonInvalidKadotMetadataResult = validateMutationPlanTarget(aeonInvalidKadotMetadata, 'aeon');
+  assert.equal(aeonInvalidKadotMetadataResult.ok, false);
+  assert.equal(aeonInvalidKadotMetadataResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidKadotMetadataResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidKadotMetadataResult.errors[0].datatype, 'kadot[.]');
 });
 
 test('validates mutation plans against custom target surfaces', () => {

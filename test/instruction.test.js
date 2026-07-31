@@ -217,6 +217,11 @@ test('parses instruction value literal families', () => {
   assert.equal(csv.mutation.value.datatype, 'csv[","]');
   assert.equal(csv.mutation.value.kind, 'string');
 
+  const separator = parseOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"');
+  assert.equal(separator.mutation.value.datatype, 'sep[|]');
+  assert.equal(separator.mutation.value.kind, 'separator');
+  assert.equal(separator.mutation.value.value, '"hello world"|"this, [is] fine"');
+
   const absent = parseOk('create $.inventory.status with :null<string>, !notApplicable');
   assert.equal(absent.mutation.value.datatype, 'null<string>');
   assert.equal(absent.mutation.value.kind, 'null');
@@ -697,6 +702,24 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonEncodingStringTarget.errors[0].datatype, 'base64');
   assert.equal(aeonEncodingStringTarget.errors[0].valuePath, 'operations[0].value');
 
+  const aeonQuotedSeparatorCompatible = planOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"', namespace);
+  const aeonQuotedSeparatorTarget = validateMutationPlanTarget(aeonQuotedSeparatorCompatible.plan, 'aeon');
+  assert.equal(aeonQuotedSeparatorTarget.ok, true, JSON.stringify(aeonQuotedSeparatorTarget.errors ?? []));
+
+  const aeonInvalidSeparatorDatatype = planOk('create $.inventory.badSeparator with :sep[","], ^"hello, world"', namespace);
+  const aeonInvalidSeparatorDatatypeTarget = validateMutationPlanTarget(aeonInvalidSeparatorDatatype.plan, 'aeon');
+  assert.equal(aeonInvalidSeparatorDatatypeTarget.ok, false);
+  assert.equal(aeonInvalidSeparatorDatatypeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidSeparatorDatatypeTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidSeparatorDatatypeTarget.errors[0].datatype, 'sep[","]');
+
+  const aeonInvalidKadotMetadata = planOk('create $.inventory.badKadot with :kadot[.], ^1.2.3', namespace);
+  const aeonInvalidKadotMetadataTarget = validateMutationPlanTarget(aeonInvalidKadotMetadata.plan, 'aeon');
+  assert.equal(aeonInvalidKadotMetadataTarget.ok, false);
+  assert.equal(aeonInvalidKadotMetadataTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+  assert.equal(aeonInvalidKadotMetadataTarget.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonInvalidKadotMetadataTarget.errors[0].datatype, 'kadot[.]');
+
   const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
   const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');
   assert.equal(tupleTarget.ok, false);
@@ -797,6 +820,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  parseBad('create $.x with :sep, ^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
   parseBad('create $.x with :date, 2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseBad('create $.x with :time, 24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseBad('create $.x with :zrut, 2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');

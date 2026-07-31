@@ -1817,9 +1817,9 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
         ? { ok: true }
         : invalidAeonTargetValue('Encoding literals must be valid AEON Base64URL payload text without the & prefix', path, operationIndex);
     case 'separator':
-      return typeof value === 'string' && value.length > 0
+      return typeof value === 'string' && isAeonSeparatorPayload(value)
         ? { ok: true }
-        : invalidAeonTargetValue('Separator literals must be non-empty text without the ^ prefix', path, operationIndex);
+        : invalidAeonTargetValue('Separator literals must be valid AEON separator payload text without the ^ prefix', path, operationIndex);
     case 'sansa':
     case 'sansaAddress':
       return typeof value === 'string' && value.length > 0
@@ -1908,16 +1908,44 @@ function validateAeonReservedDatatypeSurface(datatype, base, operationIndex) {
       ),
     };
   }
-  if (loweredBase !== 'radix') return { ok: true };
+  if (loweredBase === 'radix' && source.includes('[')) {
+    const match = /^radix\[\s*([1-9]\d*)\s*\]$/i.exec(source);
+    const baseNumber = match ? Number(match[1]) : NaN;
+    if (!match || baseNumber < 2 || baseNumber > 64) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+          `Target 'aeon' requires radix bracket metadata to be an integer from 2 to 64`,
+          { operationIndex, targetFormat: 'aeon', datatype },
+        ),
+      };
+    }
+  }
+  return validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex);
+}
+
+function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
+  const source = String(datatype).trim();
+  const loweredBase = typeof base === 'string' ? base.toLowerCase() : base;
+  if (!['sep', 'separator', 'kadot'].includes(loweredBase)) return { ok: true };
   if (!source.includes('[')) return { ok: true };
-  const match = /^radix\[\s*([1-9]\d*)\s*\]$/i.exec(source);
-  const baseNumber = match ? Number(match[1]) : NaN;
-  if (!match || baseNumber < 2 || baseNumber > 64) {
+  if (loweredBase === 'kadot') {
     return {
       ok: false,
       error: mutationTargetSurfaceError(
         'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
-        `Target 'aeon' requires radix bracket metadata to be an integer from 2 to 64`,
+        `Target 'aeon' does not allow separator metadata on datatype '${source}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (!/^(?:sep|separator)(?:\[\s*[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]\s*\])+$/i.test(source)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' requires separator metadata to use one allowed separator character per bracket`,
         { operationIndex, targetFormat: 'aeon', datatype },
       ),
     };
@@ -6509,7 +6537,7 @@ class QueryExpressionParser {
     const start = this.index;
     this.index += 1;
     const payload = this.readStructuredLiteralPayload();
-    if (payload.length === 0) {
+    if (!isAeonSeparatorPayload(payload)) {
       this.fail('Invalid separator literal', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL', start);
     }
     return {
@@ -7466,6 +7494,41 @@ function isAeonRadixPayload(payload) {
 
 function isAeonEncodingPayload(payload) {
   return /^[A-Za-z0-9_-]+={0,2}$/.test(payload);
+}
+
+function isAeonSeparatorPayload(payload) {
+  if (typeof payload !== 'string' || payload.length === 0) return false;
+  let index = 0;
+  while (index < payload.length) {
+    const char = payload[index];
+    if (char === '"' || char === "'") {
+      const quote = char;
+      index += 1;
+      let terminated = false;
+      while (index < payload.length) {
+        const inner = payload[index];
+        if (inner === '\n' || inner === '\r') return false;
+        if (inner === '\\') {
+          index += 2;
+          continue;
+        }
+        index += 1;
+        if (inner === quote) {
+          terminated = true;
+          break;
+        }
+      }
+      if (!terminated) return false;
+      continue;
+    }
+    if (!isAeonSeparatorRawChar(char)) return false;
+    index += 1;
+  }
+  return true;
+}
+
+function isAeonSeparatorRawChar(char) {
+  return /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]$/.test(char ?? '');
 }
 
 function splitTopLevelQueryList(source) {

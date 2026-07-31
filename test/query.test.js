@@ -174,6 +174,12 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(separator.value, '0.11.0');
   assert.equal(renderQueryExpression(separator), '^0.11.0');
 
+  const quotedSeparator = parseExpressionOk('^"hello world"|"this, [is] fine"');
+  assert.equal(quotedSeparator.type, 'literalExpression');
+  assert.equal(quotedSeparator.kind, 'separator');
+  assert.equal(quotedSeparator.value, '"hello world"|"this, [is] fine"');
+  assert.equal(renderQueryExpression(quotedSeparator), '^"hello world"|"this, [is] fine"');
+
   const date = parseExpressionOk('2026-07-25');
   assert.equal(date.type, 'literalExpression');
   assert.equal(date.kind, 'date');
@@ -273,6 +279,8 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('#_', 'SANSA_QUERY_INVALID_HEX_LITERAL');
   parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
   parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
+  parseExpressionBad('^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
+  parseExpressionBad('^"unterminated', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
   parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
