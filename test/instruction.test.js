@@ -778,6 +778,29 @@ test('lowers query-shaped instructions through namespace candidates', () => {
       },
     ],
   });
+
+  assert.deepEqual(lowerOk([
+    'from $.inventory.items.*',
+    'where .["display name"] == "Adapter"',
+    'require .["display name"] == "Adapter"',
+    'replace .qty with :int32, 11',
+  ].join('\n'), namespace), {
+    operations: [
+      {
+        op: 'replace',
+        target: '$.inventory.items[0].qty',
+        datatype: 'int32',
+        kind: 'number',
+        value: 11,
+      },
+    ],
+    preconditions: [
+      {
+        expression: '.["display name"] == "Adapter"',
+        target: '$.inventory.items[0]',
+      },
+    ],
+  });
 });
 
 test('plans lowered instructions through the mutate planner', () => {
