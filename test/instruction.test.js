@@ -935,6 +935,10 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :object, { label = :string, }', 'SANSA_INSTRUCTION_EXPECTED_VALUE');
   parseBad('create $.x with :object, { count = :int32,, 344 }', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :node, <123("a")>', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL');
+  parseBad('create $.x with :, 1', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
+  parseBad('create $.x with :list<string, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
+  parseBad('create $.x with :csv[";", "a"', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
+  parseBad('create $.x with :list<>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('create $.x with :list<string|number>, [1]', 'SANSA_INSTRUCTION_INVALID_DATATYPE');
   parseBad('replace $.x with lower("A")', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('replace $.x with "a" in $.list.*', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
