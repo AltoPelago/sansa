@@ -800,7 +800,7 @@ function mutationQueryExpressionParseOptions(options) {
   return {};
 }
 
-function checkMutationBudget(options, budget, observed, phase) {
+function checkMutationBudget(options, budget, observed, phase, details = {}) {
   const limit = normalizeQueryBudgetLimit(options.budget?.[budget]);
   if (limit === undefined || observed <= limit) return { ok: true };
   return {
@@ -808,7 +808,7 @@ function checkMutationBudget(options, budget, observed, phase) {
     error: mutationError(
       'SANSA_MUTATE_BUDGET_EXCEEDED',
       `Mutation budget '${budget}' exceeded: limit ${limit}, observed ${observed}`,
-      { phase, budget, limit, observed },
+      { phase, budget, limit, observed, ...details },
     ),
   };
 }
@@ -823,22 +823,38 @@ function checkMutationValueBudgets(options, operations, phase = 'plan') {
   if (Object.values(limits).every((value) => value === undefined)) return { ok: true };
 
   const observed = { valueNodes: 0, valueDepth: 0, stringLength: 0 };
-  for (const operation of operations) {
+  const paths = { valueDepth: undefined, stringLength: undefined };
+  for (let index = 0; index < operations.length; index += 1) {
+    const operation = operations[index];
     if (!mutationOperationCarriesValue(operation)) continue;
-    const stats = mutationValueStats(operation.value);
+    const stats = mutationValueStats(operation.value, new WeakSet(), `operations[${index}].value`);
     observed.valueNodes += stats.nodes;
-    observed.valueDepth = Math.max(observed.valueDepth, stats.depth);
-    observed.stringLength = Math.max(observed.stringLength, stats.stringLength);
+    if (stats.depth > observed.valueDepth) {
+      observed.valueDepth = stats.depth;
+      paths.valueDepth = stats.depthPath;
+    }
+    if (stats.stringLength > observed.stringLength) {
+      observed.stringLength = stats.stringLength;
+      paths.stringLength = stats.stringPath;
+    }
   }
 
   const checks = [
-    ['maxValueNodes', observed.valueNodes],
-    ['maxValueDepth', observed.valueDepth],
-    ['maxStringLength', observed.stringLength],
+    ['maxValueNodes', observed.valueNodes, undefined],
+    ['maxValueDepth', observed.valueDepth, paths.valueDepth],
+    ['maxStringLength', observed.stringLength, paths.stringLength],
   ];
-  for (const [name, value] of checks) {
+  for (const [name, value, valuePath] of checks) {
     const limit = limits[name];
-    if (limit !== undefined && value > limit) return checkMutationBudget({ budget: { [name]: limit } }, name, value, phase);
+    if (limit !== undefined && value > limit) {
+      return checkMutationBudget(
+        { budget: { [name]: limit } },
+        name,
+        value,
+        phase,
+        valuePath === undefined ? {} : { valuePath },
+      );
+    }
   }
   return { ok: true };
 }
@@ -847,23 +863,38 @@ function mutationOperationCarriesValue(operation) {
   return ['create', 'replace', 'insert'].includes(operation?.op) && Object.hasOwn(operation, 'value');
 }
 
-function mutationValueStats(value, seen = new WeakSet()) {
-  if (typeof value === 'string') return { nodes: 1, depth: 1, stringLength: value.length };
-  if (value === null || typeof value !== 'object') return { nodes: 1, depth: 1, stringLength: 0 };
-  if (seen.has(value)) return { nodes: 0, depth: 0, stringLength: 0 };
+function mutationValueStats(value, seen = new WeakSet(), path = 'value') {
+  if (typeof value === 'string') return { nodes: 1, depth: 1, depthPath: path, stringLength: value.length, stringPath: path };
+  if (value === null || typeof value !== 'object') return { nodes: 1, depth: 1, depthPath: path, stringLength: 0, stringPath: undefined };
+  if (seen.has(value)) return { nodes: 0, depth: 0, depthPath: undefined, stringLength: 0, stringPath: undefined };
   seen.add(value);
 
-  const entries = Array.isArray(value) ? value : Object.values(value);
+  const entries = Array.isArray(value)
+    ? value.map((entry, index) => [index, entry])
+    : Object.entries(value);
   let nodes = 1;
   let childDepth = 0;
+  let childDepthPath = path;
   let stringLength = 0;
-  for (const entry of entries) {
-    const stats = mutationValueStats(entry, seen);
+  let stringPath;
+  for (const [key, entry] of entries) {
+    const stats = mutationValueStats(entry, seen, `${path}${renderMutationValuePathSegment(key)}`);
     nodes += stats.nodes;
-    childDepth = Math.max(childDepth, stats.depth);
-    stringLength = Math.max(stringLength, stats.stringLength);
+    if (stats.depth > childDepth) {
+      childDepth = stats.depth;
+      childDepthPath = stats.depthPath;
+    }
+    if (stats.stringLength > stringLength) {
+      stringLength = stats.stringLength;
+      stringPath = stats.stringPath;
+    }
   }
-  return { nodes, depth: childDepth + 1, stringLength };
+  return { nodes, depth: childDepth + 1, depthPath: childDepthPath ?? path, stringLength, stringPath };
+}
+
+function renderMutationValuePathSegment(key) {
+  if (typeof key === 'number') return `[${key}]`;
+  return IDENTIFIER_RE.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
 }
 
 function verifyPlannedMutationPreconditions(preconditions, namespace, options) {

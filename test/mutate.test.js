@@ -750,6 +750,7 @@ test('fails closed when mutation value budgets are exceeded', () => {
   assert.equal(depthBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
   assert.equal(depthBudget.errors[0].budget, 'maxValueDepth');
   assert.equal(depthBudget.errors[0].observed, 3);
+  assert.equal(depthBudget.errors[0].valuePath, 'operations[0].value.outer.inner');
 
   const stringBudget = planMutation({
     op: 'replace',
@@ -760,6 +761,19 @@ test('fails closed when mutation value budgets are exceeded', () => {
   assert.equal(stringBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
   assert.equal(stringBudget.errors[0].budget, 'maxStringLength');
   assert.equal(stringBudget.errors[0].observed, 10);
+  assert.equal(stringBudget.errors[0].valuePath, 'operations[0].value');
+
+  const nestedStringBudget = planMutation({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'nestedString',
+    value: { labels: ['ok', 'ABCDEFGHIJ'] },
+  }, namespace, { budget: { maxStringLength: 4 } });
+  assert.equal(nestedStringBudget.ok, false);
+  assert.equal(nestedStringBudget.errors[0].code, 'SANSA_MUTATE_BUDGET_EXCEEDED');
+  assert.equal(nestedStringBudget.errors[0].budget, 'maxStringLength');
+  assert.equal(nestedStringBudget.errors[0].observed, 10);
+  assert.equal(nestedStringBudget.errors[0].valuePath, 'operations[0].value.labels[1]');
 });
 
 test('preserves mutation target portability warnings on the plan', () => {
@@ -889,6 +903,7 @@ test('fails closed when mutation apply value budgets are exceeded', () => {
   assert.equal(applied.errors[0].budget, 'maxStringLength');
   assert.equal(applied.errors[0].limit, 4);
   assert.equal(applied.errors[0].observed, 10);
+  assert.equal(applied.errors[0].valuePath, 'operations[0].value');
   assert.equal(sku.value, 'A-100');
 });
 
