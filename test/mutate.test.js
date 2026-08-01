@@ -701,6 +701,52 @@ test('reports unsupported operation and placement diagnostics', () => {
   assert.equal(unsupportedPlacement.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_PLACEMENT');
 });
 
+test('rejects unsupported mutation request and operation fields', () => {
+  const namespace = sampleNamespace();
+
+  const requestPolicy = planMutation({
+    operations: [
+      { op: 'replace', target: '$.inventory.sku', value: 'B-200' },
+    ],
+    policy: { allow: true },
+  }, namespace);
+  assert.equal(requestPolicy.ok, false);
+  assert.equal(requestPolicy.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_REQUEST_FIELD');
+  assert.equal(requestPolicy.errors[0].requestField, 'policy');
+
+  const operationPolicy = planMutation({
+    op: 'replace',
+    target: '$.inventory.sku',
+    value: 'B-200',
+    policy: { allow: true },
+  }, namespace);
+  assert.equal(operationPolicy.ok, false);
+  assert.equal(operationPolicy.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_OPERATION_FIELD');
+  assert.equal(operationPolicy.errors[0].operationIndex, 0);
+  assert.equal(operationPolicy.errors[0].operationField, 'policy');
+
+  const claimedActor = planMutation({
+    op: 'replace',
+    target: '$.inventory.sku',
+    value: 'B-200',
+    by: 'Bob',
+  }, namespace);
+  assert.equal(claimedActor.ok, false);
+  assert.equal(claimedActor.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_OPERATION_FIELD');
+  assert.equal(claimedActor.errors[0].operationField, 'by');
+
+  const rewrite = planMutation({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'status',
+    value: 'active',
+    rewrite: { value: 'pending' },
+  }, namespace);
+  assert.equal(rewrite.ok, false);
+  assert.equal(rewrite.errors[0].code, 'SANSA_MUTATE_UNSUPPORTED_OPERATION_FIELD');
+  assert.equal(rewrite.errors[0].operationField, 'rewrite');
+});
+
 test('rejects ordered mutations against non-ordered containers', () => {
   const namespace = sampleNamespace();
 

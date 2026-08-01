@@ -52,15 +52,17 @@ function runTest(test, namespaces) {
   const operations = Array.isArray(test.input?.operations)
     ? test.input.operations
     : [test.input?.operation];
-  const request = Array.isArray(test.input?.preconditions)
-    ? {
-        operations,
-        preconditions: test.input.preconditions,
-        ...(test.input.provenance === undefined ? {} : { provenance: test.input.provenance }),
-      }
-    : operations.length === 1
-      ? operations[0]
-      : operations;
+  const request = test.input?.request !== undefined
+    ? test.input.request
+    : Array.isArray(test.input?.preconditions)
+      ? {
+          operations,
+          preconditions: test.input.preconditions,
+          ...(test.input.provenance === undefined ? {} : { provenance: test.input.provenance }),
+        }
+      : operations.length === 1
+        ? operations[0]
+        : operations;
   const planOptions = test.input?.planOptions ?? test.input?.options ?? {};
   const applyOptions = test.input?.applyOptions ?? test.input?.options ?? {};
   const planResult = planMutation(request, fixture.namespace, planOptions);
@@ -118,6 +120,18 @@ function runTest(test, namespaces) {
       const actualPolicyAddress = result.errors?.[0]?.policyAddress ?? null;
       if (actualPolicyAddress !== expected.errorPolicyAddress) {
         failures.push(`errorPolicyAddress mismatch: expected ${expected.errorPolicyAddress}, got ${actualPolicyAddress}`);
+      }
+    }
+    if (typeof expected.errorOperationField === 'string') {
+      const actualOperationField = result.errors?.[0]?.operationField ?? null;
+      if (actualOperationField !== expected.errorOperationField) {
+        failures.push(`errorOperationField mismatch: expected ${expected.errorOperationField}, got ${actualOperationField}`);
+      }
+    }
+    if (typeof expected.errorRequestField === 'string') {
+      const actualRequestField = result.errors?.[0]?.requestField ?? null;
+      if (actualRequestField !== expected.errorRequestField) {
+        failures.push(`errorRequestField mismatch: expected ${expected.errorRequestField}, got ${actualRequestField}`);
       }
     }
     if (typeof expected.errorPhase === 'string') {

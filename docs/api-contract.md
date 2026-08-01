@@ -366,7 +366,14 @@ Preconditions use the SANSA.Query expression evaluator and must produce a Boolea
 
 Preserved preconditions are rechecked by default before apply invokes any mutation hook. This protects a plan from non-target state drift between planning and apply. Callers that rely on a stronger external transaction or namespace-state contract may pass `{ recheckPreconditions: false }` to `applyMutationPlan`.
 
-Request envelopes may include `provenance`. Successful planning preserves this as plan-level `sourceProvenance` for audit and diagnostics. Individual requested operations may also carry `provenance`, which is preserved on the planned operation. Provenance is inert metadata; it is not interpreted as SANSA source, authorization policy, or validation policy.
+Request envelopes support only `operations`, `preconditions`, and `provenance`.
+Known operation requests support only their operation fields plus optional inert
+`provenance`. Unsupported request or operation fields fail closed rather than
+being ignored. Successful planning preserves request `provenance` as plan-level
+`sourceProvenance` for audit and diagnostics. Individual requested operations
+may also carry `provenance`, which is preserved on the planned operation.
+Provenance is inert metadata; it is not interpreted as SANSA source,
+authorization policy, validation policy, or mutation rewrite behavior.
 
 `create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own that compatibility check.
 

@@ -14,6 +14,14 @@ const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
+const MUTATION_OPERATION_FIELDS = new Map([
+  ['create', new Set(['op', 'parent', 'name', 'value', 'datatype', 'kind', 'provenance'])],
+  ['replace', new Set(['op', 'target', 'value', 'datatype', 'kind', 'provenance'])],
+  ['remove', new Set(['op', 'target', 'provenance'])],
+  ['insert', new Set(['op', 'container', 'placement', 'value', 'datatype', 'kind', 'provenance'])],
+  ['move', new Set(['op', 'source', 'container', 'placement', 'provenance'])],
+]);
 const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'toggle',
   'hex',
@@ -489,13 +497,15 @@ export function evaluateQuery(input, namespace, options = {}) {
 export function planMutation(input, namespace, options = {}) {
   const normalized = normalizeMutationRequest(input);
   if (!normalized.ok) {
-    return { ok: false, errors: [mutationError(normalized.code, normalized.message)] };
+    return { ok: false, errors: [mutationError(normalized.code, normalized.message, normalized.details)] };
   }
 
   const operationBudget = checkMutationBudget(options, 'maxOperations', normalized.operations.length, 'plan');
   if (!operationBudget.ok) return { ok: false, errors: [operationBudget.error] };
   const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', normalized.preconditions.length, 'plan');
   if (!preconditionBudget.ok) return { ok: false, errors: [preconditionBudget.error] };
+  const operationSurface = checkMutationOperationSurfaces(normalized.operations);
+  if (!operationSurface.ok) return { ok: false, errors: [operationSurface.error] };
   const valueBudget = checkMutationValueBudgets(options, normalized.operations);
   if (!valueBudget.ok) return { ok: false, errors: [valueBudget.error] };
 
@@ -633,6 +643,15 @@ export function applyMutationPlan(plan, namespace, options = {}) {
 function normalizeMutationRequest(input) {
   if (Array.isArray(input)) return { ok: true, operations: input, preconditions: [] };
   if (input && typeof input === 'object' && Array.isArray(input.operations)) {
+    const unsupportedField = firstUnsupportedField(input, MUTATION_REQUEST_ENVELOPE_FIELDS);
+    if (unsupportedField !== undefined) {
+      return {
+        ok: false,
+        code: 'SANSA_MUTATE_UNSUPPORTED_REQUEST_FIELD',
+        message: `Mutation request field '${unsupportedField}' is not supported by the conservative mutation core`,
+        details: { requestField: unsupportedField },
+      };
+    }
     if (input.preconditions !== undefined && !Array.isArray(input.preconditions)) {
       return {
         ok: false,
@@ -655,6 +674,31 @@ function normalizeMutationRequest(input) {
     code: 'SANSA_MUTATE_INVALID_REQUEST',
     message: 'Expected mutation request object, operation object, or operation list',
   };
+}
+
+function checkMutationOperationSurfaces(operations) {
+  for (let operationIndex = 0; operationIndex < operations.length; operationIndex += 1) {
+    const requested = operations[operationIndex];
+    if (!requested || typeof requested !== 'object') continue;
+    const allowedFields = MUTATION_OPERATION_FIELDS.get(requested.op);
+    if (!allowedFields) continue;
+    const unsupportedField = firstUnsupportedField(requested, allowedFields);
+    if (unsupportedField !== undefined) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_UNSUPPORTED_OPERATION_FIELD',
+          `Mutation operation field '${unsupportedField}' is not supported by ${requested.op}`,
+          { operationIndex, operationField: unsupportedField },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function firstUnsupportedField(input, allowedFields) {
+  return Object.keys(input).find((field) => !allowedFields.has(field));
 }
 
 function evaluateMutationPreconditions(preconditions, namespace, options) {
