@@ -20,6 +20,7 @@ test('instruction tool help documents core options', () => {
   assert.match(result.stdout, /sansa-instruction --instruction <source>/);
   assert.match(result.stdout, /--mode <mode>/);
   assert.match(result.stdout, /--target <target>/);
+  assert.match(result.stdout, /aeon, json, or json-compatible/);
   assert.match(result.stdout, /parse, lower, or plan/);
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
 });
@@ -189,6 +190,22 @@ test('instruction tool validates planned instructions against target surfaces', 
   assert.equal(rejectedText.status, 1);
   assert.equal(rejectedText.stdout, '');
   assert.match(rejectedText.stderr, /SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE \[target\] \(operation 0, target json, datatype sansa\):/);
+});
+
+test('instruction tool rejects unsupported target surface names before planning', () => {
+  const result = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'xml',
+    '--instruction',
+    'replace $.inventory.items[0].sku with "A-101"',
+  ]);
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /unsupported --target 'xml'/);
+  assert.match(result.stderr, /Expected 'aeon', 'json', or 'json-compatible'/);
 });
 
 test('instruction tool emits JSON diagnostics', () => {
