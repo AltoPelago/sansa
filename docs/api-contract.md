@@ -646,6 +646,27 @@ The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
 `"aeon"` and can be set to `"json"` through the browser target selector or the
 `/api/mutate` request payload.
 
+The `/api/mutate` response includes a `targetProfile` object in JSON mode:
+
+```json
+{
+  "id": "aeon",
+  "boundary": "representability",
+  "summary": "AEON target surface: accepts AEON-representable datatype, kind, and value intent before apply."
+}
+```
+
+`targetProfile.id` is the normalized target surface used for validation, so
+aliases such as `"json-compatible"` report `"json"`. `boundary:
+"representability"` means the selected target surface is checking whether a
+planned operation can be carried by that target format; it is not schema
+approval, authorization, or mutation planning. Target-surface diagnostic text
+therefore begins with a phase summary such as `target-surface: plan produced;
+selected target cannot represent the planned intent for target 'aeon'`. Plan
+failures use a different summary, such as `plan: mutation request could not be
+planned`, so technical tests can distinguish invalid mutation intent from valid
+intent rejected by the selected target surface.
+
 For example, SANSA Instruction can parse and lower `:string<null>` as datatype
 intent, but the AEON workbench target rejects it because AEON only allows
 generic parameters on specific datatype families:

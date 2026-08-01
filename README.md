@@ -90,7 +90,8 @@ The Mutate Workbench accepts either structured mutation-request JSON or
 proposal-stage SANSA Instruction source, then uses the same plan/apply preview
 surface. It also includes an experimental target selector so planned mutations
 can be checked against AEON or JSON-compatible representation surfaces before
-apply/render. Its phase model is intentionally explicit: parse Instruction
+apply/render. JSON responses include `targetProfile` metadata that names the
+selected representability boundary. Its phase model is intentionally explicit: parse Instruction
 source when present, lower to exact structured mutation operations, plan through
 SANSA.Mutate, run optional consumer policy, run optional target-surface
 validation, then preview or apply through host mutation hooks.
