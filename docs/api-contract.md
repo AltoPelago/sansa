@@ -380,7 +380,16 @@ may also carry `provenance`, which is preserved on the planned operation.
 Provenance is inert metadata; it is not interpreted as SANSA source,
 authorization policy, validation policy, or mutation rewrite behavior.
 
-`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own that compatibility check.
+`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own semantic compatibility checks.
+
+Structured Mutate requests intentionally preserve `datatype` and `kind`
+separately until target-surface validation. This differs from SANSA
+Instruction syntax, where known datatype/literal-family mismatches are rejected
+during instruction parsing because the author has supplied a single literal
+form. A structured request may carry `datatype: "brandColor", kind: "hex"` as
+valid custom intent; an AEON target surface may reject `datatype: "number",
+kind: "string"` because both families are known and incompatible for AEON
+materialization.
 
 The workbench AEON adapter uses these hints when rendering Source Result output. If `kind` is present, it chooses the representation. Otherwise the adapter infers representation from known `datatype` values, then from the JSON value shape:
 
@@ -644,6 +653,13 @@ generic parameters on specific datatype families:
 ```text
 create $.types.textProbe with :string<null>, ""
 ```
+
+Structured requests reach the same target-surface boundary with separate
+fields. Custom semantic intent such as `datatype: "brandColor", kind: "hex",
+value: "ff00aa"` remains representable for an AEON target, while a known-family
+contradiction such as `datatype: "number", kind: "string", value: "42"` is
+reported as target-surface value representability failure rather than as a
+planning failure.
 
 JSON target mode accepts ordinary JSON-compatible object/list/string/number/
 boolean/null values, but rejects AEON-only representational features such as
