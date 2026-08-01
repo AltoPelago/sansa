@@ -43,6 +43,13 @@
         "append",
         "move"
       ],
+      "aliases": [
+        {
+          "sourceVerb": "append",
+          "canonicalVerb": "insert",
+          "placement": "last"
+        }
+      ],
       "entryPoints": [
         "parseInstruction",
         "lowerInstruction",
@@ -50,6 +57,7 @@
       ],
       "boundaries": [
         "lowering emits SANSA.Mutate request operations",
+        "append is source-level Instruction sugar and lowers to insert-last mutation intent",
         "require clauses lower into SANSA.Mutate preconditions",
         "because and by clauses are inert claimed provenance, not authorization or authentication",
         "planning delegates to SANSA.Mutate plan API",
