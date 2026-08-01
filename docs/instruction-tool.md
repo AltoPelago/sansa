@@ -66,11 +66,14 @@ JSON output includes a sanitized plan summary instead of live binding objects.
 ```bash
 npm run instruction -- --mode plan --target aeon --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
 npm run instruction -- --mode plan --target json --instruction 'create $.types.selectorCliProbe with :sansa, $.inventory.items.*'
+npm run instruction -- --mode plan --target json-compatible --instruction 'create $.types.label with "ok"'
 ```
 
 The target check runs after planning by calling
 `validateMutationPlanTarget(plan, target)`. It does not change instruction
 parsing, lowering, or mutation planning.
+`json-compatible` is accepted as an alias for the JSON target surface; target
+diagnostics still report normalized `targetFormat: "json"`.
 
 ## Phase Model
 

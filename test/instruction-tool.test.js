@@ -157,6 +157,26 @@ test('instruction tool validates planned instructions against target surfaces', 
   assert.equal(payload.target, 'json');
   assert.equal(payload.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
 
+  const aliasRejected = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'json-compatible',
+    '--format',
+    'json',
+    '--instruction',
+    'create $.types.selectorCliAliasProbe with :sansa, $.inventory.items.*',
+  ]);
+
+  assert.equal(aliasRejected.status, 1);
+  assert.equal(aliasRejected.stderr, '');
+  const aliasPayload = JSON.parse(aliasRejected.stdout);
+  assert.equal(aliasPayload.ok, false);
+  assert.equal(aliasPayload.phase, 'target');
+  assert.equal(aliasPayload.target, 'json-compatible');
+  assert.equal(aliasPayload.errors[0].targetFormat, 'json');
+  assert.equal(aliasPayload.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
+
   const rejectedText = runTool([
     '--mode',
     'plan',
