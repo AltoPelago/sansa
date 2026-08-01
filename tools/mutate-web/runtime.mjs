@@ -31,6 +31,7 @@ export async function runMutationForWorkbench({
   mode = 'plan',
   options = {},
 }) {
+  const targetProfile = describeMutationTargetProfile(options.targetFormat);
   const namespaceResult = await namespaceFromAeonSource(source);
   if (!namespaceResult.ok) {
     return {
@@ -56,8 +57,9 @@ export async function runMutationForWorkbench({
       requestKind: requestKind === 'instruction' ? 'instruction' : 'structured',
       phase: primaryDiagnosticPhase(errors, planResult.phase ?? 'plan'),
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
-      text: renderDiagnosticText(planResult.errors),
+      text: renderDiagnosticText(planResult.errors, { fallbackPhase: planResult.phase ?? 'plan' }),
       errors,
+      targetProfile,
       source: renderBindingTree(root),
     };
   }
@@ -73,11 +75,12 @@ export async function runMutationForWorkbench({
       text: renderDiagnosticText(policyResult.errors),
       errors: normalizeDiagnostics(policyResult.errors),
       plan: summarizePlan(planResult.plan),
+      targetProfile,
       source: renderBindingTree(root),
     };
   }
 
-  const targetResult = enforceTargetSurfaceForWorkbench(planResult.plan, options.targetFormat);
+  const targetResult = enforceTargetSurfaceForWorkbench(planResult.plan, targetProfile.id);
   if (!targetResult.ok) {
     return {
       ok: false,
@@ -88,6 +91,7 @@ export async function runMutationForWorkbench({
       text: renderDiagnosticText(targetResult.errors),
       errors: normalizeDiagnostics(targetResult.errors),
       plan: summarizePlan(planResult.plan),
+      targetProfile,
       source: renderBindingTree(root),
     };
   }
@@ -101,6 +105,7 @@ export async function runMutationForWorkbench({
       text: renderPlanText(planResult.plan),
       plan,
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
+      targetProfile,
       source: renderBindingTree(root),
       diagnostics: normalizeDiagnostics(planResult.diagnostics ?? []),
     };
@@ -115,6 +120,7 @@ export async function runMutationForWorkbench({
       plan,
       errors: normalizeDiagnostics(applied.errors),
       operationResults: summarizeOperationResults(applied.operationResults ?? []),
+      targetProfile,
       source: renderBindingTree(root),
     };
   }
@@ -126,6 +132,7 @@ export async function runMutationForWorkbench({
     text: renderApplyText(applied),
     plan,
     ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
+    targetProfile,
     result: {
       planId: applied.planId,
       stateBefore: sanitizeJsonValue(applied.stateBefore),
@@ -168,6 +175,22 @@ export function enforceMutationPolicyForWorkbench(plan, namespace, policySource)
 
 function enforceTargetSurfaceForWorkbench(plan, targetFormat) {
   return validateMutationPlanTarget(plan, targetFormat ?? 'aeon');
+}
+
+function describeMutationTargetProfile(targetFormat) {
+  const id = targetFormat === 'json' ? 'json' : 'aeon';
+  if (id === 'json') {
+    return {
+      id,
+      boundary: 'representability',
+      summary: 'JSON-compatible target surface: accepts ordinary JSON-compatible values and rejects AEON-only representation features.',
+    };
+  }
+  return {
+    id,
+    boundary: 'representability',
+    summary: 'AEON target surface: accepts AEON-representable datatype, kind, and value intent before apply.',
+  };
 }
 
 function normalizeWorkbenchPolicy(policy) {
@@ -1103,9 +1126,14 @@ function renderBlockString(value) {
   return `>\`${text}\``;
 }
 
-function renderDiagnosticText(errors) {
+function renderDiagnosticText(errors, options = {}) {
   if (!Array.isArray(errors) || errors.length === 0) return '(no diagnostics)';
-  return errors.map((error) => {
+  const lines = [];
+  if (options.includeSummary !== false) {
+    const summary = renderDiagnosticPhaseSummary(errors, options.fallbackPhase);
+    if (summary) lines.push(summary, '');
+  }
+  lines.push(...errors.map((error) => {
     const phase = typeof error.phase === 'string' ? ` [${error.phase}]` : '';
     const operation = Number.isInteger(error.operationIndex) ? ` operation ${error.operationIndex}` : '';
     const rule = Number.isInteger(error.ruleIndex) ? ` rule ${error.ruleIndex}` : '';
@@ -1113,10 +1141,26 @@ function renderDiagnosticText(errors) {
     const location = Number.isInteger(error.index) ? ` index ${error.index}` : '';
     const details = renderDiagnosticDetails(error);
     const cause = error.cause && typeof error.cause === 'object'
-      ? `\n  cause ${renderDiagnosticText([error.cause])}`
+      ? `\n  cause ${renderDiagnosticText([error.cause], { includeSummary: false })}`
       : '';
     return `${error.code}${phase}${operation}${rule}${budget}${location}${details}: ${error.message}${cause}`;
-  }).join('\n');
+  }));
+  return lines.join('\n');
+}
+
+function renderDiagnosticPhaseSummary(errors, fallbackPhase) {
+  const phase = primaryDiagnosticPhase(normalizeDiagnostics(errors), fallbackPhase);
+  if (phase === 'target') {
+    const targetFormat = errors.find((error) => typeof error?.targetFormat === 'string')?.targetFormat;
+    const suffix = targetFormat ? ` for target '${targetFormat}'` : '';
+    return `target-surface: plan produced; selected target cannot represent the planned intent${suffix}`;
+  }
+  if (phase === 'plan') return 'plan: mutation request could not be planned';
+  if (phase === 'policy') return 'policy: planned operation was rejected by workbench policy';
+  if (phase === 'apply') return 'apply: plan could not be applied by the mutation adapter';
+  if (phase === 'parse') return 'parse: request source could not be parsed';
+  if (phase === 'lower') return 'lower: instruction source could not be lowered to exact mutation intent';
+  return '';
 }
 
 function renderDiagnosticDetails(error) {

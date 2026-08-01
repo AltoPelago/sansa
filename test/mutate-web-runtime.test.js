@@ -494,7 +494,10 @@ testAeonRuntime('mutate web runtime reports create against non-container parents
   });
 
   assert.equal(result.ok, false);
+  assert.equal(result.phase, 'plan');
+  assert.equal(result.targetProfile.id, 'aeon');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_PARENT_NOT_CONTAINER');
+  assert.match(result.text, /plan: mutation request could not be planned/);
   assert.match(result.text, /Create parent \$\.types\.color is not a container binding/);
 });
 
@@ -1147,8 +1150,11 @@ testAeonRuntime('mutate web runtime rejects AEON-invalid container member names'
 
   assert.equal(result.ok, false);
   assert.equal(result.phase, 'target');
+  assert.equal(result.targetProfile.id, 'aeon');
+  assert.equal(result.targetProfile.boundary, 'representability');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
   assert.equal(result.errors[0].targetFormat, 'aeon');
+  assert.match(result.text, /target-surface: plan produced; selected target cannot represent the planned intent for target 'aeon'/);
   assert.match(result.text, /Keys must not be empty/);
   assert.doesNotMatch(result.source, /settings:object/);
 });
@@ -1164,9 +1170,11 @@ testAeonRuntime('mutate web runtime rejects datatypes outside the AEON target su
 
   assert.equal(result.ok, false);
   assert.equal(result.phase, 'target');
+  assert.equal(result.targetProfile.id, 'aeon');
   assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(result.errors[0].targetFormat, 'aeon');
   assert.equal(result.errors[0].datatype, 'string<null>');
+  assert.match(result.text, /target-surface: plan produced; selected target cannot represent the planned intent for target 'aeon'/);
   assert.match(result.text, /target aeon, datatype string<null>/);
   assert.match(result.text, /does not allow generic parameters on datatype 'string'/);
 
@@ -1211,8 +1219,11 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
 
   assert.equal(attribute.ok, false);
   assert.equal(attribute.phase, 'target');
+  assert.equal(attribute.targetProfile.id, 'json');
+  assert.equal(attribute.targetProfile.boundary, 'representability');
   assert.equal(attribute.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
   assert.equal(attribute.errors[0].targetFormat, 'json');
+  assert.match(attribute.text, /target-surface: plan produced; selected target cannot represent the planned intent for target 'json'/);
   assert.match(attribute.text, /cannot represent AEON attribute-space mutations/);
 
   const typed = await runMutationForWorkbench({
