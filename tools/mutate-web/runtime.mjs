@@ -13,6 +13,7 @@ const WORKBENCH_POLICY_RULE_FIELDS = new Set([
   'parent',
   'container',
   'source',
+  'anchor',
   'names',
   'name',
   'datatypes',
@@ -298,6 +299,12 @@ function workbenchPolicyRuleMatches(operation, rule, namespace) {
     const target = operation[role];
     if (!target?.canonicalAddress) return { ok: true, matched: false };
     const addressMatch = workbenchPolicyAddressMatches(rule[role], target.canonicalAddress, namespace, role);
+    if (!addressMatch.ok || !addressMatch.matched) return addressMatch;
+  }
+  if (rule.anchor !== undefined) {
+    const anchor = operation.placement?.anchor;
+    if (!anchor?.canonicalAddress) return { ok: true, matched: false };
+    const addressMatch = workbenchPolicyAddressMatches(rule.anchor, anchor.canonicalAddress, namespace, 'anchor');
     if (!addressMatch.ok || !addressMatch.matched) return addressMatch;
   }
   return { ok: true, matched: true };

@@ -85,6 +85,7 @@ The prototype supports these rule fields:
 - `parent`: SANSA selector matched against `create` parents.
 - `container`: SANSA selector matched against `insert` and `move` containers.
 - `source`: SANSA selector matched against `move` sources.
+- `anchor`: SANSA selector matched against `before` / `after` placement anchors.
 - `names` or `name`: allowed create names.
 - `datatypes` or `datatype`: allowed effective datatype.
 - `kinds` or `kind`: allowed effective representation kind.
@@ -96,6 +97,8 @@ They are parsed and resolved as addresses rather than compared as raw strings:
 quoted member selectors such as `$.inventory.["display tags"]` and escaped
 quoted selectors such as `$.inventory.["quote\"key"]` match the corresponding
 planned canonical address roles after resolution.
+An `anchor` matcher only matches operations whose placement has a resolved
+`before` or `after` anchor. It does not match `first` or `last` placements.
 
 For `replace`, effective datatype and kind fall back to the current target
 binding metadata when the mutation request does not provide explicit hints. For

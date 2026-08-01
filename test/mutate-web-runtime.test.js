@@ -1016,6 +1016,7 @@ testAeonRuntime('mutate web runtime policy matches quoted and escaped address ro
         allow: true,
         operations: ['insert'],
         container: '$.inventory.["display tags"]',
+        anchor: '$.inventory.["display tags"][1]',
         datatype: 'string',
       },
       {
@@ -1023,6 +1024,7 @@ testAeonRuntime('mutate web runtime policy matches quoted and escaped address ro
         operations: ['move'],
         source: '$.inventory.["display tags"][0]',
         container: '$.inventory.["display tags"]',
+        anchor: '$.inventory.["display tags"][1]',
       },
     ],
   };
@@ -1048,7 +1050,7 @@ testAeonRuntime('mutate web runtime policy matches quoted and escaped address ro
         {
           op: 'insert',
           container: '$.inventory.["display tags"]',
-          placement: 'last',
+          placement: { kind: 'before', anchor: '$.inventory.["display tags"][1]' },
           datatype: 'string',
           value: 'sale',
         },
@@ -1070,6 +1072,60 @@ testAeonRuntime('mutate web runtime policy matches quoted and escaped address ro
   assert.equal(result.plan.operations[2].container.canonicalAddress, '$.inventory.["display tags"]');
   assert.equal(result.plan.operations[3].source.canonicalAddress, '$.inventory.["display tags"][0]');
   assert.equal(result.plan.operations[3].container.canonicalAddress, '$.inventory.["display tags"]');
+});
+
+testAeonRuntime('mutate web runtime policy anchor matchers require anchored placement', async () => {
+  const source = [
+    'inventory:object = {',
+    '  tags:list<string> = ["primary", "featured"]',
+    '}',
+  ].join('\n');
+  const policy = {
+    default: 'deny',
+    rules: [
+      {
+        allow: true,
+        operations: ['insert'],
+        container: '$.inventory.tags',
+        anchor: '$.inventory.tags[1]',
+        datatype: 'string',
+      },
+    ],
+  };
+
+  const anchored = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'insert',
+      container: '$.inventory.tags',
+      placement: { kind: 'before', anchor: '$.inventory.tags[1]' },
+      datatype: 'string',
+      value: 'sale',
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(anchored.ok, true, JSON.stringify(anchored.errors ?? []));
+  assert.equal(anchored.plan.operations[0].placement.anchor.canonicalAddress, '$.inventory.tags[1]');
+
+  const unanchored = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'insert',
+      container: '$.inventory.tags',
+      placement: 'last',
+      datatype: 'string',
+      value: 'sale',
+    }),
+    options: { policySource: JSON.stringify(policy) },
+  });
+
+  assert.equal(unanchored.ok, false);
+  assert.equal(unanchored.phase, 'policy');
+  assert.equal(unanchored.errors[0].code, 'SANSA_MUTATE_POLICY_DENIED');
+  assert.equal(unanchored.errors[0].operationIndex, 0);
 });
 
 testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
