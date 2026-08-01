@@ -178,7 +178,7 @@ function enforceTargetSurfaceForWorkbench(plan, targetFormat) {
 }
 
 function describeMutationTargetProfile(targetFormat) {
-  const id = targetFormat === 'json' ? 'json' : 'aeon';
+  const id = targetFormat === 'json' || targetFormat === 'json-compatible' ? 'json' : 'aeon';
   if (id === 'json') {
     return {
       id,

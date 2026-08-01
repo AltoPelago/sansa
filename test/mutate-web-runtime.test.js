@@ -1203,6 +1203,21 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   });
 
   assert.equal(compatible.ok, true, JSON.stringify(compatible.errors ?? []));
+  assert.equal(compatible.targetProfile.id, 'json');
+
+  const compatibleAlias = await runMutationForWorkbench({
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.inventory.items[0].sku',
+      value: 'A-101',
+    }),
+    options: { targetFormat: 'json-compatible' },
+  });
+
+  assert.equal(compatibleAlias.ok, true, JSON.stringify(compatibleAlias.errors ?? []));
+  assert.equal(compatibleAlias.targetProfile.id, 'json');
 
   const attribute = await runMutationForWorkbench({
     source,
