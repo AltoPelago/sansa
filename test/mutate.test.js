@@ -241,6 +241,32 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonKindResult.errors[0].datatype, 'toggle');
   assert.equal(aeonKindResult.errors[0].valuePath, 'operations[0].value');
 
+  const aeonCustomDatatypeKnownKind = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'brandColor',
+    datatype: 'brandColor',
+    kind: 'hex',
+    value: 'ff00aa',
+  }, namespace);
+  const aeonCustomDatatypeKnownKindResult = validateMutationPlanTarget(aeonCustomDatatypeKnownKind, 'aeon');
+  assert.equal(aeonCustomDatatypeKnownKindResult.ok, true, JSON.stringify(aeonCustomDatatypeKnownKindResult.errors ?? []));
+
+  const aeonKnownDatatypeMismatchedKind = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'badNumberString',
+    datatype: 'number',
+    kind: 'string',
+    value: '42',
+  }, namespace);
+  const aeonKnownDatatypeMismatchedKindResult = validateMutationPlanTarget(aeonKnownDatatypeMismatchedKind, 'aeon');
+  assert.equal(aeonKnownDatatypeMismatchedKindResult.ok, false);
+  assert.equal(aeonKnownDatatypeMismatchedKindResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  assert.equal(aeonKnownDatatypeMismatchedKindResult.errors[0].targetFormat, 'aeon');
+  assert.equal(aeonKnownDatatypeMismatchedKindResult.errors[0].datatype, 'number');
+  assert.equal(aeonKnownDatatypeMismatchedKindResult.errors[0].valuePath, 'operations[0].value');
+
   const aeonInvalidTemporal = planOk({
     op: 'create',
     parent: '$.inventory',
