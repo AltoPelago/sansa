@@ -299,6 +299,26 @@ test('parses instruction value literal families', () => {
   assert.equal(separator.mutation.value.kind, 'separator');
   assert.equal(separator.mutation.value.value, '"hello world"|"this, [is] fine"');
 
+  const radixMetadata = parseOk('create $.inventory.badRadix with :radix[03], %101');
+  assert.equal(radixMetadata.mutation.value.datatype, 'radix[03]');
+  assert.equal(radixMetadata.mutation.value.kind, 'radix');
+  assert.equal(radixMetadata.mutation.value.value, '101');
+
+  const radixAlias = parseOk('create $.inventory.badRadixAlias with :radix16, %10');
+  assert.equal(radixAlias.mutation.value.datatype, 'radix16');
+  assert.equal(radixAlias.mutation.value.kind, 'radix');
+  assert.equal(radixAlias.mutation.value.value, '10');
+
+  const commaSeparatorMetadata = parseOk('create $.inventory.badSeparator with :sep[","], ^"hello, world"');
+  assert.equal(commaSeparatorMetadata.mutation.value.datatype, 'sep[","]');
+  assert.equal(commaSeparatorMetadata.mutation.value.kind, 'separator');
+  assert.equal(commaSeparatorMetadata.mutation.value.value, '"hello, world"');
+
+  const kadotMetadata = parseOk('create $.inventory.badKadot with :kadot[.], ^1.2.3');
+  assert.equal(kadotMetadata.mutation.value.datatype, 'kadot[.]');
+  assert.equal(kadotMetadata.mutation.value.kind, 'separator');
+  assert.equal(kadotMetadata.mutation.value.value, '1.2.3');
+
   const absent = parseOk('create $.inventory.status with :null<string>, !notApplicable');
   assert.equal(absent.mutation.value.datatype, 'null<string>');
   assert.equal(absent.mutation.value.kind, 'null');
@@ -308,6 +328,11 @@ test('parses instruction value literal families', () => {
   assert.equal(reference.mutation.value.datatype, 'number');
   assert.equal(reference.mutation.value.kind, 'cloneReference');
   assert.equal(reference.mutation.value.value, 'target');
+
+  const selectorReference = parseOk('create $.inventory.badReference with :number, ~target.*');
+  assert.equal(selectorReference.mutation.value.datatype, 'number');
+  assert.equal(selectorReference.mutation.value.kind, 'cloneReference');
+  assert.equal(selectorReference.mutation.value.value, 'target.*');
 
   parseBad('create $.inventory.when with :date, "2026-10-10"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
   parseBad('create $.inventory.count with :number, "2026-10-10"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
