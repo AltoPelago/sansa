@@ -481,6 +481,24 @@ export const mutateExamples = [
     },
   },
   {
+    id: 'target-aeon-known-kind-mismatch-fail',
+    label: 'AEON Rejects number+string',
+    group: 'Target Surfaces',
+    variants: {
+      structured: {
+        options: { targetFormat: 'aeon' },
+        request: {
+          op: 'create',
+          parent: '$.types',
+          name: 'badNumberString',
+          datatype: 'number',
+          kind: 'string',
+          value: '42',
+        },
+      },
+    },
+  },
+  {
     id: 'target-json-scalar-ok',
     label: 'JSON Allows Scalar',
     group: 'Target Surfaces',
@@ -1123,6 +1141,14 @@ const mutateExampleExpectationOverrides = {
     operationCount: 1,
     textIncludes: ['0: create $.types'],
   },
+  'target-aeon-known-kind-mismatch-fail:structured': {
+    ok: false,
+    phase: 'target',
+    code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+    targetFormat: 'aeon',
+    datatype: 'number',
+    textIncludes: ['target aeon, datatype number', "Datatype 'number' is not compatible with string literal representation"],
+  },
   'target-json-container-ok:instruction': {
     ok: true,
     operationCount: 1,
@@ -1192,6 +1218,18 @@ const mutateExampleApplyExpectationOverrides = {
     operationStatuses: ['applied'],
     sourceIncludes: ['color@{selector:sansa = $.inventory.items.*}:hex = #ff00aa'],
     textIncludes: ['applied: 1', '0: applied $.types.color.@ -> $.types.color.@.selector'],
+  },
+  'create-kind:structured': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['brand:brandColor = #ff00aa'],
+    textIncludes: ['applied: 1', '0: applied $.types -> $.types.brand'],
+  },
+  'create-kind:instruction': {
+    ok: true,
+    operationStatuses: ['applied'],
+    sourceIncludes: ['brand:brandColor = #ff00aa'],
+    textIncludes: ['applied: 1', '0: applied $.types -> $.types.brand'],
   },
   'remove-metric:instruction': {
     ok: true,
