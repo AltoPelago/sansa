@@ -186,6 +186,11 @@ test('validates mutation plans against built-in target surfaces', () => {
   const compatible = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
   assert.equal(validateMutationPlanTarget(compatible, 'aeon').ok, true);
   assert.equal(validateMutationPlanTarget(compatible, 'json').ok, true);
+  const unsupportedTarget = validateMutationPlanTarget(compatible, 'xml');
+  assert.equal(unsupportedTarget.ok, false);
+  assert.equal(unsupportedTarget.errors[0].phase, 'target');
+  assert.equal(unsupportedTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+  assert.equal(unsupportedTarget.errors[0].targetFormat, 'xml');
 
   const aeonInvalidDatatype = planOk({
     op: 'create',
