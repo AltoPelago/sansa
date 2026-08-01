@@ -641,7 +641,13 @@ tuples, nodes, references, NaN, and Infinity.
 When the workbench policy toggle is enabled, the endpoint accepts
 `options.policySource` containing a JSON policy document. The endpoint plans
 first, checks the planned operations against the policy, and only applies the
-plan when every operation is authorized. Policy diagnostics use
+plan when every operation is authorized. The current workbench policy fields
+are `operation` / `operations`, `target`, `parent`, `container`, `source`,
+`anchor`, `name` / `names`, `datatype` / `datatypes`, `kind` / `kinds`, and
+`value` / `values`. Address-role fields are SANSA address expressions resolved
+against the same namespace view as the plan; `anchor` matches only resolved
+`before` / `after` placement anchors, not `first` or `last` placements.
+Policy diagnostics use
 `phase: "policy"` and workbench-specific codes such as
 `SANSA_MUTATE_POLICY_DENIED`. Policy diagnostics may include
 `operationIndex`, `ruleIndex`, `policyField`, `policyScope`, and

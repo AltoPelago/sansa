@@ -103,6 +103,23 @@
         "tools/mutate-web",
         "/api/mutate options.policySource"
       ],
+      "policyRuleFields": [
+        "operation",
+        "operations",
+        "target",
+        "parent",
+        "container",
+        "source",
+        "anchor",
+        "name",
+        "names",
+        "datatype",
+        "datatypes",
+        "kind",
+        "kinds",
+        "value",
+        "values"
+      ],
       "diagnostics": [
         "SANSA_MUTATE_POLICY_INVALID_JSON",
         "SANSA_MUTATE_POLICY_INVALID",
