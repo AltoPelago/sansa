@@ -290,6 +290,10 @@ test('parses instruction value literal families', () => {
   assert.equal(csv.mutation.value.datatype, 'csv[","]');
   assert.equal(csv.mutation.value.kind, 'string');
 
+  const customHex = parseOk('create $.inventory.brand with :brandColor, #ff00aa');
+  assert.equal(customHex.mutation.value.datatype, 'brandColor');
+  assert.equal(customHex.mutation.value.kind, 'hex');
+
   const separator = parseOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"');
   assert.equal(separator.mutation.value.datatype, 'sep[|]');
   assert.equal(separator.mutation.value.kind, 'separator');
@@ -304,6 +308,18 @@ test('parses instruction value literal families', () => {
   assert.equal(reference.mutation.value.datatype, 'number');
   assert.equal(reference.mutation.value.kind, 'cloneReference');
   assert.equal(reference.mutation.value.value, 'target');
+
+  parseBad('create $.inventory.when with :date, "2026-10-10"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.count with :number, "2026-10-10"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.label with :string, 10', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badToggle with :toggle, "maybe"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badBoolean with :boolean, "true"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badStringNull with :string, !notApplicable', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badAddressDatatype with :string, $.inventory.items.*.sku', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badEncoding with :base64, "abc+/=="', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badHex with :hex, "fff"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badNaN with :nan, "NaN"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
+  parseBad('create $.inventory.badInfinity with :infinity, "+Infinity"', 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH');
 });
 
 test('parses instruction container value literals', () => {
@@ -996,46 +1012,6 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonParameterizedListTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonParameterizedListTarget.errors[0].datatype, 'list<string>');
 
-  const aeonToggleStringIncompatible = planOk('create $.inventory.badToggle with :toggle, "maybe"', namespace);
-  const aeonToggleStringTarget = validateMutationPlanTarget(aeonToggleStringIncompatible.plan, 'aeon');
-  assert.equal(aeonToggleStringTarget.ok, false);
-  assert.equal(aeonToggleStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonToggleStringTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonToggleStringTarget.errors[0].datatype, 'toggle');
-  assert.equal(aeonToggleStringTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonQuotedNumberIncompatible = planOk('create $.inventory.badNumber with :number, "42"', namespace);
-  const aeonQuotedNumberTarget = validateMutationPlanTarget(aeonQuotedNumberIncompatible.plan, 'aeon');
-  assert.equal(aeonQuotedNumberTarget.ok, false);
-  assert.equal(aeonQuotedNumberTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonQuotedNumberTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonQuotedNumberTarget.errors[0].datatype, 'number');
-  assert.equal(aeonQuotedNumberTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonQuotedBooleanIncompatible = planOk('create $.inventory.badBoolean with :boolean, "true"', namespace);
-  const aeonQuotedBooleanTarget = validateMutationPlanTarget(aeonQuotedBooleanIncompatible.plan, 'aeon');
-  assert.equal(aeonQuotedBooleanTarget.ok, false);
-  assert.equal(aeonQuotedBooleanTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonQuotedBooleanTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonQuotedBooleanTarget.errors[0].datatype, 'boolean');
-  assert.equal(aeonQuotedBooleanTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonStringNullIncompatible = planOk('create $.inventory.badStringNull with :string, !notApplicable', namespace);
-  const aeonStringNullTarget = validateMutationPlanTarget(aeonStringNullIncompatible.plan, 'aeon');
-  assert.equal(aeonStringNullTarget.ok, false);
-  assert.equal(aeonStringNullTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonStringNullTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonStringNullTarget.errors[0].datatype, 'string');
-  assert.equal(aeonStringNullTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonDateStringIncompatible = planOk('create $.inventory.badDate with :date, "2026-10-10"', namespace);
-  const aeonDateStringTarget = validateMutationPlanTarget(aeonDateStringIncompatible.plan, 'aeon');
-  assert.equal(aeonDateStringTarget.ok, false);
-  assert.equal(aeonDateStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonDateStringTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonDateStringTarget.errors[0].datatype, 'date');
-  assert.equal(aeonDateStringTarget.errors[0].valuePath, 'operations[0].value');
-
   const aeonNestedDateString = planOk('create $.inventory.nestedDateString with :object, { when = :date, 2026-10-10 }', namespace);
   assert.deepEqual(
     aeonNestedDateString.warnings.map((warning) => warning.code),
@@ -1123,14 +1099,6 @@ test('validates instruction plans against target surfaces after planning', () =>
   const aeonSansaSelectorTarget = validateMutationPlanTarget(aeonSansaSelectorCompatible.plan, 'aeon');
   assert.equal(aeonSansaSelectorTarget.ok, true, JSON.stringify(aeonSansaSelectorTarget.errors ?? []));
 
-  const aeonSansaStringIncompatible = planOk('create $.inventory.badAddressDatatype with :string, $.inventory.items.*.sku', namespace);
-  const aeonSansaStringTarget = validateMutationPlanTarget(aeonSansaStringIncompatible.plan, 'aeon');
-  assert.equal(aeonSansaStringTarget.ok, false);
-  assert.equal(aeonSansaStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonSansaStringTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonSansaStringTarget.errors[0].datatype, 'string');
-  assert.equal(aeonSansaStringTarget.errors[0].valuePath, 'operations[0].value');
-
   const aeonReferenceSelectorIncompatible = planOk('create $.inventory.badReference with :number, ~target.*', namespace);
   const aeonReferenceSelectorTarget = validateMutationPlanTarget(aeonReferenceSelectorIncompatible.plan, 'aeon');
   assert.equal(aeonReferenceSelectorTarget.ok, false);
@@ -1151,38 +1119,6 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].datatype, 'radix16');
-
-  const aeonEncodingStringIncompatible = planOk('create $.inventory.badEncoding with :base64, "abc+/=="', namespace);
-  const aeonEncodingStringTarget = validateMutationPlanTarget(aeonEncodingStringIncompatible.plan, 'aeon');
-  assert.equal(aeonEncodingStringTarget.ok, false);
-  assert.equal(aeonEncodingStringTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonEncodingStringTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonEncodingStringTarget.errors[0].datatype, 'base64');
-  assert.equal(aeonEncodingStringTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonQuotedHexIncompatible = planOk('create $.inventory.badHex with :hex, "fff"', namespace);
-  const aeonQuotedHexTarget = validateMutationPlanTarget(aeonQuotedHexIncompatible.plan, 'aeon');
-  assert.equal(aeonQuotedHexTarget.ok, false);
-  assert.equal(aeonQuotedHexTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonQuotedHexTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonQuotedHexTarget.errors[0].datatype, 'hex');
-  assert.equal(aeonQuotedHexTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonQuotedNaNIncompatible = planOk('create $.inventory.badNaN with :nan, "NaN"', namespace);
-  const aeonQuotedNaNTarget = validateMutationPlanTarget(aeonQuotedNaNIncompatible.plan, 'aeon');
-  assert.equal(aeonQuotedNaNTarget.ok, false);
-  assert.equal(aeonQuotedNaNTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonQuotedNaNTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonQuotedNaNTarget.errors[0].datatype, 'nan');
-  assert.equal(aeonQuotedNaNTarget.errors[0].valuePath, 'operations[0].value');
-
-  const aeonQuotedInfinityIncompatible = planOk('create $.inventory.badInfinity with :infinity, "+Infinity"', namespace);
-  const aeonQuotedInfinityTarget = validateMutationPlanTarget(aeonQuotedInfinityIncompatible.plan, 'aeon');
-  assert.equal(aeonQuotedInfinityTarget.ok, false);
-  assert.equal(aeonQuotedInfinityTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonQuotedInfinityTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonQuotedInfinityTarget.errors[0].datatype, 'infinity');
-  assert.equal(aeonQuotedInfinityTarget.errors[0].valuePath, 'operations[0].value');
 
   const aeonQuotedSeparatorCompatible = planOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"', namespace);
   const aeonQuotedSeparatorTarget = validateMutationPlanTarget(aeonQuotedSeparatorCompatible.plan, 'aeon');

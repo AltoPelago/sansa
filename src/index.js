@@ -6196,8 +6196,10 @@ class InstructionParser {
       }
     }
     const literal = this.parseValueLiteral(payload, payloadOffset);
+    if (datatype !== undefined) {
+      this.validateInstructionValueIntent(datatype, literal.kind, valueOffset, { nested: context.nested === true });
+    }
     if (datatype !== undefined && context.nested === true) {
-      this.validateNestedInstructionValueIntent(datatype, literal.kind, valueOffset);
       this.warnings.push({
         code: 'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED',
         message: 'Nested datatype intent is preserved in Instruction source but flattened out of conservative Mutate plans',
@@ -6223,15 +6225,15 @@ class InstructionParser {
     };
   }
 
-  validateNestedInstructionValueIntent(datatype, literalKind, index) {
+  validateInstructionValueIntent(datatype, literalKind, index, context = {}) {
     const datatypeRepresentation = representationKindFromMutationName(datatype, { allowUnknown: false });
     const literalRepresentation = representationKindFromMutationName(literalKind, { allowUnknown: false });
     if (datatypeRepresentation === undefined || literalRepresentation === undefined) return;
     if (['cloneReference', 'pointerReference', 'referenceForm'].includes(literalRepresentation)) return;
     if (datatypeRepresentation === literalRepresentation) return;
     this.fail(
-      `Nested datatype '${datatype}' is not compatible with ${literalRepresentation} literal representation`,
-      'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH',
+      `${context.nested === true ? 'Nested datatype' : 'Datatype'} '${datatype}' is not compatible with ${literalRepresentation} literal representation`,
+      context.nested === true ? 'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH' : 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH',
       index,
     );
   }

@@ -141,6 +141,11 @@ reference forms, and a conservative container-literal slice:
 
 Container literal members must recursively be instruction values. This keeps
 Instruction values separate from arbitrary Query expressions.
+Known datatype families in Instruction values are checked against the literal
+representation family before lowering. For example, `:date, 2026-10-10` is
+valid, while `:date, "2026-10-10"` is rejected as string representation with
+date intent. Custom datatype expressions remain semantic intent over the chosen
+literal family, such as `:brandColor, #ff00aa` or `:csv[","], "sku,name"`.
 
 `planInstruction` preserves the same boundary, then calls `planMutation(...)`
 with the lowered structured request:
