@@ -774,7 +774,7 @@
                 "address": "$.labels[0].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                  "value": "zebre"
+                "value": "zebre"
               }
             ]
           },
