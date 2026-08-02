@@ -61,6 +61,7 @@
     "query:web": "node scripts/query-web.mjs",
     "mutate:web": "node scripts/query-web.mjs",
     "stress": "node scripts/stress-addresses.mjs",
+    "validate:cts-claims": "node scripts/validate-cts-claims.mjs",
     "test": "node --test test/*.test.js"
   },
   "keywords": [
