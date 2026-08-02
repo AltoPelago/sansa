@@ -1122,7 +1122,7 @@ function renderScalarValue(binding) {
 }
 
 function renderBlockString(value) {
-  const text = String(value ?? '').replace(/`/g, '\\`');
+  const text = String(value ?? '').replace(/\\/g, '\\\\').replace(/`/g, '\\`');
   return `>\`${text}\``;
 }
 

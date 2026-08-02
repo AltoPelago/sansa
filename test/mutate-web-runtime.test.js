@@ -588,6 +588,7 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
         { op: 'create', parent: '$.types', name: 'selectorCopy', datatype: 'sansa', value: '$.inventory.items.*' },
         { op: 'create', parent: '$.types', name: 'releaseCopy', datatype: 'date', value: '2026-07-26' },
         { op: 'create', parent: '$.types', name: 'consentCopy', datatype: 'toggle', value: 'yes' },
+        { op: 'create', parent: '$.types', name: 'noteCopy', datatype: 'trimtick', value: 'path\\`tick' },
         { op: 'create', parent: '$.types', name: 'absentCopy', datatype: 'null<string>', kind: 'null', value: 'notApplicable' },
         { op: 'create', parent: '$.types', name: 'metricCopy', datatype: 'nan<number>', kind: 'nan', value: null },
         { op: 'create', parent: '$.types', name: 'ceilingCopy', datatype: 'infinity<number>', kind: 'infinity', value: '-Infinity' },
@@ -621,6 +622,7 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
   assert.match(result.source, /versionCopy:version = \^0\.11\.0/);
   assert.match(result.source, /selectorCopy:sansa = \$\.inventory\.items\.\*/);
   assert.match(result.source, /releaseCopy:date = 2026-07-26/);
+  assert.match(result.source, /noteCopy:trimtick = >`path\\{3}`tick`/);
   assert.match(result.source, /consentCopy:toggle = yes/);
   assert.match(result.source, /absentCopy:null<string> = !notApplicable/);
   assert.match(result.source, /metricCopy:nan<number> = NaN/);
