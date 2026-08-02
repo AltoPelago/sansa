@@ -1,10 +1,10 @@
 # SANSA Parser API Contract
 
-Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, and standalone query tooling slices.
+Status: implementation contract for the address parser/model, resolver, query clause parser/model, query expression parser/model, bounded query evaluator, experimental instruction parse/lower/plan bridge, experimental mutation-plan API, experimental workbench mutation-policy plan filter, and standalone query/instruction tooling slices.
 
-The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The package does not inspect host values directly, check authorization, or assign semantics to qualifiers.
+The parser validates SANSA address syntax and returns a structural model. The resolver applies the parsed selector model to a host-supplied namespace adapter. The query parser validates the SANSA.Query clause and expression surfaces and returns structural models. The query evaluator applies a bounded query subset over host-exposed binding metadata. The experimental instruction parser validates human-authored change intents and can lower them into structured mutation requests before handing them to the mutation planner. The experimental mutation planner constructs exact-target mutation plans, the target-surface validator checks post-plan representability, and apply runs only through host-supplied mutation hooks. Core SANSA.Mutate does not check authorization, provide transactions, decide schema legality, or assign semantics to qualifiers. The browser workbench includes a separate experimental mutation-policy plan filter for testing host-side authorization.
 
-The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, and experimental `SANSA.Transform` extensions.
+The implementation capability manifest is [capabilities.json](capabilities.json). It advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` extensions, experimental `SANSA.Instruction` parsing/lowering/planning bridge behavior, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental `sansa.mutate.policy.planFilter` slice.
 
 CTS lanes:
 
@@ -13,9 +13,20 @@ npm run cts
 npm run cts:value-semantics
 npm run cts:query
 npm run cts:query:experimental
+npm run cts:mutate
 ```
 
 The default Query CTS lane is core conformance and skips experimental extension cases. The experimental lane includes those cases for implementations that advertise matching extensions.
+The Instruction and Mutate CTS lanes are experimental and are not included in
+`npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage.
+The Mutate lane covers structured planning, apply, target-surface checks, and
+the experimental policy plan-filter boundary.
+Run them explicitly with:
+
+```bash
+npm run cts:instruction
+npm run cts:mutate
+```
 
 ## Entry Points
 
@@ -26,9 +37,15 @@ parseQuery(input, options?)
 parseQueryOrThrow(input, options?)
 parseQueryExpression(input, options?)
 parseQueryExpressionOrThrow(input, options?)
+parseInstruction(input, options?)
+parseInstructionOrThrow(input, options?)
+lowerInstruction(input, namespaceOrOptions?, options?)
+planInstruction(input, namespace, options?)
 evaluateQuery(input, namespace, options?)
 evaluateValueSemanticsOperation(operation, input)
 resolveAddress(input, namespace, options?)
+planMutation(input, namespace, options?)
+applyMutationPlan(plan, namespace, options?)
 renderAddress(address)
 renderQuery(query)
 renderQueryExpression(expression)
@@ -63,6 +80,111 @@ renderQualifierTerm(term)
 
 `parseQueryExpressionOrThrow` returns `expression` or throws `SansaParseError`.
 
+`parseInstruction` returns a structural `SansaInstruction` model:
+
+```js
+{ ok: true, instruction }
+{ ok: false, errors: [{ code, message, index }] }
+```
+
+`parseInstructionOrThrow` returns `instruction` or throws `SansaParseError`.
+Parsed instructions include `provenance.reason` for `because "..."` clauses
+and `provenance.claimedAuthor` for `by "..."` clauses when present. These
+fields are claimed source metadata only; they are not authorization,
+authentication, signatures, or audit proof.
+
+`lowerInstruction` accepts either an instruction string or parsed
+`SansaInstruction`. Direct instructions lower without a namespace when their
+targets are already absolute. Query-shaped instructions with `from` or `where`
+require a host namespace so candidates can be resolved and candidate-relative
+targets can become exact structured mutation requests. `require` clauses lower
+to structured Mutate preconditions and are preserved for planning/apply recheck:
+
+```js
+lowerInstruction(
+  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nrequire .qty == 4\nreplace .qty with :int32, 10",
+  namespace
+)
+```
+
+Successful lowering returns one requested mutation operation, an operation list,
+or a request envelope when `require` preconditions are present:
+
+```js
+{ ok: true, request, diagnostics, warnings, provenance }
+{ ok: false, errors }
+```
+
+For candidate-relative instructions, each surviving candidate receives its own
+precondition target. `where` filters candidates; `require` creates fail-closed
+mutation guards.
+
+`lowerInstruction` returns parsed source provenance separately from the lowered
+mutation request. It does not place `because` or `by` on operation provenance,
+because those clauses describe the instruction source rather than individual
+mutation operations.
+
+Instruction `append <container> with <value>` and
+`append in <container> with <value>` canonicalize and lower as
+`insert last in <container> with <value>`. They produce an ordinary structured
+`insert` request with `placement: "last"`.
+
+Instruction values support scalar literal families, SANSA address literals,
+reference forms, and a conservative container-literal slice:
+
+```text
+:object, { enabled = true }
+:list<string>, ["adapter", "driver"]
+:tuple, ("sku", 7)
+:node, <badge("new", 3)>
+```
+
+Container literal members must recursively be instruction values. This keeps
+Instruction values separate from arbitrary Query expressions.
+Known datatype families in Instruction values are checked against the literal
+representation family before lowering. For example, `:date, 2026-10-10` is
+valid, while `:date, "2026-10-10"` is rejected as string representation with
+date intent. Custom datatype expressions remain semantic intent over the chosen
+literal family, such as `:brandColor, #ff00aa` or `:csv[","], "sku,name"`.
+
+`planInstruction` preserves the same boundary, then calls `planMutation(...)`
+with the lowered structured request:
+
+```js
+planInstruction(
+  "from $.inventory.items.*\nwhere .sku == \"B-200\"\nreplace .qty with :int32, 10",
+  namespace
+)
+```
+
+Failures keep their phase:
+
+```js
+{ ok: false, phase: "lower", errors } // instruction lowering failed
+{ ok: false, phase: "plan", loweredRequest, errors } // mutate planning failed
+```
+
+The phase boundary is part of the contract:
+
+| Phase | Boundary |
+| --- | --- |
+| `parse` | Instruction syntax and literal payload syntax. |
+| `lower` | Candidate selection and candidate-relative address resolution into exact structured requests. |
+| `plan` | SANSA.Mutate structural legality against the host namespace. |
+| `policy` | Trusted consumer authorization of already-planned operations. |
+| `target` | Target-surface representability of planned datatype/kind/value intent. |
+| `apply` | Host adapter execution of an already-planned operation against current namespace state. |
+
+This function is a convenience bridge. Target-surface validation,
+authorization, schema checks, apply, transactions, and host-specific mutation
+policy remain outside Instruction and inside the consumer or mutation adapter
+boundary.
+
+Successful `planInstruction` results preserve `because` and `by` on
+`plan.sourceProvenance` alongside `{ type: "SansaInstruction", source }`.
+Consumers may display these fields, but must treat them as claimed source
+metadata rather than trusted actor identity.
+
 `evaluateQuery` accepts either a query string or a parsed `SansaQuery` and returns:
 
 ```js
@@ -91,6 +213,44 @@ evaluateQuery(query, namespace, { policy: "validation" })
 ```
 
 This policy rejects presentation and transform behavior before evaluation: `order by`, `offset`, `limit`, object projection expressions, and transform-library helpers. Rejections use `SANSA_QUERY_POLICY_VIOLATION` with `phase: "policy"`.
+
+Dynamic Address values require an explicit activation policy. Trusted local
+consumers may opt into unrestricted activation deliberately:
+
+```js
+evaluateQuery(query, namespace, { addressActivation: "trusted" })
+```
+
+Consumers crossing a trust boundary should instead provide a constrained
+policy over parsed address structure:
+
+```js
+evaluateQuery(query, namespace, {
+  addressActivation: {
+    allowedRoots: ["$.contacts"],
+    allowedSelectors: ["member", "position"],
+    allowContextualRoot: true,
+    maxAddressDepth: 4,
+    maxBindings: 1
+  }
+})
+```
+
+Supported selector capability names are `member`, `position`, `range`,
+`wildcard`, `recursive`, `pattern`, `semanticFilter`,
+`representationFilter`, `attribute`, `local`, and `parent`. Omitted
+`allowedSelectors` defaults to `member` and `position`. `allowedRoots` must
+contain unqualified exact absolute SANSA addresses. Constrained contextual
+activation also requires `allowContextualRoot: true` and an exact canonical
+address on the current binding so the effective target can be checked.
+
+No activation policy produces `SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED`.
+Invalid host policy produces `SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY`.
+Root, selector, contextual-root, parent-containment, and address-depth denial
+produce `SANSA_QUERY_PATH_ACTIVATION_DENIED`. Exceeding `maxBindings` produces
+`SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED` and no partial query
+result. Reading the binding that stores an Address value never grants authority
+to resolve that address.
 
 Query evaluation budgets are optional and fail closed:
 
@@ -125,9 +285,20 @@ evaluateValueSemanticsOperation("compare", {
 evaluateValueSemanticsOperation("isValue", {
   value: { category: "string", value: "active" }
 })
+
+evaluateValueSemanticsOperation("compare", {
+  left: { category: "string", value: "éclair" },
+  right: { category: "string", value: "zebre" }
+}, {
+  valueSemantics: createFrenchValueSemanticsProfile()
+})
 ```
 
-The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+
+The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, and `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
+
+Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless a future explicit profile defines a richer domain.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -139,6 +310,20 @@ The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The 
 Parse errors are returned through the same `ok: false` shape. Normal no-match resolution returns `ok: true` with an empty `bindings` array.
 
 Resolve distinguishes a **resolution miss** from a **resolution failure**. A miss occurs when a valid, supported selector applies to the namespace but finds no exposed structure on one or more branches; that branch contributes no bindings. A failure occurs when resolution cannot safely or validly continue, such as an unsupported selector capability, missing contextual root, forbidden boundary escape, implementation limit failure, or exact-expression multiplicity violation.
+
+Callers may bound intermediate and final Binding Set materialization with
+`maxBindings`:
+
+```js
+resolveAddress('$.inventory.**', namespace, { maxBindings: 1000 })
+```
+
+The resolver stops when the first binding beyond the limit would be retained
+and returns `SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED` with an empty Binding Set,
+`limit`, and `observed`. Invalid limits return
+`SANSA_RESOLVE_INVALID_BINDING_LIMIT`. Query dynamic-address activation maps
+this bounded failure to
+`SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED`.
 
 Resolve invariants:
 
@@ -152,6 +337,181 @@ Resolve invariants:
 - Every output binding is expected to retain a canonical address when the host adapter exposes one.
 - An exact expression must not produce more than one binding; multiplicity violations fail with `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`.
 - Resolve performs no value evaluation, predicate evaluation, projection, sorting, slicing, aggregation, or mutation.
+
+## Experimental Mutate API
+
+`planMutation` accepts a structured mutation request, a namespace adapter, and optional resolve options. It returns an immutable mutation plan or explicit planning diagnostics:
+
+```js
+planMutation({ op: "replace", target: "$.inventory.sku", value: "B-200" }, namespace)
+
+planMutation([
+  { op: "create", parent: "$.inventory", name: "status", value: "active" },
+  { op: "remove", target: "$.inventory.oldStatus" }
+], namespace)
+```
+
+Supported operation requests are `create`, `replace`, `remove`, `insert`, and `move`.
+
+Structured requests may include read-only preconditions:
+
+```js
+planMutation({
+  operations: [
+    { op: "replace", target: "$.inventory.sku", value: "B-200" }
+  ],
+  preconditions: [
+    { expression: "$.inventory.sku == \"A-100\"" },
+    { target: "$.inventory.sku", expression: ". == \"A-100\"" }
+  ]
+}, namespace)
+```
+
+Preconditions use the SANSA.Query expression evaluator and must produce a Boolean value. A failed, invalid, or non-Boolean precondition prevents plan construction and produces no executable plan. Preconditions are evaluated during planning against the same host-exposed namespace state as target resolution.
+
+Preserved preconditions are rechecked by default before apply invokes any mutation hook. This protects a plan from non-target state drift between planning and apply. Callers that rely on a stronger external transaction or namespace-state contract may pass `{ recheckPreconditions: false }` to `applyMutationPlan`.
+
+Request envelopes support only `operations`, `preconditions`, and `provenance`.
+Known operation requests support only their operation fields plus optional inert
+`provenance`. Unsupported request or operation fields fail closed rather than
+being ignored. Successful planning preserves request `provenance` as plan-level
+`sourceProvenance` for audit and diagnostics. Individual requested operations
+may also carry `provenance`, which is preserved on the planned operation.
+Provenance is inert metadata; it is not interpreted as SANSA source,
+authorization policy, validation policy, or mutation rewrite behavior.
+
+`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own semantic compatibility checks.
+
+Structured Mutate requests intentionally preserve `datatype` and `kind`
+separately until target-surface validation. This differs from SANSA
+Instruction syntax, where known datatype/literal-family mismatches are rejected
+during instruction parsing because the author has supplied a single literal
+form. A structured request may carry `datatype: "brandColor", kind: "hex"` as
+valid custom intent; an AEON target surface may reject `datatype: "number",
+kind: "string"` because both families are known and incompatible for AEON
+materialization.
+
+The workbench AEON adapter uses these hints when rendering Source Result output. If `kind` is present, it chooses the representation. Otherwise the adapter infers representation from known `datatype` values, then from the JSON value shape:
+
+```js
+planMutation({
+  op: "create",
+  parent: "$.types",
+  name: "brand",
+  datatype: "brandColor",
+  kind: "hex",
+  value: "ff00aa"
+}, namespace)
+```
+
+If mutation targets parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the target resolves exactly, the plan remains inspectable but carries the non-portability warning.
+
+Mutation plans are current-process execution artifacts, not portable serialized plan documents. A plan retains live binding objects supplied by the resolver, along with local adapter artifacts such as `bindingHandle` and `observedState`. These fields are for same-process continuity checks and diagnostics. Do not `JSON.stringify` a plan and replay it later or in another implementation; cloned or serialized plans cannot prove live binding continuity and should fail apply-time stale-target checks. A portable mutation-plan serialization format may be defined by a later profile.
+
+For scalar values, the workbench adapter treats `kind` as the AEON literal family when one is provided. Known scalar families include `string`, `number`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`/`sep`, `sansa`, `date`, `time`, `datetime`, `zrut`, `null`, `nan`, `infinity`, `cloneReference`, and `pointerReference`. JSON payloads omit AEON sigils: `kind: "hex"` with `"ff00aa"` renders `#ff00aa`; `kind: "sep"` with `"0.11.0"` renders `^0.11.0`; `kind: "null"` with `"notApplicable"` renders `!notApplicable`; and `kind: "cloneReference"` with `"target"` renders `~target`. The adapter rejects payloads that cannot be rendered as the requested known AEON literal family. Unknown custom `kind` values remain adapter-visible metadata and are not interpreted by the core planner.
+
+Experimental Mutate budgets are optional and fail closed:
+
+```js
+planMutation(request, namespace, {
+  budget: {
+    maxOperations: 100,
+    maxPreconditions: 20,
+    maxValueNodes: 1000,
+    maxValueDepth: 32,
+    maxStringLength: 65536
+  }
+})
+
+applyMutationPlan(plan, namespace, {
+  budget: {
+    maxOperations: 100,
+    maxPreconditions: 20,
+    maxValueNodes: 1000,
+    maxValueDepth: 32,
+    maxStringLength: 65536
+  }
+})
+```
+
+Budget exhaustion returns `SANSA_MUTATE_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It does not produce a partial plan and does not apply partial mutations.
+
+`maxValueNodes`, `maxValueDepth`, and `maxStringLength` are budgets over supplied values for `create`, `replace`, and `insert`. They are honored during planning and again during apply when callers provide a prebuilt plan. `maxValueNodes` counts all supplied value nodes across the request or plan; arrays and objects count as one node plus their entries. `maxValueDepth` is the deepest supplied value tree, with scalar values at depth `1`. `maxStringLength` is the longest supplied string payload observed by this implementation.
+
+Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
+
+`applyMutationPlan` applies an already planned mutation only when the namespace exposes matching mutation hooks:
+
+```js
+const result = applyMutationPlan(plan, namespace, { requireAtomic: true })
+```
+
+Mutation hooks may live under `namespace.mutate`:
+
+```js
+{
+  root,
+  children(binding),
+  parent(binding),
+  bindingHandle?(binding),
+  observedState?(binding),
+  mutate: {
+    supportsCreate: true,
+    supportsReplace: true,
+    supportsRemove: true,
+    supportsOrderedInsert: true,
+    supportsMove: true,
+    supportsStableBindingIdentity: true,
+    supportsAtomicApply: true,
+    sameBinding?(left, right),
+    create(parent, name, value, operation),
+    replace(target, value, operation),
+    remove(target, operation),
+    insert(container, placement, value, operation),
+    move(source, container, placement, operation)
+  }
+}
+```
+
+When an operation capability flag is omitted, this implementation infers support from the corresponding mutation hook. When an operation capability flag is explicitly `false`, apply rejects that operation before invoking hooks. `supportsAtomicApply` is only required when callers pass `{ requireAtomic: true }`.
+
+Mutation hooks receive the planned operation as their final argument. Adapters that need to materialize host-specific values should read preserved fields such as `datatype`, `kind`, and `provenance` from that operation rather than inferring intent from the raw JSON value alone.
+
+The conservative planner rejects structurally incompatible mutation targets before invoking adapter hooks. `create` requires a parent binding whose exposed representation or semantic type is a container. `insert` and `move` require an ordered container (`list`, `tuple`, or `node`). Scalar bindings are not treated as mutation containers merely because a resolver exposes an empty child list for uniform traversal.
+
+Attributes are created by targeting the owner's attribute space as the create parent. For example, creating `status` under `$.types.color.@` produces the attribute path `$.types.color.@.status` and renders in AEON as an inline attribute on `color`. Attribute-space parents are valid create containers, but they are not ordered containers for `insert` or `move`.
+
+The workbench AEON adapter materializes JSON values according to container `kind` or known container `datatype` hints. JSON objects create object bindings, JSON arrays create list bindings by default, `kind: "tuple"` or `datatype: "tuple"` renders an array as a tuple, and `kind: "node"` or `datatype: "node"` accepts a node payload with a tag and ordered children:
+
+```json
+{
+  "op": "create",
+  "parent": "$.types",
+  "name": "badge",
+  "datatype": "node",
+  "value": {
+    "tag": "badge",
+    "children": ["new", 3]
+  }
+}
+```
+
+Because Source Result output is AEON, the workbench adapter rejects JSON payloads that cannot be rendered as legal AEON. For example, object member names and node attribute names must not be empty; malformed node payloads also fail before any mutation is applied.
+
+The planner retains the in-process binding object, canonical address, optional `bindingHandle`, and optional `observedState`. `binding`, `bindingHandle`, and `observedState` are local namespace-adapter artifacts; they are not SANSA wire-format fields. Before apply, the implementation resolves each exact address again and rejects stale targets if the resolved binding no longer matches the planned binding identity. This protects positional addresses such as `$.items[2]` from silent index drift. Ordered `insert` and `move` anchors are checked with the same stale-target rule before their hooks run.
+
+Successful apply returns one result record per applied operation. Result records expose stable mutation-intent addresses such as `targetAddress`, `parentAddress`, `containerAddress`, `sourceAddress`, and `anchorAddress` when those roles exist. They also expose `previousAddress`, `affectedAddress`, and `resultingAddress` where known. `remove` reports the removed binding as affected, but does not invent a `resultingAddress` unless the adapter explicitly supplies one.
+
+If a mutation hook rejects or throws during consumer-selected non-atomic apply, the result is `ok: false` with `SANSA_MUTATE_APPLY_FAILED`. `operationResults` may contain records for hooks that already completed before the failure. This must not be interpreted as full plan success; rollback, transactionality, retries, and compensation remain adapter or consumer responsibilities.
+
+The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. For AEON-backed bindings this summary preserves `semanticType`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, and a JSON-safe `value` where available, so tools can inspect applied literal-family metadata without parsing the rendered Source Result text.
+
+This API does not authorize operations, validate proposed values against
+schemas, follow references implicitly, or provide storage transactions.
+Externally selected AEOS schemas or domain validators may check proposed-state
+legality; authorization remains with the consumer, ASP, application, or adapter
+boundary. See [mutate-policy.md](mutate-policy.md) for the separate workbench
+policy prototype that exercises this boundary.
 
 Parent traversal defaults to the conservative structural model: traversal from the effective resolution root resolves to an empty Binding Set. The effective resolution root is the root binding established by `$`, `?`, or the root of a dynamic resolution context for the current branch. Callers that need stricter boundary diagnostics can pass:
 
@@ -232,7 +592,117 @@ The package also includes a browser workbench:
 npm run query:web
 ```
 
-The workbench serves [tools/query-web](../tools/query-web), defaults to `.aeon` source input, and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
+The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
+
+The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon`
+source, plan/apply mode, operation/precondition/value mutation budgets, parse
+position-limit input, apply options such as `requireAtomic` and
+`recheckPreconditions`, an optional experimental mutation policy plan filter, and one
+of two request input forms:
+
+- `requestKind: "structured"` with a structured JSON mutation request, which
+  runs `planMutation(...)` directly.
+- `requestKind: "instruction"` with proposal-stage SANSA Instruction source,
+  which runs `planInstruction(...)` and then uses the returned plan for the
+  same preview/apply path.
+
+The endpoint compiles the AEON source into a fresh host-neutral namespace for
+each request, layers an in-memory mutation adapter over that namespace, and
+returns the structured plan/result plus an AEON-ish rendered source tree after
+apply. It is a technical testing surface for structured mutation requests and
+proposal-stage instructions, not a canonical AEON source rewriter.
+
+When the experimental mutation policy plan filter is enabled, policy JSON is trusted
+consumer input and is validated before authorization. Unsupported top-level or
+rule fields fail with `SANSA_MUTATE_POLICY_INVALID` instead of being ignored, so
+claimed provenance such as Instruction `by` metadata cannot accidentally become
+policy authority.
+
+Target representability is checked explicitly with
+`validateMutationPlanTarget(plan, targetSurface)`. This API is separate from
+`planMutation(...)` so mutation planning remains target-neutral:
+
+```text
+planMutation(...)
+validateMutationPlanTarget(...)
+applyMutationPlan(...)
+```
+
+Built-in target surfaces currently include `"aeon"` and `"json"`.
+`"json-compatible"` is accepted as an alias for `"json"`. Callers may also pass
+a custom target surface object with an `id` and `validateOperation(operation,
+context)` hook. Target-surface failures are not SANSA parse or
+mutation-planning failures: they mean the target format cannot represent the
+planned operation. They use `phase: "target"` with codes such as
+`SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE`,
+`SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE`,
+`SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE`, and
+`SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION`.
+Target-surface diagnostics should preserve `targetFormat` when known. Datatype
+failures include `datatype`; value representability failures may include
+`valuePath` to identify the rejected planned value position.
+
+The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
+`"aeon"` and can be set to `"json"` through the browser target selector or the
+`/api/mutate` request payload.
+
+The `/api/mutate` response includes a `targetProfile` object in JSON mode:
+
+```json
+{
+  "id": "aeon",
+  "boundary": "representability",
+  "summary": "AEON target surface: accepts AEON-representable datatype, kind, and value intent before apply."
+}
+```
+
+`targetProfile.id` is the normalized target surface used for validation, so
+aliases such as `"json-compatible"` report `"json"`. `boundary:
+"representability"` means the selected target surface is checking whether a
+planned operation can be carried by that target format; it is not schema
+approval, authorization, or mutation planning. Target-surface diagnostic text
+therefore begins with a phase summary such as `target-surface: plan produced;
+selected target cannot represent the planned intent for target 'aeon'`. Plan
+failures use a different summary, such as `plan: mutation request could not be
+planned`, so technical tests can distinguish invalid mutation intent from valid
+intent rejected by the selected target surface.
+
+For example, SANSA Instruction can parse and lower `:string<null>` as datatype
+intent, but the AEON workbench target rejects it because AEON only allows
+generic parameters on specific datatype families:
+
+```text
+create $.types.textProbe with :string<null>, ""
+```
+
+Structured requests reach the same target-surface boundary with separate
+fields. Custom semantic intent such as `datatype: "brandColor", kind: "hex",
+value: "ff00aa"` remains representable for an AEON target, while a known-family
+contradiction such as `datatype: "number", kind: "string", value: "42"` is
+reported as target-surface value representability failure rather than as a
+planning failure.
+
+JSON target mode accepts ordinary JSON-compatible object/list/string/number/
+boolean/null values, but rejects AEON-only representational features such as
+attribute-space mutations, `sansa` datatype hints, parameterized datatypes,
+tuples, nodes, references, NaN, and Infinity.
+
+When the workbench policy toggle is enabled, the endpoint accepts
+`options.policySource` containing a JSON policy document. The endpoint plans
+first, checks the planned operations against the policy, and only applies the
+plan when every operation is authorized. The current workbench policy fields
+are `operation` / `operations`, `target`, `parent`, `container`, `source`,
+`anchor`, `name` / `names`, `datatype` / `datatypes`, `kind` / `kinds`, and
+`value` / `values`. Address-role fields are SANSA address expressions resolved
+against the same namespace view as the plan; `anchor` matches only resolved
+`before` / `after` placement anchors, not `first` or `last` placements.
+Policy diagnostics use
+`phase: "policy"` and workbench-specific codes such as
+`SANSA_MUTATE_POLICY_DENIED`. Policy diagnostics may include
+`operationIndex`, `ruleIndex`, `policyField`, `policyScope`, and
+`policyAddress` so workbench clients can highlight the failed operation, rule,
+field, matcher scope, or unsupported matcher address. This remains outside the
+core planner.
 
 Workbench responses include `text` for successful results and diagnostics. Successful parse and evaluate responses also include `inspect`, a scan-friendly diagnostic view for the browser workbench. Text mode is intended for compact inspection, Inspect mode shows candidate/value metadata, and JSON mode exposes the structured result or diagnostic payload.
 
@@ -463,7 +933,7 @@ Currently evaluated:
 - `select` expressions
 - scalar literals
 - resolution expressions
-- comparisons between same-type scalar values
+- comparisons between same-type scalar values and same-kind structural containers
 - membership over Binding Sets with `in`
 - Boolean `not`, `and`, `or`
 - existence predicates over resolution expressions: `exists`, `absent`
@@ -472,6 +942,7 @@ Currently evaluated:
 - dynamic address activation in expression positions with `path`
 - missing-aware fallback with `fallback`
 - dynamic direct-child resolution over addressable containers with `resolveChild`
+- explicit read-only reference following with `follow`
 - experimental transform-library object construction with `objectFrom`
 - experimental transform-library field projection with `fieldsFrom`
 - built-in value predicates: `isValue`, `isNull`, `isNullReason`, `isNaN`, `isInfinity`
@@ -486,6 +957,12 @@ where "admin" in .roles.*
 ```
 
 The left operand is consumed in scalar context. Right-side bindings are evaluated in Binding Set order. Each right-side binding is consumed as a scalar and compared using equality comparison rules. Membership returns true on the first successful match and does not evaluate later bindings. Empty Binding Sets and fully evaluated non-matching sets evaluate to false. Membership does not skip incompatible bindings before a match: explicit null, NaN, missing scalar, cardinality, and mixed-type comparison failures surface as diagnostics. The right operand must evaluate to a Binding Set; string containment remains the `contains(...)` function.
+
+Equality and inequality comparison may also consume one resolved container binding on each side. Containers compare structurally only when both sides expose the same normalized container kind (`object`, `list`, `tuple`, or `node`). Lists and tuples compare by child order; objects compare by member names and member values. Nodes compare by exposed tag, exposed attributes, and child order. Containers are not orderable by the minimum profile, and membership remains scalar-only.
+
+Container datatype labels remain visible to semantic filters. This includes `#object`, object aliases such as `#obj`, `#o`, and `#envelope`, generic bases such as `#list` for `list<T>`, plus `#tuple` and `#node`. These filters select bindings only; they do not normalize aliases for equality, change structural comparison, or introduce container ordering.
+
+Container representation filters such as `%object`, `%list`, `%tuple`, and `%node` select by exposed shape instead of datatype claim. For example, `%object` can select both `obj` and `envelope` bindings when both expose object representation.
 
 Existence predicates inspect binding presence rather than scalar value:
 
@@ -506,32 +983,57 @@ Missing bindings, explicit null values, and special numeric values are distinct:
 
 ```text
 absent(.status) == true when .status resolves zero bindings
-isValue(.status) == true when .status resolves one ordinary scalar binding
+isValue(.status) == true when .status resolves one concrete value binding
 isNull(.status) == true when .status resolves one explicit null binding
 isNullReason(.status, "notSet") == true when the null reason matches
 isNaN(.metric) == true when the scalar is explicit NaN
 isInfinity(.limit) == true when the scalar is positive or negative infinity
 ```
 
-`isValue(...)` is a missing-aware ordinary scalar guard. It returns true when its operand evaluates to one string, Boolean, or finite number. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, non-scalar bindings, explicit null, NaN, and infinity. More than one binding remains a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, toggles, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
 
 `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
 
 `NaN` is not comparable. Scalar comparison and ordering over `NaN` fail with `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`; use `isNaN(...)` for explicit tests. Infinity values remain numeric bounds and may participate in same-type numeric comparisons and ordering.
+
+Query source can express selected AEON scalar literal families directly:
+`#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
+temporal-looking literals such as `2026-07-25`, `09:30:00Z`,
+`2026-07-25T09:30:00Z`, and `2026-07-25T09:30:00Z&Australia/Melbourne`. These
+literals preserve their family metadata for comparison. Same-family temporal
+literals compare through the active temporal profile; the default profile uses
+canonical payload order.
+Explicit null literals are tested through null predicates rather than equality.
 
 Current comparison policy:
 
 | Operands | Equality | Ordering | Result |
 | --- | --- | --- | --- |
 | number and number | allowed | allowed | numeric comparison |
+| numeric subtype and numeric subtype | allowed | allowed | `int`, `uint`, and `float` datatype labels remain visible to semantic filters; comparison uses finite numeric values once exposed by the host |
+| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `radix2`/`radix6`/`radix8`/`radix12` as radix, `base64`/`embed`/`inline` as encoding, `kadot` as separator, and `obj`/`o`/`envelope` as object containers |
 | string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
+| toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |
+| toggle and boolean | error | error | no implicit Boolean coercion |
+| hex and hex | allowed | error | canonical payload identity only |
+| radix and radix | allowed | error | preserved payload and radix-family metadata identity only |
+| hex and radix | error | error | no implicit numeric or base-16 coercion |
+| encoding and encoding | allowed | allowed | naïve payload order over preserved encoded payload characters |
+| separator and separator | allowed | allowed | naïve whole-payload order; no splitting on separator specs |
+| SANSA address and SANSA address | allowed | allowed | canonical address-expression identity and naïve address-expression order |
+| temporal and temporal | allowed within same family | allowed within same family | default profile uses canonical temporal payload order; cross-family comparison fails without explicit compatibility |
+| reference form and reference form | allowed | error | reference-kind and canonical target-path identity; no implicit follow |
 | explicit null | error | error | use `isNull(...)` / `isNullReason(...)` |
 | NaN | error | error | use `isNaN(...)` |
 | infinity and number | allowed | allowed | numeric bound comparison |
 | mixed types | error | error | no implicit coercion |
 
-Until the shared value-semantics string-ordering profile is locked, this implementation slice compares strings by Unicode scalar value. It must not use host locale, process locale, database collation, or `localeCompare`-style host defaults for query comparison or `order by`.
+Semantic filters match the base datatype label of generic claims. For example,
+`#null`, `#nan`, and `#infinity` match host bindings annotated as `null<T>`,
+`nan<T>`, and `infinity<T>` before value predicates inspect the scalar.
+
+By default, this implementation slice compares strings by Unicode scalar value. It must not use natural sorting, host locale, process locale, database collation, or `localeCompare`-style host defaults unless the caller explicitly supplies a value-semantics profile such as `createNaturalAsciiValueSemanticsProfile()` or `createFrenchValueSemanticsProfile()`.
 
 Ordinary value-producing functions evaluate their arguments before invocation. Resolution-expression arguments are consumed in single-binding scalar context:
 
@@ -545,9 +1047,33 @@ The current built-in string functions are `contains`, `startsWith`, `endsWith`, 
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 
+Activation is checked after the operand becomes a structured Address value and
+before that address is resolved. Structural root checks do not use string
+prefixes. Parent traversal is normalized for containment and fails closed when
+its reach cannot be proven. The standalone CLI and browser workbench explicitly
+use trusted activation because they operate as local technical test tools over
+fixtures selected by the user; embedding applications must choose their own
+trusted or constrained policy.
+
+SANSA Address Literal values remain selectable as values with `#sansa` and
+`%sansa`. Those filters select the literal binding itself and do not activate
+the address; activation is always explicit through `path(...)`.
+
 `fallback(primary, replacement)` is a function-like operator with lazy missing handling. The primary operand is consumed in scalar value context. If it resolves zero bindings, or raises a missing-scalar diagnostic, the replacement operand is evaluated and consumed in the same scalar value context. If the primary operand succeeds, the replacement operand is not evaluated. Explicit null values, cardinality errors, type errors, comparison errors, and unsupported-function errors do not trigger fallback.
 
 `resolveChild(base, key)` is a function-like structural operator with a distinct argument contract. The base argument must be a resolution expression resolving exactly one addressable container. The key argument is consumed in scalar context; string keys select a direct member of the base, and non-negative integer keys select a direct positional child. A missing target returns an empty Binding Set. Multiple base bindings, multiple key bindings, unsupported key types, and multiple target bindings fail with diagnostics. It does not parse traversal strings, scan collections, or perform join semantics.
+
+`follow(reference)` is a function-like read-only reference operator. Its operand
+must evaluate to one AEON reference form. The function resolves the reference's
+canonical exact target path and returns that target Binding Set. Without
+`follow(...)`, references compare as reference forms by reference kind and
+canonical target path; with `follow(...)`, the target binding is consumed by the
+ordinary scalar, structural, or order context. `follow(...)` does not rewrite,
+inline, clone, alias, or erase the source reference.
+
+Concrete reference forms remain visible to representation filters such as
+`%cloneReference` and `%pointerReference`. These filters select the reference
+binding itself and do not imply `follow(...)` or materialization.
 
 `objectFrom(keys, values)` is an experimental transform-library helper with a distinct argument contract. Both arguments must be resolution expressions. The key and value Binding Sets must have equal length. Key bindings must expose unique string scalar values. Value bindings must expose scalar values. The helper pairs keys and values by resolved order and returns one derived object. Mismatched lengths, duplicate keys, non-string keys, and non-scalar values fail with diagnostics. It is not part of the required SANSA.Query v1 core surface.
 
@@ -582,7 +1108,7 @@ order by path($.<"params">.sortField) asc
 select path($.<"params">.field)
 ```
 
-`isValue(...)`, `exists(...)`, and explicit null predicates can distinguish ordinary values, explicit nulls, and missing bindings:
+`isValue(...)`, `exists(...)`, and explicit null predicates can distinguish concrete values, explicit nulls, and missing bindings:
 
 ```text
 from $.inventory.items.*

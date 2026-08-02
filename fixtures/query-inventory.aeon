@@ -1,3 +1,38 @@
+consent:toggle = yes
+fallbackConsent:toggle = on
+target:number = 7
+targetClone:number = ~target
+targetPointer:number = ~>target
+
+types:object = {
+  color:hex = #ff00aa
+  colorCopy:hex = #ff00aa
+  mask:radix[16] = %ff00aa
+  octal:radix8 = %70
+  payload:encoding = &QmFzZTY0IQ==
+  version:sep[.] = ^0.11.0
+  released:date = 2026-07-25
+  window:time = 09:30:00Z
+  stamp:datetime = 2026-07-25T09:30:00Z
+  zone:zrut = 2026-07-25T09:30:00Z&Australia/Melbourne
+  count:int32 = 2
+  capacity:uint64 = 8
+  ratio:float64 = 2.5
+  aliasNumber:n = 9
+  approved:bool = true
+  note:trimtick = >`
+    hello trimtick
+  `
+  summary:prose = >`
+    hello prose
+  `
+  payloadBase64:base64 = &QmFzZTY0IQ==
+  payloadEmbed:embed = &QmFzZTY0IQ==
+  payloadInline:inline = &QmFzZTY0IQ==
+  semver:kadot = ^3.14.15
+  selector:sansa = $.inventory.items.*.sku
+}
+
 inventory:object = {
   items:list<object> = [
       @{lane:string = "primary"}:object = {
@@ -56,14 +91,41 @@ table:object = {
   ]
 }
 
+containers:object = {
+  record:obj = {
+    id:number = 1
+  }
+  packet:envelope = {
+    ok:boolean = true
+  }
+  compact:o = {
+    ok:boolean = true
+  }
+  series:list<number> = [1, 2]
+  pair:tuple = ("x", 1)
+  nodeValue:node = <tag("hello")>
+}
+
 labels:list<object> = [
   {
-    value:string = "z"
+    value:string = "zebre"
   }
   {
-    value:string = "ä"
+    value:string = "éclair"
   }
   {
-    value:string = "a"
+    value:string = "adapter"
+  }
+]
+
+parts:list<object> = [
+  {
+    value:string = "part-10"
+  }
+  {
+    value:string = "part-2"
+  }
+  {
+    value:string = "part-1"
   }
 ]

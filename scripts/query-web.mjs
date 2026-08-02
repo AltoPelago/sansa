@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateQueryForWorkbench, parseQueryForWorkbench } from '../tools/query-web/runtime.mjs';
+import { runMutationForWorkbench } from '../tools/mutate-web/runtime.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const port = Number(readArg('--port') ?? process.env.PORT ?? 4173);
@@ -13,6 +14,10 @@ const server = createServer((request, response) => {
   const url = new URL(request.url ?? '/', `http://${host}:${port}`);
   if (url.pathname === '/api/query') {
     handleQueryApi(request, response);
+    return;
+  }
+  if (url.pathname === '/api/mutate') {
+    handleMutateApi(request, response);
     return;
   }
 
@@ -51,6 +56,7 @@ const server = createServer((request, response) => {
 
 server.listen(port, host, () => {
   console.log(`SANSA Query Workbench: http://${host}:${port}/tools/query-web/`);
+  console.log(`SANSA Mutate Workbench: http://${host}:${port}/tools/mutate-web/`);
 });
 
 server.on('error', (error) => {
@@ -61,6 +67,45 @@ server.on('error', (error) => {
 function readArg(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
+}
+
+function handleMutateApi(request, response) {
+  if (request.method !== 'POST') {
+    writeJson(response, 405, {
+      ok: false,
+      errors: [{ code: 'SANSA_MUTATE_WORKBENCH_METHOD_NOT_ALLOWED', message: 'Expected POST.' }],
+    });
+    return;
+  }
+
+  readRequestBody(request, 1_000_000)
+    .then(async (body) => {
+      let payload;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        writeJson(response, 400, {
+          ok: false,
+          errors: [{ code: 'SANSA_MUTATE_WORKBENCH_INVALID_REQUEST_JSON', message: error.message }],
+        });
+        return;
+      }
+
+      const result = await runMutationForWorkbench({
+        source: String(payload.source ?? ''),
+        requestSource: String(payload.requestSource ?? ''),
+        requestKind: payload.requestKind === 'instruction' ? 'instruction' : 'structured',
+        mode: payload.mode === 'apply' ? 'apply' : 'plan',
+        options: payload.options,
+      });
+      writeJson(response, result.ok ? 200 : 400, result);
+    })
+    .catch((error) => {
+      writeJson(response, 400, {
+        ok: false,
+        errors: [{ code: 'SANSA_MUTATE_WORKBENCH_REQUEST_ERROR', message: error.message }],
+      });
+    });
 }
 
 function handleQueryApi(request, response) {
@@ -95,6 +140,7 @@ function handleQueryApi(request, response) {
           paramsSource: String(payload.paramsSource ?? ''),
           policy: payload.policy === 'validation' ? 'validation' : '',
           transformExtensions: payload.transformExtensions !== false,
+          valueSemantics: parseValueSemantics(payload.valueSemantics),
           budget: payload.budget,
         });
       writeJson(response, result.ok ? 200 : 400, result);
@@ -105,6 +151,16 @@ function handleQueryApi(request, response) {
         errors: [{ code: 'SANSA_QUERY_WORKBENCH_REQUEST_ERROR', message: error.message }],
       });
     });
+}
+
+function parseValueSemantics(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const text = String(value).trim();
+  if (text.length === 0) return '';
+  if (text.length > 100 || /\s/.test(text)) {
+    throw new Error('valueSemantics expects a compact profile id or locale tag.');
+  }
+  return text;
 }
 
 function readRequestBody(request, maxBytes) {

@@ -11,6 +11,7 @@ npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.js
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
 npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
 npm run query -- --max-from-bindings 3 --query 'from $.inventory.items.* select .sku'
+npm run query -- --value-semantics fr --query 'from $.inventory.items.* order by .name asc select .name'
 npm run query -- --params '{"source":{"type":"SansaAddressLiteral","address":"$.inventory.items[3]"},"field":{"type":"SansaAddressLiteral","address":"?.sku"}}' --query 'from path($.<"params">.source) select path($.<"params">.field)'
 ```
 
@@ -41,6 +42,13 @@ Use `--policy validation` to exercise the proposal-stage validation policy from
 the CLI. Use `--disable-transform` to run normal Query evaluation with
 experimental `SANSA.Transform` helpers disabled.
 
+Use `--value-semantics <profile>` to select an explicit query value-semantics
+profile. The current implementation recognizes `default`,
+`aeon.value.default.v1`, `aeon.value.string.codepoint.v1`,
+`aeon.value.string.natural.ascii.v1`, `fr`, `fr-FR`, and
+`aeon.value.string.locale.fr.v1`; other compact locale tags are passed to
+the host Intl collation surface as implementation-slice behavior.
+
 Host callers can pass optional `evaluateQuery(..., { budget: ... })` limits for
 pipeline sizes such as `maxFromBindings`, `maxWhereCandidates`,
 `maxOrderCandidates`, and `maxResultRecords`. The CLI exposes the same surface
@@ -58,12 +66,31 @@ npm run query:web
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
+The same server also exposes the experimental SANSA Mutate Workbench at
+`http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon`
+source input plus an editor that can accept structured JSON mutation requests
+or proposal-stage SANSA Instruction source. Structured JSON runs
+`planMutation(...)` directly. Instruction source runs `planInstruction(...)`,
+then uses the returned plan for the same apply preview path. Each request runs
+against a fresh in-memory namespace.
+
+For command-line testing of proposal-stage SANSA.Instruction, use the
+standalone Instruction tool:
+
+```bash
+npm run instruction -- --mode plan --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
+```
+
+It uses the same default JSON fixture as the Query CLI and can also load AEON
+fixtures. See [instruction-tool.md](instruction-tool.md) for details.
+
 The workbench defaults to [../fixtures/query-inventory.aeon](../fixtures/query-inventory.aeon),
 derives a SANSA resolver namespace from the optional AEON TypeScript Core
 runtime, and runs SANSA.Query over that derived graph. It also includes a params
 local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle,
-a Transform extension toggle, optional budget limit inputs, plus a JSON fixture
-mode for debugging the resolver shape directly.
+a Transform extension toggle, a value-semantics profile selector, optional
+budget limit inputs, plus a JSON fixture mode for debugging the resolver shape
+directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines
 with phase and candidate context when available. JSON mode exposes the full
@@ -102,15 +129,67 @@ NaN and infinity are explicit numeric special values. Use `isNaN(...)` and
 `isInfinity(...)` for literal-form tests; `NaN` is rejected by scalar comparison
 and ordering.
 
-`isValue(...)` is a missing-aware ordinary scalar guard. It returns true for one
-string, Boolean, or finite number expression result. It can inspect scalar
-expressions directly or a Binding Set produced by resolution or `path(...)`. It
-returns false for missing bindings, non-scalar bindings, explicit null, NaN, and
-infinity, while multiple bindings remain a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true for one
+concrete value, including finite numbers, infinities, strings, Booleans,
+lexical structured scalars, SANSA address literals, legal reference forms, and
+containers. It can inspect scalar expressions directly or a Binding Set produced
+by resolution or `path(...)`. It returns false for missing bindings, explicit
+null, explicit absence values, and NaN, while multiple bindings remain a
+cardinality error.
 
 The current evaluator allows same-type number and string comparisons, Boolean
-equality, and infinity as a numeric bound. It rejects mixed-type comparisons,
-Boolean ordering, explicit null comparison, and NaN comparison.
+equality, exact toggle-token equality, same-family lexical value equality for
+hex, radix, encoding, and separator values, exact reference-form equality,
+same-kind structural container equality, and infinity as a numeric bound.
+Query source can express the same AEON scalar literal families directly, for
+example `#ff00aa`, `%ff00aa`,
+`&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
+`2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
+`2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
+through the active temporal value-semantics profile; the default profile uses
+canonical payload order for `date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
+comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
+temporal comparison, Boolean ordering, container ordering, explicit null
+comparison, and NaN comparison.
+
+Numeric datatype labels such as `int32`, `uint64`, and `float64` remain visible
+to semantic filters. When the host exposes their payload as a finite numeric
+value, comparison uses the shared numeric value semantics; range, width,
+integer-only, unsigned, and precision checks remain profile or schema concerns.
+The same label-vs-family split applies to reserved aliases: `n` compares as a
+number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
+`radix2`, `radix6`, `radix8`, and `radix12` remain radix-family labels,
+`base64`, `embed`, and `inline` compare as encoded payloads, and `kadot`
+compares as a separator payload when the host exposes those representation
+families. `hex` remains distinct from radix, including `radix[16]`; no numeric
+or byte-level interpretation is implied without an explicit profile.
+Semantic filters match the base datatype label of generic claims, so
+`#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
+`nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,
+`isNaN(...)`, or `isInfinity(...)` inspect the value.
+
+Container equality compares one resolved container binding on each side.
+Objects compare by member names and member values. Lists, tuples, and nodes
+compare by child order. Container kinds are not coerced, so a list and a tuple
+with identical child values still do not compare equal.
+Container datatype labels remain visible to semantic filters, including
+`#object`, object aliases such as `#obj`, `#o`, and `#envelope`, generic bases such as
+`#list` for `list<T>`, plus `#tuple` and `#node`. These filters select
+bindings; they do not change structural comparison or introduce container
+ordering.
+Container representation filters such as `%object`, `%list`, `%tuple`, and
+`%node` select by exposed shape instead of datatype claim. For example,
+`%object` can select both `obj` and `envelope` bindings when both expose object
+representation.
+
+```text
+where .consent == yes
+```
+
+AEON toggle literal spellings `yes`, `no`, `on`, and `off` are parsed as toggle
+values. They are not Boolean aliases: `yes` does not equal `on`, and `yes` does
+not equal `true` without an explicit conversion or profile-defined comparison
+domain.
 
 Membership tests a scalar against the scalar values exposed by a Binding Set:
 
@@ -130,14 +209,31 @@ bindings, multiple bindings, explicit null, numeric specials, and other
 non-string values unless a specific function contract says otherwise.
 
 String comparison and `order by` use deterministic Unicode scalar-value
-ordering in this implementation slice. They do not use host locale or process
-locale collation.
+ordering by default. They do not use host locale or process locale collation
+unless an embedding caller supplies an explicit value-semantics profile.
+For exploratory testing, the CLI and browser workbench can select the French
+profile to compare locale-aware behavior against the default codepoint order, or
+the Natural ASCII profile to compare numeric-region behavior such as
+`part-2 < part-10`. These string profiles do not reinterpret `hex`, `radix`,
+`encoding`, `separator`, or `sansa` values as richer domains; those require an
+explicit future profile or consumer contract.
 
 `path(value)` activates a structured SANSA Address Literal value. In expression
 positions such as `select`, `where`, and `order by`, it resolves in the current
 candidate context and returns a Binding Set. In `from path(...)`, it supplies
 the source Binding Set for the query. It does not parse plain strings as
 addresses.
+
+Library callers must explicitly authorize dynamic activation with either
+`addressActivation: "trusted"` or a constrained policy containing structural
+`allowedRoots`, selector capabilities, contextual-root permission, and optional
+depth and binding limits. The CLI and browser workbench deliberately use trusted
+activation because they are local fixture-testing tools. Applications accepting
+queries or Address values from another trust boundary should use a constrained
+policy or a pre-scoped namespace view.
+SANSA Address Literal values remain selectable as values with `#sansa` and
+`%sansa`; those filters do not activate the address. Activation is always
+explicit through `path(...)`.
 
 `fallback(primary, replacement)` handles missing primary values only. The
 replacement expression is evaluated only when the primary expression resolves no
@@ -149,6 +245,22 @@ addressable base container. String keys select members; non-negative integer
 keys select positions. A missing target returns an empty Binding Set, and the
 consuming expression decides whether that is acceptable. It does not parse
 traversal strings or perform collection joins.
+
+`follow(reference)` explicitly traverses an AEON reference form to its target
+binding for read-only evaluation. Without `follow(...)`, reference forms compare
+by reference kind and canonical target path only. With `follow(...)`, the
+followed target value is consumed by ordinary value semantics:
+
+Concrete reference forms remain visible to representation filters such as
+`%cloneReference` and `%pointerReference`. These filters select the reference
+binding itself; they do not follow, clone, inline, or otherwise materialize the
+target.
+
+```text
+from $.targetClone
+where follow(.) == 7
+select follow(.)
+```
 
 `objectFrom(keys, values)` is an experimental transform-library helper. It
 pairs two ordered Binding Sets by position and constructs a derived object. Key

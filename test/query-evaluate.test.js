@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluateQuery } from '../src/index.js';
+import { createFrenchValueSemanticsProfile, createNaturalAsciiValueSemanticsProfile, evaluateQuery } from '../src/index.js';
 
 function binding({
   address,
@@ -155,6 +155,27 @@ const params = binding({
       value: { type: 'SansaAddressLiteral', address: '$.inventory.items.*' },
     }),
     binding({
+      name: 'parentField',
+      address: '$.<"params">.parentField',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '?.^.category' },
+    }),
+    binding({
+      name: 'localTarget',
+      address: '$.<"params">.localTarget',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.<"params">.field' },
+    }),
+    binding({
+      name: 'attributeTarget',
+      address: '$.<"params">.attributeTarget',
+      semanticType: 'sansa',
+      representationKind: 'sansa',
+      value: { type: 'SansaAddressLiteral', address: '$.inventory.@.source' },
+    }),
+    binding({
       name: 'fieldText',
       address: '$.<"params">.fieldText',
       semanticType: 'string',
@@ -238,6 +259,72 @@ const table = binding({
   children: [tableHeader, tableDuplicateHeader, tableContent],
 });
 
+const containers = binding({
+  name: 'containers',
+  address: '$.containers',
+  semanticType: 'object',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'record',
+      address: '$.containers.record',
+      semanticType: 'obj',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'id', address: '$.containers.record.id', semanticType: 'number', representationKind: 'number', value: 1 }),
+      ],
+    }),
+    binding({
+      name: 'packet',
+      address: '$.containers.packet',
+      semanticType: 'envelope',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'ok', address: '$.containers.packet.ok', semanticType: 'boolean', representationKind: 'boolean', value: true }),
+      ],
+    }),
+    binding({
+      name: 'compact',
+      address: '$.containers.compact',
+      semanticType: 'o',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'ok', address: '$.containers.compact.ok', semanticType: 'boolean', representationKind: 'boolean', value: true }),
+      ],
+    }),
+    binding({
+      name: 'series',
+      address: '$.containers.series',
+      semanticType: 'list<number>',
+      representationKind: 'list',
+      children: [
+        binding({ index: 0, address: '$.containers.series[0]', semanticType: 'number', representationKind: 'number', value: 1 }),
+        binding({ index: 1, address: '$.containers.series[1]', semanticType: 'number', representationKind: 'number', value: 2 }),
+      ],
+    }),
+    binding({
+      name: 'pair',
+      address: '$.containers.pair',
+      semanticType: 'tuple',
+      representationKind: 'tuple',
+      children: [
+        binding({ index: 0, address: '$.containers.pair[0]', semanticType: 'string', representationKind: 'string', value: 'x' }),
+        binding({ index: 1, address: '$.containers.pair[1]', semanticType: 'number', representationKind: 'number', value: 1 }),
+      ],
+    }),
+    binding({
+      name: 'nodeValue',
+      address: '$.containers.nodeValue',
+      semanticType: 'node',
+      representationKind: 'node',
+      nodeTag: 'tag',
+      children: [
+        binding({ index: 0, address: '$.containers.nodeValue[0]', semanticType: 'string', representationKind: 'string', value: 'hello' }),
+      ],
+    }),
+  ],
+});
+
 const root = binding({
   address: '$',
   representationKind: 'object',
@@ -245,6 +332,62 @@ const root = binding({
     params,
   },
   children: [
+    binding({ name: 'consent', address: '$.consent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'yes' }),
+    binding({ name: 'fallbackConsent', address: '$.fallbackConsent', semanticType: 'toggle', representationKind: 'toggle', scalarKind: 'toggle', value: 'on' }),
+    binding({ name: 'target', address: '$.target', semanticType: 'number', representationKind: 'number', value: 7 }),
+    binding({
+      name: 'targetClone',
+      address: '$.targetClone',
+      semanticType: 'number',
+      representationKind: 'cloneReference',
+      scalarKind: 'referenceForm',
+      value: { type: 'CloneReference', path: ['target'], canonical: '~target' },
+    }),
+    binding({
+      name: 'targetPointer',
+      address: '$.targetPointer',
+      semanticType: 'number',
+      representationKind: 'pointerReference',
+      scalarKind: 'referenceForm',
+      value: { type: 'PointerReference', path: ['target'], canonical: '~>target' },
+    }),
+    binding({
+      name: 'types',
+      address: '$.types',
+      representationKind: 'object',
+      children: [
+        binding({ name: 'archiveDate', address: '$.types.archiveDate', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2024-12-31' }),
+        binding({ name: 'released', address: '$.types.released', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2026-07-25' }),
+        binding({ name: 'window', address: '$.types.window', semanticType: 'time', representationKind: 'time', scalarKind: 'time', value: '09:30:00Z' }),
+        binding({ name: 'stamp', address: '$.types.stamp', semanticType: 'datetime', representationKind: 'datetime', scalarKind: 'datetime', value: '2026-07-25T09:30:00Z' }),
+        binding({ name: 'zone', address: '$.types.zone', semanticType: 'zrut', representationKind: 'zrut', scalarKind: 'zrut', value: '2026-07-25T09:30:00Z&Australia/Melbourne' }),
+        binding({ name: 'color', address: '$.types.color', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
+        binding({ name: 'colorCopy', address: '$.types.colorCopy', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
+        binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
+        binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
+        binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'version', address: '$.types.version', semanticType: 'sep[.]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
+        binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
+        binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
+        binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
+        binding({ name: 'aliasNumber', address: '$.types.aliasNumber', semanticType: 'n', representationKind: 'number', value: 9 }),
+        binding({ name: 'approved', address: '$.types.approved', semanticType: 'bool', representationKind: 'boolean', value: true }),
+        binding({ name: 'note', address: '$.types.note', semanticType: 'trimtick', representationKind: 'string', value: 'hello trimtick' }),
+        binding({ name: 'summary', address: '$.types.summary', semanticType: 'prose', representationKind: 'string', value: 'hello prose' }),
+        binding({ name: 'payloadBase64', address: '$.types.payloadBase64', semanticType: 'base64', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'payloadEmbed', address: '$.types.payloadEmbed', semanticType: 'embed', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'payloadInline', address: '$.types.payloadInline', semanticType: 'inline', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
+        binding({ name: 'semver', address: '$.types.semver', semanticType: 'kadot', representationKind: 'separator', scalarKind: 'separator', value: '3.14.15' }),
+        binding({
+          name: 'selector',
+          address: '$.types.selector',
+          semanticType: 'sansa',
+          representationKind: 'sansa',
+          scalarKind: 'sansaAddress',
+          value: { type: 'SansaAddressLiteral', address: '$.inventory.items.*.sku', canonical: '$.inventory.items.*.sku' },
+        }),
+      ],
+    }),
     binding({
       name: 'inventory',
       address: '$.inventory',
@@ -268,6 +411,7 @@ const root = binding({
       ],
     }),
     table,
+    containers,
   ],
 });
 
@@ -317,6 +461,84 @@ const stringOrderingRoot = binding({
 
 const stringOrderingNamespace = {
   root: stringOrderingRoot,
+  children: (entry) => entry.children,
+};
+
+const frenchOrderingRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'labels',
+      address: '$.labels',
+      representationKind: 'list',
+      children: [
+        binding({
+          index: 0,
+          address: '$.labels[0]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[0].value', semanticType: 'string', representationKind: 'string', value: 'zebre' }),
+          ],
+        }),
+        binding({
+          index: 1,
+          address: '$.labels[1]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.labels[1].value', semanticType: 'string', representationKind: 'string', value: 'éclair' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+
+const frenchOrderingNamespace = {
+  root: frenchOrderingRoot,
+  children: (entry) => entry.children,
+};
+
+const naturalOrderingRoot = binding({
+  address: '$',
+  representationKind: 'object',
+  children: [
+    binding({
+      name: 'parts',
+      address: '$.parts',
+      representationKind: 'list',
+      children: [
+        binding({
+          index: 0,
+          address: '$.parts[0]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[0].value', semanticType: 'string', representationKind: 'string', value: 'part-10' }),
+          ],
+        }),
+        binding({
+          index: 1,
+          address: '$.parts[1]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[1].value', semanticType: 'string', representationKind: 'string', value: 'part-2' }),
+          ],
+        }),
+        binding({
+          index: 2,
+          address: '$.parts[2]',
+          representationKind: 'object',
+          children: [
+            binding({ name: 'value', address: '$.parts[2].value', semanticType: 'string', representationKind: 'string', value: 'part-1' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+
+const naturalOrderingNamespace = {
+  root: naturalOrderingRoot,
   children: (entry) => entry.children,
 };
 
@@ -485,6 +707,174 @@ test('evaluates string ordering by Unicode scalar value', () => {
   assert.deepEqual(compared.results.map((entry) => entry.binding.address), ['$.labels[1]']);
 });
 
+test('evaluates string ordering with an explicit French value-semantics profile', () => {
+  const codepointOrdered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), frenchOrderingNamespace);
+
+  assert.equal(codepointOrdered.ok, true, JSON.stringify(codepointOrdered.errors ?? []));
+  assert.deepEqual(codepointOrdered.results.map((entry) => entry.binding.address), [
+    '$.labels[0]',
+    '$.labels[1]',
+  ]);
+
+  const frenchOrdered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select upper(.value)',
+  ].join('\n'), frenchOrderingNamespace, {
+    valueSemantics: createFrenchValueSemanticsProfile(),
+  });
+
+  assert.equal(frenchOrdered.ok, true, JSON.stringify(frenchOrdered.errors ?? []));
+  assert.deepEqual(frenchOrdered.results.map((entry) => entry.binding.address), [
+    '$.labels[1]',
+    '$.labels[0]',
+  ]);
+  assert.deepEqual(frenchOrdered.results.map((entry) => entry.value.value), ['ÉCLAIR', 'ZEBRE']);
+});
+
+test('evaluates natural ASCII numeric-region string ordering with an explicit profile', () => {
+  const codepointOrdered = evaluateQuery([
+    'from $.parts.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), naturalOrderingNamespace);
+
+  assert.equal(codepointOrdered.ok, true, JSON.stringify(codepointOrdered.errors ?? []));
+  assert.deepEqual(codepointOrdered.results.map((entry) => entry.binding.address), [
+    '$.parts[2]',
+    '$.parts[0]',
+    '$.parts[1]',
+  ]);
+
+  const naturalOrdered = evaluateQuery([
+    'from $.parts.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), naturalOrderingNamespace, {
+    valueSemantics: createNaturalAsciiValueSemanticsProfile(),
+  });
+
+  assert.equal(naturalOrdered.ok, true, JSON.stringify(naturalOrdered.errors ?? []));
+  assert.deepEqual(naturalOrdered.results.map((entry) => entry.binding.address), [
+    '$.parts[2]',
+    '$.parts[1]',
+    '$.parts[0]',
+  ]);
+  assert.deepEqual(naturalOrdered.results.map((entry) => entry.value.bindings[0].value), [
+    'part-1',
+    'part-2',
+    'part-10',
+  ]);
+});
+
+test('rejects incomplete custom value-semantics profiles in query evaluation', () => {
+  const result = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), frenchOrderingNamespace, {
+    valueSemantics: {
+      compareStrings: () => 0,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_INVALID_VALUE_SEMANTICS_PROFILE');
+  assert.equal(result.errors[0].phase, 'policy');
+  assert.match(result.errors[0].message, /compareStrings, lowerString, and upperString together/);
+});
+
+test('applies explicit custom string profiles to query equality and ordering', () => {
+  const customProfile = {
+    compareStrings: (left, right) => {
+      if (Array.from(left)[0] === Array.from(right)[0]) return 0;
+      return left < right ? 1 : left > right ? -1 : 0;
+    },
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
+  };
+
+  const equality = evaluateQuery([
+    'from $.labels.*',
+    'where .value == "aardvark"',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace, {
+    valueSemantics: customProfile,
+  });
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.labels[2]']);
+
+  const ordered = evaluateQuery([
+    'from $.labels.*',
+    'order by .value asc',
+    'select .value',
+  ].join('\n'), stringOrderingNamespace, {
+    valueSemantics: customProfile,
+  });
+  assert.equal(ordered.ok, true, JSON.stringify(ordered.errors ?? []));
+  assert.deepEqual(ordered.results.map((entry) => entry.binding.address), [
+    '$.labels[1]',
+    '$.labels[0]',
+    '$.labels[2]',
+  ]);
+});
+
+test('applies explicit custom temporal profiles to same-family temporal comparisons', () => {
+  const reverseTemporalProfile = {
+    compareTemporal: (left, right) => (
+      left.payload < right.payload ? 1 : left.payload > right.payload ? -1 : 0
+    ),
+  };
+
+  const ordered = evaluateQuery([
+    'from $.types.*#date',
+    'order by . asc',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reverseTemporalProfile,
+  });
+  assert.equal(ordered.ok, true, JSON.stringify(ordered.errors ?? []));
+  assert.deepEqual(ordered.results.map((entry) => entry.binding.address), [
+    '$.types.released',
+    '$.types.archiveDate',
+  ]);
+
+  const compared = evaluateQuery([
+    'from $.types.released',
+    'where . < 2025-01-01',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reverseTemporalProfile,
+  });
+  assert.equal(compared.ok, true, JSON.stringify(compared.errors ?? []));
+  assert.deepEqual(compared.results.map((entry) => entry.binding.address), ['$.types.released']);
+});
+
+test('does not apply custom string profiles as separator domain semantics', () => {
+  const reversedStringProfile = {
+    compareStrings: (left, right) => left < right ? 1 : left > right ? -1 : 0,
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
+  };
+  const result = evaluateQuery([
+    'from $.types.*%separator',
+    'order by . asc',
+    'select .',
+  ].join('\n'), namespace, {
+    valueSemantics: reversedStringProfile,
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.deepEqual(result.results.map((entry) => entry.binding.address), [
+    '$.types.version',
+    '$.types.semver',
+  ]);
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
@@ -621,22 +1011,22 @@ test('distinguishes missing bindings from explicit null values', () => {
   assert.equal(unguardedMissingStatus.errors[0].code, 'SANSA_QUERY_EVALUATE_MISSING_SCALAR');
 });
 
-test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
-  const ordinaryStatuses = evaluateQuery([
+test('evaluates isValue as a missing-aware concrete-value guard', () => {
+  const concreteStatuses = evaluateQuery([
     'from $.inventory.items.*',
     'where isValue(.status)',
     'select .sku',
   ].join('\n'), namespace);
-  assert.equal(ordinaryStatuses.ok, true, JSON.stringify(ordinaryStatuses.errors ?? []));
-  assert.deepEqual(ordinaryStatuses.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
+  assert.equal(concreteStatuses.ok, true, JSON.stringify(concreteStatuses.errors ?? []));
+  assert.deepEqual(concreteStatuses.results.map((entry) => entry.binding.address), ['$.inventory.items[1]']);
 
-  const ordinaryNumbers = evaluateQuery([
+  const concreteNumbers = evaluateQuery([
     'from $.inventory.items.*',
     'where isValue(.qty)',
     'select .sku',
   ].join('\n'), namespace);
-  assert.equal(ordinaryNumbers.ok, true, JSON.stringify(ordinaryNumbers.errors ?? []));
-  assert.deepEqual(ordinaryNumbers.results.map((entry) => entry.binding.address), [
+  assert.equal(concreteNumbers.ok, true, JSON.stringify(concreteNumbers.errors ?? []));
+  assert.deepEqual(concreteNumbers.results.map((entry) => entry.binding.address), [
     '$.inventory.items[0]',
     '$.inventory.items[1]',
     '$.inventory.items[2]',
@@ -657,7 +1047,10 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
     'select .sku',
   ].join('\n'), namespace);
   assert.equal(specialValues.ok, true, JSON.stringify(specialValues.errors ?? []));
-  assert.deepEqual(specialValues.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+  assert.deepEqual(specialValues.results.map((entry) => entry.binding.address), [
+    '$.inventory.items[0]',
+    '$.inventory.items[3]',
+  ]);
 
   const containerValue = evaluateQuery([
     'from $.inventory.items[0]',
@@ -665,7 +1058,7 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
     'select .sku',
   ].join('\n'), namespace);
   assert.equal(containerValue.ok, true, JSON.stringify(containerValue.errors ?? []));
-  assert.deepEqual(containerValue.results, []);
+  assert.deepEqual(containerValue.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 
   const multipleValues = evaluateQuery([
     'from $.inventory.items[0]',
@@ -685,6 +1078,14 @@ test('evaluates isValue as a missing-aware ordinary scalar guard', () => {
 });
 
 test('evaluates NaN and Infinity predicates explicitly', () => {
+  const nullStatusSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.status#null) and isNullReason(.status, "notSet")',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nullStatusSemanticFilter.ok, true, JSON.stringify(nullStatusSemanticFilter.errors ?? []));
+  assert.deepEqual(nullStatusSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
+
   const nanMetric = evaluateQuery([
     'from $.inventory.items.*',
     'where exists(.metric) and isNaN(.metric)',
@@ -693,6 +1094,14 @@ test('evaluates NaN and Infinity predicates explicitly', () => {
   assert.equal(nanMetric.ok, true, JSON.stringify(nanMetric.errors ?? []));
   assert.deepEqual(nanMetric.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
 
+  const nanMetricSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.metric#nan) and isNaN(.metric)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(nanMetricSemanticFilter.ok, true, JSON.stringify(nanMetricSemanticFilter.errors ?? []));
+  assert.deepEqual(nanMetricSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[2]']);
+
   const infiniteCeiling = evaluateQuery([
     'from $.inventory.items.*',
     'where exists(.ceiling) and isInfinity(.ceiling)',
@@ -700,6 +1109,14 @@ test('evaluates NaN and Infinity predicates explicitly', () => {
   ].join('\n'), namespace);
   assert.equal(infiniteCeiling.ok, true, JSON.stringify(infiniteCeiling.errors ?? []));
   assert.deepEqual(infiniteCeiling.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
+
+  const infiniteCeilingSemanticFilter = evaluateQuery([
+    'from $.inventory.items.*',
+    'where exists(.ceiling#infinity) and isInfinity(.ceiling)',
+    'select .sku',
+  ].join('\n'), namespace);
+  assert.equal(infiniteCeilingSemanticFilter.ok, true, JSON.stringify(infiniteCeilingSemanticFilter.errors ?? []));
+  assert.deepEqual(infiniteCeilingSemanticFilter.results.map((entry) => entry.binding.address), ['$.inventory.items[3]']);
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items.*',
@@ -740,6 +1157,153 @@ test('follows the comparison policy matrix', () => {
   assert.equal(numberComparison.ok, true, JSON.stringify(numberComparison.errors ?? []));
   assert.deepEqual(numberComparison.results.map((entry) => entry.binding.address), ['$.inventory.items[0]']);
 
+  const intSemanticFilterComparison = evaluateQuery([
+    'from $.types.*#int32',
+    'where . >= 2',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(intSemanticFilterComparison.ok, true, JSON.stringify(intSemanticFilterComparison.errors ?? []));
+  assert.deepEqual(intSemanticFilterComparison.results.map((entry) => entry.binding.address), ['$.types.count']);
+
+  const numericSubtypeComparison = evaluateQuery([
+    'from $.types',
+    'where .count < .ratio and .capacity > .ratio',
+    'select .count',
+  ].join('\n'), namespace);
+  assert.equal(numericSubtypeComparison.ok, true, JSON.stringify(numericSubtypeComparison.errors ?? []));
+  assert.deepEqual(numericSubtypeComparison.results.map((entry) => entry.binding.address), ['$.types']);
+
+  const numberAliasFilterComparison = evaluateQuery([
+    'from $.types.*#n',
+    'where . > $.types.count',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(numberAliasFilterComparison.ok, true, JSON.stringify(numberAliasFilterComparison.errors ?? []));
+  assert.deepEqual(numberAliasFilterComparison.results.map((entry) => entry.binding.address), ['$.types.aliasNumber']);
+
+  const boolAliasFilterComparison = evaluateQuery([
+    'from $.types.*#bool',
+    'where . == true',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(boolAliasFilterComparison.ok, true, JSON.stringify(boolAliasFilterComparison.errors ?? []));
+  assert.deepEqual(boolAliasFilterComparison.results.map((entry) => entry.binding.address), ['$.types.approved']);
+
+  const stringFamilyAliasComparison = evaluateQuery([
+    'from $.types.*#prose',
+    'where . == "hello prose"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(stringFamilyAliasComparison.ok, true, JSON.stringify(stringFamilyAliasComparison.errors ?? []));
+  assert.deepEqual(stringFamilyAliasComparison.results.map((entry) => entry.binding.address), ['$.types.summary']);
+
+  const hexRepresentationFilter = evaluateQuery([
+    'from $.types.*%hex',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexRepresentationFilter.ok, true, JSON.stringify(hexRepresentationFilter.errors ?? []));
+  assert.deepEqual(hexRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.color',
+    '$.types.colorCopy',
+  ]);
+
+  const hexLiteralComparison = evaluateQuery([
+    'from $.types.color',
+    'where . == #ff00aa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexLiteralComparison.ok, true, JSON.stringify(hexLiteralComparison.errors ?? []));
+  assert.deepEqual(hexLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.color']);
+
+  const radixReservedLabelFilter = evaluateQuery([
+    'from $.types.*#radix8',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(radixReservedLabelFilter.ok, true, JSON.stringify(radixReservedLabelFilter.errors ?? []));
+  assert.deepEqual(radixReservedLabelFilter.results.map((entry) => entry.binding.address), ['$.types.octal']);
+
+  const radixLiteralDoesNotEraseFamilyMetadata = evaluateQuery([
+    'from $.types.mask',
+    'where . == %ff00aa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(radixLiteralDoesNotEraseFamilyMetadata.ok, true, JSON.stringify(radixLiteralDoesNotEraseFamilyMetadata.errors ?? []));
+  assert.deepEqual(radixLiteralDoesNotEraseFamilyMetadata.results.map((entry) => entry.binding.address), []);
+
+  const hexRadixComparison = evaluateQuery([
+    'from $.types.color',
+    'where . == $.types.mask',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(hexRadixComparison.ok, false);
+  assert.equal(hexRadixComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const encodingAliasComparison = evaluateQuery([
+    'from $.types.*#base64',
+    'where . == &QmFzZTY0IQ==',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingAliasComparison.ok, true, JSON.stringify(encodingAliasComparison.errors ?? []));
+  assert.deepEqual(encodingAliasComparison.results.map((entry) => entry.binding.address), ['$.types.payloadBase64']);
+
+  const encodingReservedLabelFilters = evaluateQuery([
+    'from $.types.*#embed',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingReservedLabelFilters.ok, true, JSON.stringify(encodingReservedLabelFilters.errors ?? []));
+  assert.deepEqual(encodingReservedLabelFilters.results.map((entry) => entry.binding.address), ['$.types.payloadEmbed']);
+
+  const inlineReservedLabelFilters = evaluateQuery([
+    'from $.types.*#inline',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(inlineReservedLabelFilters.ok, true, JSON.stringify(inlineReservedLabelFilters.errors ?? []));
+  assert.deepEqual(inlineReservedLabelFilters.results.map((entry) => entry.binding.address), ['$.types.payloadInline']);
+
+  const encodingRepresentationFilter = evaluateQuery([
+    'from $.types.*%encoding',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(encodingRepresentationFilter.ok, true, JSON.stringify(encodingRepresentationFilter.errors ?? []));
+  assert.deepEqual(encodingRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.payload',
+    '$.types.payloadBase64',
+    '$.types.payloadEmbed',
+    '$.types.payloadInline',
+  ]);
+
+  const separatorAliasComparison = evaluateQuery([
+    'from $.types.*#kadot',
+    'where . > ^3.0.0',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(separatorAliasComparison.ok, true, JSON.stringify(separatorAliasComparison.errors ?? []));
+  assert.deepEqual(separatorAliasComparison.results.map((entry) => entry.binding.address), ['$.types.semver']);
+
+  const separatorRepresentationFilter = evaluateQuery([
+    'from $.types.*%separator',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(separatorRepresentationFilter.ok, true, JSON.stringify(separatorRepresentationFilter.errors ?? []));
+  assert.deepEqual(separatorRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.types.version',
+    '$.types.semver',
+  ]);
+
+  const sansaSemanticFilter = evaluateQuery([
+    'from $.types.*#sansa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(sansaSemanticFilter.ok, true, JSON.stringify(sansaSemanticFilter.errors ?? []));
+  assert.deepEqual(sansaSemanticFilter.results.map((entry) => entry.binding.address), ['$.types.selector']);
+
+  const sansaRepresentationFilter = evaluateQuery([
+    'from $.types.*%sansa',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(sansaRepresentationFilter.ok, true, JSON.stringify(sansaRepresentationFilter.errors ?? []));
+  assert.deepEqual(sansaRepresentationFilter.results.map((entry) => entry.binding.address), ['$.types.selector']);
+
   const stringEquality = evaluateQuery([
     'from $.inventory.items.*',
     'where .sku == "B-200"',
@@ -758,6 +1322,320 @@ test('follows the comparison policy matrix', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+
+  const toggleEquality = evaluateQuery([
+    'from $.consent',
+    'where . == yes',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleEquality.ok, true, JSON.stringify(toggleEquality.errors ?? []));
+  assert.deepEqual(toggleEquality.results.map((entry) => entry.binding.address), ['$.consent']);
+
+  const toggleSpellingIsNotCoerced = evaluateQuery([
+    'from $.fallbackConsent',
+    'where . == yes',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleSpellingIsNotCoerced.ok, true, JSON.stringify(toggleSpellingIsNotCoerced.errors ?? []));
+  assert.deepEqual(toggleSpellingIsNotCoerced.results.map((entry) => entry.binding.address), []);
+
+  const toggleBooleanComparison = evaluateQuery([
+    'from $.consent',
+    'where . == true',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(toggleBooleanComparison.ok, false);
+  assert.equal(toggleBooleanComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const temporalLiteralComparison = evaluateQuery([
+    'from $.types.*#date',
+    'where . > 2025-01-01',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalLiteralComparison.ok, true, JSON.stringify(temporalLiteralComparison.errors ?? []));
+  assert.deepEqual(temporalLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.released']);
+
+  const temporalOrder = evaluateQuery([
+    'from $.types.*#date',
+    'order by . desc',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalOrder.ok, true, JSON.stringify(temporalOrder.errors ?? []));
+  assert.deepEqual(temporalOrder.results.map((entry) => entry.binding.address), [
+    '$.types.released',
+    '$.types.archiveDate',
+  ]);
+
+  const timeLiteralComparison = evaluateQuery([
+    'from $.types.window',
+    'where . >= 09:00:00Z',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(timeLiteralComparison.ok, true, JSON.stringify(timeLiteralComparison.errors ?? []));
+  assert.deepEqual(timeLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.window']);
+
+  const datetimeLiteralComparison = evaluateQuery([
+    'from $.types.stamp',
+    'where . == 2026-07-25T09:30:00Z',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(datetimeLiteralComparison.ok, true, JSON.stringify(datetimeLiteralComparison.errors ?? []));
+  assert.deepEqual(datetimeLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.stamp']);
+
+  const zrutLiteralComparison = evaluateQuery([
+    'from $.types.zone',
+    'where . == 2026-07-25T09:30:00Z&Australia/Melbourne',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(zrutLiteralComparison.ok, true, JSON.stringify(zrutLiteralComparison.errors ?? []));
+  assert.deepEqual(zrutLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
+
+  const temporalCrossFamilyComparison = evaluateQuery([
+    'from $.types.stamp',
+    'where . > $.types.released',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(temporalCrossFamilyComparison.ok, false);
+  assert.equal(temporalCrossFamilyComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const referenceFormEquality = evaluateQuery([
+    'from $.targetClone',
+    'where . == $.targetClone',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(referenceFormEquality.ok, true, JSON.stringify(referenceFormEquality.errors ?? []));
+  assert.deepEqual(referenceFormEquality.results.map((entry) => entry.binding.address), ['$.targetClone']);
+
+  const referenceFormKindIsNotCoerced = evaluateQuery([
+    'from $.targetPointer',
+    'where . == $.targetClone',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(referenceFormKindIsNotCoerced.ok, true, JSON.stringify(referenceFormKindIsNotCoerced.errors ?? []));
+  assert.deepEqual(referenceFormKindIsNotCoerced.results.map((entry) => entry.binding.address), []);
+
+  const cloneReferenceFilter = evaluateQuery([
+    'from $.*%cloneReference',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(cloneReferenceFilter.ok, true, JSON.stringify(cloneReferenceFilter.errors ?? []));
+  assert.deepEqual(cloneReferenceFilter.results.map((entry) => entry.binding.address), ['$.targetClone']);
+
+  const pointerReferenceFilter = evaluateQuery([
+    'from $.*%pointerReference',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(pointerReferenceFilter.ok, true, JSON.stringify(pointerReferenceFilter.errors ?? []));
+  assert.deepEqual(pointerReferenceFilter.results.map((entry) => entry.binding.address), ['$.targetPointer']);
+
+  const followedValueComparison = evaluateQuery([
+    'from $.targetClone',
+    'where follow(.) == 7',
+    'select follow(.)',
+  ].join('\n'), namespace);
+  assert.equal(followedValueComparison.ok, true, JSON.stringify(followedValueComparison.errors ?? []));
+  assert.deepEqual(followedValueComparison.results.map((entry) => entry.binding.address), ['$.targetClone']);
+  assert.deepEqual(followedValueComparison.results.map((entry) => (
+    entry.value.type === 'bindingSet' ? entry.value.bindings.map((binding) => binding.address) : null
+  )), [['$.target']]);
+
+  const followRejectsNonReference = evaluateQuery([
+    'from $.target',
+    'where follow(.) == 7',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(followRejectsNonReference.ok, false);
+  assert.equal(followRejectsNonReference.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const listStructuralEquality = evaluateQuery([
+    'from $.table',
+    'where .header == .header',
+    'select .header',
+  ].join('\n'), namespace);
+  assert.equal(listStructuralEquality.ok, true, JSON.stringify(listStructuralEquality.errors ?? []));
+  assert.deepEqual(listStructuralEquality.results.map((entry) => entry.binding.address), ['$.table']);
+  assert.deepEqual(listStructuralEquality.results.map((entry) => (
+    entry.value.type === 'bindingSet' ? entry.value.bindings.map((binding) => binding.address) : null
+  )), [['$.table.header']]);
+
+  const listStructuralInequality = evaluateQuery([
+    'from $.table',
+    'where .header != .duplicateHeader',
+    'select .duplicateHeader',
+  ].join('\n'), namespace);
+  assert.equal(listStructuralInequality.ok, true, JSON.stringify(listStructuralInequality.errors ?? []));
+  assert.deepEqual(listStructuralInequality.results.map((entry) => entry.binding.address), ['$.table']);
+
+  const differentContainerKinds = evaluateQuery([
+    'from $.table',
+    'where .header == .content[0]',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(differentContainerKinds.ok, false);
+  assert.equal(differentContainerKinds.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const containerOrdering = evaluateQuery([
+    'from $.table',
+    'where .header > .header',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(containerOrdering.ok, false);
+  assert.equal(containerOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const objectSemanticFilter = evaluateQuery([
+    'from $.containers#object',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectSemanticFilter.ok, true, JSON.stringify(objectSemanticFilter.errors ?? []));
+  assert.deepEqual(objectSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers']);
+
+  const objectAliasSemanticFilter = evaluateQuery([
+    'from $.containers.*#obj',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectAliasSemanticFilter.ok, true, JSON.stringify(objectAliasSemanticFilter.errors ?? []));
+  assert.deepEqual(objectAliasSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.record']);
+
+  const envelopeSemanticFilter = evaluateQuery([
+    'from $.containers.*#envelope',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(envelopeSemanticFilter.ok, true, JSON.stringify(envelopeSemanticFilter.errors ?? []));
+  assert.deepEqual(envelopeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.packet']);
+
+  const compactObjectAliasSemanticFilter = evaluateQuery([
+    'from $.containers.*#o',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(compactObjectAliasSemanticFilter.ok, true, JSON.stringify(compactObjectAliasSemanticFilter.errors ?? []));
+  assert.deepEqual(compactObjectAliasSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.compact']);
+
+  const listSemanticFilter = evaluateQuery([
+    'from $.containers.*#list',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(listSemanticFilter.ok, true, JSON.stringify(listSemanticFilter.errors ?? []));
+  assert.deepEqual(listSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.series']);
+
+  const tupleSemanticFilter = evaluateQuery([
+    'from $.containers.*#tuple',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(tupleSemanticFilter.ok, true, JSON.stringify(tupleSemanticFilter.errors ?? []));
+  assert.deepEqual(tupleSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.pair']);
+
+  const nodeSemanticFilter = evaluateQuery([
+    'from $.containers.*#node',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(nodeSemanticFilter.ok, true, JSON.stringify(nodeSemanticFilter.errors ?? []));
+  assert.deepEqual(nodeSemanticFilter.results.map((entry) => entry.binding.address), ['$.containers.nodeValue']);
+
+  const objectRepresentationFilter = evaluateQuery([
+    'from $.containers.*%object',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(objectRepresentationFilter.ok, true, JSON.stringify(objectRepresentationFilter.errors ?? []));
+  assert.deepEqual(objectRepresentationFilter.results.map((entry) => entry.binding.address), [
+    '$.containers.record',
+    '$.containers.packet',
+    '$.containers.compact',
+  ]);
+
+  const listRepresentationFilter = evaluateQuery([
+    'from $.containers.*%list',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(listRepresentationFilter.ok, true, JSON.stringify(listRepresentationFilter.errors ?? []));
+  assert.deepEqual(listRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.series']);
+
+  const tupleRepresentationFilter = evaluateQuery([
+    'from $.containers.*%tuple',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(tupleRepresentationFilter.ok, true, JSON.stringify(tupleRepresentationFilter.errors ?? []));
+  assert.deepEqual(tupleRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.pair']);
+
+  const nodeRepresentationFilter = evaluateQuery([
+    'from $.containers.*%node',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(nodeRepresentationFilter.ok, true, JSON.stringify(nodeRepresentationFilter.errors ?? []));
+  assert.deepEqual(nodeRepresentationFilter.results.map((entry) => entry.binding.address), ['$.containers.nodeValue']);
+
+  const nodeComparisonNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'nodeA',
+          address: '$.nodeA',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeA.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeA.@.role', semanticType: 'string', representationKind: 'string', value: 'primary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeA[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+        {
+          name: 'nodeB',
+          address: '$.nodeB',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeB.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeB.@.role', semanticType: 'string', representationKind: 'string', value: 'primary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeB[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+        {
+          name: 'nodeC',
+          address: '$.nodeC',
+          representationKind: 'node',
+          nodeTag: 'tag',
+          attributeSpace: {
+            address: '$.nodeC.@',
+            representationKind: 'attributeSpace',
+            children: [
+              { name: 'role', address: '$.nodeC.@.role', semanticType: 'string', representationKind: 'string', value: 'secondary' },
+            ],
+          },
+          children: [
+            { index: 0, address: '$.nodeC[0]', semanticType: 'string', representationKind: 'string', value: 'hello' },
+          ],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+    attributeSpace: (entry) => entry.attributeSpace,
+  };
+  const nodeStructuralEquality = evaluateQuery([
+    'from $',
+    'where $.nodeA == $.nodeB',
+    'select $.nodeA',
+  ].join('\n'), nodeComparisonNamespace);
+  assert.equal(nodeStructuralEquality.ok, true, JSON.stringify(nodeStructuralEquality.errors ?? []));
+  assert.deepEqual(nodeStructuralEquality.results.map((entry) => entry.binding.address), ['$']);
+
+  const nodeAttributeInequality = evaluateQuery([
+    'from $',
+    'where $.nodeA != $.nodeC',
+    'select $.nodeC',
+  ].join('\n'), nodeComparisonNamespace);
+  assert.equal(nodeAttributeInequality.ok, true, JSON.stringify(nodeAttributeInequality.errors ?? []));
+  assert.deepEqual(nodeAttributeInequality.results.map((entry) => entry.binding.address), ['$']);
 
   const infinityComparison = evaluateQuery([
     'from $.inventory.items[3]',
@@ -1285,18 +2163,19 @@ test('applies validation query policy restrictions before evaluation', () => {
 });
 
 test('evaluates path over structured address literal values', () => {
+  const trustedActivation = { addressActivation: 'trusted' };
   const scalarParam = evaluateQuery([
     'from $.inventory.items.*',
     'where .name == $.<"params">.name',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(scalarParam.ok, true, JSON.stringify(scalarParam.errors ?? []));
   assert.deepEqual(scalarParam.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[0].sku']);
 
   const selected = evaluateQuery([
     'from $.inventory.items[1]',
     'select path($.<"params">.field)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
   assert.deepEqual(selected.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[1].sku']);
 
@@ -1305,7 +2184,7 @@ test('evaluates path over structured address literal values', () => {
     'where path($.<"params">.active) == false',
     'order by path($.<"params">.sort) desc',
     'select { sku = path($.<"params">.field) qty = .qty }',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(projected.ok, true, JSON.stringify(projected.errors ?? []));
   assert.deepEqual(projected.results.map((entry) => entry.value), [
     {
@@ -1327,38 +2206,39 @@ test('evaluates path over structured address literal values', () => {
   const absolute = evaluateQuery([
     'from $',
     'select path($.<"params">.label)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(absolute.ok, true, JSON.stringify(absolute.errors ?? []));
   assert.deepEqual(absolute.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.categoryLabels.tooling']);
 
   const stringValue = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.fieldText)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(stringValue.ok, false);
   assert.equal(stringValue.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
 
   const invalidAddressLiteral = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.badPath)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(invalidAddressLiteral.ok, false);
   assert.equal(invalidAddressLiteral.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
 
   const invalidArity = evaluateQuery([
     'from $.inventory.items[0]',
     'select path($.<"params">.field, $.<"params">.sort)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(invalidArity.ok, false);
   assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates dynamic from path source expressions', () => {
+  const trustedActivation = { addressActivation: 'trusted' };
   const selected = evaluateQuery([
     'from path($.<"params">.source)',
     'where .qty >= 4',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
   assert.deepEqual(selected.results.map((entry) => entry.binding.address), [
     '$.inventory.items[1]',
@@ -1374,7 +2254,7 @@ test('evaluates dynamic from path source expressions', () => {
   const stringSource = evaluateQuery([
     'from path($.<"params">.sourceText)',
     'select .sku',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(stringSource.ok, false);
   assert.equal(stringSource.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL');
   assert.equal(stringSource.errors[0].phase, 'from');
@@ -1383,7 +2263,7 @@ test('evaluates dynamic from path source expressions', () => {
     'from path($.<"params">.source)',
     'where isValue(path($.<"params">.active))',
     'select path($.<"params">.field)',
-  ].join('\n'), namespace);
+  ].join('\n'), namespace, trustedActivation);
   assert.equal(valuePredicate.ok, true, JSON.stringify(valuePredicate.errors ?? []));
   assert.deepEqual(valuePredicate.results.map((entry) => entry.binding.address), [
     '$.inventory.items[0]',
@@ -1391,6 +2271,122 @@ test('evaluates dynamic from path source expressions', () => {
     '$.inventory.items[2]',
     '$.inventory.items[3]',
   ]);
+});
+
+test('requires explicit authority before activating dynamic addresses', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED');
+  assert.equal(result.errors[0].phase, 'select');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
+});
+
+test('constrains dynamic address roots and selector capabilities before resolution', () => {
+  const contextual = evaluateQuery([
+    'from $.inventory.items[1]',
+    'select path($.<"params">.field)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+      allowContextualRoot: true,
+      maxAddressDepth: 2,
+      maxBindings: 1,
+    },
+  });
+  assert.equal(contextual.ok, true, JSON.stringify(contextual.errors ?? []));
+  assert.deepEqual(contextual.results[0].value.bindings.map((binding) => binding.address), ['$.inventory.items[1].sku']);
+
+  const outsideRoot = evaluateQuery([
+    'from $',
+    'select path($.<"params">.label)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+    },
+  });
+  assert.equal(outsideRoot.ok, false);
+  assert.equal(outsideRoot.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+
+  const wildcard = evaluateQuery([
+    'from path($.<"params">.source)',
+    'select .sku',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'position'],
+    },
+  });
+  assert.equal(wildcard.ok, false);
+  assert.equal(wildcard.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+  assert.equal(wildcard.errors[0].selector, 'wildcard');
+});
+
+test('fails closed for parent, local, and attribute activation outside the grant', () => {
+  const parent = evaluateQuery([
+    'from $.inventory.items[0]',
+    'select path($.<"params">.parentField)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items[0]'],
+      allowedSelectors: ['member', 'position', 'parent'],
+      allowContextualRoot: true,
+    },
+  });
+  assert.equal(parent.ok, false);
+  assert.equal(parent.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+
+  for (const [param, feature] of [['localTarget', 'local'], ['attributeTarget', 'attribute']]) {
+    const result = evaluateQuery([
+      'from $',
+      `select path($.<"params">.${param})`,
+    ].join('\n'), namespace, {
+      addressActivation: {
+        allowedRoots: ['$'],
+        allowedSelectors: ['member', 'position'],
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+    assert.equal(result.errors[0].selector, feature);
+  }
+});
+
+test('bounds dynamic address depth and result cardinality', () => {
+  const depth = evaluateQuery([
+    'from $',
+    'select path($.<"params">.label)',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$'],
+      allowedSelectors: ['member'],
+      maxAddressDepth: 2,
+    },
+  });
+  assert.equal(depth.ok, false);
+  assert.equal(depth.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_DENIED');
+  assert.equal(depth.errors[0].limit, 2);
+  assert.equal(depth.errors[0].observed, 3);
+
+  const bindings = evaluateQuery([
+    'from path($.<"params">.source)',
+    'select .sku',
+  ].join('\n'), namespace, {
+    addressActivation: {
+      allowedRoots: ['$.inventory.items'],
+      allowedSelectors: ['member', 'wildcard'],
+      maxBindings: 2,
+    },
+  });
+  assert.equal(bindings.ok, false);
+  assert.equal(bindings.errors[0].code, 'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED');
+  assert.equal(bindings.errors[0].limit, 2);
+  assert.equal(bindings.errors[0].observed, 3);
 });
 
 test('evaluates fallback over missing scalar values', () => {

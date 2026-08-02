@@ -9,6 +9,38 @@ const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
   ['objectFrom', 'sansa.transform.objectFrom'],
   ['fieldsFrom', 'sansa.transform.fieldsFrom'],
 ]);
+const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
+const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
+const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
+const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
+const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
+const MUTATION_OPERATION_FIELDS = new Map([
+  ['create', new Set(['op', 'parent', 'name', 'value', 'datatype', 'kind', 'provenance'])],
+  ['replace', new Set(['op', 'target', 'value', 'datatype', 'kind', 'provenance'])],
+  ['remove', new Set(['op', 'target', 'provenance'])],
+  ['insert', new Set(['op', 'container', 'placement', 'value', 'datatype', 'kind', 'provenance'])],
+  ['move', new Set(['op', 'source', 'container', 'placement', 'provenance'])],
+]);
+const VALUE_SEMANTICS_METADATA_CATEGORIES = [
+  'toggle',
+  'hex',
+  'radix',
+  'encoding',
+  'separator',
+  'sansa',
+  'sansaAddress',
+  'cloneReference',
+  'pointerReference',
+  'referenceForm',
+  'date',
+  'time',
+  'datetime',
+  'zrut',
+  'temporal',
+  'lexicalStructuredScalar',
+  'container',
+];
 
 export class SansaParseError extends Error {
   constructor(message, index, code = 'SANSA_PARSE_ERROR') {
@@ -106,7 +138,226 @@ export function parseQueryExpressionOrThrow(input, options = {}) {
   return result.expression;
 }
 
+export function parseInstruction(input, options = {}) {
+  try {
+    const parser = new InstructionParser(input, options);
+    const instruction = parser.parse();
+    return { ok: true, instruction, warnings: parser.warnings };
+  } catch (error) {
+    if (error instanceof SansaParseError) {
+      return {
+        ok: false,
+        errors: [{
+          code: error.code,
+          message: error.message,
+          index: error.index,
+        }],
+      };
+    }
+    throw error;
+  }
+}
+
+export function parseInstructionOrThrow(input, options = {}) {
+  const result = parseInstruction(input, options);
+  if (!result.ok) {
+    const first = result.errors[0];
+    throw new SansaParseError(first.message, first.index, first.code);
+  }
+  return result.instruction;
+}
+
+export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = undefined) {
+  const normalizedArgs = normalizeLowerInstructionArgs(namespaceOrOptions, maybeOptions);
+  const { namespace, options } = normalizedArgs;
+  const parsed = typeof input === 'string' ? parseInstruction(input, options.parse ?? options) : { ok: true, instruction: input };
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      errors: parsed.errors.map((error) => instructionLowerError(
+        'SANSA_INSTRUCTION_PARSE_FAILED',
+        error.message,
+        { phase: 'parse', cause: error },
+      )),
+    };
+  }
+  try {
+    const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
+    const request = lowered.preconditions.length === 0
+      ? lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations
+      : {
+          operations: lowered.operations,
+          preconditions: lowered.preconditions,
+        };
+    return {
+      ok: true,
+      request,
+      provenance: parsed.instruction.provenance,
+      diagnostics: [],
+      warnings: parsed.warnings ?? [],
+    };
+  } catch (error) {
+    if (error instanceof SansaInstructionLowerError) {
+      return { ok: false, errors: [error.diagnostic] };
+    }
+    throw error;
+  }
+}
+
+export function planInstruction(input, namespace, options = {}) {
+  const lowered = lowerInstruction(input, namespace, options);
+  if (!lowered.ok) {
+    return {
+      ok: false,
+      phase: 'lower',
+      errors: lowered.errors,
+    };
+  }
+
+  const operations = Array.isArray(lowered.request)
+    ? lowered.request
+    : Array.isArray(lowered.request?.operations)
+      ? lowered.request.operations
+      : [lowered.request];
+  const request = {
+    operations,
+    ...(Array.isArray(lowered.request?.preconditions) ? { preconditions: lowered.request.preconditions } : {}),
+    provenance: {
+      type: 'SansaInstruction',
+      source: typeof input === 'string' ? input : input?.canonical,
+      ...(lowered.provenance?.reason === undefined ? {} : { reason: lowered.provenance.reason }),
+      ...(lowered.provenance?.claimedAuthor === undefined ? {} : { claimedAuthor: lowered.provenance.claimedAuthor }),
+    },
+  };
+  const planned = planMutation(request, namespace, options.mutate ?? options);
+  if (!planned.ok) {
+    return {
+      ok: false,
+      phase: 'plan',
+      loweredRequest: lowered.request,
+      errors: planned.errors,
+      warnings: lowered.warnings ?? [],
+    };
+  }
+  return {
+    ok: true,
+    plan: planned.plan,
+    loweredRequest: lowered.request,
+    diagnostics: planned.diagnostics,
+    warnings: lowered.warnings ?? [],
+  };
+}
+
+export function validateMutationPlanTarget(plan, targetSurface = 'aeon') {
+  if (!plan || typeof plan !== 'object' || !Array.isArray(plan.operations)) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_INVALID_PLAN',
+        'Mutation target validation requires a mutation plan',
+        { targetFormat: targetSurfaceId(targetSurface) },
+      )],
+    };
+  }
+
+  const surface = resolveMutationTargetSurface(targetSurface);
+  if (!surface.ok) return { ok: false, errors: [surface.error] };
+
+  const errors = [];
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const result = surface.surface.validateOperation(operation, {
+      plan,
+      operationIndex,
+      targetFormat: surface.surface.id,
+    });
+    const normalized = normalizeMutationTargetSurfaceOperationResult(result, {
+      operation,
+      operationIndex,
+      targetFormat: surface.surface.id,
+    });
+    if (!normalized.ok) errors.push(...normalized.errors);
+  }
+
+  return errors.length === 0 ? { ok: true, diagnostics: [] } : { ok: false, errors };
+}
+
+export const aeonValueSemanticsDefaultProfile = Object.freeze({
+  id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
+  stringOrder: CODEPOINT_STRING_PROFILE_ID,
+  temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+  caseMapping: 'unicode-default',
+  compareStrings: compareStringsByUnicodeScalarValue,
+  compareTemporal: compareTemporalByCanonicalValue,
+  lowerString: (value) => value.toLowerCase(),
+  upperString: (value) => value.toUpperCase(),
+});
+
+export function createIntlValueSemanticsProfile(options = {}) {
+  const locale = options.locale ?? 'und';
+  const collator = new Intl.Collator(locale, {
+    usage: options.usage ?? 'sort',
+    sensitivity: options.sensitivity ?? 'variant',
+    ignorePunctuation: options.ignorePunctuation ?? false,
+    numeric: options.numeric ?? false,
+    caseFirst: options.caseFirst ?? 'false',
+  });
+  return Object.freeze({
+    id: options.id ?? `aeon.value.string.intl.${Array.isArray(locale) ? locale.join('-') : locale}.v1`,
+    locale,
+    stringOrder: 'intl-collator',
+    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    caseMapping: 'intl-locale',
+    compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
+    compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
+    lowerString: (value) => value.toLocaleLowerCase(locale),
+    upperString: (value) => value.toLocaleUpperCase(locale),
+  });
+}
+
+export function createFrenchValueSemanticsProfile(options = {}) {
+  return createIntlValueSemanticsProfile({
+    id: 'aeon.value.string.locale.fr.v1',
+    locale: 'fr',
+    ...options,
+  });
+}
+
+export function createNaturalAsciiValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    id: NATURAL_ASCII_STRING_PROFILE_ID,
+    stringOrder: NATURAL_ASCII_STRING_PROFILE_ID,
+    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    caseMapping: 'unicode-default',
+    ...options,
+    compareStrings: compareStringsByNaturalAsciiOrder,
+    compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
+    lowerString: (value) => value.toLowerCase(),
+    upperString: (value) => value.toUpperCase(),
+  });
+}
+
 export function evaluateQuery(input, namespace, options = {}) {
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      results: [],
+      errors: [
+        annotateQueryDiagnostic(queryEvaluateError(
+          'SANSA_QUERY_INVALID_VALUE_SEMANTICS_PROFILE',
+          error instanceof Error ? error.message : 'Invalid value-semantics profile',
+        ), { phase: 'policy' }),
+      ],
+    };
+  }
+
+  options = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
   const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
   if (!parsed.ok) {
     return {
@@ -243,6 +494,1869 @@ export function evaluateQuery(input, namespace, options = {}) {
   return { ok: true, results, diagnostics: [] };
 }
 
+export function planMutation(input, namespace, options = {}) {
+  const normalized = normalizeMutationRequest(input);
+  if (!normalized.ok) {
+    return { ok: false, errors: [mutationError(normalized.code, normalized.message, normalized.details)] };
+  }
+
+  const operationBudget = checkMutationBudget(options, 'maxOperations', normalized.operations.length, 'plan');
+  if (!operationBudget.ok) return { ok: false, errors: [operationBudget.error] };
+  const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', normalized.preconditions.length, 'plan');
+  if (!preconditionBudget.ok) return { ok: false, errors: [preconditionBudget.error] };
+  const operationSurface = checkMutationOperationSurfaces(normalized.operations);
+  if (!operationSurface.ok) return { ok: false, errors: [operationSurface.error] };
+  const valueBudget = checkMutationValueBudgets(options, normalized.operations);
+  if (!valueBudget.ok) return { ok: false, errors: [valueBudget.error] };
+
+  const operations = [];
+  const seenDestructiveTargets = new Set();
+  const seenCreates = new Set();
+
+  for (let operationIndex = 0; operationIndex < normalized.operations.length; operationIndex += 1) {
+    const requested = normalized.operations[operationIndex];
+    const planned = planMutationOperation(requested, operationIndex, namespace, options);
+    if (!planned.ok) return { ok: false, errors: [planned.error] };
+
+    const conflict = checkMutationPlanConflict(planned.operation, seenDestructiveTargets, seenCreates);
+    if (!conflict.ok) {
+      return {
+        ok: false,
+        errors: [mutationError(conflict.code, conflict.message, { operationIndex })],
+      };
+    }
+
+    operations.push(planned.operation);
+  }
+
+  const preconditions = evaluateMutationPreconditions(normalized.preconditions, namespace, options);
+  if (!preconditions.ok) return { ok: false, errors: [preconditions.error] };
+  const portabilityWarnings = collectMutationPortabilityWarnings(operations, preconditions.preconditions);
+
+  return {
+    ok: true,
+    plan: {
+      type: 'SansaMutationPlan',
+      planVersion: 'sansa.mutate.plan.v1',
+      namespaceState: options.namespaceState ?? getNamespaceState(namespace),
+      operations,
+      preconditions: preconditions.preconditions,
+      ...(normalized.sourceProvenance === undefined ? {} : { sourceProvenance: normalized.sourceProvenance }),
+      ...(portabilityWarnings.length === 0 ? {} : { portabilityWarnings }),
+      diagnostics: [],
+    },
+    diagnostics: [],
+  };
+}
+
+export function applyMutationPlan(plan, namespace, options = {}) {
+  if (!plan || typeof plan !== 'object' || !Array.isArray(plan.operations)) {
+    return {
+      ok: false,
+      operationResults: [],
+      errors: [mutationError('SANSA_MUTATE_INVALID_PLAN', 'Expected SANSA mutation plan')],
+    };
+  }
+
+  const adapter = mutationAdapter(namespace);
+  if (options.requireAtomic === true && adapter?.supportsAtomicApply !== true) {
+    return {
+      ok: false,
+      operationResults: [],
+      errors: [mutationError('SANSA_MUTATE_ATOMIC_APPLY_UNAVAILABLE', 'Mutation adapter does not advertise atomic apply')],
+    };
+  }
+
+  const operationBudget = checkMutationBudget(options, 'maxOperations', plan.operations.length, 'apply');
+  if (!operationBudget.ok) {
+    return { ok: false, operationResults: [], errors: [operationBudget.error] };
+  }
+  const preconditionBudget = checkMutationBudget(options, 'maxPreconditions', (plan.preconditions ?? []).length, 'apply');
+  if (!preconditionBudget.ok) {
+    return { ok: false, operationResults: [], errors: [preconditionBudget.error] };
+  }
+  const valueBudget = checkMutationValueBudgets(options, plan.operations, 'apply');
+  if (!valueBudget.ok) {
+    return { ok: false, operationResults: [], errors: [valueBudget.error] };
+  }
+
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const capability = mutationHookForOperation(operation, adapter);
+    if (!capability.ok) {
+      return {
+        ok: false,
+        operationResults: [],
+        errors: [mutationError(capability.code, capability.message, { operationIndex })],
+      };
+    }
+    const stable = verifyMutationOperationStability(operation, operationIndex, namespace, options);
+    if (!stable.ok) {
+      return { ok: false, operationResults: [], errors: [stable.error] };
+    }
+  }
+
+  if (options.recheckPreconditions !== false) {
+    const preconditions = verifyPlannedMutationPreconditions(plan.preconditions ?? [], namespace, options);
+    if (!preconditions.ok) {
+      return { ok: false, operationResults: [], errors: [preconditions.error] };
+    }
+  }
+
+  const operationResults = [];
+  for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
+    const operation = plan.operations[operationIndex];
+    const hook = mutationHookForOperation(operation, adapter).hook;
+    const applied = applyMutationOperation(operation, hook);
+    if (!applied.ok) {
+      return {
+        ok: false,
+        operationResults,
+        errors: [mutationError(
+          'SANSA_MUTATE_APPLY_FAILED',
+          applied.message,
+          { operationIndex },
+        )],
+      };
+    }
+    operationResults.push({
+      operationIndex,
+      status: 'applied',
+      ...mutationOperationReportAddresses(operation),
+      ...(applied.previousAddress === undefined ? {} : { previousAddress: applied.previousAddress }),
+      ...(applied.affectedAddress === undefined ? {} : { affectedAddress: applied.affectedAddress }),
+      ...(applied.resultingAddress === undefined ? {} : { resultingAddress: applied.resultingAddress }),
+      ...(applied.affectedBinding === undefined ? {} : { affectedBinding: applied.affectedBinding }),
+    });
+  }
+
+  return {
+    ok: true,
+    planId: plan.planId,
+    stateBefore: plan.namespaceState,
+    stateAfter: getNamespaceState(namespace),
+    operationResults,
+    diagnostics: [],
+  };
+}
+
+function normalizeMutationRequest(input) {
+  if (Array.isArray(input)) return { ok: true, operations: input, preconditions: [] };
+  if (input && typeof input === 'object' && Array.isArray(input.operations)) {
+    const unsupportedField = firstUnsupportedField(input, MUTATION_REQUEST_ENVELOPE_FIELDS);
+    if (unsupportedField !== undefined) {
+      return {
+        ok: false,
+        code: 'SANSA_MUTATE_UNSUPPORTED_REQUEST_FIELD',
+        message: `Mutation request field '${unsupportedField}' is not supported by the conservative mutation core`,
+        details: { requestField: unsupportedField },
+      };
+    }
+    if (input.preconditions !== undefined && !Array.isArray(input.preconditions)) {
+      return {
+        ok: false,
+        code: 'SANSA_MUTATE_INVALID_PRECONDITION',
+        message: 'Mutation request preconditions must be a list',
+      };
+    }
+    return {
+      ok: true,
+      operations: input.operations,
+      preconditions: input.preconditions ?? [],
+      sourceProvenance: input.provenance,
+    };
+  }
+  if (input && typeof input === 'object' && typeof input.op === 'string') {
+    return { ok: true, operations: [input], preconditions: [] };
+  }
+  return {
+    ok: false,
+    code: 'SANSA_MUTATE_INVALID_REQUEST',
+    message: 'Expected mutation request object, operation object, or operation list',
+  };
+}
+
+function checkMutationOperationSurfaces(operations) {
+  for (let operationIndex = 0; operationIndex < operations.length; operationIndex += 1) {
+    const requested = operations[operationIndex];
+    if (!requested || typeof requested !== 'object') continue;
+    const allowedFields = MUTATION_OPERATION_FIELDS.get(requested.op);
+    if (!allowedFields) continue;
+    const unsupportedField = firstUnsupportedField(requested, allowedFields);
+    if (unsupportedField !== undefined) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_UNSUPPORTED_OPERATION_FIELD',
+          `Mutation operation field '${unsupportedField}' is not supported by ${requested.op}`,
+          { operationIndex, operationField: unsupportedField },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function firstUnsupportedField(input, allowedFields) {
+  return Object.keys(input).find((field) => !allowedFields.has(field));
+}
+
+function evaluateMutationPreconditions(preconditions, namespace, options) {
+  if (preconditions.length === 0) return { ok: true, preconditions: [] };
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE',
+        error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      ),
+    };
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  const planned = [];
+  for (let preconditionIndex = 0; preconditionIndex < preconditions.length; preconditionIndex += 1) {
+    const precondition = evaluateMutationPrecondition(
+      preconditions[preconditionIndex],
+      preconditionIndex,
+      namespace,
+      evaluationOptions,
+    );
+    if (!precondition.ok) return precondition;
+    planned.push(precondition.precondition);
+  }
+  return { ok: true, preconditions: planned };
+}
+
+function evaluateMutationPrecondition(precondition, preconditionIndex, namespace, options) {
+  if (!precondition || typeof precondition !== 'object' || typeof precondition.expression !== 'string') {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Mutation preconditions must provide an expression string',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  const parsed = parseQueryExpression(precondition.expression, mutationQueryExpressionParseOptions(options));
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Mutation precondition expression is not valid',
+        { preconditionIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+
+  const context = resolveMutationPreconditionContext(precondition, preconditionIndex, namespace, options);
+  if (!context.ok) return context;
+
+  const evaluated = evaluateQueryExpressionValue(parsed.expression, context.binding, namespace, options);
+  if (!evaluated.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        evaluated.error.message,
+        { preconditionIndex, cause: evaluated.error },
+      ),
+    };
+  }
+
+  const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+  if (!boolean.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        boolean.error.message,
+        { preconditionIndex, cause: boolean.error },
+      ),
+    };
+  }
+  if (boolean.value !== true) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_FAILED',
+        'Mutation precondition evaluated false',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    precondition: {
+      expression: precondition.expression,
+      canonical: parsed.expression.canonical,
+      ...(context.target === undefined ? {} : { target: context.target }),
+    },
+  };
+}
+
+function resolveMutationPreconditionContext(precondition, preconditionIndex, namespace, options) {
+  if (precondition.target !== undefined) {
+    const target = resolveMutationExactTarget(precondition.target, 'precondition target', undefined, namespace, options);
+    if (!target.ok) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_INVALID_PRECONDITION',
+          target.error.message,
+          { preconditionIndex, cause: target.error },
+        ),
+      };
+    }
+    return { ok: true, binding: target.target.binding, target: target.target };
+  }
+
+  const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+  if (!rootResult.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        rootResult.error.message,
+        { preconditionIndex, cause: rootResult.error },
+      ),
+    };
+  }
+  return { ok: true, binding: rootResult.binding };
+}
+
+function mutationQueryExpressionParseOptions(options) {
+  if (options.parse?.expression || options.parse?.address) {
+    return options.parse.expression ?? { address: options.parse.address };
+  }
+  if (options.parse) return { address: options.parse };
+  return {};
+}
+
+function checkMutationBudget(options, budget, observed, phase, details = {}) {
+  const limit = normalizeQueryBudgetLimit(options.budget?.[budget]);
+  if (limit === undefined || observed <= limit) return { ok: true };
+  return {
+    ok: false,
+    error: mutationError(
+      'SANSA_MUTATE_BUDGET_EXCEEDED',
+      `Mutation budget '${budget}' exceeded: limit ${limit}, observed ${observed}`,
+      { phase, budget, limit, observed, ...details },
+    ),
+  };
+}
+
+function checkMutationValueBudgets(options, operations, phase = 'plan') {
+  const budget = options.budget ?? {};
+  const limits = {
+    maxValueNodes: normalizeQueryBudgetLimit(budget.maxValueNodes),
+    maxValueDepth: normalizeQueryBudgetLimit(budget.maxValueDepth),
+    maxStringLength: normalizeQueryBudgetLimit(budget.maxStringLength),
+  };
+  if (Object.values(limits).every((value) => value === undefined)) return { ok: true };
+
+  const observed = { valueNodes: 0, valueDepth: 0, stringLength: 0 };
+  const paths = { valueDepth: undefined, stringLength: undefined };
+  for (let index = 0; index < operations.length; index += 1) {
+    const operation = operations[index];
+    if (!mutationOperationCarriesValue(operation)) continue;
+    const stats = mutationValueStats(operation.value, new WeakSet(), `operations[${index}].value`);
+    observed.valueNodes += stats.nodes;
+    if (stats.depth > observed.valueDepth) {
+      observed.valueDepth = stats.depth;
+      paths.valueDepth = stats.depthPath;
+    }
+    if (stats.stringLength > observed.stringLength) {
+      observed.stringLength = stats.stringLength;
+      paths.stringLength = stats.stringPath;
+    }
+  }
+
+  const checks = [
+    ['maxValueNodes', observed.valueNodes, undefined],
+    ['maxValueDepth', observed.valueDepth, paths.valueDepth],
+    ['maxStringLength', observed.stringLength, paths.stringLength],
+  ];
+  for (const [name, value, valuePath] of checks) {
+    const limit = limits[name];
+    if (limit !== undefined && value > limit) {
+      return checkMutationBudget(
+        { budget: { [name]: limit } },
+        name,
+        value,
+        phase,
+        valuePath === undefined ? {} : { valuePath },
+      );
+    }
+  }
+  return { ok: true };
+}
+
+function mutationOperationCarriesValue(operation) {
+  return ['create', 'replace', 'insert'].includes(operation?.op) && Object.hasOwn(operation, 'value');
+}
+
+function mutationValueStats(value, seen = new WeakSet(), path = 'value') {
+  if (typeof value === 'string') return { nodes: 1, depth: 1, depthPath: path, stringLength: value.length, stringPath: path };
+  if (value === null || typeof value !== 'object') return { nodes: 1, depth: 1, depthPath: path, stringLength: 0, stringPath: undefined };
+  if (seen.has(value)) return { nodes: 0, depth: 0, depthPath: undefined, stringLength: 0, stringPath: undefined };
+  seen.add(value);
+
+  const entries = Array.isArray(value)
+    ? value.map((entry, index) => [index, entry])
+    : Object.entries(value);
+  let nodes = 1;
+  let childDepth = 0;
+  let childDepthPath = path;
+  let stringLength = 0;
+  let stringPath;
+  for (const [key, entry] of entries) {
+    const stats = mutationValueStats(entry, seen, `${path}${renderMutationValuePathSegment(key)}`);
+    nodes += stats.nodes;
+    if (stats.depth > childDepth) {
+      childDepth = stats.depth;
+      childDepthPath = stats.depthPath;
+    }
+    if (stats.stringLength > stringLength) {
+      stringLength = stats.stringLength;
+      stringPath = stats.stringPath;
+    }
+  }
+  return { nodes, depth: childDepth + 1, depthPath: childDepthPath ?? path, stringLength, stringPath };
+}
+
+function renderMutationValuePathSegment(key) {
+  if (typeof key === 'number') return `[${key}]`;
+  return IDENTIFIER_RE.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
+}
+
+function verifyPlannedMutationPreconditions(preconditions, namespace, options) {
+  if (!Array.isArray(preconditions) || preconditions.length === 0) return { ok: true };
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_VALUE_SEMANTICS_PROFILE',
+        error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      ),
+    };
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  for (let preconditionIndex = 0; preconditionIndex < preconditions.length; preconditionIndex += 1) {
+    const precondition = verifyPlannedMutationPrecondition(
+      preconditions[preconditionIndex],
+      preconditionIndex,
+      namespace,
+      evaluationOptions,
+    );
+    if (!precondition.ok) return precondition;
+  }
+  return { ok: true };
+}
+
+function verifyPlannedMutationPrecondition(precondition, preconditionIndex, namespace, options) {
+  if (!precondition || typeof precondition !== 'object' || typeof precondition.expression !== 'string') {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Planned mutation preconditions must preserve an expression string',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  const parsed = parseQueryExpression(precondition.canonical ?? precondition.expression, mutationQueryExpressionParseOptions(options));
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_PRECONDITION',
+        'Planned mutation precondition expression is not valid',
+        { preconditionIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+
+  const context = resolvePlannedMutationPreconditionContext(precondition, preconditionIndex, namespace, options);
+  if (!context.ok) return context;
+
+  const evaluated = evaluateQueryExpressionValue(parsed.expression, context.binding, namespace, options);
+  if (!evaluated.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        evaluated.error.message,
+        { preconditionIndex, cause: evaluated.error },
+      ),
+    };
+  }
+
+  const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+  if (!boolean.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        boolean.error.message,
+        { preconditionIndex, cause: boolean.error },
+      ),
+    };
+  }
+  if (boolean.value !== true) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_FAILED',
+        'Mutation precondition no longer holds at apply time',
+        { preconditionIndex },
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
+function resolvePlannedMutationPreconditionContext(precondition, preconditionIndex, namespace, options) {
+  if (precondition.target !== undefined) {
+    const stable = verifyMutationTargetStability(precondition.target, undefined, namespace, options);
+    if (!stable.ok) {
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_STALE_TARGET',
+          stable.error.message,
+          { preconditionIndex, cause: stable.error },
+        ),
+      };
+    }
+    return { ok: true, binding: precondition.target.binding };
+  }
+
+  const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+  if (!rootResult.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED',
+        rootResult.error.message,
+        { preconditionIndex, cause: rootResult.error },
+      ),
+    };
+  }
+  return { ok: true, binding: rootResult.binding };
+}
+
+function planMutationOperation(requested, operationIndex, namespace, options) {
+  if (!requested || typeof requested !== 'object') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_OPERATION', 'Expected mutation operation object', { operationIndex }),
+    };
+  }
+
+  switch (requested.op) {
+    case 'create':
+      return planCreateOperation(requested, operationIndex, namespace, options);
+    case 'replace':
+      return planReplaceOperation(requested, operationIndex, namespace, options);
+    case 'remove':
+      return planRemoveOperation(requested, operationIndex, namespace, options);
+    case 'insert':
+      return planInsertOperation(requested, operationIndex, namespace, options);
+    case 'move':
+      return planMoveOperation(requested, operationIndex, namespace, options);
+    default:
+      return {
+        ok: false,
+        error: mutationError(
+          'SANSA_MUTATE_UNSUPPORTED_OPERATION',
+          `Unsupported mutation operation: ${requested.op}`,
+          { operationIndex },
+        ),
+      };
+  }
+}
+
+function planCreateOperation(requested, operationIndex, namespace, options) {
+  const parent = resolveMutationExactTarget(requested.parent, 'parent', operationIndex, namespace, options);
+  if (!parent.ok) return parent;
+  if (!isMutationContainerBinding(namespace, parent.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_PARENT_NOT_CONTAINER',
+        `Create parent ${parent.target.canonicalAddress} is not a container binding`,
+        { operationIndex },
+      ),
+    };
+  }
+  if (typeof requested.name !== 'string' || requested.name.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_NAME', 'Create requires a non-empty string name', { operationIndex }),
+    };
+  }
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
+  if (selectMember(namespace, parent.target.binding, requested.name).length > 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_TARGET_EXISTS',
+        `Create target '${requested.name}' already exists under ${parent.target.canonicalAddress}`,
+        { operationIndex },
+      ),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'create',
+      parent: parent.target,
+      name: requested.name,
+      ...datatype.value,
+      ...kind.value,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planReplaceOperation(requested, operationIndex, namespace, options) {
+  const target = resolveMutationExactTarget(requested.target, 'target', operationIndex, namespace, options);
+  if (!target.ok) return target;
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
+  return {
+    ok: true,
+    operation: {
+      op: 'replace',
+      target: target.target,
+      ...datatype.value,
+      ...kind.value,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planRemoveOperation(requested, operationIndex, namespace, options) {
+  const target = resolveMutationExactTarget(requested.target, 'target', operationIndex, namespace, options);
+  if (!target.ok) return target;
+  if (target.target.address.root.kind === 'absolute' && target.target.address.selectors.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN', 'The conservative mutation core does not remove the namespace root', { operationIndex }),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'remove',
+      target: target.target,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planInsertOperation(requested, operationIndex, namespace, options) {
+  const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
+  if (!container.ok) return container;
+  if (!isMutationOrderedContainerBinding(namespace, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_CONTAINER_NOT_ORDERED',
+        `Insert container ${container.target.canonicalAddress} is not an ordered container binding`,
+        { operationIndex },
+      ),
+    };
+  }
+  const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
+  if (!placement.ok) return placement;
+  const datatype = mutationDatatype(requested, operationIndex);
+  if (!datatype.ok) return datatype;
+  const kind = mutationKind(requested, operationIndex);
+  if (!kind.ok) return kind;
+  return {
+    ok: true,
+    operation: {
+      op: 'insert',
+      container: container.target,
+      placement: placement.placement,
+      ...datatype.value,
+      ...kind.value,
+      value: requested.value,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function planMoveOperation(requested, operationIndex, namespace, options) {
+  const source = resolveMutationExactTarget(requested.source, 'source', operationIndex, namespace, options);
+  if (!source.ok) return source;
+  const container = resolveMutationExactTarget(requested.container, 'container', operationIndex, namespace, options);
+  if (!container.ok) return container;
+  if (!isMutationOrderedContainerBinding(namespace, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_CONTAINER_NOT_ORDERED',
+        `Move container ${container.target.canonicalAddress} is not an ordered container binding`,
+        { operationIndex },
+      ),
+    };
+  }
+  if (!isDirectChildOfContainer(namespace, source.target.binding, container.target.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_MOVE_CONTAINER',
+        'The conservative mutation core only moves bindings within their current ordered container',
+        { operationIndex },
+      ),
+    };
+  }
+  const placement = resolveMutationPlacement(requested.placement, container.target, operationIndex, namespace, options);
+  if (!placement.ok) return placement;
+  if (placement.placement.anchor && sameMutationBinding(source.target, placement.placement.anchor, namespace)) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_MOVE_ANCHOR', 'Move placement anchor must not be the moved source binding', { operationIndex }),
+    };
+  }
+  return {
+    ok: true,
+    operation: {
+      op: 'move',
+      source: source.target,
+      container: container.target,
+      placement: placement.placement,
+      ...mutationProvenance(requested),
+    },
+  };
+}
+
+function resolveMutationPlacement(placement, containerTarget, operationIndex, namespace, options) {
+  const kind = typeof placement === 'string' ? placement : placement?.kind;
+  if (kind !== 'first' && kind !== 'last' && kind !== 'before' && kind !== 'after') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_UNSUPPORTED_PLACEMENT', 'Placement must be first, last, before, or after', { operationIndex }),
+    };
+  }
+  if (kind === 'first' || kind === 'last') return { ok: true, placement: { kind } };
+
+  const anchorInput = placement.anchor ?? placement.target;
+  const anchor = resolveMutationExactTarget(anchorInput, 'anchor', operationIndex, namespace, options);
+  if (!anchor.ok) return anchor;
+  if (!isDirectChildOfContainer(namespace, anchor.target.binding, containerTarget.binding)) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_ANCHOR',
+        'Ordered insertion and movement anchors must be direct children of the target container',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, placement: { kind, anchor: anchor.target } };
+}
+
+function resolveMutationExactTarget(input, role, operationIndex, namespace, options) {
+  const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_TARGET',
+        `${capitalize(role)} address is not a valid SANSA address`,
+        { operationIndex, cause: parsed.errors[0] },
+      ),
+    };
+  }
+  if (!parsed.address || parsed.address.type !== 'SansaAddress') {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_INVALID_TARGET', `${capitalize(role)} must be a SANSA address`, { operationIndex }),
+    };
+  }
+  if (!parsed.address.isExact) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_NON_EXACT_TARGET', `${capitalize(role)} address must be exact`, { operationIndex }),
+    };
+  }
+
+  const resolved = resolveAddress(parsed.address, namespace, options.resolve);
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_RESOLUTION_FAILED', `${capitalize(role)} address failed to resolve`, {
+        operationIndex,
+        cause: resolved.errors[0],
+      }),
+    };
+  }
+  if (resolved.bindings.length === 0) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_MISS', `${capitalize(role)} address resolved no bindings`, { operationIndex }),
+    };
+  }
+  if (resolved.bindings.length > 1) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_TARGET_MULTIPLICITY', `${capitalize(role)} address resolved multiple bindings`, { operationIndex }),
+    };
+  }
+
+  const binding = resolved.bindings[0];
+  const canonicalAddress = getBindingAddress(binding) ?? parsed.address.canonical;
+  return {
+    ok: true,
+    target: {
+      requestedAddress: typeof input === 'string' ? input : renderAddress(parsed.address),
+      canonicalAddress,
+      address: parsed.address,
+      binding,
+      ...mutationBindingIdentity(namespace, binding),
+      ...mutationTargetWarnings(parsed.warnings),
+    },
+  };
+}
+
+function collectMutationPortabilityWarnings(operations, preconditions) {
+  const warnings = [];
+  for (const operation of operations) {
+    for (const target of mutationOperationTargets(operation)) {
+      warnings.push(...(target.portabilityWarnings ?? []));
+    }
+  }
+  for (const precondition of preconditions) {
+    warnings.push(...(precondition.target?.portabilityWarnings ?? []));
+  }
+  return warnings;
+}
+
+function mutationTargetWarnings(warnings) {
+  const portabilityWarnings = (warnings ?? []).filter((warning) => warning.code?.startsWith('SANSA_NON_PORTABLE_'));
+  return portabilityWarnings.length === 0 ? {} : { portabilityWarnings };
+}
+
+function checkMutationPlanConflict(operation, seenDestructiveTargets, seenCreates) {
+  if (operation.op === 'create') {
+    const key = `${mutationTargetKey(operation.parent)}\u0000${operation.name}`;
+    if (seenCreates.has(key)) {
+      return { ok: false, code: 'SANSA_MUTATE_DUPLICATE_TARGET', message: 'Plan contains repeated create for the same parent/name' };
+    }
+    seenCreates.add(key);
+    return { ok: true };
+  }
+  for (const target of mutationOperationDestructiveTargets(operation)) {
+    const key = mutationTargetKey(target);
+    if (seenDestructiveTargets.has(key)) {
+      return { ok: false, code: 'SANSA_MUTATE_DUPLICATE_TARGET', message: 'Plan contains repeated destructive operation for the same binding' };
+    }
+    seenDestructiveTargets.add(key);
+  }
+  return { ok: true };
+}
+
+function mutationOperationDestructiveTargets(operation) {
+  if (operation.op === 'replace' || operation.op === 'remove') return [operation.target];
+  if (operation.op === 'move') return [operation.source];
+  return [];
+}
+
+function verifyMutationOperationStability(operation, operationIndex, namespace, options) {
+  const targets = mutationOperationTargets(operation);
+  for (const target of targets) {
+    const stable = verifyMutationTargetStability(target, operationIndex, namespace, options);
+    if (!stable.ok) return stable;
+  }
+  return { ok: true };
+}
+
+function verifyMutationTargetStability(target, operationIndex, namespace, options) {
+  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  if (!resolved.ok || resolved.bindings.length !== 1) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target is stale: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  const current = resolved.bindings[0];
+  if (!sameMutationBinding(target, { binding: current, ...mutationBindingIdentity(namespace, current) }, namespace)) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target identity changed: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  const observedState = mutationObservedState(namespace, current);
+  if (target.observedState !== undefined && observedState !== undefined && target.observedState !== observedState) {
+    return {
+      ok: false,
+      error: mutationError('SANSA_MUTATE_STALE_TARGET', `Mutation target state changed: ${target.canonicalAddress}`, { operationIndex }),
+    };
+  }
+  return { ok: true };
+}
+
+function mutationOperationTargets(operation) {
+  switch (operation.op) {
+    case 'create':
+      return [operation.parent];
+    case 'replace':
+    case 'remove':
+      return [operation.target];
+    case 'insert':
+      return operation.placement.anchor ? [operation.container, operation.placement.anchor] : [operation.container];
+    case 'move':
+      return operation.placement.anchor
+        ? [operation.source, operation.container, operation.placement.anchor]
+        : [operation.source, operation.container];
+    default:
+      return [];
+  }
+}
+
+function applyMutationOperation(operation, hook) {
+  try {
+    let result;
+    if (operation.op === 'create') {
+      result = hook(operation.parent.binding, operation.name, operation.value, operation);
+    } else if (operation.op === 'replace') {
+      result = hook(operation.target.binding, operation.value, operation);
+    } else if (operation.op === 'remove') {
+      result = hook(operation.target.binding, operation);
+    } else if (operation.op === 'insert') {
+      result = hook(operation.container.binding, operation.placement, operation.value, operation);
+    } else if (operation.op === 'move') {
+      result = hook(operation.source.binding, operation.container.binding, operation.placement, operation);
+    }
+    if (result && typeof result === 'object' && result.ok === false) {
+      return { ok: false, message: result.message ?? result.error?.message ?? 'Mutation adapter rejected operation' };
+    }
+    const affectedBinding = result?.binding ?? result?.affectedBinding
+      ?? operation.target?.binding
+      ?? operation.source?.binding
+      ?? operation.parent?.binding
+      ?? operation.container?.binding;
+    const fallbackAffectedAddress = getBindingAddress(affectedBinding);
+    return {
+      ok: true,
+      previousAddress: operation.target?.canonicalAddress ?? operation.source?.canonicalAddress,
+      affectedAddress: result?.affectedAddress ?? fallbackAffectedAddress,
+      resultingAddress: result?.resultingAddress ?? fallbackMutationResultingAddress(operation, fallbackAffectedAddress),
+      affectedBinding,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Mutation adapter threw while applying operation',
+    };
+  }
+}
+
+function mutationOperationReportAddresses(operation) {
+  const output = {};
+  if (operation.target?.canonicalAddress) output.targetAddress = operation.target.canonicalAddress;
+  if (operation.parent?.canonicalAddress) output.parentAddress = operation.parent.canonicalAddress;
+  if (operation.container?.canonicalAddress) output.containerAddress = operation.container.canonicalAddress;
+  if (operation.source?.canonicalAddress) output.sourceAddress = operation.source.canonicalAddress;
+  if (operation.placement?.anchor?.canonicalAddress) output.anchorAddress = operation.placement.anchor.canonicalAddress;
+  return output;
+}
+
+function fallbackMutationResultingAddress(operation, affectedAddress) {
+  if (operation.op === 'remove') return undefined;
+  if (operation.op === 'create' && operation.parent?.canonicalAddress) {
+    return appendMemberAddress(operation.parent.canonicalAddress, operation.name);
+  }
+  return affectedAddress;
+}
+
+function appendMemberAddress(parentAddress, name) {
+  return IDENTIFIER_RE.test(name)
+    ? `${parentAddress}.${name}`
+    : `${parentAddress}.[${quotePayload(name)}]`;
+}
+
+function mutationHookForOperation(operation, adapter) {
+  const capabilityFlag = mutationCapabilityFlagForOperation(operation.op);
+  if (capabilityFlag && adapter?.[capabilityFlag] === false) {
+    return {
+      ok: false,
+      code: 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION',
+      message: `Mutation adapter does not advertise '${operation.op}' support`,
+    };
+  }
+  const hook = adapter?.[operation.op];
+  if (typeof hook === 'function') return { ok: true, hook };
+  return {
+    ok: false,
+    code: 'SANSA_MUTATE_UNSUPPORTED_ADAPTER_OPERATION',
+    message: `Mutation adapter does not support '${operation.op}'`,
+  };
+}
+
+function mutationCapabilityFlagForOperation(op) {
+  switch (op) {
+    case 'create':
+      return 'supportsCreate';
+    case 'replace':
+      return 'supportsReplace';
+    case 'remove':
+      return 'supportsRemove';
+    case 'insert':
+      return 'supportsOrderedInsert';
+    case 'move':
+      return 'supportsMove';
+    default:
+      return null;
+  }
+}
+
+function mutationAdapter(namespace) {
+  return namespace?.mutate && typeof namespace.mutate === 'object' ? namespace.mutate : namespace;
+}
+
+function mutationBindingIdentity(namespace, binding) {
+  const identity = {};
+  const handle = mutationBindingHandle(namespace, binding);
+  const observedState = mutationObservedState(namespace, binding);
+  if (handle !== undefined) identity.bindingHandle = handle;
+  if (observedState !== undefined) identity.observedState = observedState;
+  return identity;
+}
+
+function mutationBindingHandle(namespace, binding) {
+  if (typeof namespace?.bindingHandle === 'function') return namespace.bindingHandle(binding);
+  if (typeof namespace?.mutate?.bindingHandle === 'function') return namespace.mutate.bindingHandle(binding);
+  return binding.bindingHandle ?? binding.handle ?? binding.id;
+}
+
+function mutationObservedState(namespace, binding) {
+  if (typeof namespace?.observedState === 'function') return namespace.observedState(binding);
+  if (typeof namespace?.mutate?.observedState === 'function') return namespace.mutate.observedState(binding);
+  return binding.observedState ?? binding.revision ?? binding.version;
+}
+
+function getNamespaceState(namespace) {
+  if (typeof namespace?.namespaceState === 'function') return namespace.namespaceState();
+  if (typeof namespace?.mutate?.namespaceState === 'function') return namespace.mutate.namespaceState();
+  return namespace?.namespaceState ?? namespace?.state;
+}
+
+function sameMutationBinding(left, right, namespace) {
+  if (left.binding === right.binding) return true;
+  const adapter = mutationAdapter(namespace);
+  if (typeof adapter?.sameBinding === 'function') return adapter.sameBinding(left.binding, right.binding) === true;
+  if (left.bindingHandle !== undefined && right.bindingHandle !== undefined) return left.bindingHandle === right.bindingHandle;
+  return false;
+}
+
+function isDirectChildOfContainer(namespace, child, container) {
+  if (typeof namespace.parent === 'function' && namespace.parent(child) === container) return true;
+  if (child.parent === container) return true;
+  return getChildren(namespace, container).includes(child);
+}
+
+function isMutationContainerBinding(namespace, binding) {
+  return mutationContainerKind(namespace, binding) !== undefined;
+}
+
+function isMutationOrderedContainerBinding(namespace, binding) {
+  return ['list', 'tuple', 'node'].includes(mutationContainerKind(namespace, binding));
+}
+
+function mutationContainerKind(namespace, binding) {
+  const rawKind = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.representationKind ?? binding.kind ?? binding.type;
+  const kind = typeof rawKind === 'string' ? lowerFirst(rawKind) : undefined;
+  if (['object', 'obj', 'o', 'envelope', 'objectNode'].includes(kind)) return 'object';
+  if (['list', 'listNode'].includes(kind)) return 'list';
+  if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
+  if (['node', 'nodeLiteral'].includes(kind)) return 'node';
+  if (kind === 'attributeSpace') return 'attributeSpace';
+
+  const rawSemanticType = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding.semanticType ?? binding.datatype;
+  const semanticType = typeof rawSemanticType === 'string'
+    ? datatypeBaseName(rawSemanticType)
+    : undefined;
+  if (['object', 'obj', 'o', 'envelope'].includes(semanticType)) return 'object';
+  if (semanticType === 'list') return 'list';
+  if (semanticType === 'tuple') return 'tuple';
+  if (semanticType === 'node') return 'node';
+  return undefined;
+}
+
+function mutationTargetKey(target) {
+  if (target.bindingHandle !== undefined) return `handle:${String(target.bindingHandle)}`;
+  return `address:${target.canonicalAddress}`;
+}
+
+function mutationProvenance(requested) {
+  return requested.provenance === undefined ? {} : { provenance: requested.provenance };
+}
+
+function mutationDatatype(requested, operationIndex) {
+  if (requested.datatype === undefined) return { ok: true, value: {} };
+  if (typeof requested.datatype !== 'string' || requested.datatype.trim().length === 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_DATATYPE',
+        'Mutation datatype must be a non-empty string when provided',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, value: { datatype: requested.datatype.trim() } };
+}
+
+function mutationKind(requested, operationIndex) {
+  if (requested.kind === undefined) return { ok: true, value: {} };
+  if (typeof requested.kind !== 'string' || requested.kind.trim().length === 0) {
+    return {
+      ok: false,
+      error: mutationError(
+        'SANSA_MUTATE_INVALID_KIND',
+        'Mutation kind must be a non-empty string when provided',
+        { operationIndex },
+      ),
+    };
+  }
+  return { ok: true, value: { kind: requested.kind.trim() } };
+}
+
+function mutationError(code, message, details = {}) {
+  return { code, message, ...details };
+}
+
+function resolveMutationTargetSurface(targetSurface) {
+  if (targetSurface === undefined || targetSurface === null || targetSurface === '' || targetSurface === 'aeon') {
+    return { ok: true, surface: aeonMutationTargetSurface };
+  }
+  if (targetSurface === 'json' || targetSurface === 'json-compatible') {
+    return { ok: true, surface: jsonMutationTargetSurface };
+  }
+  if (targetSurface && typeof targetSurface === 'object' && typeof targetSurface.validateOperation === 'function') {
+    return {
+      ok: true,
+      surface: {
+        id: typeof targetSurface.id === 'string' && targetSurface.id.length > 0 ? targetSurface.id : 'custom',
+        validateOperation: targetSurface.validateOperation,
+      },
+    };
+  }
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+      'Mutation target surface must be "aeon", "json", or an object with validateOperation',
+      { targetFormat: targetSurfaceId(targetSurface) },
+    ),
+  };
+}
+
+const aeonMutationTargetSurface = Object.freeze({
+  id: 'aeon',
+  validateOperation(operation, context) {
+    const datatype = operation.datatype;
+    if (datatype !== undefined) {
+      const datatypeResult = validateAeonTargetDatatype(datatype, context.operationIndex);
+      if (!datatypeResult.ok) return datatypeResult;
+    }
+    if (operationHasValue(operation)) {
+      return validateAeonTargetValue(operation.value, operation, `operations[${context.operationIndex}].value`, context.operationIndex);
+    }
+    return { ok: true };
+  },
+});
+
+const jsonMutationTargetSurface = Object.freeze({
+  id: 'json',
+  validateOperation(operation, context) {
+    const addressResult = validateJsonTargetAddresses(operation, context.operationIndex);
+    if (!addressResult.ok) return addressResult;
+    const containerResult = validateJsonTargetContainers(operation, context.operationIndex);
+    if (!containerResult.ok) return containerResult;
+    if (operation.datatype !== undefined) {
+      const datatypeResult = validateJsonTargetDatatype(operation.datatype, context.operationIndex);
+      if (!datatypeResult.ok) return datatypeResult;
+    }
+    if (operation.kind !== undefined) {
+      const kindResult = validateJsonTargetDatatype(operation.kind, context.operationIndex, 'kind');
+      if (!kindResult.ok) return kindResult;
+    }
+    if (!operationHasValue(operation)) return { ok: true };
+    return validateJsonTargetValue(operation.value, context.operationIndex, 'value');
+  },
+});
+
+function normalizeMutationTargetSurfaceOperationResult(result, context) {
+  if (result === undefined || result === true || result?.ok === true) return { ok: true };
+  if (result === false) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+        `Target '${context.targetFormat}' rejected ${context.operation.op}`,
+        { operationIndex: context.operationIndex, targetFormat: context.targetFormat },
+      )],
+    };
+  }
+  const rawErrors = Array.isArray(result?.errors)
+    ? result.errors
+    : result?.error
+      ? [result.error]
+      : result?.ok === false
+        ? [result]
+        : [];
+  if (rawErrors.length === 0) {
+    return {
+      ok: false,
+      errors: [mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+        `Target '${context.targetFormat}' returned an invalid target-surface result`,
+        { operationIndex: context.operationIndex, targetFormat: context.targetFormat },
+      )],
+    };
+  }
+  return {
+    ok: false,
+    errors: rawErrors.map((error) => normalizeMutationTargetSurfaceError(error, context)),
+  };
+}
+
+function normalizeMutationTargetSurfaceError(error, context) {
+  const {
+    ok: _ok,
+    error: _error,
+    errors: _errors,
+    ...details
+  } = error ?? {};
+  return mutationTargetSurfaceError(
+    error?.code ?? 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+    error?.message ?? `Target '${context.targetFormat}' rejected ${context.operation.op}`,
+    {
+      ...details,
+      phase: 'target',
+      operationIndex: Number.isInteger(error?.operationIndex) ? error.operationIndex : context.operationIndex,
+      targetFormat: typeof error?.targetFormat === 'string' ? error.targetFormat : context.targetFormat,
+    },
+  );
+}
+
+function validateAeonTargetDatatype(datatype, operationIndex) {
+  const base = datatypeBaseName(datatype);
+  const hasGeneric = String(datatype).includes('<');
+  const hasArgument = String(datatype).includes('[');
+  const expression = parseAeonTargetDatatypeExpression(datatype, operationIndex);
+  if (!expression.ok) return expression;
+  if (hasGeneric && !aeonDatatypeAllowsGeneric(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not allow generic parameters on datatype '${base ?? datatype}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (hasArgument && !aeonDatatypeAllowsArgument(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not allow square-bracket arguments on datatype '${base ?? datatype}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  const reserved = validateAeonReservedDatatypeSurface(datatype, base, operationIndex);
+  if (!reserved.ok) return reserved;
+  const nodeGeneric = validateAeonNodeDatatypeSurface(expression.expression, datatype, operationIndex);
+  if (!nodeGeneric.ok) return nodeGeneric;
+  return { ok: true };
+}
+
+function validateAeonTargetValue(value, hints, path, operationIndex) {
+  const compatibility = validateAeonDatatypeKindCompatibility(hints, path, operationIndex);
+  if (!compatibility.ok) return compatibility;
+  const representation = representationKindFromMutationHints(hints);
+  if (representation === 'node') return validateAeonTargetNodeValue(value, path, operationIndex);
+  const scalarValidation = validateAeonTargetScalarValue(value, representation, path, operationIndex);
+  if (!scalarValidation.ok) return scalarValidation;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = validateAeonTargetValue(value[index], {}, `${path}[${index}]`, operationIndex);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      const entryPath = `${path}${renderMutationValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function validateAeonTargetNodeValue(value, path, operationIndex) {
+  if (value === undefined || value === null) return { ok: true };
+  if (Array.isArray(value)) return validateAeonTargetValue(value, {}, `${path}.children`, operationIndex);
+  if (typeof value !== 'object') {
+    return invalidAeonTargetValue('Node values must be an object with tag/children or an array of children', path, operationIndex);
+  }
+  if (value.tag !== undefined && !validAeonIdentifier(value.tag)) {
+    return invalidAeonTargetValue('Node tags must be non-empty AEON identifiers', `${path}.tag`, operationIndex);
+  }
+  if (value.children !== undefined && !Array.isArray(value.children)) {
+    return invalidAeonTargetValue('Node children must be a list when provided', `${path}.children`, operationIndex);
+  }
+  if (Array.isArray(value.children)) {
+    for (let index = 0; index < value.children.length; index += 1) {
+      const result = validateAeonTargetValue(value.children[index], {}, `${path}.children[${index}]`, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  if (value.attributes !== undefined) {
+    if (!value.attributes || typeof value.attributes !== 'object' || Array.isArray(value.attributes)) {
+      return invalidAeonTargetValue('Node attributes must be an object when provided', `${path}.attributes`, operationIndex);
+    }
+    for (const [key, entry] of Object.entries(value.attributes)) {
+      const entryPath = `${path}.attributes${renderMutationValuePathSegment(key)}`;
+      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
+      const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
+      if (!result.ok) return result;
+    }
+  }
+  return { ok: true };
+}
+
+function validateAeonTargetScalarValue(value, representation, path, operationIndex) {
+  if (representation === undefined || ['object', 'list', 'tuple', 'node'].includes(representation)) {
+    return { ok: true };
+  }
+  switch (representation) {
+    case 'string':
+      return typeof value === 'string'
+        ? { ok: true }
+        : invalidAeonTargetValue('String literals must use string payloads', path, operationIndex);
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Number literals must use finite number payloads', path, operationIndex);
+    case 'boolean':
+      return typeof value === 'boolean'
+        ? { ok: true }
+        : invalidAeonTargetValue('Boolean literals must use boolean payloads', path, operationIndex);
+    case 'hex':
+      return typeof value === 'string' && /^[0-9A-Fa-f]+$/.test(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Hex literals must be non-empty hexadecimal text without the # prefix', path, operationIndex);
+    case 'radix':
+      return typeof value === 'string' && isAeonRadixPayload(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Radix literals must be valid AEON radix payload text without the % prefix', path, operationIndex);
+    case 'encoding':
+      return typeof value === 'string' && isAeonEncodingPayload(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Encoding literals must be valid AEON Base64URL payload text without the & prefix', path, operationIndex);
+    case 'separator':
+      return typeof value === 'string' && isAeonSeparatorPayload(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Separator literals must be valid AEON separator payload text without the ^ prefix', path, operationIndex);
+    case 'sansa':
+    case 'sansaAddress':
+      return typeof value === 'string' && isValidSansaAddressValue(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('SANSA literals must be valid SANSA address text', path, operationIndex);
+    case 'toggle':
+      return ['yes', 'no', 'on', 'off'].includes(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Toggle literals must be one of yes, no, on, or off', path, operationIndex);
+    case 'null':
+      return value === null || (typeof value === 'string' && validAeonIdentifier(value))
+        ? { ok: true }
+        : invalidAeonTargetValue('Null literals must be null or an AEON identifier reason', path, operationIndex);
+    case 'nan':
+      return value === null || value === 'NaN'
+        ? { ok: true }
+        : invalidAeonTargetValue('NaN literals must use null or "NaN" as the payload', path, operationIndex);
+    case 'infinity':
+      return ['Infinity', '+Infinity', '-Infinity'].includes(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Infinity literals must use "Infinity", "+Infinity", or "-Infinity"', path, operationIndex);
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+      return typeof value === 'string' && isQueryTemporalLiteral(value, representation)
+        ? { ok: true }
+        : invalidAeonTargetValue(`${representation} literals must use valid AEON temporal text`, path, operationIndex);
+    case 'cloneReference':
+    case 'pointerReference':
+    case 'referenceForm':
+      return typeof value === 'string' && isValidAeonReferenceTargetPath(value)
+        ? { ok: true }
+        : invalidAeonTargetValue('Reference literals must use an exact AEON target path', path, operationIndex);
+    default:
+      return { ok: true };
+  }
+}
+
+function validateAeonDatatypeKindCompatibility({ datatype, kind } = {}, path, operationIndex) {
+  if (datatype === undefined || kind === undefined) return { ok: true };
+  const datatypeRepresentation = representationKindFromMutationName(datatype, { allowUnknown: false });
+  const literalRepresentation = representationKindFromMutationName(kind, { allowUnknown: false });
+  if (datatypeRepresentation === undefined || literalRepresentation === undefined) return { ok: true };
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(literalRepresentation)) return { ok: true };
+  if (datatypeRepresentation === literalRepresentation) return { ok: true };
+  return invalidAeonTargetValue(
+    `Datatype '${datatype}' is not compatible with ${literalRepresentation} literal representation`,
+    path,
+    operationIndex,
+    { datatype },
+  );
+}
+
+function invalidAeonTargetValue(message, path, operationIndex, details = {}) {
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+      `Target 'aeon' cannot represent mutation value: ${message} at ${path}`,
+      { operationIndex, targetFormat: 'aeon', valuePath: path, ...details },
+    ),
+  };
+}
+
+function aeonDatatypeAllowsGeneric(base) {
+  return ['object', 'obj', 'o', 'envelope', 'list', 'tuple', 'node', 'null', 'nan', 'infinity'].includes(base);
+}
+
+function aeonDatatypeAllowsArgument(base) {
+  const lowered = typeof base === 'string' ? base.toLowerCase() : base;
+  return ['sep', 'separator', 'kadot', 'radix'].includes(lowered);
+}
+
+function validateAeonReservedDatatypeSurface(datatype, base, operationIndex) {
+  const source = String(datatype).trim();
+  const lowered = source.toLowerCase();
+  const loweredBase = typeof base === 'string' ? base.toLowerCase() : base;
+  if (/^radix\d+$/.test(lowered) && !['radix2', 'radix6', 'radix8', 'radix12'].includes(lowered)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not define reserved radix alias '${source}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (loweredBase === 'radix' && source.includes('[')) {
+    const match = /^radix\[\s*([1-9]\d*)\s*\]$/i.exec(source);
+    const baseNumber = match ? Number(match[1]) : NaN;
+    if (!match || baseNumber < 2 || baseNumber > 64) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+          `Target 'aeon' requires radix bracket metadata to be an integer from 2 to 64`,
+          { operationIndex, targetFormat: 'aeon', datatype },
+        ),
+      };
+    }
+  }
+  return validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex);
+}
+
+function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
+  const source = String(datatype).trim();
+  const loweredBase = typeof base === 'string' ? base.toLowerCase() : base;
+  if (!['sep', 'separator', 'kadot'].includes(loweredBase)) return { ok: true };
+  if (!source.includes('[')) return { ok: true };
+  if (loweredBase === 'kadot') {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' does not allow separator metadata on datatype '${source}'`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  if (!/^(?:sep|separator)(?:\[\s*[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]\s*\])+$/i.test(source)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'aeon' requires separator metadata to use one allowed separator character per bracket`,
+        { operationIndex, targetFormat: 'aeon', datatype },
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+function parseAeonTargetDatatypeExpression(datatype, operationIndex) {
+  const source = String(datatype).trim();
+  try {
+    const parser = new AddressParser(source);
+    const expression = parser.parseQualifierExpression();
+    if (!parser.atEnd() || expression.terms.length !== 1) {
+      return invalidAeonTargetDatatype(
+        `Target 'aeon' requires datatype intent to be one datatype expression`,
+        operationIndex,
+        datatype,
+      );
+    }
+    return { ok: true, expression };
+  } catch (error) {
+    if (error instanceof SansaParseError) {
+      return invalidAeonTargetDatatype(
+        `Target 'aeon' cannot represent malformed datatype intent '${source}'`,
+        operationIndex,
+        datatype,
+      );
+    }
+    throw error;
+  }
+}
+
+function validateAeonNodeDatatypeSurface(expression, datatype, operationIndex) {
+  const term = expression.terms[0];
+  if (term.name !== 'node') return { ok: true };
+  const parameterGroups = term.parameterGroups ?? (term.parameters.length > 0 ? [term.parameters] : []);
+  for (const group of parameterGroups) {
+    for (const argument of group) {
+      const base = datatypeBaseName(renderQualifierTerm(argument));
+      if (base !== 'node' && isReservedAeonDatatypeBase(base)) {
+        return invalidAeonTargetDatatype(
+          "Target 'aeon' allows binding-side node<T> claims only for node<node> or custom node profile claims",
+          operationIndex,
+          datatype,
+        );
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function invalidAeonTargetDatatype(message, operationIndex, datatype) {
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+      message,
+      { operationIndex, targetFormat: 'aeon', datatype },
+    ),
+  };
+}
+
+function isReservedAeonDatatypeBase(base) {
+  const name = typeof base === 'string' ? base : '';
+  const lowered = name.toLowerCase();
+  return [
+    'string',
+    'trimtick',
+    'prose',
+    'number',
+    'n',
+    'int',
+    'uint',
+    'float',
+    'infinity',
+    'nan',
+    'boolean',
+    'bool',
+    'toggle',
+    'hex',
+    'radix',
+    'encoding',
+    'base64',
+    'embed',
+    'inline',
+    'date',
+    'time',
+    'datetime',
+    'zrut',
+    'sep',
+    'separator',
+    'kadot',
+    'sansa',
+    'object',
+    'obj',
+    'o',
+    'envelope',
+    'list',
+    'tuple',
+    'node',
+    'null',
+  ].includes(lowered) || /^(?:u?int|float)\d+$/.test(lowered) || /^radix\d+$/.test(lowered);
+}
+
+function isValidSansaAddressValue(value) {
+  const result = parseAddress(value);
+  return result.ok;
+}
+
+function isValidAeonReferenceTargetPath(value) {
+  const source = normalizeAeonReferenceTargetSource(value);
+  if (source === null) return false;
+  const result = parseAddress(source);
+  if (!result.ok) return false;
+  const address = result.address;
+  return address.root.kind === 'absolute'
+    && address.qualifierExpression === null
+    && address.isExact
+    && address.selectors.every((selector) => selector.type !== 'localSpace');
+}
+
+function normalizeAeonReferenceTargetSource(value) {
+  const source = String(value);
+  if (source.length === 0 || source.trim() !== source || /\s/.test(source)) return null;
+  if (source.startsWith('$')) return source;
+  if (source.startsWith('?') || source.startsWith('.')) return null;
+  if (source.startsWith('[')) {
+    return source[1] === '"' ? `$.${source}` : null;
+  }
+  if (source.startsWith('"')) {
+    const end = quotedPrefixEnd(source);
+    if (end === null) return null;
+    const rest = source.slice(end);
+    if (rest.length > 0 && rest[0] !== '.' && rest[0] !== '[') return null;
+    return `$.["${source.slice(1, end - 1)}"]${rest}`;
+  }
+  if (!isIdentifierStart(source[0])) return null;
+  return `$.${source}`;
+}
+
+function quotedPrefixEnd(source) {
+  for (let index = 1; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === '\\') {
+      index += 1;
+      continue;
+    }
+    if (char === '"') return index + 1;
+    if (char === '\n' || char === '\r') return null;
+  }
+  return null;
+}
+
+function validateJsonTargetAddresses(operation, operationIndex) {
+  for (const role of ['target', 'parent', 'source', 'container']) {
+    const target = operation[role];
+    if (!target) continue;
+    if (target.binding?.representationKind === 'attributeSpace' || String(target.canonicalAddress ?? '').includes('.@')) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+          `Target 'json' cannot represent AEON attribute-space mutations at ${target.canonicalAddress}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetContainers(operation, operationIndex) {
+  for (const role of ['target', 'parent', 'source', 'container']) {
+    const target = operation[role];
+    const representation = target?.binding?.representationKind;
+    if (representation === 'node' || representation === 'tuple') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+          `Target 'json' cannot represent ${representation} container mutations at ${target.canonicalAddress}`,
+          { operationIndex, targetFormat: 'json' },
+        ),
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetDatatype(datatype, operationIndex, label = 'datatype') {
+  const text = String(datatype);
+  const base = datatypeBaseName(text);
+  if (text.includes('<') || text.includes('[')) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'json' does not support parameterized ${label} '${text}'`,
+        { operationIndex, targetFormat: 'json', datatype: text },
+      ),
+    };
+  }
+  if (!['object', 'list', 'array', 'string', 'number', 'boolean', 'bool', 'null'].includes(base)) {
+    return {
+      ok: false,
+      error: mutationTargetSurfaceError(
+        'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        `Target 'json' does not support ${label} '${text}'`,
+        { operationIndex, targetFormat: 'json', datatype: text },
+      ),
+    };
+  }
+  return { ok: true };
+}
+
+function validateJsonTargetValue(value, operationIndex, path) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return { ok: true };
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? { ok: true }
+      : {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent non-finite numbers at ${path}`,
+          { operationIndex, targetFormat: 'json', valuePath: path },
+        ),
+      };
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const result = validateJsonTargetValue(value[index], operationIndex, `${path}[${index}]`);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  if (value && typeof value === 'object') {
+    if (value.type === 'CloneReference' || value.type === 'PointerReference' || typeof value.canonical === 'string') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent AEON reference forms at ${path}`,
+          { operationIndex, targetFormat: 'json', valuePath: path },
+        ),
+      };
+    }
+    if (value.tag !== undefined || value.children !== undefined || value.attributes !== undefined) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          `Target 'json' cannot represent AEON node values at ${path}`,
+          { operationIndex, targetFormat: 'json', valuePath: path },
+        ),
+      };
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const result = validateJsonTargetValue(entry, operationIndex, `${path}${renderMutationValuePathSegment(key)}`);
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    error: mutationTargetSurfaceError(
+      'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+      `Target 'json' cannot represent ${typeof value} values at ${path}`,
+      { operationIndex, targetFormat: 'json', valuePath: path },
+    ),
+  };
+}
+
+function operationHasValue(operation) {
+  return operation.op === 'create' || operation.op === 'replace' || operation.op === 'insert';
+}
+
+function representationKindFromMutationHints({ datatype, kind } = {}) {
+  return kind === undefined
+    ? representationKindFromMutationName(datatype, { allowUnknown: false })
+    : representationKindFromMutationName(kind, { allowUnknown: true });
+}
+
+function nestedInstructionLiteralKindFlattens(kind) {
+  return !['string', 'number', 'boolean', 'object', 'list'].includes(kind);
+}
+
+function representationKindFromMutationName(name, { allowUnknown = false } = {}) {
+  if (typeof name !== 'string') return undefined;
+  const base = datatypeBaseName(name);
+  const lowered = typeof base === 'string' ? base.toLowerCase() : base;
+  if (['object', 'obj', 'o', 'envelope'].includes(base)) return 'object';
+  if (base === 'list') return 'list';
+  if (base === 'tuple') return 'tuple';
+  if (base === 'node') return 'node';
+  if (['string', 'trimtick', 'prose'].includes(base)) return 'string';
+  if (['number', 'int', 'uint', 'float', 'n'].includes(base)) return 'number';
+  if (base === 'bool' || base === 'boolean') return 'boolean';
+  if (base === 'toggle') return 'toggle';
+  if (base === 'hex') return 'hex';
+  if (lowered === 'radix' || /^radix\d+$/.test(lowered)) return 'radix';
+  if (base === 'nan') return 'nan';
+  if (base === 'infinity') return 'infinity';
+  if (base === 'null') return 'null';
+  if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
+  if (base === 'sansa') return 'sansa';
+  if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
+  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
+  return allowUnknown ? base : undefined;
+}
+
+function validAeonIdentifier(value) {
+  return typeof value === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+}
+
+function mutationTargetSurfaceError(code, message, details = {}) {
+  return { code, message, phase: 'target', ...details };
+}
+
+function targetSurfaceId(targetSurface) {
+  if (typeof targetSurface === 'string') return targetSurface || 'aeon';
+  if (targetSurface && typeof targetSurface === 'object' && typeof targetSurface.id === 'string') return targetSurface.id;
+  return 'unknown';
+}
+
+function capitalize(value) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
 function enforceQueryPolicy(query, options) {
   if (!isValidationQueryPolicy(options.policy)) return { ok: true };
 
@@ -338,8 +2452,25 @@ export function resolveAddress(input, namespace, options = {}) {
   const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
 
+  const maxBindings = options.maxBindings;
+  if (maxBindings !== undefined && (!Number.isSafeInteger(maxBindings) || maxBindings < 0)) {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [resolveError('SANSA_RESOLVE_INVALID_BINDING_LIMIT', 'Resolve maxBindings must be a non-negative safe integer')],
+    };
+  }
+
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+
+  if (maxBindings === 0 && parsed.address.selectors.length === 0) {
+    return {
+      ok: false,
+      bindings: [],
+      errors: [resolveBindingLimitError(maxBindings, 1)],
+    };
+  }
 
   let current = [rootResult.binding];
   for (let index = 0; index < parsed.address.selectors.length; index += 1) {
@@ -353,10 +2484,18 @@ export function resolveAddress(input, namespace, options = {}) {
         effectiveRoot: options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
         parentTraversal: options.parentTraversal,
         failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
+        maxBindings,
       },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
     current = selected.bindings;
+    if (maxBindings !== undefined && current.length > maxBindings) {
+      return {
+        ok: false,
+        bindings: [],
+        errors: [resolveBindingLimitError(maxBindings, current.length, index)],
+      };
+    }
     if (current.length === 0) break;
   }
 
@@ -449,7 +2588,7 @@ function renderQueryFromClause(from) {
 export function renderQueryExpression(expression) {
   switch (expression.type) {
     case 'literalExpression':
-      return expression.kind === 'string' ? quotePayload(expression.value) : String(expression.value);
+      return expression.canonical ?? (expression.kind === 'string' ? quotePayload(expression.value) : String(expression.value));
     case 'currentBindingExpression':
       return '.';
     case 'resolutionExpression':
@@ -471,6 +2610,376 @@ export function renderQueryExpression(expression) {
     default:
       throw new Error(`Unknown query expression type: ${expression.type}`);
   }
+}
+
+class SansaInstructionLowerError extends Error {
+  constructor(diagnostic) {
+    super(diagnostic.message);
+    this.name = 'SansaInstructionLowerError';
+    this.diagnostic = diagnostic;
+  }
+}
+
+function normalizeLowerInstructionArgs(namespaceOrOptions, maybeOptions) {
+  if (maybeOptions !== undefined) {
+    return { namespace: namespaceOrOptions, options: maybeOptions ?? {} };
+  }
+  const options = namespaceOrOptions ?? {};
+  if (isLikelyResolveNamespace(options)) {
+    return { namespace: options, options: {} };
+  }
+  return { namespace: options.namespace, options };
+}
+
+function isLikelyResolveNamespace(value) {
+  return value
+    && typeof value === 'object'
+    && (
+      Object.hasOwn(value, 'root')
+      || typeof value.children === 'function'
+      || typeof value.parent === 'function'
+      || Object.hasOwn(value, 'mutate')
+    );
+}
+
+function lowerParsedInstruction(instruction, namespace, options = {}) {
+  const requires = instruction.requires ?? [];
+  if (instruction.from || instruction.where) {
+    if (!namespace) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_LOWERING_REQUIRES_NAMESPACE',
+        'Instruction lowering with from/where clauses requires a SANSA resolve namespace',
+        { phase: 'lower' },
+      ));
+    }
+    return lowerInstructionWithCandidates(instruction, namespace, options);
+  }
+  return {
+    operations: [lowerInstructionMutationDirect(instruction.mutation)],
+    preconditions: lowerInstructionRequiresDirect(requires),
+  };
+}
+
+function lowerInstructionMutationDirect(mutation) {
+  switch (mutation.verb) {
+    case 'create': {
+      const destination = lowerCreateDestinationDirect(mutation.destination);
+      return withInstructionValueIntent({
+        op: 'create',
+        parent: destination.parent,
+        name: destination.name,
+      }, mutation.value);
+    }
+    case 'replace':
+      return withInstructionValueIntent({
+        op: 'replace',
+        target: mutation.target.address.canonical,
+      }, mutation.value);
+    case 'remove':
+      return {
+        op: 'remove',
+        target: mutation.target.address.canonical,
+      };
+    case 'insert':
+      return withInstructionValueIntent({
+        op: 'insert',
+        container: mutation.container.address.canonical,
+        placement: lowerInstructionPlacementDirect(mutation.placement),
+      }, mutation.value);
+    case 'move':
+      return {
+        op: 'move',
+        source: mutation.source.address.canonical,
+        container: mutation.container.address.canonical,
+        placement: lowerInstructionPlacementDirect(mutation.placement),
+      };
+    default:
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_UNSUPPORTED_VERB',
+        `Unsupported instruction verb '${mutation.verb}'`,
+        { phase: 'lower' },
+      ));
+  }
+}
+
+function lowerInstructionWithCandidates(instruction, namespace, options) {
+  const selected = selectInstructionCandidates(instruction, namespace, options);
+  const operations = [];
+  const preconditions = [];
+  for (const candidate of selected) {
+    operations.push(lowerInstructionMutationForCandidate(instruction.mutation, candidate, namespace, options));
+    preconditions.push(...lowerInstructionRequiresForCandidate(instruction.requires ?? [], candidate));
+  }
+  return { operations, preconditions };
+}
+
+function selectInstructionCandidates(instruction, namespace, options) {
+  const candidates = resolveInstructionFromCandidates(instruction, namespace, options);
+  if (!instruction.where) return candidates;
+
+  let valueSemanticsProfile;
+  try {
+    valueSemanticsProfile = getValueSemanticsProfile(options.valueSemantics);
+  } catch (error) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_INVALID_VALUE_SEMANTICS_PROFILE',
+      error instanceof Error ? error.message : 'Invalid value-semantics profile',
+      { phase: 'lower' },
+    ));
+  }
+
+  const evaluationOptions = {
+    ...options,
+    valueSemantics: valueSemanticsProfile,
+  };
+  const filtered = [];
+  for (const candidate of candidates) {
+    const candidateAddress = getBindingAddress(candidate);
+    const evaluated = evaluateQueryExpressionValue(instruction.where.ast, candidate, namespace, evaluationOptions);
+    if (!evaluated.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_WHERE_EVALUATION_FAILED',
+        evaluated.error.message,
+        { phase: 'lower', candidateAddress, cause: evaluated.error },
+      ));
+    }
+    const boolean = expectBooleanQueryValue(evaluated.value, namespace);
+    if (!boolean.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_WHERE_EVALUATION_FAILED',
+        boolean.error.message,
+        { phase: 'lower', candidateAddress, cause: boolean.error },
+      ));
+    }
+    if (boolean.value) filtered.push(candidate);
+  }
+  return filtered;
+}
+
+function resolveInstructionFromCandidates(instruction, namespace, options) {
+  if (!instruction.from) {
+    const binding = options.contextualRoot ?? namespace.contextualRoot;
+    if (isBindingObject(binding)) return [binding];
+    const root = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
+    if (!root.ok) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED',
+        root.error.message,
+        { phase: 'lower', cause: root.error },
+      ));
+    }
+    return [root.binding];
+  }
+
+  const resolved = resolveAddress(instruction.from.address, namespace, options.resolve);
+  if (!resolved.ok) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED',
+      resolved.errors[0].message,
+      { phase: 'lower', cause: resolved.errors[0] },
+    ));
+  }
+  return resolved.bindings;
+}
+
+function lowerInstructionMutationForCandidate(mutation, candidate, namespace, options) {
+  switch (mutation.verb) {
+    case 'create': {
+      const destination = lowerCreateDestinationForCandidate(mutation.destination, candidate, namespace, options);
+      return withInstructionValueIntent({
+        op: 'create',
+        parent: destination.parent,
+        name: destination.name,
+      }, mutation.value);
+    }
+    case 'replace': {
+      const target = resolveInstructionExactAddress(mutation.target, candidate, namespace, options, 'target');
+      return withInstructionValueIntent({
+        op: 'replace',
+        target,
+      }, mutation.value);
+    }
+    case 'remove': {
+      const target = resolveInstructionExactAddress(mutation.target, candidate, namespace, options, 'target');
+      return { op: 'remove', target };
+    }
+    case 'insert': {
+      const container = resolveInstructionExactAddress(mutation.container, candidate, namespace, options, 'container');
+      return withInstructionValueIntent({
+        op: 'insert',
+        container,
+        placement: lowerInstructionPlacementForCandidate(mutation.placement, candidate, namespace, options),
+      }, mutation.value);
+    }
+    case 'move': {
+      const source = resolveInstructionExactAddress(mutation.source, candidate, namespace, options, 'source');
+      const container = resolveInstructionExactAddress(mutation.container, candidate, namespace, options, 'container');
+      return {
+        op: 'move',
+        source,
+        container,
+        placement: lowerInstructionPlacementForCandidate(mutation.placement, candidate, namespace, options),
+      };
+    }
+    default:
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_UNSUPPORTED_VERB',
+        `Unsupported instruction verb '${mutation.verb}'`,
+        { phase: 'lower' },
+      ));
+  }
+}
+
+function lowerCreateDestinationForCandidate(destination, candidate, namespace, options) {
+  if (destination.kind === 'member') {
+    const parent = getBindingAddress(candidate);
+    if (!parent) {
+      throw new SansaInstructionLowerError(instructionLowerError(
+        'SANSA_INSTRUCTION_CANDIDATE_ADDRESS_UNAVAILABLE',
+        'Candidate binding does not expose a canonical address for create lowering',
+        { phase: 'lower' },
+      ));
+    }
+    return { parent, name: destination.name };
+  }
+  const split = splitCreateDestinationAddress(destination.address);
+  const parent = resolveInstructionExactAddress(
+    { type: 'instructionAddress', source: destination.canonical, address: split.parent, canonical: renderInstructionAddress(split.parent) },
+    candidate,
+    namespace,
+    options,
+    'parent',
+  );
+  return { parent, name: split.name };
+}
+
+function resolveInstructionExactAddress(instructionAddress, candidate, namespace, options, role) {
+  const address = instructionAddress.address;
+  if (!address.isExact) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_NON_EXACT_TARGET',
+      `Instruction ${role} address must be exact before lowering`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate) },
+    ));
+  }
+
+  const resolved = resolveAddress(address, namespace, {
+    ...(options.resolve ?? {}),
+    ...(address.root.kind === 'contextual' ? { contextualRoot: candidate, allowParentFromEffectiveRoot: true } : {}),
+  });
+  if (!resolved.ok) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_RESOLUTION_FAILED',
+      resolved.errors[0].message,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), cause: resolved.errors[0] },
+    ));
+  }
+  if (resolved.bindings.length === 0) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_MISS',
+      `Instruction ${role} address resolved no bindings`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  if (resolved.bindings.length > 1) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_MULTIPLICITY',
+      `Instruction ${role} address resolved multiple bindings`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  const canonical = getBindingAddress(resolved.bindings[0]);
+  if (!canonical) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_TARGET_ADDRESS_UNAVAILABLE',
+      `Resolved instruction ${role} binding does not expose a canonical address`,
+      { phase: 'lower', candidateAddress: getBindingAddress(candidate), role },
+    ));
+  }
+  return canonical;
+}
+
+function lowerCreateDestinationDirect(destination) {
+  if (destination.kind === 'member') {
+    return { parent: '?', name: destination.name };
+  }
+  const split = splitCreateDestinationAddress(destination.address);
+  return { parent: renderAddress(split.parent), name: split.name };
+}
+
+function splitCreateDestinationAddress(address) {
+  const finalSelector = address.selectors[address.selectors.length - 1];
+  if (!finalSelector || finalSelector.type !== 'member') {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_CREATE_DESTINATION_NOT_MEMBER',
+      'Create destination must be a member name or an address ending in a member selector',
+      { phase: 'lower' },
+    ));
+  }
+  const parent = {
+    type: 'SansaAddress',
+    root: address.root,
+    selectors: address.selectors.slice(0, -1),
+    qualifierExpression: null,
+    isExact: address.selectors.slice(0, -1).every(isExactSelector),
+  };
+  parent.canonical = renderAddress(parent);
+  return { parent, name: finalSelector.name };
+}
+
+function lowerInstructionPlacementDirect(placement) {
+  if (placement.kind === 'first' || placement.kind === 'last') return placement.kind;
+  return {
+    kind: placement.kind,
+    anchor: placement.anchor.address.canonical,
+  };
+}
+
+function lowerInstructionPlacementForCandidate(placement, candidate, namespace, options) {
+  if (placement.kind === 'first' || placement.kind === 'last') return placement.kind;
+  return {
+    kind: placement.kind,
+    anchor: resolveInstructionExactAddress(placement.anchor, candidate, namespace, options, 'anchor'),
+  };
+}
+
+function lowerInstructionRequiresDirect(requires) {
+  return requires.map((requirement) => ({
+    expression: requirement.expression,
+  }));
+}
+
+function lowerInstructionRequiresForCandidate(requires, candidate) {
+  if (requires.length === 0) return [];
+  const candidateAddress = getBindingAddress(candidate);
+  if (!candidateAddress) {
+    throw new SansaInstructionLowerError(instructionLowerError(
+      'SANSA_INSTRUCTION_CANDIDATE_ADDRESS_UNAVAILABLE',
+      'Candidate binding does not expose a canonical address for require lowering',
+      { phase: 'lower' },
+    ));
+  }
+  return requires.map((requirement) => ({
+    expression: requirement.expression,
+    target: candidateAddress,
+  }));
+}
+
+function withInstructionValueIntent(operation, instructionValue) {
+  return {
+    ...operation,
+    ...(instructionValue.datatype === undefined ? {} : { datatype: instructionValue.datatype }),
+    ...(instructionValue.kind === undefined ? {} : { kind: instructionValue.kind }),
+    value: instructionValue.value,
+  };
+}
+
+function instructionLowerError(code, message, detail = {}) {
+  return {
+    code,
+    message,
+    ...detail,
+  };
 }
 
 function resolveRoot(root, namespace, options) {
@@ -526,10 +3035,10 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
     case 'literalExpression':
       return {
         ok: true,
-        value: {
-          type: 'scalar',
-          value: expression.value,
-        },
+        value: scalarQueryValue(
+          expression.value,
+          queryLiteralMetadata(expression),
+        ).value,
       };
     case 'currentBindingExpression':
       return {
@@ -605,17 +3114,17 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
   if (!right.ok) return right;
 
   if (expression.operator === 'in') {
-    return evaluateMembershipExpression(left.value, right.value, namespace);
+    return evaluateMembershipExpression(left.value, right.value, namespace, options);
   }
 
-  const leftScalar = expectScalarQueryValue(left.value, namespace);
+  const leftScalar = expectComparableQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
-  const rightScalar = expectScalarQueryValue(right.value, namespace);
+  const rightScalar = expectComparableQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
-  return compareQueryScalars(expression.operator, leftScalar.value, rightScalar.value);
+  return compareQueryScalars(expression.operator, leftScalar, rightScalar, options);
 }
 
-function evaluateMembershipExpression(leftValue, rightValue, namespace) {
+function evaluateMembershipExpression(leftValue, rightValue, namespace, options) {
   const leftScalar = expectScalarQueryValue(leftValue, namespace);
   if (!leftScalar.ok) return leftScalar;
 
@@ -629,7 +3138,7 @@ function evaluateMembershipExpression(leftValue, rightValue, namespace) {
   for (const binding of rightValue.bindings) {
     const rightScalar = getBindingScalarValue(namespace, binding);
     if (!rightScalar.ok) return rightScalar;
-    const compared = compareQueryScalars('==', leftScalar.value, rightScalar.value);
+    const compared = compareQueryScalars('==', leftScalar, rightScalar, options);
     if (!compared.ok) return compared;
     if (compared.value.value) {
       return {
@@ -719,6 +3228,9 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
   if (expression.name === 'resolveChild') {
     return evaluateResolveChildExpression(expression, currentBinding, namespace, options);
   }
+  if (expression.name === 'follow') {
+    return evaluateFollowExpression(expression, currentBinding, namespace, options);
+  }
   if (expression.name === 'objectFrom') {
     const extension = expectEnabledExtension(expression.name, options);
     if (!extension.ok) return extension;
@@ -745,7 +3257,7 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     evaluatedArgs.push(scalar.value);
   }
 
-  return evaluateOrdinaryFunction(expression.name, evaluatedArgs);
+  return evaluateOrdinaryFunction(expression.name, evaluatedArgs, options);
 }
 
 function expectEnabledExtension(functionName, options) {
@@ -778,7 +3290,8 @@ function isOrdinaryFunctionName(name) {
   return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat'].includes(name);
 }
 
-function evaluateOrdinaryFunction(name, evaluatedArgs) {
+function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
+  const profile = getValueSemanticsProfile(options.valueSemantics);
   switch (name) {
     case 'contains':
       return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.includes(search));
@@ -787,9 +3300,9 @@ function evaluateOrdinaryFunction(name, evaluatedArgs) {
     case 'endsWith':
       return evaluateStringFunction(name, evaluatedArgs, 2, ([value, search]) => value.endsWith(search));
     case 'lower':
-      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toLowerCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => profile.lowerString(value));
     case 'upper':
-      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => value.toUpperCase());
+      return evaluateStringFunction(name, evaluatedArgs, 1, ([value]) => profile.upperString(value));
     case 'concat':
       if (evaluatedArgs.length === 0) {
         return {
@@ -822,17 +3335,247 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   const activated = activateAddressLiteral(scalar.value, options.parse?.address);
   if (!activated.ok) return activated;
 
+  const activation = authorizeAddressActivation(
+    activated.address,
+    currentBinding,
+    options.addressActivation,
+    options.parse?.address,
+  );
+  if (!activation.ok) return activation;
+
   const resolved = resolveAddress(activated.address, namespace, {
     ...(options.resolve ?? {}),
     contextualRoot: currentBinding,
+    ...(activation.allowParentFromEffectiveRoot ? { allowParentFromEffectiveRoot: true } : {}),
+    ...(activation.maxBindings === undefined ? {} : { maxBindings: activation.maxBindings }),
   });
-  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  if (!resolved.ok) {
+    const error = resolved.errors[0];
+    if (error.code === 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED') {
+      return {
+        ok: false,
+        error: queryEvaluateError(
+          'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED',
+          error.message,
+          { limit: error.limit, observed: error.observed },
+        ),
+      };
+    }
+    return { ok: false, error };
+  }
+  if (activation.maxBindings !== undefined && resolved.bindings.length > activation.maxBindings) {
+    return {
+      ok: false,
+      error: queryEvaluateError(
+        'SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED',
+        `Activated address produced ${resolved.bindings.length} bindings, exceeding limit ${activation.maxBindings}`,
+        {
+          limit: activation.maxBindings,
+          observed: resolved.bindings.length,
+        },
+      ),
+    };
+  }
   return {
     ok: true,
     value: {
       type: 'bindingSet',
       bindings: resolved.bindings,
     },
+  };
+}
+
+const ADDRESS_ACTIVATION_SELECTOR_FEATURE = new Map([
+  ['member', 'member'],
+  ['position', 'position'],
+  ['positionRange', 'range'],
+  ['directExpansion', 'wildcard'],
+  ['descendantExpansion', 'recursive'],
+  ['namePattern', 'pattern'],
+  ['semanticTypeFilter', 'semanticFilter'],
+  ['representationKindFilter', 'representationFilter'],
+  ['attributeSpace', 'attribute'],
+  ['localSpace', 'local'],
+  ['parent', 'parent'],
+]);
+
+function authorizeAddressActivation(address, currentBinding, policy, parseOptions) {
+  if (policy === 'trusted' || policy?.mode === 'trusted') {
+    return { ok: true };
+  }
+  if (policy === undefined || policy === null) {
+    return {
+      ok: false,
+      error: queryEvaluateError(
+        'SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED',
+        "Function 'path' requires an explicit address-activation policy",
+      ),
+    };
+  }
+  if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+    return invalidAddressActivationPolicy('Address-activation policy must be a constrained policy object or trusted mode');
+  }
+  if (policy.mode !== undefined && policy.mode !== 'constrained') {
+    return invalidAddressActivationPolicy(`Unknown address-activation mode '${policy.mode}'`);
+  }
+  if (policy.allowContextualRoot !== undefined && typeof policy.allowContextualRoot !== 'boolean') {
+    return invalidAddressActivationPolicy("Address-activation 'allowContextualRoot' must be Boolean");
+  }
+
+  const maxAddressDepth = normalizeAddressActivationLimit(policy.maxAddressDepth);
+  if (!maxAddressDepth.ok) return maxAddressDepth;
+  const maxBindings = normalizeAddressActivationLimit(policy.maxBindings);
+  if (!maxBindings.ok) return maxBindings;
+  if (maxAddressDepth.value !== undefined && address.selectors.length > maxAddressDepth.value) {
+    return deniedAddressActivation(
+      `Activated address depth ${address.selectors.length} exceeds limit ${maxAddressDepth.value}`,
+      { limit: maxAddressDepth.value, observed: address.selectors.length },
+    );
+  }
+
+  const allowedFeatures = normalizeAddressActivationFeatures(policy.allowedSelectors);
+  if (!allowedFeatures.ok) return allowedFeatures;
+  for (const selector of address.selectors) {
+    const feature = ADDRESS_ACTIVATION_SELECTOR_FEATURE.get(selector.type);
+    if (!feature || !allowedFeatures.features.has(feature)) {
+      return deniedAddressActivation(`Activated address selector '${feature ?? selector.type}' is not permitted`, {
+        selector: feature ?? selector.type,
+      });
+    }
+  }
+
+  if (address.root.kind === 'contextual' && policy.allowContextualRoot !== true) {
+    return deniedAddressActivation('Contextual-root address activation is not permitted');
+  }
+
+  const effective = effectiveActivatedAddress(address, currentBinding, parseOptions);
+  if (!effective.ok) return effective;
+  const normalized = normalizeActivatedAddressForScope(effective.address);
+  if (!normalized.ok) return normalized;
+
+  const roots = normalizeAddressActivationRoots(policy.allowedRoots, parseOptions);
+  if (!roots.ok) return roots;
+  if (!roots.roots.some((root) => addressHasStructuralPrefix(normalized.address, root))) {
+    return deniedAddressActivation('Activated address is outside every permitted root', {
+      address: normalized.address.canonical,
+    });
+  }
+
+  return {
+    ok: true,
+    maxBindings: maxBindings.value,
+    allowParentFromEffectiveRoot: allowedFeatures.features.has('parent'),
+  };
+}
+
+function normalizeAddressActivationLimit(value) {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (!Number.isSafeInteger(value) || value < 0) {
+    return invalidAddressActivationPolicy('Address-activation limits must be non-negative safe integers');
+  }
+  return { ok: true, value };
+}
+
+function normalizeAddressActivationFeatures(input) {
+  const values = input === undefined ? ['member', 'position'] : input;
+  if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
+    return invalidAddressActivationPolicy("Address-activation 'allowedSelectors' must be a string list");
+  }
+  const known = new Set(ADDRESS_ACTIVATION_SELECTOR_FEATURE.values());
+  for (const feature of values) {
+    if (!known.has(feature)) {
+      return invalidAddressActivationPolicy(`Unknown address-activation selector capability '${feature}'`);
+    }
+  }
+  return { ok: true, features: new Set(values) };
+}
+
+function normalizeAddressActivationRoots(input, parseOptions) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return invalidAddressActivationPolicy("Constrained address activation requires at least one 'allowedRoots' entry");
+  }
+  const roots = [];
+  for (const root of input) {
+    const parsed = typeof root === 'string' ? parseAddress(root, parseOptions) : { ok: true, address: root };
+    if (!parsed.ok || !parsed.address || parsed.address.type !== 'SansaAddress') {
+      return invalidAddressActivationPolicy('Address-activation roots must be valid SANSA addresses');
+    }
+    if (parsed.address.root.kind !== 'absolute' || !parsed.address.isExact || parsed.address.qualifierExpression) {
+      return invalidAddressActivationPolicy('Address-activation roots must be unqualified exact absolute addresses');
+    }
+    roots.push(parsed.address);
+  }
+  return { ok: true, roots };
+}
+
+function effectiveActivatedAddress(address, currentBinding, parseOptions) {
+  if (address.root.kind === 'absolute') return { ok: true, address };
+  const currentAddress = getBindingAddress(currentBinding);
+  if (typeof currentAddress !== 'string') {
+    return deniedAddressActivation('Cannot establish contextual address scope because the current binding has no canonical address');
+  }
+  const parsedCurrent = parseAddress(currentAddress, parseOptions);
+  if (!parsedCurrent.ok || !parsedCurrent.address.isExact || parsedCurrent.address.root.kind !== 'absolute') {
+    return deniedAddressActivation('Cannot establish contextual address scope from the current binding address');
+  }
+  return {
+    ok: true,
+    address: {
+      type: 'SansaAddress',
+      root: parsedCurrent.address.root,
+      selectors: [...parsedCurrent.address.selectors, ...address.selectors],
+      qualifierExpression: address.qualifierExpression,
+      isExact: address.isExact,
+      canonical: `${parsedCurrent.address.canonical}${address.canonical.slice(1)}`,
+    },
+  };
+}
+
+function normalizeActivatedAddressForScope(address) {
+  const selectors = [];
+  for (const selector of address.selectors) {
+    if (selector.type !== 'parent') {
+      selectors.push(selector);
+      continue;
+    }
+    const previous = selectors.at(-1);
+    if (!previous || !isExactSelector(previous)) {
+      return deniedAddressActivation('Activated parent traversal cannot be proven to remain within scope');
+    }
+    selectors.pop();
+  }
+  const normalized = {
+    ...address,
+    selectors,
+    isExact: selectors.every(isExactSelector),
+  };
+  normalized.canonical = renderAddress(normalized);
+  return { ok: true, address: normalized };
+}
+
+function addressHasStructuralPrefix(address, root) {
+  if (address.root.kind !== root.root.kind || root.selectors.length > address.selectors.length) return false;
+  return root.selectors.every((selector, index) => exactAddressSelectorEquals(selector, address.selectors[index]));
+}
+
+function exactAddressSelectorEquals(left, right) {
+  if (!left || !right || left.type !== right.type) return false;
+  if (left.type === 'member' || left.type === 'localSpace') return left.name === right.name;
+  if (left.type === 'position') return left.index === right.index;
+  return left.type === 'attributeSpace';
+}
+
+function invalidAddressActivationPolicy(message) {
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY', message),
+  };
+}
+
+function deniedAddressActivation(message, details = {}) {
+  return {
+    ok: false,
+    error: queryEvaluateError('SANSA_QUERY_PATH_ACTIVATION_DENIED', message, details),
   };
 }
 
@@ -1003,6 +3746,107 @@ function evaluateResolveChildExpression(expression, currentBinding, namespace, o
       bindings,
     },
   };
+}
+
+function evaluateFollowExpression(expression, currentBinding, namespace, options) {
+  if (expression.arguments.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'follow' expects 1 argument"),
+    };
+  }
+
+  const evaluated = evaluateQueryExpressionValue(expression.arguments[0], currentBinding, namespace, options);
+  if (!evaluated.ok) return evaluated;
+  const scalar = expectScalarQueryValue(evaluated.value, namespace);
+  if (!scalar.ok) return scalar;
+  if (!isReferenceFormValue(scalar.value, scalar.metadata)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'follow' expects an AEON reference form"),
+    };
+  }
+
+  const target = referenceTargetAddress(scalar.value, options.parse?.address);
+  if (!target.ok) return target;
+  if (!target.address.isExact) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' requires an exact reference target path"),
+    };
+  }
+
+  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
+  if (resolved.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_REFERENCE_TARGET', "Function 'follow' target resolved no binding"),
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      type: 'bindingSet',
+      bindings: resolved.bindings,
+    },
+  };
+}
+
+function isReferenceFormValue(value, metadata) {
+  if (metadata?.kind === 'referenceForm' || metadata?.category === 'referenceForm') return true;
+  return value?.type === 'CloneReference' || value?.type === 'PointerReference';
+}
+
+function referenceTargetAddress(value, parseOptions) {
+  const source = referenceTargetAddressSource(value);
+  if (source === null) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' received a reference without a target path"),
+    };
+  }
+  const parsed = parseAddress(source, parseOptions);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_REFERENCE_TARGET', "Function 'follow' received an invalid reference target path", {
+        cause: parsed.errors[0],
+      }),
+    };
+  }
+  return { ok: true, address: parsed.address };
+}
+
+function referenceTargetAddressSource(value) {
+  const pathSource = referencePathSource(value);
+  if (pathSource === null) return null;
+  if (pathSource.startsWith('$')) return pathSource;
+  if (pathSource.startsWith('?')) return null;
+  if (pathSource.startsWith('.') || pathSource.startsWith('[')) return `$${pathSource}`;
+  return `$.${pathSource}`;
+}
+
+function referencePathSource(value) {
+  if (Array.isArray(value?.path)) return renderReferencePathSegments(value.path);
+  if (typeof value?.path === 'string') return value.path;
+  if (typeof value?.target === 'string') return value.target;
+  if (typeof value?.canonical === 'string') {
+    if (value.canonical.startsWith('~>')) return value.canonical.slice(2);
+    if (value.canonical.startsWith('~')) return value.canonical.slice(1);
+  }
+  return null;
+}
+
+function renderReferencePathSegments(path) {
+  return path.map((segment, index) => {
+    if (typeof segment === 'number') return `[${segment}]`;
+    if (typeof segment === 'string' && IDENTIFIER_RE.test(segment)) {
+      return index === 0 ? segment : `.${segment}`;
+    }
+    return `${index === 0 ? '' : '.'}[${quotePayload(String(segment))}]`;
+  }).join('');
 }
 
 function evaluateObjectFromExpression(expression, currentBinding, namespace, options) {
@@ -1195,12 +4039,12 @@ function evaluateIsValuePredicate(argument, currentBinding, namespace, options) 
 
 function evaluateIsValueQueryValue(value, namespace) {
   if (value.type === 'scalar') {
-    return scalarBoolean(isOrdinaryValueScalar({
+    return scalarBoolean(isConcreteValueScalar({
       value: value.value,
       ...(value[QUERY_VALUE_METADATA_PROPERTY]?.kind === undefined ? {} : { kind: value[QUERY_VALUE_METADATA_PROPERTY].kind }),
     }));
   }
-  if (value.type === 'object') return scalarBoolean(false);
+  if (value.type === 'object') return scalarBoolean(true);
   if (value.type !== 'bindingSet') {
     return scalarBoolean(false);
   }
@@ -1214,10 +4058,13 @@ function evaluateIsValueQueryValue(value, namespace) {
 
   const scalar = getBindingScalarInfo(namespace, value.bindings[0]);
   if (!scalar.ok) {
+    if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR' && isContainerBinding(namespace, value.bindings[0])) {
+      return scalarBoolean(true);
+    }
     if (scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') return scalarBoolean(false);
     return scalar;
   }
-  return scalarBoolean(isOrdinaryValueScalar(scalar));
+  return scalarBoolean(isConcreteValueScalar(scalar));
 }
 
 function evaluateSingleBindingArgument(name, argument, currentBinding, namespace, options) {
@@ -1259,12 +4106,42 @@ function isInfinityScalar(info) {
   return info.kind === 'infinity' || info.value === Infinity || info.value === -Infinity;
 }
 
-function isOrdinaryValueScalar(info) {
-  return isOrdinaryValueDescriptor(scalarInfoToValueDescriptor(info));
+function isConcreteValueScalar(info) {
+  if (isNanScalar(info) || isExplicitNullScalar(info) || isExplicitAbsenceScalar(info)) return false;
+  if (info.kind === 'missing' || info.category === 'missing') return false;
+  if (info.category === 'bindingSet' || info.kind === 'bindingSet') return false;
+  if (info.value === undefined && !['container', 'referenceForm', 'sansaAddress', 'lexicalStructuredScalar', 'temporal', 'toggle'].includes(info.category)) {
+    return false;
+  }
+  return true;
 }
 
 function scalarBoolean(value) {
   return scalarQueryValue(value);
+}
+
+function queryLiteralMetadata(expression) {
+  switch (expression.kind) {
+    case 'toggle':
+      return { kind: 'toggle', category: 'toggle' };
+    case 'hex':
+      return { kind: 'hex', category: 'hex' };
+    case 'radix':
+      return { kind: 'radix', category: 'radix' };
+    case 'encoding':
+      return { kind: 'encoding', category: 'encoding' };
+    case 'separator':
+      return { kind: 'separator', category: 'separator' };
+    case 'date':
+    case 'time':
+    case 'datetime':
+    case 'zrut':
+      return { kind: expression.kind, category: 'temporal', semanticType: expression.kind };
+    case 'null':
+      return { kind: 'null', category: 'explicitNull', nullReason: expression.nullReason };
+    default:
+      return undefined;
+  }
 }
 
 function scalarQueryValue(value, metadata) {
@@ -1412,8 +4289,8 @@ function evaluateCardinalityBooleans(expression, currentBinding, namespace, opti
     const bindingScalar = getBindingScalarValue(namespace, binding);
     if (!bindingScalar.ok) return bindingScalar;
     const compared = leftIsSet
-      ? compareQueryScalars(expression.operator, bindingScalar.value, scalarValue.value)
-      : compareQueryScalars(expression.operator, scalarValue.value, bindingScalar.value);
+      ? compareQueryScalars(expression.operator, bindingScalar, scalarValue, options)
+      : compareQueryScalars(expression.operator, scalarValue, bindingScalar, options);
     if (!compared.ok) return compared;
     values.push(compared.value.value);
   }
@@ -1515,15 +4392,40 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
           ),
         };
       }
-      keys.push({ value: scalar.value, direction: key.direction });
+      const descriptor = scalarInfoToValueDescriptor(queryScalarToInfo({
+        value: scalar.value,
+        metadata: scalar.metadata,
+      }));
+      const orderable = evaluateValueSemanticsOperation('compare', {
+        left: descriptor,
+        right: descriptor,
+      }, {
+        valueSemantics: options.valueSemantics,
+      });
+      if (!orderable.ok) {
+        return {
+          ok: false,
+          error: queryEvaluateError(
+            'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+            queryComparisonMessage(orderable.reason, '<'),
+            { candidateAddress: getBindingAddress(binding) },
+          ),
+        };
+      }
+      keys.push({ value: scalar.value, descriptor, direction: key.direction });
     }
     keyed.push({ binding, keys, index });
   }
 
   for (let keyIndex = 0; keyIndex < orderBy.keys.length; keyIndex += 1) {
-    const expectedType = keyed[0] ? typeof keyed[0].keys[keyIndex].value : null;
-    const mismatched = expectedType
-      ? keyed.find((entry) => typeof entry.keys[keyIndex].value !== expectedType)
+    const expected = keyed[0]?.keys[keyIndex].descriptor;
+    const mismatched = expected
+      ? keyed.find((entry) => !evaluateValueSemanticsOperation('compare', {
+        left: expected,
+        right: entry.keys[keyIndex].descriptor,
+      }, {
+        valueSemantics: options.valueSemantics,
+      }).ok)
       : undefined;
     if (mismatched) {
       return {
@@ -1539,7 +4441,7 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
 
   keyed.sort((left, right) => {
     for (let index = 0; index < left.keys.length; index += 1) {
-      const comparison = compareOrderKeyValues(left.keys[index].value, right.keys[index].value);
+      const comparison = compareOrderKeyScalars(left.keys[index], right.keys[index], options.valueSemantics);
       if (comparison !== 0) {
         return left.keys[index].direction === 'desc' ? -comparison : comparison;
       }
@@ -1553,10 +4455,82 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
   };
 }
 
-function compareOrderKeyValues(left, right) {
-  if (typeof left === 'string') return compareStringsByUnicodeScalarValue(left, right);
+function compareOrderKeyScalars(left, right, valueSemantics) {
+  const compared = evaluateValueSemanticsOperation('compare', {
+    left: left.descriptor,
+    right: right.descriptor,
+  }, {
+    valueSemantics,
+  });
+  if (!compared.ok) return 0;
+  if (compared.relation === 'less') return -1;
+  if (compared.relation === 'greater') return 1;
+  return 0;
+}
+
+function comparePrimitiveOrderValues(left, right, valueSemantics) {
+  if (typeof left === 'string') return getValueSemanticsProfile(valueSemantics).compareStrings(left, right);
   if (left < right) return -1;
   if (left > right) return 1;
+  return 0;
+}
+
+function getValueSemanticsProfile(valueSemantics) {
+  if (!valueSemantics) return aeonValueSemanticsDefaultProfile;
+  if (valueSemantics === 'default' || valueSemantics === DEFAULT_VALUE_SEMANTICS_PROFILE_ID) {
+    return aeonValueSemanticsDefaultProfile;
+  }
+  if (valueSemantics === CODEPOINT_STRING_PROFILE_ID) {
+    return aeonValueSemanticsDefaultProfile;
+  }
+  if (valueSemantics === FRENCH_STRING_PROFILE_ID) {
+    return createFrenchValueSemanticsProfile();
+  }
+  if (valueSemantics === NATURAL_ASCII_STRING_PROFILE_ID || valueSemantics === 'natural-ascii') {
+    return createNaturalAsciiValueSemanticsProfile();
+  }
+  if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
+    return createFrenchValueSemanticsProfile({ locale: valueSemantics });
+  }
+  if (typeof valueSemantics === 'string') {
+    return createIntlValueSemanticsProfile({ locale: valueSemantics });
+  }
+  if (valueSemantics.profile) return getValueSemanticsProfile(valueSemantics.profile);
+  const hasCompareStrings = typeof valueSemantics.compareStrings === 'function';
+  const hasLowerString = typeof valueSemantics.lowerString === 'function';
+  const hasUpperString = typeof valueSemantics.upperString === 'function';
+  const hasCompareTemporal = typeof valueSemantics.compareTemporal === 'function';
+  if (hasCompareStrings && hasLowerString && hasUpperString) {
+    return {
+      ...aeonValueSemanticsDefaultProfile,
+      ...valueSemantics,
+      compareStrings: (left, right) => normalizeComparison(valueSemantics.compareStrings(left, right)),
+      compareTemporal: typeof valueSemantics.compareTemporal === 'function'
+        ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
+        : aeonValueSemanticsDefaultProfile.compareTemporal,
+    };
+  }
+  if (hasCompareStrings || hasLowerString || hasUpperString) {
+    throw new Error('Custom value-semantics profiles must define compareStrings, lowerString, and upperString together.');
+  }
+  if (hasCompareTemporal) {
+    return {
+      ...aeonValueSemanticsDefaultProfile,
+      ...valueSemantics,
+      compareTemporal: (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right)),
+    };
+  }
+  if (
+    valueSemantics.locale
+  ) {
+    return createIntlValueSemanticsProfile(valueSemantics);
+  }
+  throw new Error('Unsupported value-semantics profile input.');
+}
+
+function normalizeComparison(value) {
+  if (value < 0) return -1;
+  if (value > 0) return 1;
   return 0;
 }
 
@@ -1575,19 +4549,77 @@ function compareStringsByUnicodeScalarValue(left, right) {
   return 0;
 }
 
-export function evaluateValueSemanticsOperation(operation, input = {}) {
+function compareStringsByNaturalAsciiOrder(left, right) {
+  let leftIndex = 0;
+  let rightIndex = 0;
+
+  while (leftIndex < left.length && rightIndex < right.length) {
+    const leftCode = left.codePointAt(leftIndex);
+    const rightCode = right.codePointAt(rightIndex);
+    if (isAsciiDigitCodePoint(leftCode) && isAsciiDigitCodePoint(rightCode)) {
+      const leftRun = readAsciiDigitRun(left, leftIndex);
+      const rightRun = readAsciiDigitRun(right, rightIndex);
+      const comparedNumber = compareAsciiDigitRuns(leftRun.text, rightRun.text);
+      if (comparedNumber !== 0) return comparedNumber;
+      leftIndex = leftRun.end;
+      rightIndex = rightRun.end;
+      continue;
+    }
+    if (leftCode < rightCode) return -1;
+    if (leftCode > rightCode) return 1;
+    leftIndex += codePointWidth(leftCode);
+    rightIndex += codePointWidth(rightCode);
+  }
+
+  if (leftIndex < left.length) return 1;
+  if (rightIndex < right.length) return -1;
+  return 0;
+}
+
+function readAsciiDigitRun(value, start) {
+  let end = start;
+  while (end < value.length && isAsciiDigitCodePoint(value.codePointAt(end))) end += 1;
+  return { text: value.slice(start, end), end };
+}
+
+function compareAsciiDigitRuns(left, right) {
+  const leftTrimmed = left.replace(/^0+/, '') || '0';
+  const rightTrimmed = right.replace(/^0+/, '') || '0';
+  if (leftTrimmed.length < rightTrimmed.length) return -1;
+  if (leftTrimmed.length > rightTrimmed.length) return 1;
+  const lexical = compareStringsByUnicodeScalarValue(leftTrimmed, rightTrimmed);
+  if (lexical !== 0) return lexical;
+  if (left.length < right.length) return -1;
+  if (left.length > right.length) return 1;
+  return 0;
+}
+
+function compareTemporalByCanonicalValue(left, right) {
+  return compareStringsByUnicodeScalarValue(String(left.payload ?? ''), String(right.payload ?? ''));
+}
+
+function isAsciiDigitCodePoint(codePoint) {
+  return codePoint >= 0x30 && codePoint <= 0x39;
+}
+
+function codePointWidth(codePoint) {
+  return codePoint > 0xffff ? 2 : 1;
+}
+
+export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
+    const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
       case 'notEqual':
-        return evaluateValueSemanticsEquality(operation, input.left, input.right);
+        return evaluateValueSemanticsEquality(operation, input.left, input.right, profile);
       case 'compare':
-        return evaluateValueSemanticsOrdering(input.left, input.right);
+        return evaluateValueSemanticsOrdering(input.left, input.right, profile);
       case 'isValue':
         return {
           ok: true,
           outcome: 'value',
-          value: isOrdinaryValueScalar(valueDescriptorToScalarInfo(input.value)),
+          value: isConcreteValueScalar(valueDescriptorToScalarInfo(input.value)),
         };
       default:
         return valueSemanticsDiagnostic(
@@ -1600,19 +4632,19 @@ export function evaluateValueSemanticsOperation(operation, input = {}) {
   }
 }
 
-function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor) {
+function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor, profile) {
   const left = valueDescriptorToScalarInfo(leftDescriptor);
   const right = valueDescriptorToScalarInfo(rightDescriptor);
   if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Value category is not equality-comparable in the minimum profile');
   }
-  if (left.category === 'missing' || right.category === 'missing' || left.category === 'container' || right.category === 'container' || left.category === 'bindingSet' || right.category === 'bindingSet') {
+  if (left.category === 'missing' || right.category === 'missing' || left.category === 'bindingSet' || right.category === 'bindingSet') {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Evaluation state or non-scalar value is not equality-comparable');
   }
   if (!sameMinimumEqualityDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
   }
-  const value = compareMinimumEquality(operation, left, right);
+  const value = compareMinimumEquality(operation, left, right, profile);
   return {
     ok: true,
     outcome: 'value',
@@ -1620,7 +4652,7 @@ function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescript
   };
 }
 
-function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
+function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor, profile) {
   const left = valueDescriptorToScalarInfo(leftDescriptor);
   const right = valueDescriptorToScalarInfo(rightDescriptor);
   if (isNanScalar(left) || isNanScalar(right) || isExplicitNullScalar(left) || isExplicitNullScalar(right) || isExplicitAbsenceScalar(left) || isExplicitAbsenceScalar(right)) {
@@ -1635,7 +4667,7 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor) {
   if (!sameMinimumOrderingDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
   }
-  const comparison = compareMinimumOrdering(left, right);
+  const comparison = compareMinimumOrdering(left, right, profile);
   return {
     ok: true,
     outcome: 'value',
@@ -1663,6 +4695,36 @@ function valueDescriptorToScalarInfo(descriptor) {
       return { category: 'string', value: String(descriptor.value ?? '') };
     case 'boolean':
       return { category: 'boolean', value: Boolean(descriptor.value) };
+    case 'toggle':
+      return { category: 'toggle', value: String(descriptor.value ?? '') };
+    case 'hex':
+      return { category: 'hex', value: String(descriptor.value ?? '') };
+    case 'radix':
+      return {
+        category: 'radix',
+        value: {
+          payload: String(descriptor.value ?? ''),
+          semanticType: descriptor.semanticType ?? 'radix',
+        },
+      };
+    case 'encoding':
+      return { category: 'encoding', value: String(descriptor.value ?? '') };
+    case 'separator':
+      return { category: 'separator', value: String(descriptor.value ?? '') };
+    case 'sansaAddress':
+      return { category: 'sansaAddress', value: sansaAddressSemanticValue(descriptor.value) };
+    case 'referenceForm':
+      return { category: 'referenceForm', value: descriptor.value ?? descriptor };
+    case 'temporal':
+      return {
+        category: 'temporal',
+        value: {
+          payload: String(descriptor.value ?? ''),
+          semanticType: descriptor.semanticType ?? 'temporal',
+        },
+      };
+    case 'lexicalStructuredScalar':
+      return { category: 'lexicalStructuredScalar', value: String(descriptor.value ?? '') };
     case 'explicitNull':
       return { category: 'explicitNull', value: null, kind: 'null', nullReason: descriptor.reason };
     case 'explicitAbsence':
@@ -1670,7 +4732,12 @@ function valueDescriptorToScalarInfo(descriptor) {
     case 'missing':
       return { category: 'missing', value: undefined, kind: 'missing' };
     case 'container':
-      return { category: 'container', value: descriptor, kind: 'container' };
+      return {
+        category: 'container',
+        containerKind: descriptor.containerKind ?? descriptor.value?.containerKind,
+        value: descriptor.value,
+        kind: 'container',
+      };
     case 'bindingSet':
       return { category: 'bindingSet', value: descriptor, kind: 'bindingSet' };
     default:
@@ -1692,6 +4759,20 @@ function scalarInfoToValueDescriptor(info) {
     return info.value === -Infinity
       ? { category: 'negativeInfinity' }
       : { category: 'positiveInfinity' };
+  }
+  const semanticCategory = VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.category)
+    ? info.category
+    : VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.kind)
+      ? info.kind
+      : undefined;
+  if (semanticCategory) {
+    const category = normalizeValueSemanticsCategory(semanticCategory);
+    return {
+      category,
+      value: info.value,
+      ...(info.semanticType === undefined ? {} : { semanticType: info.semanticType }),
+      ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
+    };
   }
   if (typeof info.value === 'number') {
     return Number.isFinite(info.value)
@@ -1715,33 +4796,115 @@ function scalarInfoToValueDescriptor(info) {
 
 function sameMinimumEqualityDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
-  return left.category === right.category && ['string', 'boolean'].includes(left.category);
+  if (left.category === 'container' || right.category === 'container') {
+    return left.category === 'container'
+      && right.category === 'container'
+      && (left.containerKind ?? 'container') === (right.containerKind ?? 'container');
+  }
+  if (left.category === 'temporal' || right.category === 'temporal') {
+    return left.category === 'temporal'
+      && right.category === 'temporal'
+      && sameTemporalDomain(left, right);
+  }
+  return left.category === right.category && [
+    'string',
+    'boolean',
+    'toggle',
+    'hex',
+    'radix',
+    'encoding',
+    'separator',
+    'sansaAddress',
+    'referenceForm',
+  ].includes(left.category);
 }
 
 function sameMinimumOrderingDomain(left, right) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) return true;
-  return left.category === 'string' && right.category === 'string';
+  if (left.category === 'temporal' || right.category === 'temporal') {
+    return left.category === 'temporal'
+      && right.category === 'temporal'
+      && sameTemporalDomain(left, right);
+  }
+  return left.category === right.category && ['string', 'encoding', 'separator', 'sansaAddress'].includes(left.category);
 }
 
 function isValueSemanticsNumeric(info) {
   return info.category === 'finiteNumber' || info.category === 'positiveInfinity' || info.category === 'negativeInfinity';
 }
 
-function compareMinimumEquality(operation, left, right) {
+function sameTemporalDomain(left, right) {
+  return temporalSemanticType(left) === temporalSemanticType(right);
+}
+
+function temporalSemanticType(info) {
+  return String(info.value?.semanticType ?? info.semanticType ?? 'temporal');
+}
+
+function compareMinimumEquality(operation, left, right, profile) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
     return operation === 'equal' ? left.value === right.value : left.value !== right.value;
   }
-  const equals = Object.is(left.value, right.value);
+  const equals = (() => {
+    if (left.category === 'string' && right.category === 'string') return profile.compareStrings(left.value, right.value) === 0;
+    if (left.category === 'temporal' && right.category === 'temporal') return profile.compareTemporal(left.value, right.value) === 0;
+    if (left.category === 'container' && right.category === 'container') return structurallyEqualContainers(left, right, profile);
+    return structurallyEqualValues(left.value, right.value, profile);
+  })();
   return operation === 'equal' ? equals : !equals;
 }
 
-function compareMinimumOrdering(left, right) {
-  return compareOrderKeyValues(left.value, right.value);
+function compareMinimumOrdering(left, right, profile) {
+  if (left.category === 'temporal' && right.category === 'temporal') {
+    return profile.compareTemporal(left.value, right.value);
+  }
+  if (left.category !== 'string' && ['encoding', 'separator', 'sansaAddress'].includes(left.category)) {
+    return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
+  }
+  return comparePrimitiveOrderValues(left.value, right.value, profile);
 }
 
-function isOrdinaryValueDescriptor(descriptor) {
+function normalizeValueSemanticsCategory(category) {
+  if (category === 'sansa') return 'sansaAddress';
+  if (category === 'cloneReference' || category === 'pointerReference') return 'referenceForm';
+  if (['date', 'time', 'datetime', 'zrut'].includes(category)) return 'temporal';
+  return category;
+}
+
+function sansaAddressSemanticValue(value) {
+  if (typeof value === 'string') return value;
+  if (value?.canonical !== undefined) return String(value.canonical);
+  if (value?.address?.canonical !== undefined) return String(value.address.canonical);
+  if (typeof value?.address === 'string') return value.address;
+  return String(value ?? '');
+}
+
+function structurallyEqualContainers(left, right, profile) {
+  if ((left.containerKind ?? 'container') !== (right.containerKind ?? 'container')) return false;
+  return structurallyEqualValues(left.value, right.value, profile);
+}
+
+function structurallyEqualValues(left, right, profile) {
+  if (Object.is(left, right)) return true;
+  if (typeof left === 'string' && typeof right === 'string') return profile.compareStrings(left, right) === 0;
+  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => structurallyEqualValues(value, right[index], profile));
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (let index = 0; index < leftKeys.length; index += 1) {
+    if (leftKeys[index] !== rightKeys[index]) return false;
+    if (!structurallyEqualValues(left[leftKeys[index]], right[rightKeys[index]], profile)) return false;
+  }
+  return true;
+}
+
+function isConcreteValueDescriptor(descriptor) {
   const info = valueDescriptorToScalarInfo(descriptor);
-  return info.category === 'finiteNumber' || info.category === 'string' || info.category === 'boolean';
+  return isConcreteValueScalar(info);
 }
 
 function isExplicitAbsenceScalar(info) {
@@ -1761,13 +4924,15 @@ function valueSemanticsDiagnostic(reason, message) {
   };
 }
 
-function compareQueryScalars(operator, left, right) {
-  const leftDescriptor = scalarInfoToValueDescriptor({ value: left });
-  const rightDescriptor = scalarInfoToValueDescriptor({ value: right });
+function compareQueryScalars(operator, left, right, options = {}) {
+  const leftDescriptor = scalarInfoToValueDescriptor(queryScalarToInfo(left));
+  const rightDescriptor = scalarInfoToValueDescriptor(queryScalarToInfo(right));
   const operation = ['==', '!='].includes(operator) ? (operator === '==' ? 'equal' : 'notEqual') : 'compare';
   const evaluated = evaluateValueSemanticsOperation(operation, {
     left: leftDescriptor,
     right: rightDescriptor,
+  }, {
+    valueSemantics: options.valueSemantics,
   });
   if (!evaluated.ok) {
     return {
@@ -1787,9 +4952,24 @@ function compareQueryScalars(operator, left, right) {
   return { ok: true, value: { type: 'scalar', value } };
 }
 
+function queryScalarToInfo(scalar) {
+  if (scalar && typeof scalar === 'object' && Object.hasOwn(scalar, 'value')) {
+    const metadata = scalar.metadata ?? {};
+    return {
+      value: scalar.value,
+      ...(metadata.kind === undefined ? {} : { kind: metadata.kind }),
+      ...(metadata.category === undefined ? {} : { category: metadata.category }),
+      ...(metadata.semanticType === undefined ? {} : { semanticType: metadata.semanticType }),
+      ...(metadata.containerKind === undefined ? {} : { containerKind: metadata.containerKind }),
+      ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
+    };
+  }
+  return { value: scalar };
+}
+
 function queryComparisonMessage(reason, operator) {
   if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
-  if (reason === 'not_equality_comparable') return 'NaN, null, absence, and non-scalar values are not equality-comparable in this evaluator slice';
+  if (reason === 'not_equality_comparable') return 'NaN, null, and absence values are not equality-comparable in this evaluator slice';
   if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
   return 'Invalid scalar comparison';
 }
@@ -1810,7 +4990,9 @@ function expectBooleanQueryValue(value, namespace) {
 }
 
 function expectScalarQueryValue(value, namespace) {
-  if (value.type === 'scalar') return { ok: true, value: value.value };
+  if (value.type === 'scalar') {
+    return { ok: true, value: value.value, metadata: value[QUERY_VALUE_METADATA_PROPERTY] };
+  }
   if (value.type === 'bindingSet') {
     if (value.bindings.length === 0) {
       return {
@@ -1826,12 +5008,36 @@ function expectScalarQueryValue(value, namespace) {
     }
     const scalar = getBindingScalarValue(namespace, value.bindings[0]);
     if (!scalar.ok) return scalar;
-    return { ok: true, value: scalar.value };
+    return { ok: true, value: scalar.value, metadata: scalar.metadata };
   }
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_EXPECTED_SCALAR', 'Expected scalar query value'),
   };
+}
+
+function expectComparableQueryValue(value, namespace) {
+  if (value.type === 'object') {
+    return {
+      ok: true,
+      value: value.value,
+      metadata: { kind: 'container', category: 'container', containerKind: 'object' },
+    };
+  }
+  if (value.type !== 'bindingSet') return expectScalarQueryValue(value, namespace);
+  if (value.bindings.length === 0) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Expected one binding but resolved none'),
+    };
+  }
+  if (value.bindings.length > 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_CARDINALITY', 'Expected one binding but resolved multiple bindings'),
+    };
+  }
+  return getBindingComparableValue(namespace, value.bindings[0]);
 }
 
 function unwrapQueryValue(value, namespace) {
@@ -1846,18 +5052,145 @@ function getBindingScalarValue(namespace, binding) {
   return { ok: true, value: info.value, metadata: scalarMetadataFromInfo(info) };
 }
 
+function getBindingComparableValue(namespace, binding) {
+  const scalar = getBindingScalarValue(namespace, binding);
+  if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) return scalar;
+  if (!isContainerBinding(namespace, binding)) return scalar;
+  const container = materializeContainerComparableValue(namespace, binding);
+  if (!container.ok) return container;
+  return {
+    ok: true,
+    value: container.value,
+    metadata: {
+      kind: 'container',
+      category: 'container',
+      containerKind: container.containerKind,
+    },
+  };
+}
+
+function materializeContainerComparableValue(namespace, binding, seen = new Set()) {
+  if (seen.has(binding)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', 'Cyclic containers are not structurally comparable'),
+    };
+  }
+  seen.add(binding);
+  const containerKind = containerKindFromBinding(namespace, binding) ?? 'container';
+  const children = getChildren(namespace, binding);
+  const positional = ['list', 'tuple'].includes(containerKind);
+
+  if (positional) {
+    const values = [];
+    for (const child of children) {
+      const childValue = materializeBindingComparableValue(namespace, child, seen);
+      if (!childValue.ok) {
+        seen.delete(binding);
+        return childValue;
+      }
+      values.push(childValue.value);
+    }
+    seen.delete(binding);
+    return { ok: true, value: values, containerKind };
+  }
+
+  if (containerKind === 'node') {
+    const values = [];
+    for (const child of children) {
+      const childValue = materializeBindingComparableValue(namespace, child, seen);
+      if (!childValue.ok) {
+        seen.delete(binding);
+        return childValue;
+      }
+      values.push(childValue.value);
+    }
+    const attributes = materializeAttributeComparableValue(namespace, binding, seen);
+    if (!attributes.ok) {
+      seen.delete(binding);
+      return attributes;
+    }
+    const tag = getBindingNodeTag(namespace, binding);
+    seen.delete(binding);
+    return {
+      ok: true,
+      value: {
+        ...(tag === undefined ? {} : { tag }),
+        ...(attributes.value === undefined ? {} : { attributes: attributes.value }),
+        children: values,
+      },
+      containerKind,
+    };
+  }
+
+  const object = {};
+  for (const child of children) {
+    const name = getBindingName(namespace, child);
+    if (typeof name !== 'string') continue;
+    const childValue = materializeBindingComparableValue(namespace, child, seen);
+    if (!childValue.ok) {
+      seen.delete(binding);
+      return childValue;
+    }
+    object[name] = childValue.value;
+  }
+  seen.delete(binding);
+  return { ok: true, value: object, containerKind };
+}
+
+function materializeAttributeComparableValue(namespace, binding, seen) {
+  const attributeSpace = getBindingAttributeSpace(namespace, binding);
+  if (!attributeSpace) return { ok: true, value: undefined };
+  const attributes = {};
+  for (const attribute of getChildren(namespace, attributeSpace)) {
+    const name = getBindingName(namespace, attribute);
+    if (typeof name !== 'string') continue;
+    const attributeValue = materializeBindingComparableValue(namespace, attribute, seen);
+    if (!attributeValue.ok) return attributeValue;
+    attributes[name] = attributeValue.value;
+  }
+  return { ok: true, value: attributes };
+}
+
+function materializeBindingComparableValue(namespace, binding, seen) {
+  const scalar = getBindingScalarValue(namespace, binding);
+  if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) {
+    return { ok: true, value: scalar.value };
+  }
+  if (!isContainerBinding(namespace, binding)) return scalar;
+  return materializeContainerComparableValue(namespace, binding, seen);
+}
+
 function getBindingScalarInfo(namespace, binding) {
   const kind = getBindingScalarKind(namespace, binding);
+  const semanticType = getBindingSemanticType(namespace, binding);
   const nullReason = getBindingNullReason(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, nullReason };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, nullReason };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, nullReason };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
   };
+}
+
+function containerKindFromBinding(namespace, binding) {
+  const rawKind = typeof namespace.representationKind === 'function'
+    ? namespace.representationKind(binding)
+    : binding.representationKind ?? binding.kind ?? binding.type ?? binding.literalKind ?? binding.valueKind;
+  const kind = typeof rawKind === 'string' ? lowerFirst(rawKind) : undefined;
+  if (['object', 'obj', 'o', 'envelope', 'objectNode'].includes(kind)) return 'object';
+  if (['list', 'listNode'].includes(kind)) return 'list';
+  if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
+  if (['node', 'nodeLiteral'].includes(kind)) return 'node';
+  if (Array.isArray(binding.children)) return 'container';
+  return undefined;
+}
+
+function isContainerBinding(namespace, binding) {
+  return containerKindFromBinding(namespace, binding) !== undefined;
 }
 
 function getBindingScalarKind(namespace, binding) {
@@ -1870,9 +5203,27 @@ function getBindingScalarKind(namespace, binding) {
   return typeof actual === 'string' ? lowerFirst(actual) : undefined;
 }
 
+function getBindingSemanticType(namespace, binding) {
+  const actual = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding.semanticType ?? binding.datatype;
+  return typeof actual === 'string' ? actual : undefined;
+}
+
 function getBindingNullReason(namespace, binding) {
   if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
   return binding.nullReason;
+}
+
+function getBindingNodeTag(namespace, binding) {
+  if (typeof namespace.nodeTag === 'function') return namespace.nodeTag(binding);
+  if (typeof namespace.tag === 'function') return namespace.tag(binding);
+  return binding.nodeTag ?? binding.tag;
+}
+
+function getBindingAttributeSpace(namespace, binding) {
+  if (typeof namespace.attributeSpace === 'function') return namespace.attributeSpace(binding);
+  return binding.attributeSpace ?? binding.attributes;
 }
 
 function queryValueMetadata(value, namespace) {
@@ -1890,6 +5241,7 @@ function queryValueAddress(value) {
 function scalarMetadataFromInfo(info) {
   const metadata = {};
   if (info.kind !== undefined) metadata.kind = info.kind;
+  if (info.semanticType !== undefined) metadata.semanticType = info.semanticType;
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
@@ -1897,25 +5249,26 @@ function scalarMetadataFromInfo(info) {
 function applyResolveSelector(selector, bindings, namespace, selectorIndex, policy = {}) {
   switch (selector.type) {
     case 'member':
-      return { ok: true, bindings: bindings.flatMap((binding) => selectMember(namespace, binding, selector.name)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateMembers(namespace, binding, selector.name), policy.maxBindings) };
     case 'position':
       return { ok: true, bindings: bindings.flatMap((binding) => selectPosition(namespace, binding, selector.index)) };
     case 'positionRange':
-      return { ok: true, bindings: bindings.flatMap((binding) => selectPositionRange(namespace, binding, selector.start, selector.end)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iteratePositionRange(namespace, binding, selector.start, selector.end), policy.maxBindings) };
     case 'parent':
       return selectParents(namespace, bindings, selectorIndex, policy);
     case 'directExpansion':
-      return { ok: true, bindings: bindings.flatMap((binding) => getChildren(namespace, binding)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => getChildren(namespace, binding), policy.maxBindings) };
     case 'descendantExpansion':
-      return { ok: true, bindings: bindings.flatMap((binding) => getDescendants(namespace, binding)) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateDescendants(namespace, binding), policy.maxBindings) };
     case 'namePattern': {
       const pattern = globPatternToRegExp(selector.pattern);
       return {
         ok: true,
-        bindings: bindings.flatMap((binding) => getChildren(namespace, binding).filter((child) => {
-          const name = getBindingName(namespace, child);
-          return typeof name === 'string' && pattern.test(name);
-        })),
+        bindings: collectSelectedBindings(
+          bindings,
+          (binding) => iterateNamePatternMatches(namespace, binding, pattern),
+          policy.maxBindings,
+        ),
       };
     }
     case 'semanticTypeFilter':
@@ -1946,6 +5299,17 @@ function selectMember(namespace, binding, name) {
   return getChildren(namespace, binding).filter((child) => getBindingName(namespace, child) === name);
 }
 
+function* iterateMembers(namespace, binding, name) {
+  if (typeof namespace.member === 'function') {
+    const selected = namespace.member(binding, name);
+    if (selected) yield selected;
+    return;
+  }
+  for (const child of getChildren(namespace, binding)) {
+    if (getBindingName(namespace, child) === name) yield child;
+  }
+}
+
 function selectPosition(namespace, binding, index) {
   if (typeof namespace.position === 'function') {
     const selected = namespace.position(binding, index);
@@ -1957,16 +5321,18 @@ function selectPosition(namespace, binding, index) {
   return children[index] ? [children[index]] : [];
 }
 
-function selectPositionRange(namespace, binding, start, end) {
+function* iteratePositionRange(namespace, binding, start, end) {
   const lower = start ?? 0;
   const upper = end ?? Number.POSITIVE_INFINITY;
-  if (lower > upper) return [];
+  if (lower > upper) return;
 
-  return getChildren(namespace, binding).filter((child, ordinal) => {
+  const children = getChildren(namespace, binding);
+  for (let ordinal = 0; ordinal < children.length; ordinal += 1) {
+    const child = children[ordinal];
     const explicitIndex = getBindingIndex(namespace, child);
     const position = Number.isInteger(explicitIndex) ? explicitIndex : ordinal;
-    return position >= lower && position <= upper;
-  });
+    if (position >= lower && position <= upper) yield child;
+  }
 }
 
 function selectParents(namespace, bindings, selectorIndex, policy) {
@@ -2057,9 +5423,34 @@ function getChildren(namespace, binding) {
 }
 
 function getDescendants(namespace, binding) {
-  const output = [];
+  return Array.from(iterateDescendants(namespace, binding));
+}
+
+function* iterateDescendants(namespace, binding) {
+  const stack = [...getChildren(namespace, binding)].reverse();
+  while (stack.length > 0) {
+    const child = stack.pop();
+    yield child;
+    const children = getChildren(namespace, child);
+    for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
+  }
+}
+
+function* iterateNamePatternMatches(namespace, binding, pattern) {
   for (const child of getChildren(namespace, binding)) {
-    output.push(child, ...getDescendants(namespace, child));
+    const name = getBindingName(namespace, child);
+    if (typeof name === 'string' && pattern.test(name)) yield child;
+  }
+}
+
+function collectSelectedBindings(bindings, select, maxBindings) {
+  const output = [];
+  const stopAt = maxBindings === undefined ? Number.POSITIVE_INFINITY : maxBindings + 1;
+  for (const binding of bindings) {
+    for (const selected of select(binding)) {
+      output.push(selected);
+      if (output.length >= stopAt) return output;
+    }
   }
   return output;
 }
@@ -2091,11 +5482,21 @@ function matchesRepresentationKind(namespace, binding, expected) {
   return typeof actual === 'string' && lowerFirst(actual) === expected;
 }
 
-function resolveError(code, message, selectorIndex) {
+function resolveBindingLimitError(limit, observed, selectorIndex) {
+  return resolveError(
+    'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED',
+    `Resolve produced more than ${limit} bindings`,
+    selectorIndex,
+    { limit, observed },
+  );
+}
+
+function resolveError(code, message, selectorIndex, details = {}) {
   return {
     code,
     message,
     ...(selectorIndex === undefined ? {} : { selectorIndex }),
+    ...details,
   };
 }
 
@@ -2445,6 +5846,579 @@ class AddressParser {
   }
 }
 
+class InstructionParser {
+  constructor(input, options = {}) {
+    this.input = String(input);
+    this.options = options;
+    this.warnings = [];
+  }
+
+  parse() {
+    const source = stripInstructionComments(this.input);
+    if (source.trim().length === 0) {
+      this.fail('Expected SANSA instruction', 'SANSA_INSTRUCTION_EMPTY', 0);
+    }
+
+    const clauses = scanInstructionClauses(source);
+    const first = clauses[0];
+    if (!first || source.slice(0, first.start).trim().length > 0) {
+      this.fail('Expected SANSA instruction mutation verb', 'SANSA_INSTRUCTION_EXPECTED_MUTATION', 0);
+    }
+
+    const unsupported = clauses.find((clause) => clause.category === 'unsupportedQuery');
+    if (unsupported) {
+      this.fail(
+        `Unsupported SANSA instruction clause '${unsupported.label}'`,
+        'SANSA_INSTRUCTION_UNSUPPORTED_QUERY_CLAUSE',
+        unsupported.start,
+      );
+    }
+
+    const deferred = clauses.find((clause) => clause.category === 'deferredVerb');
+    if (deferred) {
+      this.fail(
+        `Unsupported or deferred SANSA instruction verb '${deferred.label}'`,
+        'SANSA_INSTRUCTION_UNSUPPORTED_VERB',
+        deferred.start,
+      );
+    }
+
+    const mutationClauses = clauses.filter((clause) => clause.category === 'mutation');
+    if (mutationClauses.length === 0) {
+      this.fail('Expected SANSA instruction mutation verb', 'SANSA_INSTRUCTION_EXPECTED_MUTATION', source.length);
+    }
+    if (mutationClauses.length > 1) {
+      this.fail('SANSA instruction must contain exactly one mutation verb', 'SANSA_INSTRUCTION_MULTIPLE_MUTATION_VERBS', mutationClauses[1].start);
+    }
+
+    const seen = new Set();
+    for (const clause of clauses) {
+      if (clause.category !== 'query' && clause.category !== 'metadata') continue;
+      if (clause.name === 'require') continue;
+      if (seen.has(clause.name)) {
+        this.fail(`Duplicate SANSA instruction clause '${clause.label}'`, 'SANSA_INSTRUCTION_DUPLICATE_CLAUSE', clause.start);
+      }
+      seen.add(clause.name);
+    }
+
+    const mutationClause = mutationClauses[0];
+    const order = new Map([['because', 0], ['by', 1], ['from', 2], ['where', 3], ['require', 4], [mutationClause.name, 5]]);
+    let previousOrder = -1;
+    for (const clause of clauses) {
+      const currentOrder = order.get(clause.name);
+      if (currentOrder === undefined) continue;
+      if (currentOrder < previousOrder) {
+        this.fail(`SANSA instruction clause '${clause.label}' is out of order`, 'SANSA_INSTRUCTION_INVALID_CLAUSE_ORDER', clause.start);
+      }
+      previousOrder = currentOrder;
+    }
+
+    const clauseByName = new Map(clauses.map((clause) => [clause.name, clause]));
+    const provenance = this.parseProvenanceClauses(clauseByName);
+    const from = clauseByName.has('from') ? this.parseFromClause(clauseByName.get('from')) : null;
+    const where = clauseByName.has('where') ? this.parseWhereClause(clauseByName.get('where')) : null;
+    const requires = clauses
+      .filter((clause) => clause.name === 'require')
+      .map((clause) => this.parseRequireClause(clause));
+    const mutation = this.parseMutationClause(mutationClause);
+    const instruction = {
+      type: 'SansaInstruction',
+      provenance,
+      from,
+      where,
+      requires,
+      mutation,
+      clauses: clauses.filter((clause) => clause.category !== 'unsupportedQuery').map((clause) => clause.name),
+    };
+    instruction.canonical = renderInstruction(instruction);
+    return instruction;
+  }
+
+  parseFromClause(clause) {
+    const body = clause.body.trim();
+    if (body.length === 0) {
+      this.fail("Expected SANSA address after 'from'", 'SANSA_INSTRUCTION_EXPECTED_FROM_ADDRESS', clause.bodyStart);
+    }
+    const address = this.parseAddress(body, clause.bodyStart + clause.body.indexOf(body));
+    return { type: 'fromClause', source: 'address', address: address.address };
+  }
+
+  parseProvenanceClauses(clauseByName) {
+    return {
+      ...(clauseByName.has('because') ? { reason: this.parseMetadataTextClause(clauseByName.get('because'), 'because', 'SANSA_INSTRUCTION_EXPECTED_BECAUSE_TEXT') } : {}),
+      ...(clauseByName.has('by') ? { claimedAuthor: this.parseMetadataTextClause(clauseByName.get('by'), 'by', 'SANSA_INSTRUCTION_EXPECTED_BY_TEXT') } : {}),
+    };
+  }
+
+  parseMetadataTextClause(clause, label, code) {
+    const body = clause.body.trim();
+    if (body.length === 0) {
+      this.fail(`Expected quoted text after '${label}'`, code, clause.bodyStart);
+    }
+    const parser = new AddressParser(body, this.options.address ?? this.options);
+    try {
+      const value = parser.parseQuotedPayload();
+      parser.expectEnd();
+      return value;
+    } catch (error) {
+      if (error instanceof SansaParseError) {
+        this.fail(`Expected quoted text after '${label}'`, code, clause.bodyStart + clause.body.indexOf(body) + error.index);
+      }
+      throw error;
+    }
+  }
+
+  parseWhereClause(clause) {
+    return this.parseQueryExpressionClause(clause, 'whereClause', 'where');
+  }
+
+  parseRequireClause(clause) {
+    return this.parseQueryExpressionClause(clause, 'requireClause', 'require');
+  }
+
+  parseQueryExpressionClause(clause, type, label) {
+    const expression = normalizeQueryExpression(clause.body);
+    if (expression.length === 0) {
+      this.fail(
+        `Expected expression after '${label}'`,
+        label === 'require' ? 'SANSA_INSTRUCTION_EXPECTED_REQUIRE_EXPRESSION' : 'SANSA_INSTRUCTION_EXPECTED_WHERE_EXPRESSION',
+        clause.bodyStart,
+      );
+    }
+    const result = parseQueryExpression(expression, this.expressionOptions());
+    if (!result.ok) {
+      const first = result.errors[0];
+      this.fail(first.message, first.code, clause.bodyStart + clause.body.indexOf(expression) + first.index);
+    }
+    this.warnings.push(...result.warnings);
+    return { type, expression: renderQueryExpression(result.expression), ast: result.expression };
+  }
+
+  parseMutationClause(clause) {
+    switch (clause.name) {
+      case 'create':
+        return this.parseCreateClause(clause);
+      case 'replace':
+        return this.parseReplaceClause(clause);
+      case 'remove':
+        return this.parseRemoveClause(clause);
+      case 'insert':
+        return this.parseInsertClause(clause);
+      case 'append':
+        return this.parseAppendClause(clause);
+      case 'move':
+        return this.parseMoveClause(clause);
+      default:
+        this.fail(`Unsupported SANSA instruction verb '${clause.label}'`, 'SANSA_INSTRUCTION_UNSUPPORTED_VERB', clause.start);
+    }
+  }
+
+  parseCreateClause(clause) {
+    const withIndex = findTopLevelInstructionKeyword(clause.body, 'with');
+    if (withIndex < 0) {
+      this.fail("Expected 'with' in create instruction", 'SANSA_INSTRUCTION_EXPECTED_WITH', clause.bodyStart);
+    }
+    const destinationSource = clause.body.slice(0, withIndex).trim();
+    const valueSource = clause.body.slice(withIndex + 'with'.length);
+    const destination = this.parseCreateDestination(destinationSource, clause.bodyStart + clause.body.indexOf(destinationSource));
+    const value = this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length);
+    return { type: 'mutationClause', verb: 'create', destination, value };
+  }
+
+  parseReplaceClause(clause) {
+    const withIndex = findTopLevelInstructionKeyword(clause.body, 'with');
+    if (withIndex < 0) {
+      this.fail("Expected 'with' in replace instruction", 'SANSA_INSTRUCTION_EXPECTED_WITH', clause.bodyStart);
+    }
+    const targetSource = clause.body.slice(0, withIndex).trim();
+    const valueSource = clause.body.slice(withIndex + 'with'.length);
+    const target = this.parseAddress(targetSource, clause.bodyStart + clause.body.indexOf(targetSource));
+    const value = this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length);
+    return { type: 'mutationClause', verb: 'replace', target, value };
+  }
+
+  parseRemoveClause(clause) {
+    const targetSource = clause.body.trim();
+    if (targetSource.length === 0) {
+      this.fail("Expected address after 'remove'", 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', clause.bodyStart);
+    }
+    return {
+      type: 'mutationClause',
+      verb: 'remove',
+      target: this.parseAddress(targetSource, clause.bodyStart + clause.body.indexOf(targetSource)),
+    };
+  }
+
+  parseInsertClause(clause) {
+    const withIndex = findTopLevelInstructionKeyword(clause.body, 'with');
+    if (withIndex < 0) {
+      this.fail("Expected 'with' in insert instruction", 'SANSA_INSTRUCTION_EXPECTED_WITH', clause.bodyStart);
+    }
+    const beforeValue = clause.body.slice(0, withIndex);
+    const inIndex = findTopLevelInstructionKeyword(beforeValue, 'in');
+    if (inIndex < 0) {
+      this.fail("Expected 'in' in insert instruction", 'SANSA_INSTRUCTION_EXPECTED_IN', clause.bodyStart);
+    }
+    const placementSource = beforeValue.slice(0, inIndex).trim();
+    const containerSource = beforeValue.slice(inIndex + 'in'.length).trim();
+    const valueSource = clause.body.slice(withIndex + 'with'.length);
+    return {
+      type: 'mutationClause',
+      verb: 'insert',
+      placement: this.parsePlacement(placementSource, clause.bodyStart + beforeValue.indexOf(placementSource)),
+      container: this.parseAddress(containerSource, clause.bodyStart + inIndex + 'in'.length + beforeValue.slice(inIndex + 'in'.length).indexOf(containerSource)),
+      value: this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length),
+    };
+  }
+
+  parseAppendClause(clause) {
+    const withIndex = findTopLevelInstructionKeyword(clause.body, 'with');
+    if (withIndex < 0) {
+      this.fail("Expected 'with' in append instruction", 'SANSA_INSTRUCTION_EXPECTED_WITH', clause.bodyStart);
+    }
+    let containerSource = clause.body.slice(0, withIndex).trim();
+    if (containerSource.startsWith('in') && isInstructionClauseBoundaryAfter(containerSource, 'in'.length)) {
+      containerSource = containerSource.slice('in'.length).trim();
+    }
+    if (containerSource.length === 0) {
+      this.fail("Expected container address after 'append'", 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', clause.bodyStart);
+    }
+    const valueSource = clause.body.slice(withIndex + 'with'.length);
+    return {
+      type: 'mutationClause',
+      verb: 'insert',
+      placement: { type: 'placement', kind: 'last' },
+      container: this.parseAddress(containerSource, clause.bodyStart + clause.body.indexOf(containerSource)),
+      value: this.parseInstructionValue(valueSource, clause.bodyStart + withIndex + 'with'.length),
+    };
+  }
+
+  parseMoveClause(clause) {
+    const body = clause.body;
+    const first = readInstructionToken(body, 0);
+    if (!first.token) {
+      this.fail("Expected source address after 'move'", 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', clause.bodyStart);
+    }
+    const source = this.parseAddress(first.token, clause.bodyStart + first.start);
+    const rest = body.slice(first.end);
+    const inIndex = findTopLevelInstructionKeyword(rest, 'in');
+    if (inIndex < 0) {
+      this.fail("Expected 'in' in move instruction", 'SANSA_INSTRUCTION_EXPECTED_IN', clause.bodyStart + first.end);
+    }
+    const placementSource = rest.slice(0, inIndex).trim();
+    const containerSource = rest.slice(inIndex + 'in'.length).trim();
+    return {
+      type: 'mutationClause',
+      verb: 'move',
+      source,
+      placement: this.parsePlacement(placementSource, clause.bodyStart + first.end + rest.indexOf(placementSource)),
+      container: this.parseAddress(containerSource, clause.bodyStart + first.end + inIndex + 'in'.length + rest.slice(inIndex + 'in'.length).indexOf(containerSource)),
+    };
+  }
+
+  parsePlacement(source, offset) {
+    if (source === 'first' || source === 'last') {
+      return { type: 'placement', kind: source };
+    }
+    const first = readInstructionToken(source, 0);
+    if (first.token !== 'before' && first.token !== 'after') {
+      this.fail("Expected placement 'first', 'last', 'before <address>', or 'after <address>'", 'SANSA_INSTRUCTION_INVALID_PLACEMENT', offset);
+    }
+    const anchorSource = source.slice(first.end).trim();
+    if (anchorSource.length === 0) {
+      this.fail(`Expected anchor address after '${first.token}'`, 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', offset + first.end);
+    }
+    return {
+      type: 'placement',
+      kind: first.token,
+      anchor: this.parseAddress(anchorSource, offset + source.indexOf(anchorSource)),
+    };
+  }
+
+  parseCreateDestination(source, offset) {
+    if (source.length === 0) {
+      this.fail("Expected create destination before 'with'", 'SANSA_INSTRUCTION_EXPECTED_CREATE_DESTINATION', offset);
+    }
+    if (IDENTIFIER_RE.test(source)) {
+      return { type: 'createDestination', kind: 'member', name: source, canonical: source };
+    }
+    if (source.startsWith('"')) {
+      const parser = new AddressParser(source, this.addressOptions());
+      const name = parser.parseQuotedPayload();
+      while (isLayout(source[parser.index] ?? '')) parser.index += 1;
+      if (!parser.atEnd()) {
+        this.fail('Unexpected token after quoted create member name', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION', offset + parser.index);
+      }
+      this.warnings.push(...parser.warnings);
+      if (name.length === 0) {
+        this.fail('Create member name must not be empty', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION', offset);
+      }
+      return { type: 'createDestination', kind: 'member', name, canonical: quotePayload(name) };
+    }
+    const address = this.parseAddress(source, offset);
+    return { type: 'createDestination', kind: 'address', address: address.address, canonical: renderInstructionAddress(address.address) };
+  }
+
+  parseInstructionValue(source, offset, context = {}) {
+    const trimmedStart = firstNonLayoutOffset(source);
+    const trimmed = source.trim();
+    const valueOffset = offset + trimmedStart;
+    if (trimmed.length === 0) {
+      this.fail('Expected instruction value', 'SANSA_INSTRUCTION_EXPECTED_VALUE', offset);
+    }
+
+    let datatype;
+    let payload = trimmed;
+    let payloadOffset = valueOffset;
+    if (trimmed.startsWith(':')) {
+      const datatypeToken = readInstructionDatatypeToken(trimmed, 1);
+      if (!datatypeToken.token) {
+        this.fail('Expected datatype annotation after colon', 'SANSA_INSTRUCTION_INVALID_DATATYPE', valueOffset + 1);
+      }
+      datatype = this.parseDatatypeIntent(datatypeToken.token, valueOffset + 1);
+      let cursor = datatypeToken.end;
+      while (isLayout(trimmed[cursor] ?? '')) cursor += 1;
+      if (trimmed[cursor] === ',') {
+        cursor += 1;
+        while (isLayout(trimmed[cursor] ?? '')) cursor += 1;
+      }
+      payload = trimmed.slice(cursor).trim();
+      payloadOffset = valueOffset + cursor + firstNonLayoutOffset(trimmed.slice(cursor));
+      if (payload.length === 0) {
+        this.fail('Expected instruction value after datatype annotation', 'SANSA_INSTRUCTION_EXPECTED_VALUE', valueOffset + cursor);
+      }
+      if (payload.startsWith(',') || payload.endsWith(',')) {
+        this.fail(
+          'Comma delimiter may appear only once between datatype annotation and instruction value',
+          'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL',
+          payload.startsWith(',') ? payloadOffset : valueOffset + cursor + trimmed.slice(cursor).lastIndexOf(','),
+        );
+      }
+    }
+    const literal = this.parseValueLiteral(payload, payloadOffset);
+    if (datatype !== undefined) {
+      this.validateInstructionValueIntent(datatype, literal.kind, valueOffset, { nested: context.nested === true });
+    }
+    if (datatype !== undefined && context.nested === true) {
+      this.warnings.push({
+        code: 'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED',
+        message: 'Nested datatype intent is preserved in Instruction source but flattened out of conservative Mutate plans',
+        index: valueOffset,
+        datatype,
+      });
+    } else if (context.nested === true && nestedInstructionLiteralKindFlattens(literal.kind)) {
+      this.warnings.push({
+        code: 'SANSA_INSTRUCTION_NESTED_VALUE_REPRESENTATION_FLATTENED',
+        message: 'Nested literal representation family is preserved in Instruction source but flattened out of conservative Mutate plans',
+        index: valueOffset,
+        kind: literal.kind,
+      });
+    }
+
+    return {
+      type: 'InstructionValue',
+      datatype,
+      kind: literal.kind,
+      value: literal.value,
+      literal,
+      canonical: `${datatype === undefined ? '' : `:${datatype}, `}${literal.canonical}`,
+    };
+  }
+
+  validateInstructionValueIntent(datatype, literalKind, index, context = {}) {
+    const datatypeRepresentation = representationKindFromMutationName(datatype, { allowUnknown: false });
+    const literalRepresentation = representationKindFromMutationName(literalKind, { allowUnknown: false });
+    if (datatypeRepresentation === undefined || literalRepresentation === undefined) return;
+    if (['cloneReference', 'pointerReference', 'referenceForm'].includes(literalRepresentation)) return;
+    if (datatypeRepresentation === literalRepresentation) return;
+    this.fail(
+      `${context.nested === true ? 'Nested datatype' : 'Datatype'} '${datatype}' is not compatible with ${literalRepresentation} literal representation`,
+      context.nested === true ? 'SANSA_INSTRUCTION_NESTED_VALUE_INTENT_MISMATCH' : 'SANSA_INSTRUCTION_VALUE_INTENT_MISMATCH',
+      index,
+    );
+  }
+
+  parseValueLiteral(source, offset) {
+    if (source.startsWith('{')) return this.parseObjectValueLiteral(source, offset);
+    if (source.startsWith('[')) return this.parseListValueLiteral(source, offset);
+    if (source.startsWith('(')) return this.parseTupleValueLiteral(source, offset);
+    if (source.startsWith('<')) return this.parseNodeValueLiteral(source, offset);
+    if (source.startsWith('~')) return this.parseReferenceValueLiteral(source, offset);
+    if (source.startsWith('$') || source.startsWith('?')) {
+      const address = this.parseAddress(source, offset).address;
+      return {
+        type: 'instructionValueLiteral',
+        kind: 'sansa',
+        value: renderAddress(address),
+        address,
+        canonical: renderAddress(address),
+      };
+    }
+    const result = parseQueryExpression(source, this.expressionOptions());
+    if (!result.ok) {
+      const first = result.errors[0];
+      this.fail(first.message, first.code, offset + first.index);
+    }
+    if (result.expression.type !== 'literalExpression') {
+      this.fail('Instruction value must be a literal payload', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL', offset);
+    }
+    this.warnings.push(...result.warnings);
+    return {
+      type: 'instructionValueLiteral',
+      kind: result.expression.kind,
+      value: result.expression.kind === 'null'
+        ? result.expression.nullReason
+        : result.expression.value,
+      expression: result.expression,
+      canonical: renderQueryExpression(result.expression),
+    };
+  }
+
+  parseObjectValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '{', '}', offset);
+    const seen = new Set();
+    const fields = splitInstructionObjectFields(body).map((field) => {
+      if (seen.has(field.name)) {
+        this.fail(
+          `Duplicate object field '${field.name}' in instruction value`,
+          'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD',
+          offset + 1 + field.nameOffset,
+        );
+      }
+      seen.add(field.name);
+      const value = this.parseInstructionValue(field.expression, offset + 1 + field.expressionOffset, { nested: true });
+      return { name: field.name, canonicalName: field.canonicalName, value };
+    });
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'object',
+      value: Object.fromEntries(fields.map((field) => [field.name, field.value.value])),
+      fields,
+      canonical: `{ ${fields.map((field) => `${field.canonicalName} = ${field.value.canonical}`).join(' ')} }`,
+    };
+  }
+
+  parseListValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '[', ']', offset);
+    const items = parseInstructionValueItems(body, offset + 1, this);
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'list',
+      value: items.map((item) => item.value),
+      items,
+      canonical: `[${items.map((item) => item.canonical).join(', ')}]`,
+    };
+  }
+
+  parseTupleValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '(', ')', offset);
+    const items = parseInstructionValueItems(body, offset + 1, this);
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'tuple',
+      value: items.map((item) => item.value),
+      items,
+      canonical: `(${items.map((item) => item.canonical).join(', ')})`,
+    };
+  }
+
+  parseNodeValueLiteral(source, offset) {
+    const body = unwrapInstructionDelimitedLiteral(source, '<', '>', offset).trim();
+    if (body.length === 0) {
+      this.fail('Expected node tag in instruction node value', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1);
+    }
+    let cursor = 0;
+    if (!isIdentifierStart(body[cursor])) {
+      this.fail('Expected node tag in instruction node value', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1);
+    }
+    cursor += 1;
+    while (isIdentifierContinue(body[cursor] ?? '')) cursor += 1;
+    const tag = body.slice(0, cursor);
+    while (isLayout(body[cursor] ?? '')) cursor += 1;
+    let children = [];
+    if (cursor < body.length) {
+      if (body[cursor] !== '(') {
+        this.fail('Expected node children after instruction node tag', 'SANSA_INSTRUCTION_INVALID_NODE_LITERAL', offset + 1 + cursor);
+      }
+      const childSource = body.slice(cursor);
+      const childBody = unwrapInstructionDelimitedLiteral(childSource, '(', ')', offset + 1 + cursor);
+      children = parseInstructionValueItems(childBody, offset + 1 + cursor + 1, this);
+    }
+    return {
+      type: 'instructionValueLiteral',
+      kind: 'node',
+      value: { tag, children: children.map((child) => child.value) },
+      tag,
+      children,
+      canonical: `<${tag}${children.length === 0 ? '' : `(${children.map((child) => child.canonical).join(', ')})`}>`,
+    };
+  }
+
+  parseReferenceValueLiteral(source, offset) {
+    const pointer = source.startsWith('~>');
+    const target = pointer ? source.slice(2) : source.slice(1);
+    if (target.length === 0 || target.trim() !== target || /\s/.test(target)) {
+      this.fail('Invalid reference literal', 'SANSA_INSTRUCTION_INVALID_REFERENCE_LITERAL', offset);
+    }
+    return {
+      type: 'instructionValueLiteral',
+      kind: pointer ? 'pointerReference' : 'cloneReference',
+      value: target,
+      canonical: `${pointer ? '~>' : '~'}${target}`,
+    };
+  }
+
+  parseDatatypeIntent(source, offset) {
+    try {
+      const parser = new AddressParser(source, this.addressOptions());
+      const expression = parser.parseQualifierExpression();
+      if (!parser.atEnd()) {
+        this.fail('Unexpected token in datatype annotation', 'SANSA_INSTRUCTION_INVALID_DATATYPE', offset + parser.index);
+      }
+      this.warnings.push(...parser.warnings);
+      return renderQualifierExpression(expression);
+    } catch (error) {
+      if (error instanceof SansaParseError) {
+        this.fail(error.message, 'SANSA_INSTRUCTION_INVALID_DATATYPE', offset + error.index);
+      }
+      throw error;
+    }
+  }
+
+  parseAddress(source, offset) {
+    const normalized = normalizeInstructionAddressSource(source);
+    if (!normalized.ok) {
+      this.fail(normalized.message, normalized.code, offset);
+    }
+    const result = parseAddress(normalized.source, this.addressOptions());
+    if (!result.ok) {
+      const first = result.errors[0];
+      const adjustment = normalized.adjustment ?? 0;
+      this.fail(first.message, first.code, offset + first.index + adjustment);
+    }
+    this.warnings.push(...result.warnings);
+    return {
+      type: 'instructionAddress',
+      source,
+      address: result.address,
+      canonical: renderInstructionAddress(result.address),
+    };
+  }
+
+  addressOptions() {
+    return this.options.address ?? {};
+  }
+
+  expressionOptions() {
+    if (this.options.expression) return this.options.expression;
+    return { address: this.addressOptions() };
+  }
+
+  fail(message, code, index) {
+    throw new SansaParseError(message, index, code);
+  }
+}
+
 class QueryParser {
   constructor(input, options = {}) {
     this.input = input;
@@ -2670,6 +6644,12 @@ class QueryExpressionParser {
     const char = this.peek();
     if (!char) this.fail('Expected SANSA query expression', 'SANSA_QUERY_EXPECTED_EXPRESSION');
     if (char === '"') return this.parseString();
+    if (char === '#') return this.parseHex();
+    if (char === '%') return this.parseRadix();
+    if (char === '&') return this.parseEncoding();
+    if (char === '^') return this.parseSeparator();
+    if (char === '!') return this.parseNull();
+    if (isDigit(char) && this.startsTemporalLiteral()) return this.parseTemporal();
     if (char === '-' || isDigit(char)) return this.parseNumber();
     if (char === '$' || char === '?' || char === '.') return this.parseResolution();
     if (char === '(') return this.parseGroup();
@@ -2685,6 +6665,14 @@ class QueryExpressionParser {
         type: 'literalExpression',
         kind: 'boolean',
         value: name === 'true',
+        canonical: name,
+      };
+    }
+    if (['yes', 'no', 'on', 'off'].includes(name)) {
+      return {
+        type: 'literalExpression',
+        kind: 'toggle',
+        value: name,
         canonical: name,
       };
     }
@@ -2767,6 +6755,107 @@ class QueryExpressionParser {
     };
   }
 
+  parseHex() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!/^[0-9A-Fa-f](?:_?[0-9A-Fa-f])*$/.test(payload)) {
+      this.fail('Invalid hex literal', 'SANSA_QUERY_INVALID_HEX_LITERAL', start);
+    }
+    const value = payload.replaceAll('_', '').toLowerCase();
+    return {
+      type: 'literalExpression',
+      kind: 'hex',
+      value,
+      canonical: `#${value}`,
+    };
+  }
+
+  parseRadix() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!isAeonRadixPayload(payload)) {
+      this.fail('Invalid radix literal', 'SANSA_QUERY_INVALID_RADIX_LITERAL', start);
+    }
+    const value = payload.replaceAll('_', '');
+    return {
+      type: 'literalExpression',
+      kind: 'radix',
+      value,
+      canonical: `%${value}`,
+    };
+  }
+
+  parseEncoding() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readSimpleLiteralPayload();
+    if (!isAeonEncodingPayload(payload)) {
+      this.fail('Invalid encoding literal', 'SANSA_QUERY_INVALID_ENCODING_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'encoding',
+      value: payload,
+      canonical: `&${payload}`,
+    };
+  }
+
+  parseSeparator() {
+    const start = this.index;
+    this.index += 1;
+    const payload = this.readStructuredLiteralPayload();
+    if (!isAeonSeparatorPayload(payload)) {
+      this.fail('Invalid separator literal', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'separator',
+      value: payload,
+      canonical: `^${payload}`,
+    };
+  }
+
+  parseNull() {
+    const start = this.index;
+    this.index += 1;
+    const reason = this.peek() === '"'
+      ? this.parseQuotedPayload()
+      : this.readIdentifier();
+    if (reason.length === 0) {
+      this.fail('Invalid null literal', 'SANSA_QUERY_INVALID_NULL_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind: 'null',
+      value: null,
+      nullReason: reason,
+      canonical: IDENTIFIER_RE.test(reason) ? `!${reason}` : `!${quotePayload(reason)}`,
+    };
+  }
+
+  parseTemporal() {
+    const start = this.index;
+    const source = this.readSimpleLiteralPayload();
+    const kind = source.includes('T')
+      ? source.includes('&')
+        ? 'zrut'
+        : 'datetime'
+      : source.includes(':')
+        ? 'time'
+        : 'date';
+    if (!isQueryTemporalLiteral(source, kind)) {
+      this.fail('Invalid temporal literal', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL', start);
+    }
+    return {
+      type: 'literalExpression',
+      kind,
+      value: source,
+      canonical: source,
+    };
+  }
+
   parseResolution() {
     const start = this.index;
     const source = this.readResolutionSource();
@@ -2831,6 +6920,55 @@ class QueryExpressionParser {
       fields,
       canonical: '',
     };
+  }
+
+  startsTemporalLiteral() {
+    const rest = this.input.slice(this.index);
+    return /^\d{4}-\d{2}-\d{2}(?:T|(?=$|[\s,)}\]]))/.test(rest)
+      || /^\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?(?=$|[\s,)}\]])/.test(rest);
+  }
+
+  readSimpleLiteralPayload() {
+    const start = this.index;
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (isLayout(char) || char === ',' || char === ')' || char === '}' || char === ']') break;
+      this.index += 1;
+    }
+    const payload = this.input.slice(start, this.index);
+    if (payload.length === 0) {
+      this.fail('Expected literal payload', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD', start);
+    }
+    return payload;
+  }
+
+  readStructuredLiteralPayload() {
+    const start = this.index;
+    let quote = null;
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (quote) {
+        if (char === '\\') {
+          this.index += 2;
+          continue;
+        }
+        if (char === quote) quote = null;
+        this.index += 1;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        this.index += 1;
+        continue;
+      }
+      if (isLayout(char) || char === ',' || char === ')' || char === '}' || char === ']') break;
+      this.index += 1;
+    }
+    const payload = this.input.slice(start, this.index);
+    if (quote) {
+      this.fail('Unterminated structured scalar literal', 'SANSA_QUERY_UNTERMINATED_EXPRESSION', start);
+    }
+    return payload;
   }
 
   readResolutionSource() {
@@ -3009,7 +7147,7 @@ function stripQueryComments(input) {
       output += char;
       continue;
     }
-    if (char === '/' && next === '/') {
+    if (char === '/' && next === '/' && !isTemporalZoneCommentContext(input, index)) {
       output += '  ';
       index += 1;
       while (index + 1 < input.length && input[index + 1] !== '\n' && input[index + 1] !== '\r') {
@@ -3018,7 +7156,7 @@ function stripQueryComments(input) {
       }
       continue;
     }
-    if (char === '/' && next === '*') {
+    if (char === '/' && next === '*' && !isTemporalZoneCommentContext(input, index)) {
       const start = index;
       output += '  ';
       index += 1;
@@ -3043,6 +7181,393 @@ function stripQueryComments(input) {
     output += char;
   }
   return output;
+}
+
+function isTemporalZoneCommentContext(input, index) {
+  let cursor = index - 1;
+  while (cursor >= 0 && !isLayout(input[cursor]) && ![',', ')', '}', ']'].includes(input[cursor])) {
+    cursor -= 1;
+  }
+  const tokenPrefix = input.slice(cursor + 1, index);
+  const date = String.raw`\d{4}-\d{2}-\d{2}`;
+  const datetimeTime = String.raw`\d{2}(?::(?:\d{2})?)?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?`;
+  return new RegExp(`^${date}T${datetimeTime}&[A-Za-z0-9_+\\-/]*$`).test(tokenPrefix);
+}
+
+function renderInstruction(instruction) {
+  const lines = [];
+  if (instruction.provenance?.reason !== undefined) lines.push(`because ${quotePayload(instruction.provenance.reason)}`);
+  if (instruction.provenance?.claimedAuthor !== undefined) lines.push(`by ${quotePayload(instruction.provenance.claimedAuthor)}`);
+  if (instruction.from) lines.push(`from ${renderInstructionAddress(instruction.from.address)}`);
+  if (instruction.where) lines.push(`where ${renderQueryExpression(instruction.where.ast)}`);
+  for (const requirement of instruction.requires ?? []) {
+    lines.push(`require ${renderQueryExpression(requirement.ast)}`);
+  }
+  lines.push(renderInstructionMutation(instruction.mutation));
+  return lines.join('\n');
+}
+
+function renderInstructionMutation(mutation) {
+  switch (mutation.verb) {
+    case 'create':
+      return `create ${mutation.destination.canonical} with ${renderInstructionValue(mutation.value)}`;
+    case 'replace':
+      return `replace ${renderInstructionAddress(mutation.target.address)} with ${renderInstructionValue(mutation.value)}`;
+    case 'remove':
+      return `remove ${renderInstructionAddress(mutation.target.address)}`;
+    case 'insert':
+      return `insert ${renderInstructionPlacement(mutation.placement)} in ${renderInstructionAddress(mutation.container.address)} with ${renderInstructionValue(mutation.value)}`;
+    case 'move':
+      return `move ${renderInstructionAddress(mutation.source.address)} ${renderInstructionPlacement(mutation.placement)} in ${renderInstructionAddress(mutation.container.address)}`;
+    default:
+      throw new Error(`Unknown instruction mutation verb: ${mutation.verb}`);
+  }
+}
+
+function renderInstructionPlacement(placement) {
+  if (placement.kind === 'first' || placement.kind === 'last') return placement.kind;
+  return `${placement.kind} ${renderInstructionAddress(placement.anchor.address)}`;
+}
+
+function renderInstructionValue(value) {
+  return value.canonical;
+}
+
+function renderInstructionAddress(address) {
+  const canonical = renderAddress(address);
+  if (address.root.kind !== 'contextual') return canonical;
+  return address.selectors.length === 0 ? '.' : canonical.slice(1);
+}
+
+function stripInstructionComments(input) {
+  try {
+    return stripQueryComments(input);
+  } catch (error) {
+    if (error instanceof SansaParseError && error.code === 'SANSA_QUERY_UNTERMINATED_BLOCK_COMMENT') {
+      throw new SansaParseError('Unterminated SANSA instruction block comment', error.index, 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT');
+    }
+    throw error;
+  }
+}
+
+function scanInstructionClauses(source) {
+  const clauses = [];
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<' && !isLayout(source[index - 1] ?? '')) angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+
+    if (parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) {
+      continue;
+    }
+
+    const match = matchInstructionClauseKeyword(source, index);
+    if (match) {
+      clauses.push({
+        name: match.name,
+        label: match.label,
+        category: match.category,
+        start: index,
+        bodyStart: match.end,
+        body: '',
+      });
+      index = match.end - 1;
+    }
+  }
+
+  for (let index = 0; index < clauses.length; index += 1) {
+    const clause = clauses[index];
+    const next = clauses[index + 1];
+    const bodyEnd = next ? next.start : source.length;
+    clause.body = source.slice(clause.bodyStart, bodyEnd);
+  }
+  return clauses;
+}
+
+function matchInstructionClauseKeyword(source, index) {
+  if (!isInstructionClauseBoundaryBefore(source, index)) return null;
+  if (source.startsWith('order', index) && isInstructionClauseBoundaryAfter(source, index + 'order'.length)) {
+    let cursor = index + 'order'.length;
+    const gapStart = cursor;
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (cursor > gapStart && source.startsWith('by', cursor) && isInstructionClauseBoundaryAfter(source, cursor + 2)) {
+      return { name: 'order', label: 'order by', category: 'unsupportedQuery', end: cursor + 2 };
+    }
+  }
+  for (const name of ['from', 'where', 'require']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'query', end: index + name.length };
+    }
+  }
+  for (const name of ['because', 'by']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'metadata', end: index + name.length };
+    }
+  }
+  for (const name of ['select', 'offset', 'limit']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'unsupportedQuery', end: index + name.length };
+    }
+  }
+  for (const name of ['create', 'replace', 'remove', 'insert', 'append', 'move']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'mutation', end: index + name.length };
+    }
+  }
+  for (const name of ['rename', 'copy', 'clone', 'merge', 'patch', 'upsert', 'clear']) {
+    if (source.startsWith(name, index) && isInstructionClauseBoundaryAfter(source, index + name.length)) {
+      return { name, label: name, category: 'deferredVerb', end: index + name.length };
+    }
+  }
+  return null;
+}
+
+function isInstructionClauseBoundaryBefore(source, index) {
+  if (index === 0) return true;
+  return isLayout(source[index - 1]);
+}
+
+function isInstructionClauseBoundaryAfter(source, index) {
+  const char = source[index] ?? '';
+  return char === '' || isLayout(char);
+}
+
+function findTopLevelInstructionKeyword(source, keyword, start = 0) {
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+    if (parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) continue;
+    if (
+      source.startsWith(keyword, index)
+      && isInstructionClauseBoundaryBefore(source, index)
+      && isInstructionClauseBoundaryAfter(source, index + keyword.length)
+    ) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function readInstructionToken(source, start) {
+  let cursor = start;
+  while (isLayout(source[cursor] ?? '')) cursor += 1;
+  const tokenStart = cursor;
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (; cursor < source.length; cursor += 1) {
+    const char = source[cursor];
+    if (quote) {
+      if (char === '\\') cursor += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+    if (parenDepth === 0 && bracketDepth === 0 && braceDepth === 0 && angleDepth === 0 && isLayout(char)) break;
+  }
+  return { token: source.slice(tokenStart, cursor), start: tokenStart, end: cursor };
+}
+
+function readInstructionDatatypeToken(source, start) {
+  let cursor = start;
+  const tokenStart = cursor;
+  let quote = null;
+  let bracketDepth = 0;
+  let angleDepth = 0;
+  for (; cursor < source.length; cursor += 1) {
+    const char = source[cursor];
+    if (quote) {
+      if (char === '\\') cursor += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+    if (bracketDepth === 0 && angleDepth === 0 && (isLayout(char) || char === ',')) break;
+  }
+  return { token: source.slice(tokenStart, cursor), start: tokenStart, end: cursor };
+}
+
+function unwrapInstructionDelimitedLiteral(source, open, close, offset) {
+  if (!source.startsWith(open)) {
+    throw new SansaParseError(`Expected '${open}'`, offset, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+  }
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+
+    if (
+      char === close
+      && parenDepth === (open === '(' ? 0 : 0)
+      && bracketDepth === (open === '[' ? 0 : 0)
+      && braceDepth === (open === '{' ? 0 : 0)
+      && angleDepth === (open === '<' ? 0 : 0)
+    ) {
+      if (source.slice(index + 1).trim().length !== 0) {
+        throw new SansaParseError('Unexpected token after instruction value literal', offset + index + 1, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+      }
+      return source.slice(1, index);
+    }
+  }
+  throw new SansaParseError(`Unterminated instruction value literal '${open}'`, offset, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+}
+
+function parseInstructionValueItems(source, offset, parser) {
+  const parts = splitTopLevelInstructionValueList(source, offset);
+  return parts.map((part) => parser.parseInstructionValue(part.source, part.offset, { nested: true }));
+}
+
+function splitTopLevelInstructionValueList(source, offset) {
+  const trimmed = source.trim();
+  if (trimmed.length === 0) return [];
+  const parts = [];
+  let start = 0;
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+    if (char !== ',' || parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) {
+      continue;
+    }
+    parts.push(instructionValueListPart(source, start, index, offset));
+    start = index + 1;
+  }
+  parts.push(instructionValueListPart(source, start, source.length, offset));
+  return parts;
+}
+
+function instructionValueListPart(source, start, end, offset) {
+  let itemStart = start;
+  let itemEnd = end;
+  while (isLayout(source[itemStart] ?? '')) itemStart += 1;
+  while (itemEnd > itemStart && isLayout(source[itemEnd - 1] ?? '')) itemEnd -= 1;
+  if (itemStart >= itemEnd) {
+    throw new SansaParseError('Expected instruction value item', offset + start, 'SANSA_INSTRUCTION_EXPECTED_VALUE');
+  }
+  return { source: source.slice(itemStart, itemEnd), offset: offset + itemStart };
+}
+
+function normalizeInstructionAddressSource(source) {
+  const value = source.trim();
+  if (value.length === 0) {
+    return { ok: false, code: 'SANSA_INSTRUCTION_EXPECTED_ADDRESS', message: 'Expected SANSA address' };
+  }
+  if (value === '.') return { ok: true, source: '?', adjustment: 0 };
+  if (value.startsWith('.')) return { ok: true, source: `?${value}`, adjustment: -1 };
+  if (value.startsWith('$') || value.startsWith('?')) return { ok: true, source: value, adjustment: 0 };
+  return {
+    ok: false,
+    code: 'SANSA_INSTRUCTION_EXPECTED_ADDRESS',
+    message: "Expected SANSA address root '$', '?', or contextual '.'",
+  };
+}
+
+function firstNonLayoutOffset(source) {
+  for (let index = 0; index < source.length; index += 1) {
+    if (!isLayout(source[index])) return index;
+  }
+  return source.length;
 }
 
 function scanQueryClauses(source) {
@@ -3177,6 +7702,104 @@ function isQueryCurrentPositionalShorthand(source) {
   return source.startsWith('.[') && source[2] !== '"';
 }
 
+function isQueryTemporalLiteral(source, kind) {
+  const date = String.raw`(\d{4})-(\d{2})-(\d{2})`;
+  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const zone = String.raw`[A-Za-z0-9_+\-]+(?:/[A-Za-z0-9_+\-]+)*`;
+  if (kind === 'date') {
+    const match = new RegExp(`^${date}$`).exec(source);
+    return Boolean(match) && isValidDateParts(match[1], match[2], match[3]);
+  }
+  if (kind === 'time') {
+    const match = new RegExp(`^${time}$`).exec(source);
+    return Boolean(match) && isValidTimeMatch(match);
+  }
+  if (kind === 'datetime') {
+    const match = new RegExp(`^${date}T${datetimeTime}$`).exec(source);
+    return Boolean(match)
+      && isValidDateParts(match[1], match[2], match[3])
+      && isValidTimeMatch(match, 4);
+  }
+  if (kind === 'zrut') {
+    const match = new RegExp(`^${date}T${datetimeTime}&(${zone})$`).exec(source);
+    return Boolean(match)
+      && isValidDateParts(match[1], match[2], match[3])
+      && isValidTimeMatch(match, 4);
+  }
+  return false;
+}
+
+function isValidDateParts(yearText, monthText, dayText) {
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (month < 1 || month > 12) return false;
+  const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= days[month - 1];
+}
+
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function isValidTimeMatch(match, offset = 1) {
+  const hour = Number(match[offset]);
+  const minute = match[offset + 1] === undefined ? null : Number(match[offset + 1]);
+  const second = match[offset + 2] === undefined ? null : Number(match[offset + 2]);
+  const zoneHour = match[offset + 4] === undefined ? null : Number(match[offset + 4]);
+  const zoneMinute = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  if (hour < 0 || hour > 23) return false;
+  if (minute !== null && (minute < 0 || minute > 59)) return false;
+  if (second !== null && (second < 0 || second > 59)) return false;
+  if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
+  if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
+  return true;
+}
+
+function isAeonRadixPayload(payload) {
+  return /^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload);
+}
+
+function isAeonEncodingPayload(payload) {
+  return /^[A-Za-z0-9_-]+={0,2}$/.test(payload);
+}
+
+function isAeonSeparatorPayload(payload) {
+  if (typeof payload !== 'string' || payload.length === 0) return false;
+  let index = 0;
+  while (index < payload.length) {
+    const char = payload[index];
+    if (char === '"' || char === "'") {
+      const quote = char;
+      index += 1;
+      let terminated = false;
+      while (index < payload.length) {
+        const inner = payload[index];
+        if (inner === '\n' || inner === '\r') return false;
+        if (inner === '\\') {
+          index += 2;
+          continue;
+        }
+        index += 1;
+        if (inner === quote) {
+          terminated = true;
+          break;
+        }
+      }
+      if (!terminated) return false;
+      continue;
+    }
+    if (!isAeonSeparatorRawChar(char)) return false;
+    index += 1;
+  }
+  return true;
+}
+
+function isAeonSeparatorRawChar(char) {
+  return /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]$/.test(char ?? '');
+}
+
 function splitTopLevelQueryList(source) {
   const parts = [];
   let quote = null;
@@ -3241,6 +7864,75 @@ function splitProjectionFields(source) {
   return fields;
 }
 
+function splitInstructionObjectFields(source) {
+  const fields = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (cursor >= source.length) break;
+    if (source[cursor] === ',') {
+      throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    const nameStart = cursor;
+    const nameToken = readInstructionObjectFieldName(source, cursor);
+    if (!nameToken) {
+      throw new SansaParseError('Expected object field name', cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    cursor = nameToken.end;
+    const name = nameToken.name;
+    while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (source[cursor] !== '=') {
+      throw new SansaParseError("Expected '=' after object field name", cursor, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    cursor += 1;
+    const expressionStart = cursor;
+    const nextField = findNextInstructionObjectField(source, cursor);
+    const expressionEnd = nextField < 0 ? source.length : nextField;
+    const expressionSource = source.slice(expressionStart, expressionEnd);
+    const expressionOffset = expressionStart + firstNonLayoutOffset(expressionSource);
+    const expression = expressionSource.trim();
+    if (expression.length === 0) {
+      throw new SansaParseError('Expected object field value', expressionStart, 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
+    }
+    fields.push({ name, canonicalName: nameToken.canonicalName, nameOffset: nameStart, expression, expressionOffset });
+    cursor = expressionEnd;
+    if (source[cursor] === ',') cursor += 1;
+  }
+  return fields;
+}
+
+function readInstructionObjectFieldName(source, start) {
+  const char = source[start] ?? '';
+  if (isIdentifierStart(char)) {
+    let cursor = start + 1;
+    while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
+    const name = source.slice(start, cursor);
+    return { name, canonicalName: name, end: cursor };
+  }
+  if (char !== '"') return null;
+  let cursor = start + 1;
+  let name = '';
+  while (cursor < source.length) {
+    const current = source[cursor];
+    if (current === '"') {
+      cursor += 1;
+      return { name, canonicalName: quotePayload(name), end: cursor };
+    }
+    if (current === '\n' || current === '\r') {
+      throw new SansaParseError('Quoted payloads must not contain raw newlines', cursor, 'SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD');
+    }
+    if (current === '\\') {
+      const escape = readQuotedPayloadEscape(source, cursor);
+      name += escape.value;
+      cursor = escape.end;
+      continue;
+    }
+    name += current;
+    cursor += 1;
+  }
+  throw new SansaParseError('Unterminated quoted payload', start + 1, 'SANSA_UNTERMINATED_QUOTED_PAYLOAD');
+}
+
 function findNextProjectionField(source, start) {
   let quote = null;
   let parenDepth = 0;
@@ -3283,8 +7975,89 @@ function findNextProjectionField(source, start) {
   return -1;
 }
 
+function findNextInstructionObjectField(source, start) {
+  let quote = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let angleDepth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) {
+      if (char === '\\') index += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '(') parenDepth += 1;
+    else if (char === ')' && parenDepth > 0) parenDepth -= 1;
+    else if (char === '[') bracketDepth += 1;
+    else if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+    else if (char === '{') braceDepth += 1;
+    else if (char === '}' && braceDepth > 0) braceDepth -= 1;
+    else if (char === '<') angleDepth += 1;
+    else if (char === '>' && angleDepth > 0) angleDepth -= 1;
+
+    if (parenDepth !== 0 || bracketDepth !== 0 || braceDepth !== 0 || angleDepth !== 0) {
+      continue;
+    }
+    if (char === ',' && isInstructionObjectFieldStart(source, index + 1)) return index;
+    if (isLayout(char) && isInstructionObjectFieldStart(source, index)) return index;
+  }
+  return -1;
+}
+
+function isInstructionObjectFieldStart(source, start) {
+  let cursor = start;
+  while (isLayout(source[cursor] ?? '')) cursor += 1;
+  const name = readInstructionObjectFieldName(source, cursor);
+  if (!name) return false;
+  cursor = name.end;
+  while (isLayout(source[cursor] ?? '')) cursor += 1;
+  return source[cursor] === '=' && source[cursor + 1] !== '=';
+}
+
 function isComparisonStart(char) {
   return char === '=' || char === '!' || char === '<' || char === '>';
+}
+
+function readQuotedPayloadEscape(source, start) {
+  const escape = source[start + 1];
+  if (!escape) throw new SansaParseError('Unterminated escape sequence', start, 'SANSA_UNTERMINATED_ESCAPE');
+  switch (escape) {
+    case '\\': return { value: '\\', end: start + 2 };
+    case '"': return { value: '"', end: start + 2 };
+    case "'": return { value: "'", end: start + 2 };
+    case '`': return { value: '`', end: start + 2 };
+    case 'n': return { value: '\n', end: start + 2 };
+    case 'r': return { value: '\r', end: start + 2 };
+    case 't': return { value: '\t', end: start + 2 };
+    case 'b': return { value: '\b', end: start + 2 };
+    case 'f': return { value: '\f', end: start + 2 };
+    case 'u':
+      return readUnicodePayloadEscape(source, start);
+    default:
+      throw new SansaParseError(`Invalid escape sequence \\${escape}`, start, 'SANSA_INVALID_ESCAPE');
+  }
+}
+
+function readUnicodePayloadEscape(source, start) {
+  let cursor = start + 2;
+  if (source[cursor] === '{') {
+    cursor += 1;
+    const rawStart = cursor;
+    while (cursor < source.length && source[cursor] !== '}') cursor += 1;
+    if (cursor >= source.length) throw new SansaParseError('Unterminated Unicode escape', start, 'SANSA_UNTERMINATED_UNICODE_ESCAPE');
+    const raw = source.slice(rawStart, cursor);
+    if (!/^[0-9A-Fa-f]{1,6}$/.test(raw)) throw new SansaParseError('Invalid Unicode escape', rawStart, 'SANSA_INVALID_UNICODE_ESCAPE');
+    return { value: codePointToString(Number.parseInt(raw, 16), rawStart), end: cursor + 1 };
+  }
+  const raw = source.slice(cursor, cursor + 4);
+  if (!/^[0-9A-Fa-f]{4}$/.test(raw)) throw new SansaParseError('Invalid Unicode escape', cursor, 'SANSA_INVALID_UNICODE_ESCAPE');
+  return { value: codePointToString(Number.parseInt(raw, 16), cursor), end: cursor + 4 };
 }
 
 function isExactSelector(selector) {

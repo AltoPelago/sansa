@@ -306,7 +306,7 @@ export const queryExampleGroups = [
     ],
   },
   {
-    label: 'Pipeline',
+    label: 'Ordering',
     examples: [
       {
         name: 'inactiveOrder',
@@ -324,20 +324,146 @@ export const queryExampleGroups = [
         },
       },
       {
-        name: 'unicodeScalarOrder',
-        label: 'Unicode scalar order',
+        name: 'defaultCodepointOrder',
+        label: 'Default codepoint order',
         query: lines(
           'from $.labels.*',
-          'where .value >= "z"',
           'order by .value asc',
           'select .value',
         ),
         expected: {
           ok: true,
-          count: 2,
-          includes: '$.labels[1].value = "ä"',
+          count: 3,
+          includes: '$.labels[1].value = "éclair"',
         },
       },
+    ],
+  },
+  {
+    label: 'Value Families',
+    examples: [
+      {
+        name: 'hexFamilyFilter',
+        label: 'Hex family filter',
+        query: lines(
+          'from $.types.*%hex',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 2,
+          includes: '$.types.color = #ff00aa',
+        },
+      },
+      {
+        name: 'hexFamilyEquality',
+        label: 'Hex family equality',
+        query: lines(
+          'from $.types.color',
+          'where . == $.types.colorCopy',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.types.color = #ff00aa',
+        },
+      },
+      {
+        name: 'typedScalarRendering',
+        label: 'Typed scalar rendering',
+        query: lines(
+          'from $.types.*',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 22,
+          includes: '$.types.selector = $.inventory.items.*.sku',
+        },
+      },
+      {
+        name: 'referenceForm',
+        label: 'Reference form',
+        query: lines(
+          'from $.targetClone',
+          'where . == $.targetClone',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.targetClone = ~target',
+        },
+      },
+      {
+        name: 'followReference',
+        label: 'Follow reference',
+        query: lines(
+          'from $.targetClone',
+          'where follow(.) == 7',
+          'select follow(.)',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.target = 7',
+        },
+      },
+    ],
+  },
+  {
+    label: 'Value Semantics',
+    examples: [
+      {
+        name: 'profileStringOrder',
+        label: 'French string order',
+        valueSemantics: 'aeon.value.string.locale.fr.v1',
+        query: lines(
+          'from $.labels.*',
+          'order by .value asc',
+          'select .value',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.labels[1].value = "éclair"',
+        },
+      },
+      {
+        name: 'profileCaseMapping',
+        label: 'French case mapping',
+        valueSemantics: 'aeon.value.string.locale.fr.v1',
+        query: lines(
+          'from $.labels.*',
+          'select upper(.value)',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.labels[1] = "ÉCLAIR"',
+        },
+      },
+      {
+        name: 'profileNaturalAsciiOrder',
+        label: 'Natural ASCII order',
+        valueSemantics: 'aeon.value.string.natural.ascii.v1',
+        query: lines(
+          'from $.parts.*',
+          'order by .value asc',
+          'select .value',
+        ),
+        expected: {
+          ok: true,
+          count: 3,
+          includes: '$.parts[1].value = "part-2"',
+        },
+      },
+    ],
+  },
+  {
+    label: 'Pipeline',
+    examples: [
       {
         name: 'parseProjection',
         label: 'Projection parse check',

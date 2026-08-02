@@ -37,6 +37,7 @@ export async function evaluateQueryForWorkbench({
   paramsSource = '',
   policy = '',
   transformExtensions = true,
+  valueSemantics = '',
   budget = {},
 }) {
   const namespaceResult = sourceKind === 'json'
@@ -61,8 +62,10 @@ export async function evaluateQueryForWorkbench({
   ];
 
   const options = {
+    addressActivation: 'trusted',
     ...(policy === 'validation' ? { policy: 'validation' } : {}),
     ...(transformExtensions === false ? { extensions: { transform: false } } : {}),
+    ...(valueSemantics ? { valueSemantics } : {}),
     ...queryBudgetOption(budget),
   };
   const result = evaluateQuery(query, mounted.namespace, options);
@@ -75,6 +78,7 @@ export async function evaluateQueryForWorkbench({
       text: renderDiagnosticText(errors),
       errors,
       sourceDiagnostics,
+      valueSemantics: valueSemantics || 'default',
     };
   }
 
@@ -85,6 +89,7 @@ export async function evaluateQueryForWorkbench({
     count: result.results.length,
     text: renderTextResults(result.results),
     inspect: renderInspectResults(result.results),
+    valueSemantics: valueSemantics || 'default',
     results: result.results.map((entry) => ({
       type: entry.type,
       ...(entry.address === undefined ? {} : { address: entry.address }),
@@ -361,8 +366,9 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (segment?.type === 'member') binding.name = segment.key;
     if (segment?.type === 'index') binding.index = segment.index;
     binding.semanticType = event.datatype ?? semanticTypeFromValue(event.value);
-    binding.representationKind = representationKindFromValue(event.value);
-    binding.scalarKind = scalarKindFromValue(event.value);
+    binding.representationKind = representationKindFromValue(event.value, binding.semanticType);
+    binding.scalarKind = scalarKindFromValue(event.value, binding.semanticType);
+    if (event.value?.type === 'NodeLiteral' && typeof event.value.tag === 'string') binding.nodeTag = event.value.tag;
     const nullReason = nullReasonFromValue(event.value);
     if (nullReason !== undefined) binding.nullReason = nullReason;
 
@@ -406,10 +412,10 @@ function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
       name,
       address: appendMember(`${ownerAddress}.@`, name),
       semanticType: entry.datatype ?? semanticTypeFromValue(entry.value),
-      representationKind: representationKindFromValue(entry.value),
-      scalarKind: scalarKindFromValue(entry.value),
       children: [],
     };
+    binding.representationKind = representationKindFromValue(entry.value, binding.semanticType);
+    binding.scalarKind = scalarKindFromValue(entry.value, binding.semanticType);
     const nullReason = nullReasonFromValue(entry.value);
     if (nullReason !== undefined) binding.nullReason = nullReason;
     const scalar = scalarFromAeonValue(entry.value);
@@ -431,6 +437,8 @@ function appendMember(base, name) {
 
 function semanticTypeFromValue(value) {
   switch (value.type) {
+    case 'TypedValue':
+      return value.datatype ?? semanticTypeFromValue(value.value);
     case 'StringLiteral':
       return 'string';
     case 'NumberLiteral':
@@ -443,6 +451,22 @@ function semanticTypeFromValue(value) {
       return 'boolean';
     case 'NullLiteral':
       return 'null';
+    case 'ToggleLiteral':
+      return 'toggle';
+    case 'HexLiteral':
+      return 'hex';
+    case 'RadixLiteral':
+      return 'radix';
+    case 'EncodingLiteral':
+      return 'encoding';
+    case 'SeparatorLiteral':
+      return 'sep';
+    case 'DateLiteral':
+      return 'date';
+    case 'TimeLiteral':
+      return 'time';
+    case 'DateTimeLiteral':
+      return 'datetime';
     case 'SansaAddressLiteral':
       return 'sansa';
     default:
@@ -450,10 +474,10 @@ function semanticTypeFromValue(value) {
   }
 }
 
-function representationKindFromValue(value) {
+function representationKindFromValue(value, semanticType) {
   switch (value.type) {
     case 'TypedValue':
-      return representationKindFromValue(value.value);
+      return representationKindFromValue(value.value, value.datatype ?? semanticType);
     case 'ObjectNode':
       return 'object';
     case 'ListNode':
@@ -463,15 +487,22 @@ function representationKindFromValue(value) {
     case 'NodeLiteral':
       return 'node';
     case 'StringLiteral':
+      return 'string';
     case 'DateLiteral':
+      return 'date';
     case 'DateTimeLiteral':
     case 'TimeLiteral':
+      return temporalKindFromSemanticType(semanticType);
     case 'HexLiteral':
+      return 'hex';
     case 'RadixLiteral':
+      return 'radix';
     case 'EncodingLiteral':
+      return 'encoding';
     case 'SeparatorLiteral':
+      return 'separator';
     case 'SansaAddressLiteral':
-      return 'string';
+      return 'sansa';
     case 'NumberLiteral':
       return 'number';
     case 'InfinityLiteral':
@@ -525,6 +556,10 @@ function scalarFromAeonValue(value) {
       return { ok: true, value: value.value };
     case 'ToggleLiteral':
       return { ok: true, value: value.value };
+    case 'CloneReference':
+      return { ok: true, value: referenceFormValue('CloneReference', value.path) };
+    case 'PointerReference':
+      return { ok: true, value: referenceFormValue('PointerReference', value.path) };
     case 'NullLiteral':
       return { ok: true, value: null };
     default:
@@ -532,19 +567,65 @@ function scalarFromAeonValue(value) {
   }
 }
 
-function scalarKindFromValue(value) {
+function scalarKindFromValue(value, semanticType) {
   switch (value.type) {
     case 'TypedValue':
-      return scalarKindFromValue(value.value);
+      return scalarKindFromValue(value.value, value.datatype ?? semanticType);
     case 'NullLiteral':
       return 'null';
     case 'InfinityLiteral':
       return 'infinity';
     case 'NaNLiteral':
       return 'nan';
+    case 'ToggleLiteral':
+      return 'toggle';
+    case 'HexLiteral':
+      return 'hex';
+    case 'RadixLiteral':
+      return 'radix';
+    case 'EncodingLiteral':
+      return 'encoding';
+    case 'SeparatorLiteral':
+      return 'separator';
+    case 'SansaAddressLiteral':
+      return 'sansaAddress';
+    case 'DateLiteral':
+      return 'date';
+    case 'DateTimeLiteral':
+    case 'TimeLiteral':
+      return temporalKindFromSemanticType(semanticType);
+    case 'CloneReference':
+    case 'PointerReference':
+      return 'referenceForm';
     default:
       return undefined;
   }
+}
+
+function temporalKindFromSemanticType(semanticType) {
+  const base = typeof semanticType === 'string' ? semanticType.split(/[<\[]/, 1)[0] : undefined;
+  return ['date', 'time', 'datetime', 'zrut'].includes(base) ? base : 'datetime';
+}
+
+function referenceFormValue(type, path) {
+  const canonicalPath = renderReferencePath(path);
+  return {
+    type,
+    path,
+    canonical: `${type === 'PointerReference' ? '~>' : '~'}${canonicalPath}`,
+  };
+}
+
+function renderReferencePath(path) {
+  if (typeof path === 'string') return path;
+  if (!Array.isArray(path)) return String(path ?? '');
+  return path.map((segment, index) => {
+    if (typeof segment === 'number') return `[${segment}]`;
+    if (typeof segment === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(segment)) {
+      return index === 0 ? segment : `.${segment}`;
+    }
+    return `${index === 0 ? '' : '.'}[${JSON.stringify(String(segment))}]`;
+  }).join('');
 }
 
 function nullReasonFromValue(value) {
@@ -626,8 +707,18 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   }
   if (metadata?.kind === 'nan' || (typeof value === 'number' && Number.isNaN(value))) return 'NaN';
   if (metadata?.kind === 'infinity' || value === Infinity) return 'Infinity';
+  if (metadata?.kind === 'toggle' || metadata?.category === 'toggle') return String(value);
   if (value === -Infinity) return '-Infinity';
   if (value === null) return 'null';
+  if (metadata?.kind === 'hex') return `#${value}`;
+  if (metadata?.kind === 'radix') return `%${value}`;
+  if (metadata?.kind === 'encoding') return `&${value}`;
+  if (metadata?.kind === 'separator') return `^${value}`;
+  if (['date', 'time', 'datetime', 'zrut'].includes(metadata?.kind)) return String(value);
+  if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
+    return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
+  }
+  if (metadata?.kind === 'referenceForm') return value?.canonical ?? JSON.stringify(value);
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (value?.type === 'SansaAddressLiteral') {

@@ -90,6 +90,148 @@
     },
     "children": [
       {
+        "name": "consent",
+        "address": "$.consent",
+        "semanticType": "toggle",
+        "representationKind": "toggle",
+        "scalarKind": "toggle",
+        "value": "yes"
+      },
+      {
+        "name": "fallbackConsent",
+        "address": "$.fallbackConsent",
+        "semanticType": "toggle",
+        "representationKind": "toggle",
+        "scalarKind": "toggle",
+        "value": "on"
+      },
+      {
+        "name": "target",
+        "address": "$.target",
+        "semanticType": "number",
+        "representationKind": "number",
+        "value": 7
+      },
+      {
+        "name": "targetClone",
+        "address": "$.targetClone",
+        "semanticType": "number",
+        "representationKind": "cloneReference",
+        "scalarKind": "referenceForm",
+        "value": {
+          "type": "CloneReference",
+          "path": [
+            "target"
+          ],
+          "canonical": "~target"
+        }
+      },
+      {
+        "name": "targetPointer",
+        "address": "$.targetPointer",
+        "semanticType": "number",
+        "representationKind": "pointerReference",
+        "scalarKind": "referenceForm",
+        "value": {
+          "type": "PointerReference",
+          "path": [
+            "target"
+          ],
+          "canonical": "~>target"
+        }
+      },
+      {
+        "name": "types",
+        "address": "$.types",
+        "representationKind": "object",
+        "children": [
+          {
+            "name": "color",
+            "address": "$.types.color",
+            "semanticType": "hex",
+            "representationKind": "hex",
+            "scalarKind": "hex",
+            "value": "ff00aa"
+          },
+          {
+            "name": "colorCopy",
+            "address": "$.types.colorCopy",
+            "semanticType": "hex",
+            "representationKind": "hex",
+            "scalarKind": "hex",
+            "value": "ff00aa"
+          },
+          {
+            "name": "mask",
+            "address": "$.types.mask",
+            "semanticType": "radix[16]",
+            "representationKind": "radix",
+            "scalarKind": "radix",
+            "value": "ff00aa"
+          },
+          {
+            "name": "payload",
+            "address": "$.types.payload",
+            "semanticType": "encoding",
+            "representationKind": "encoding",
+            "scalarKind": "encoding",
+            "value": "QmFzZTY0IQ=="
+          },
+          {
+            "name": "version",
+            "address": "$.types.version",
+            "semanticType": "sep[.]",
+            "representationKind": "separator",
+            "scalarKind": "separator",
+            "value": "0.11.0"
+          },
+          {
+            "name": "released",
+            "address": "$.types.released",
+            "semanticType": "date",
+            "representationKind": "date",
+            "scalarKind": "date",
+            "value": "2026-07-25"
+          },
+          {
+            "name": "window",
+            "address": "$.types.window",
+            "semanticType": "time",
+            "representationKind": "time",
+            "scalarKind": "time",
+            "value": "09:30:00Z"
+          },
+          {
+            "name": "stamp",
+            "address": "$.types.stamp",
+            "semanticType": "datetime",
+            "representationKind": "datetime",
+            "scalarKind": "datetime",
+            "value": "2026-07-25T09:30:00Z"
+          },
+          {
+            "name": "zone",
+            "address": "$.types.zone",
+            "semanticType": "zrut",
+            "representationKind": "zrut",
+            "scalarKind": "zrut",
+            "value": "2026-07-25T09:30:00Z&Australia/Melbourne"
+          },
+          {
+            "name": "selector",
+            "address": "$.types.selector",
+            "semanticType": "sansa",
+            "representationKind": "sansa",
+            "scalarKind": "sansaAddress",
+            "value": {
+              "type": "SansaAddressLiteral",
+              "address": "$.inventory.items.*.sku",
+              "canonical": "$.inventory.items.*.sku"
+            }
+          }
+        ]
+      },
+      {
         "name": "inventory",
         "address": "$.inventory",
         "representationKind": "object",
@@ -632,7 +774,7 @@
                 "address": "$.labels[0].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "z"
+                "value": "zebre"
               }
             ]
           },
@@ -646,7 +788,7 @@
                 "address": "$.labels[1].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "ä"
+                  "value": "éclair"
               }
             ]
           },
@@ -660,7 +802,56 @@
                 "address": "$.labels[2].value",
                 "semanticType": "string",
                 "representationKind": "string",
-                "value": "a"
+                  "value": "adapter"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "parts",
+        "address": "$.parts",
+        "representationKind": "list",
+        "children": [
+          {
+            "index": 0,
+            "address": "$.parts[0]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[0].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-10"
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "address": "$.parts[1]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[1].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-2"
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "address": "$.parts[2]",
+            "representationKind": "object",
+            "children": [
+              {
+                "name": "value",
+                "address": "$.parts[2].value",
+                "semanticType": "string",
+                "representationKind": "string",
+                "value": "part-1"
               }
             ]
           }

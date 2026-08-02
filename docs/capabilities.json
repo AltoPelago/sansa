@@ -1,26 +1,160 @@
 {
   "implementation": "@altopelago/sansa",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "profiles": [
     "value-semantics-minimum-consumer",
+    "aeon.value.default.v1",
+    "aeon.value.string.codepoint.v1",
+    "aeon.value.string.natural.ascii.v1",
+    "aeon.value.string.locale.fr.v1",
     "addressing",
     "resolve",
-    "query"
+    "query",
+    "instruction"
   ],
   "capabilities": [
     "AEON.ValueSemantics",
     "SANSA.Addressing",
     "SANSA.Resolve",
     "SANSA.Query",
+    "SANSA.Instruction",
+    "SANSA.Mutate",
     "SANSA.Transform"
   ],
   "core": {
     "valueSemanticsMinimumConsumer": true,
     "addressing": true,
     "resolve": true,
-    "query": true
+    "query": true,
+    "instruction": false,
+    "mutate": false
   },
+  "experimentalCapabilities": [
+    {
+      "id": "sansa.instruction.prototype.v1",
+      "capability": "SANSA.Instruction",
+      "category": "instruction-parse-lower-plan",
+      "maturity": "experimental",
+      "verbs": [
+        "create",
+        "replace",
+        "remove",
+        "insert",
+        "append",
+        "move"
+      ],
+      "aliases": [
+        {
+          "sourceVerb": "append",
+          "canonicalVerb": "insert",
+          "placement": "last"
+        }
+      ],
+      "entryPoints": [
+        "parseInstruction",
+        "lowerInstruction",
+        "planInstruction"
+      ],
+      "boundaries": [
+        "lowering emits SANSA.Mutate request operations",
+        "append is source-level Instruction sugar and lowers to insert-last mutation intent",
+        "require clauses lower into SANSA.Mutate preconditions",
+        "because and by clauses are inert claimed provenance, not authorization or authentication",
+        "planning delegates to SANSA.Mutate plan API",
+        "target-surface validation remains a downstream Mutate/adapter boundary",
+        "apply remains SANSA.Mutate adapter responsibility"
+      ]
+    },
+    {
+      "id": "sansa.mutate.plan.v1",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-plan",
+      "maturity": "experimental",
+      "operations": [
+        "create",
+        "replace",
+        "remove",
+        "insert",
+        "move"
+      ],
+      "valueIntentHints": [
+        "datatype",
+        "kind"
+      ],
+      "targetSurfaceValidation": [
+        "aeon",
+        "json",
+        "custom"
+      ],
+      "entryPoints": [
+        "planMutation",
+        "validateMutationPlanTarget",
+        "applyMutationPlan"
+      ],
+      "adapterCapabilityFlags": [
+        "supportsCreate",
+        "supportsReplace",
+        "supportsRemove",
+        "supportsOrderedInsert",
+        "supportsMove",
+        "supportsStableBindingIdentity",
+        "supportsAtomicApply"
+      ]
+    },
+    {
+      "id": "sansa.mutate.policy.planFilter",
+      "capability": "SANSA.Mutate",
+      "category": "policy",
+      "maturity": "experimental",
+      "surface": "workbench",
+      "entryPoints": [
+        "tools/mutate-web",
+        "/api/mutate options.policySource"
+      ],
+      "policyRuleFields": [
+        "operation",
+        "operations",
+        "target",
+        "parent",
+        "container",
+        "source",
+        "anchor",
+        "name",
+        "names",
+        "datatype",
+        "datatypes",
+        "kind",
+        "kinds",
+        "value",
+        "values"
+      ],
+      "diagnostics": [
+        "SANSA_MUTATE_POLICY_INVALID_JSON",
+        "SANSA_MUTATE_POLICY_INVALID",
+        "SANSA_MUTATE_POLICY_INVALID_ADDRESS",
+        "SANSA_MUTATE_POLICY_DENIED"
+      ],
+      "boundaries": [
+        "policy is trusted consumer input, not document input",
+        "policy authorizes or denies already planned mutation intent",
+        "policy must not rewrite mutation plans or make schema-invalid values valid",
+        "unsupported policy fields fail closed instead of being ignored",
+        "policy remains outside SANSA.Mutate core conformance"
+      ]
+    }
+  ],
   "policies": [
+    {
+      "id": "dynamic-address-activation",
+      "capability": "SANSA.Query",
+      "category": "authority",
+      "maturity": "proposal",
+      "requiredFor": "path",
+      "modes": [
+        "trusted",
+        "constrained"
+      ]
+    },
     {
       "id": "validation",
       "capability": "SANSA.Query",
@@ -52,6 +186,41 @@
       "capability": "SANSA.Query",
       "category": "evaluation-budget",
       "phase": "select"
+    },
+    {
+      "id": "maxOperations",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxPreconditions",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxValueNodes",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxValueDepth",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
+    },
+    {
+      "id": "maxStringLength",
+      "capability": "SANSA.Mutate",
+      "category": "mutation-budget",
+      "phase": "plan-apply",
+      "maturity": "experimental"
     }
   ],
   "extensions": [

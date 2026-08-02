@@ -144,6 +144,91 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(membership.operator, 'in');
   assert.equal(renderQueryExpression(membership), '"admin" in .roles.*');
 
+  const toggle = parseExpressionOk('yes');
+  assert.equal(toggle.type, 'literalExpression');
+  assert.equal(toggle.kind, 'toggle');
+  assert.equal(toggle.value, 'yes');
+  assert.equal(renderQueryExpression(toggle), 'yes');
+
+  const hex = parseExpressionOk('#Ff_00_Aa');
+  assert.equal(hex.type, 'literalExpression');
+  assert.equal(hex.kind, 'hex');
+  assert.equal(hex.value, 'ff00aa');
+  assert.equal(renderQueryExpression(hex), '#ff00aa');
+
+  const radix = parseExpressionOk('%ff00aa');
+  assert.equal(radix.type, 'literalExpression');
+  assert.equal(radix.kind, 'radix');
+  assert.equal(radix.value, 'ff00aa');
+  assert.equal(renderQueryExpression(radix), '%ff00aa');
+
+  const encoding = parseExpressionOk('&QmFzZTY0IQ==');
+  assert.equal(encoding.type, 'literalExpression');
+  assert.equal(encoding.kind, 'encoding');
+  assert.equal(encoding.value, 'QmFzZTY0IQ==');
+  assert.equal(renderQueryExpression(encoding), '&QmFzZTY0IQ==');
+
+  const separator = parseExpressionOk('^0.11.0');
+  assert.equal(separator.type, 'literalExpression');
+  assert.equal(separator.kind, 'separator');
+  assert.equal(separator.value, '0.11.0');
+  assert.equal(renderQueryExpression(separator), '^0.11.0');
+
+  const quotedSeparator = parseExpressionOk('^"hello world"|"this, [is] fine"');
+  assert.equal(quotedSeparator.type, 'literalExpression');
+  assert.equal(quotedSeparator.kind, 'separator');
+  assert.equal(quotedSeparator.value, '"hello world"|"this, [is] fine"');
+  assert.equal(renderQueryExpression(quotedSeparator), '^"hello world"|"this, [is] fine"');
+
+  const date = parseExpressionOk('2026-07-25');
+  assert.equal(date.type, 'literalExpression');
+  assert.equal(date.kind, 'date');
+  assert.equal(date.value, '2026-07-25');
+  assert.equal(renderQueryExpression(date), '2026-07-25');
+
+  const time = parseExpressionOk('09:30:00Z');
+  assert.equal(time.type, 'literalExpression');
+  assert.equal(time.kind, 'time');
+  assert.equal(time.value, '09:30:00Z');
+  assert.equal(renderQueryExpression(time), '09:30:00Z');
+
+  const reducedTime = parseExpressionOk('09:');
+  assert.equal(reducedTime.type, 'literalExpression');
+  assert.equal(reducedTime.kind, 'time');
+  assert.equal(reducedTime.value, '09:');
+  assert.equal(renderQueryExpression(reducedTime), '09:');
+
+  const datetime = parseExpressionOk('2026-07-25T09:30:00Z');
+  assert.equal(datetime.type, 'literalExpression');
+  assert.equal(datetime.kind, 'datetime');
+  assert.equal(datetime.value, '2026-07-25T09:30:00Z');
+  assert.equal(renderQueryExpression(datetime), '2026-07-25T09:30:00Z');
+
+  const reducedDatetime = parseExpressionOk('2026-07-25T09Z');
+  assert.equal(reducedDatetime.type, 'literalExpression');
+  assert.equal(reducedDatetime.kind, 'datetime');
+  assert.equal(reducedDatetime.value, '2026-07-25T09Z');
+  assert.equal(renderQueryExpression(reducedDatetime), '2026-07-25T09Z');
+
+  const zrut = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(zrut.type, 'literalExpression');
+  assert.equal(zrut.kind, 'zrut');
+  assert.equal(zrut.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(renderQueryExpression(zrut), '2026-07-25T09:30:00Z&Australia/Melbourne');
+
+  const reducedZrut = parseExpressionOk('2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(reducedZrut.type, 'literalExpression');
+  assert.equal(reducedZrut.kind, 'zrut');
+  assert.equal(reducedZrut.value, '2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(renderQueryExpression(reducedZrut), '2026-07-25T09Z&Europe/Belgium/Brussels');
+
+  const nullLiteral = parseExpressionOk('!notSet');
+  assert.equal(nullLiteral.type, 'literalExpression');
+  assert.equal(nullLiteral.kind, 'null');
+  assert.equal(nullLiteral.value, null);
+  assert.equal(nullLiteral.nullReason, 'notSet');
+  assert.equal(renderQueryExpression(nullLiteral), '!notSet');
+
   const parentResolution = parseExpressionOk('.^.sibling');
   assert.equal(parentResolution.type, 'resolutionExpression');
   assert.equal(parentResolution.scope, 'current');
@@ -176,6 +261,11 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(projection.type, 'projectionExpression');
   assert.deepEqual(projection.fields.map((field) => field.name), ['name', 'status']);
   assert.equal(renderQueryExpression(projection), '{ name = .name status = resolveChild($.statuses, .status) }');
+
+  const follow = parseExpressionOk('follow(.targetRef)');
+  assert.equal(follow.type, 'functionCallExpression');
+  assert.equal(follow.name, 'follow');
+  assert.equal(renderQueryExpression(follow), 'follow(.targetRef)');
 });
 
 test('rejects invalid query expression forms', () => {
@@ -186,6 +276,18 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('absent("roles")', 'SANSA_QUERY_INVALID_FUNCTION_CALL');
   parseExpressionBad('{ name = }', 'SANSA_QUERY_INVALID_PROJECTION');
   parseExpressionBad('( .name', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
+  parseExpressionBad('#_', 'SANSA_QUERY_INVALID_HEX_LITERAL');
+  parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
+  parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
+  parseExpressionBad('^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
+  parseExpressionBad('^"unterminated', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
+  parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:60', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('query CTS cases match parser behavior', () => {
