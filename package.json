@@ -19,6 +19,7 @@
   "files": [
     "src",
     "docs",
+    "conformance",
     "fixtures",
     "scripts",
     "tools",

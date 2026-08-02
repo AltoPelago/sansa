@@ -1,0 +1,53 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "repository": "AltoPelago/sansa",
+  "implementation": "@altopelago/sansa",
+  "implementation_version": "0.9.0",
+  "cts_repository": "aeonite-org/aeonite-cts",
+  "cts_protocol": "cts.protocol.v1",
+  "claims": [
+    {
+      "surface": "value-semantics",
+      "snapshot_id": "value-semantics-cts-v1-snapshot-0.1",
+      "status": "claimed",
+      "command": "npm run cts:value-semantics"
+    },
+    {
+      "surface": "sansa-address-parser",
+      "snapshot_id": "sansa-address-parser-cts-v1-snapshot-0.1",
+      "status": "claimed",
+      "command": "npm run cts:address"
+    },
+    {
+      "surface": "sansa-resolve",
+      "snapshot_id": "sansa-resolve-cts-v1-snapshot-0.1",
+      "status": "claimed",
+      "command": "npm run cts:resolve"
+    },
+    {
+      "surface": "sansa-query-parser",
+      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.1",
+      "status": "claimed",
+      "command": "npm run cts:query",
+      "notes": "The default command excludes experimental extension cases."
+    },
+    {
+      "surface": "sansa-query-experimental",
+      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "command": "npm run cts:query:experimental"
+    },
+    {
+      "surface": "sansa-instruction",
+      "snapshot_id": "sansa-instruction-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "command": "npm run cts:instruction"
+    },
+    {
+      "surface": "sansa-mutate",
+      "snapshot_id": "sansa-mutate-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "command": "npm run cts:mutate"
+    }
+  ]
+}

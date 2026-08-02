@@ -6,6 +6,8 @@ This package is the first implementation package for SANSA Address, SANSA Resolv
 
 Implementation capability metadata is recorded in [docs/capabilities.json](docs/capabilities.json). The package currently advertises `AEON.ValueSemantics`, `SANSA.Addressing`, `SANSA.Resolve`, `SANSA.Query`, Query budget controls, the experimental `validation` Query policy, experimental `SANSA.Transform` library extensions for `objectFrom` and `fieldsFrom`, experimental `SANSA.Instruction` parse/lower/plan bridging, an experimental `SANSA.Mutate` plan API, and the workbench-only experimental `sansa.mutate.policy.planFilter` slice.
 
+CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/cts-claims.json).
+
 ## Current Scope
 
 - root selectors: `$`, `?`
