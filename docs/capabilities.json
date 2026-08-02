@@ -1,6 +1,6 @@
 {
   "implementation": "@altopelago/sansa",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "profiles": [
     "value-semantics-minimum-consumer",
     "aeon.value.default.v1",

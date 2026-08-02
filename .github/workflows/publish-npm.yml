@@ -44,6 +44,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: CTS claim validation
+        run: npm run validate:cts-claims
+
       - name: CTS
         run: npm run cts
 

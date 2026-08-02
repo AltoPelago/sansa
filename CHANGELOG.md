@@ -7,6 +7,10 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+No notable changes yet.
+
+## 0.9.1 - 2026-08-02
+
 ### Added
 
 - Added explicit Shared AEON Value Semantics profile hooks for string comparison,

@@ -23,8 +23,8 @@ Create a GitHub environment named `npm`. Add required reviewers to that
 environment if release approval should be explicit before publishing.
 
 The publish workflow runs when a GitHub Release is published. It verifies that
-the release tag matches the package version, so `package.json` version `0.9.0`
-must be released from tag `v0.9.0`.
+the release tag matches the package version, so `package.json` version `X.Y.Z`
+must be released from tag `vX.Y.Z`.
 
 ## Release steps
 
