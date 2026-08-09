@@ -19,7 +19,8 @@
     "SANSA.Query",
     "SANSA.Instruction",
     "SANSA.Mutate",
-    "SANSA.Transform"
+    "SANSA.Transform",
+    "SANSA.Graph"
   ],
   "core": {
     "valueSemanticsMinimumConsumer": true,
@@ -30,6 +31,42 @@
     "mutate": false
   },
   "experimentalCapabilities": [
+    {
+      "id": "sansa.graph.structured.one-hop.v1",
+      "capability": "SANSA.Graph",
+      "category": "declared-relationship-traversal",
+      "maturity": "experimental",
+      "entryPoints": ["traverseGraph", "traverseGraphSequence"],
+      "semantics": [
+        "structured declarations only",
+        "one-hop directed traversal",
+        "explicit bounded multi-hop declaration sequences",
+        "complete ordered multi-hop path provenance",
+        "index-neutral traversal through optional namespace lookup acceleration",
+        "explicit omit-or-error cycle policy",
+        "explicit schema-version applicability",
+        "source and target semantic-type constraints",
+        "per-source edge cardinality constraints",
+        "same-namespace traversal only",
+        "absolute address reference targets",
+        "address-valued relationship edges",
+        "deterministic Binding Set and Path Set",
+        "explicit Query-before and contextual Query/Transform-after composition",
+        "mandatory explicit budgets",
+        "aggregate depth, node, edge, and result budgets across hops",
+        "independent authorization callback per traversal step",
+        "read-only"
+      ],
+      "boundaries": [
+        "relationship declaration authority remains external to SANSA",
+        "AEOS or an AEOS-adjacent profile owns relationship meaning",
+        "target adapters own index health, rebuild, and scan fallback",
+        "traversal conveys location, never authorization",
+        "Graph authorization does not authorize composed Query reads",
+        "relationship mutation remains SANSA.Mutate responsibility",
+        "no graph storage, indexing, query language, or implicit recursive traversal claim"
+      ]
+    },
     {
       "id": "sansa.instruction.prototype.v1",
       "capability": "SANSA.Instruction",

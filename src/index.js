@@ -2515,6 +2515,342 @@ export function resolveAddress(input, namespace, options = {}) {
   return { ok: true, bindings: current, diagnostics: [] };
 }
 
+export function traverseGraph(starts, namespace, declarations, options = {}) {
+  const invalid = validateGraphInput(starts, namespace, declarations, options);
+  if (invalid) return { ok: false, bindings: [], paths: [], errors: [invalid] };
+
+  const paths = [];
+  const bindings = [];
+  const bindingAddresses = new Set();
+  let visitedEdges = 0;
+
+  for (const start of starts) {
+    const startAddress = graphBindingAddress(start, namespace);
+    if (!startAddress) {
+      return graphFailure('SANSA_GRAPH_START_ADDRESS_MISSING', 'Graph start binding has no canonical address');
+    }
+    for (const declaration of declarations) {
+      if (!declaration.schemaVersions.includes(options.schemaVersion)) {
+        return graphFailure('SANSA_GRAPH_SCHEMA_VERSION_UNSUPPORTED', `Relationship '${declaration.id}' does not apply to schema version '${options.schemaVersion}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      const sourceSemanticType = graphBindingSemanticType(start, namespace);
+      if (!declaration.sourceSemanticTypes.includes(sourceSemanticType)) {
+        return graphFailure('SANSA_GRAPH_SOURCE_TYPE_MISMATCH', `Relationship '${declaration.id}' does not admit source semantic type '${sourceSemanticType || '<unknown>'}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      const edges = resolveAddress(declaration.edgeAddress, namespace, {
+        contextualRoot: start,
+        maxBindings: options.budget.maxVisitedEdges,
+      });
+      if (!edges.ok) return { ok: false, bindings: [], paths: [], errors: edges.errors };
+      if (edges.bindings.length === 0 && declaration.missingEdge === 'error') {
+        return graphFailure('SANSA_GRAPH_EDGE_MISSING', `Relationship '${declaration.id}' has no edge at '${declaration.edgeAddress}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      if (!graphCardinalityMatches(declaration.edgeCardinality, edges.bindings.length)) {
+        return graphFailure('SANSA_GRAPH_EDGE_CARDINALITY_MISMATCH', `Relationship '${declaration.id}' edge cardinality '${declaration.edgeCardinality}' rejected ${edges.bindings.length} resolved edges`, {
+          declarationId: declaration.id,
+          startAddress,
+          observed: edges.bindings.length,
+        });
+      }
+      for (const edge of edges.bindings) {
+        visitedEdges += 1;
+        if (visitedEdges > options.budget.maxVisitedEdges) {
+          return graphBudgetFailure('maxVisitedEdges', options.budget.maxVisitedEdges, visitedEdges);
+        }
+        const edgeAddress = graphBindingAddress(edge, namespace);
+        if (!edgeAddress) {
+          return graphFailure('SANSA_GRAPH_EDGE_ADDRESS_MISSING', 'Graph relationship edge has no canonical address', {
+            declarationId: declaration.id,
+            startAddress,
+          });
+        }
+        const targetAddress = graphReferenceTarget(graphBindingValue(edge, namespace));
+        if (!targetAddress) {
+          return graphFailure('SANSA_GRAPH_INVALID_REFERENCE_TARGET', `Relationship edge '${edgeAddress}' does not contain an absolute SANSA address reference`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+          });
+        }
+        const target = resolveAddress(targetAddress, namespace, { maxBindings: 2 });
+        if (!target.ok) return { ok: false, bindings: [], paths: [], errors: target.errors };
+        if (target.bindings.length === 0) {
+          if (declaration.danglingTarget === 'error') {
+            return graphFailure('SANSA_GRAPH_DANGLING_TARGET', `Relationship edge '${edgeAddress}' targets missing binding '${targetAddress}'`, {
+              declarationId: declaration.id,
+              startAddress,
+              edgeAddress,
+              targetAddress,
+            });
+          }
+          continue;
+        }
+        const end = target.bindings[0];
+        const endAddress = graphBindingAddress(end, namespace);
+        if (!endAddress) {
+          return graphFailure('SANSA_GRAPH_END_ADDRESS_MISSING', 'Graph relationship target has no canonical address', {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        const targetSemanticType = graphBindingSemanticType(end, namespace);
+        if (!declaration.targetSemanticTypes.includes(targetSemanticType)) {
+          return graphFailure('SANSA_GRAPH_TARGET_TYPE_MISMATCH', `Relationship '${declaration.id}' does not admit target semantic type '${targetSemanticType || '<unknown>'}'`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        if (options.authorizeStep && options.authorizeStep({ start, edge, end, declaration }) !== true) {
+          return graphFailure('SANSA_GRAPH_STEP_UNAUTHORIZED', `Traversal step through relationship '${declaration.id}' was not authorized`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        paths.push({
+          declarationId: declaration.id,
+          start,
+          startAddress,
+          edge,
+          edgeAddress,
+          end,
+          endAddress,
+        });
+        if (paths.length > options.budget.maxResults) {
+          return graphBudgetFailure('maxResults', options.budget.maxResults, paths.length);
+        }
+        if (!bindingAddresses.has(endAddress)) {
+          bindingAddresses.add(endAddress);
+          bindings.push(end);
+          if (bindings.length > options.budget.maxVisitedNodes) {
+            return graphBudgetFailure('maxVisitedNodes', options.budget.maxVisitedNodes, bindings.length);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    bindings,
+    paths,
+    metrics: { visitedNodes: bindings.length, visitedEdges },
+    diagnostics: [],
+  };
+}
+
+export function traverseGraphSequence(starts, namespace, hops, options = {}) {
+  if (!Array.isArray(hops) || hops.length === 0 || !['omit', 'error'].includes(options.cyclePolicy)) {
+    return graphFailure('SANSA_GRAPH_INVALID_INPUT', 'Graph sequence traversal requires one or more declaration hops and an explicit cycle policy');
+  }
+  if (!options.budget || !Number.isSafeInteger(options.budget.maxDepth) || options.budget.maxDepth < hops.length) {
+    return graphBudgetFailure('maxDepth', options.budget?.maxDepth, hops.length);
+  }
+  if (!Array.isArray(starts) || starts.length > options.budget.maxStartBindings) {
+    return graphBudgetFailure('maxStartBindings', options.budget.maxStartBindings, Array.isArray(starts) ? starts.length : undefined);
+  }
+  for (const declarations of hops) {
+    const invalid = validateGraphInput(starts, namespace, declarations, options);
+    if (invalid) return { ok: false, bindings: [], paths: [], errors: [invalid] };
+  }
+
+  let frontier = [];
+  for (const start of starts) {
+    const startAddress = graphBindingAddress(start, namespace);
+    if (!startAddress) return graphFailure('SANSA_GRAPH_START_ADDRESS_MISSING', 'Graph start binding has no canonical address');
+    frontier.push({ start, startAddress, current: start, steps: [], seen: new Set([startAddress]) });
+  }
+
+  const visitedNodeAddresses = new Set();
+  let visitedEdges = 0;
+  for (const declarations of hops) {
+    const next = [];
+    for (const path of frontier) {
+      const traversed = traverseGraph([path.current], namespace, declarations, options);
+      if (!traversed.ok) return traversed;
+      visitedEdges += traversed.metrics.visitedEdges;
+      if (visitedEdges > options.budget.maxVisitedEdges) {
+        return graphBudgetFailure('maxVisitedEdges', options.budget.maxVisitedEdges, visitedEdges);
+      }
+      for (const step of traversed.paths) {
+        if (path.seen.has(step.endAddress)) {
+          if (options.cyclePolicy === 'error') {
+            return graphFailure('SANSA_GRAPH_CYCLE_DETECTED', `Graph sequence revisited binding '${step.endAddress}'`, {
+              declarationId: step.declarationId,
+              startAddress: path.startAddress,
+              edgeAddress: step.edgeAddress,
+              targetAddress: step.endAddress,
+            });
+          }
+          continue;
+        }
+        visitedNodeAddresses.add(step.endAddress);
+        if (visitedNodeAddresses.size > options.budget.maxVisitedNodes) {
+          return graphBudgetFailure('maxVisitedNodes', options.budget.maxVisitedNodes, visitedNodeAddresses.size);
+        }
+        next.push({
+          ...path,
+          current: step.end,
+          steps: [...path.steps, step],
+          seen: new Set([...path.seen, step.endAddress]),
+        });
+        if (next.length > options.budget.maxResults) {
+          return graphBudgetFailure('maxResults', options.budget.maxResults, next.length);
+        }
+      }
+    }
+    frontier = next;
+    if (frontier.length === 0) break;
+  }
+
+  const bindings = [];
+  const finalAddresses = new Set();
+  const paths = frontier.map((path) => {
+    const endAddress = graphBindingAddress(path.current, namespace);
+    if (!finalAddresses.has(endAddress)) {
+      finalAddresses.add(endAddress);
+      bindings.push(path.current);
+    }
+    return {
+      start: path.start,
+      startAddress: path.startAddress,
+      end: path.current,
+      endAddress,
+      steps: path.steps,
+    };
+  });
+  return {
+    ok: true,
+    bindings,
+    paths,
+    metrics: { visitedNodes: visitedNodeAddresses.size, visitedEdges },
+    diagnostics: [],
+  };
+}
+
+function validateGraphInput(starts, namespace, declarations, options) {
+  if (!Array.isArray(starts) || !namespace || typeof namespace !== 'object' || !Array.isArray(declarations)) {
+    return graphError('SANSA_GRAPH_INVALID_INPUT', 'Graph traversal requires start bindings, a namespace, and relationship declarations');
+  }
+  if (!options.budget || typeof options.budget !== 'object') {
+    return graphError('SANSA_GRAPH_BUDGET_REQUIRED', 'Graph traversal requires an explicit budget');
+  }
+  if (typeof options.schemaVersion !== 'string' || options.schemaVersion.length === 0) {
+    return graphError('SANSA_GRAPH_INVALID_INPUT', 'Graph traversal requires an explicit schema version');
+  }
+  for (const field of ['maxDepth', 'maxStartBindings', 'maxVisitedNodes', 'maxVisitedEdges', 'maxResults']) {
+    const value = options.budget[field];
+    if (!Number.isSafeInteger(value) || value < 0) {
+      return graphError('SANSA_GRAPH_INVALID_BUDGET', `Graph budget '${field}' must be a non-negative safe integer`, { budget: field });
+    }
+  }
+  if (declarations.length > 0 && options.budget.maxDepth < 1) {
+    return graphError('SANSA_GRAPH_BUDGET_EXCEEDED', 'Graph depth budget exceeded', {
+      budget: 'maxDepth',
+      limit: options.budget.maxDepth,
+      observed: 1,
+    });
+  }
+  if (starts.length > options.budget.maxStartBindings) {
+    return graphError('SANSA_GRAPH_BUDGET_EXCEEDED', 'Graph start binding budget exceeded', {
+      budget: 'maxStartBindings',
+      limit: options.budget.maxStartBindings,
+      observed: starts.length,
+    });
+  }
+  const ids = new Set();
+  for (const declaration of declarations) {
+    if (!declaration || typeof declaration !== 'object'
+      || typeof declaration.id !== 'string' || declaration.id.length === 0
+      || declaration.direction !== 'directed'
+      || !isNonEmptyUniqueStringArray(declaration.schemaVersions)
+      || declaration.namespaceTransition !== 'same-namespace'
+      || declaration.referenceForm !== 'absolute-address-reference'
+      || !isNonEmptyUniqueStringArray(declaration.sourceSemanticTypes)
+      || !isNonEmptyUniqueStringArray(declaration.targetSemanticTypes)
+      || typeof declaration.edgeAddress !== 'string' || !declaration.edgeAddress.startsWith('?')
+      || !['zero-or-one', 'exactly-one', 'zero-or-more', 'one-or-more'].includes(declaration.edgeCardinality)
+      || (declaration.missingEdge !== 'omit' && declaration.missingEdge !== 'error')
+      || (declaration.danglingTarget !== 'omit' && declaration.danglingTarget !== 'error')) {
+      return graphError('SANSA_GRAPH_INVALID_DECLARATION', 'Graph relationship declaration is invalid');
+    }
+    if (ids.has(declaration.id)) {
+      return graphError('SANSA_GRAPH_DUPLICATE_DECLARATION', `Graph relationship declaration '${declaration.id}' is duplicated`, {
+        declarationId: declaration.id,
+      });
+    }
+    ids.add(declaration.id);
+  }
+  return null;
+}
+
+function graphBindingAddress(binding, namespace) {
+  if (typeof binding?.address === 'string') return binding.address;
+  const handle = namespace.bindingHandle?.(binding);
+  return typeof handle === 'string' ? handle : undefined;
+}
+
+function graphBindingValue(binding, namespace) {
+  return namespace.value ? namespace.value(binding) : binding?.value;
+}
+
+function graphBindingSemanticType(binding, namespace) {
+  const value = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding?.semanticType ?? binding?.datatype;
+  return typeof value === 'string' ? value : '';
+}
+
+function graphCardinalityMatches(cardinality, observed) {
+  if (cardinality === 'zero-or-one') return observed <= 1;
+  if (cardinality === 'exactly-one') return observed === 1;
+  if (cardinality === 'one-or-more') return observed >= 1;
+  return true;
+}
+
+function isNonEmptyUniqueStringArray(value) {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((item) => typeof item === 'string' && item.length > 0)
+    && new Set(value).size === value.length;
+}
+
+function graphReferenceTarget(value) {
+  if (typeof value === 'string' && value.startsWith('$')) return value;
+  if (!value || typeof value !== 'object') return undefined;
+  if ((value.type === 'PointerReference' || value.type === 'CloneReference') && typeof value.target === 'string' && value.target.startsWith('$')) {
+    return value.target;
+  }
+  if (value.type === 'StringLiteral' && typeof value.value === 'string' && value.value.startsWith('$')) return value.value;
+  return undefined;
+}
+
+function graphBudgetFailure(budget, limit, observed) {
+  return graphFailure('SANSA_GRAPH_BUDGET_EXCEEDED', `Graph budget '${budget}' exceeded`, { budget, limit, observed });
+}
+
+function graphFailure(code, message, details = {}) {
+  return { ok: false, bindings: [], paths: [], errors: [graphError(code, message, details)] };
+}
+
+function graphError(code, message, details = {}) {
+  return { code, message, ...details };
+}
+
 export function renderAddress(address) {
   let output = address.root.kind === 'absolute' ? '$' : '?';
 
