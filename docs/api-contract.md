@@ -1020,7 +1020,7 @@ Current comparison policy:
 | radix and radix | allowed | error | preserved payload and radix-family metadata identity only |
 | hex and radix | error | error | no implicit numeric or base-16 coercion |
 | encoding and encoding | allowed | allowed | naïve payload order over preserved encoded payload characters |
-| separator and separator | allowed | allowed | naïve whole-payload order; no splitting on separator specs |
+| separator and separator | allowed | allowed | naïve whole-payload order; no splitting on datatype clarifiers |
 | SANSA address and SANSA address | allowed | allowed | canonical address-expression identity and naïve address-expression order |
 | temporal and temporal | allowed within same family | allowed within same family | default profile uses canonical temporal payload order; cross-family comparison fails without explicit compatibility |
 | reference form and reference form | allowed | error | reference-kind and canonical target-path identity; no implicit follow |
@@ -1207,13 +1207,13 @@ Arguments are either:
 
 Top-level qualifier unions are represented by multiple `terms`. Nested qualifier unions inside generic parameters are rejected.
 
-Qualifier terms may contain zero or more parameter groups and zero or more argument groups:
+Qualifier terms may contain zero or more parameter groups and zero or one clarifier value list:
 
 ```text
-name<parameter,parameter><parameter>[argument][argument]
+name<parameter,parameter><parameter>[argument,argument]
 ```
 
-`parameters` is a flattened convenience view. `parameterGroups` preserves how the term should render. Repeated parameter and argument groups allow host embeddings to avoid raw comma where comma would conflict with the host parser.
+`parameters` is a flattened convenience view. `parameterGroups` preserves how the term should render. Clarifier values preserve AEON's single-list datatype clarifier grammar.
 
 ## Canonical Rendering
 

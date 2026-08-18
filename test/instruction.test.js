@@ -294,13 +294,13 @@ test('parses instruction value literal families', () => {
   assert.equal(customHex.mutation.value.datatype, 'brandColor');
   assert.equal(customHex.mutation.value.kind, 'hex');
 
-  const separator = parseOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"');
-  assert.equal(separator.mutation.value.datatype, 'sep[|]');
+  const separator = parseOk('create $.inventory.parts with :sep["|"], ^"hello world"|"this, [is] fine"');
+  assert.equal(separator.mutation.value.datatype, 'sep["|"]');
   assert.equal(separator.mutation.value.kind, 'separator');
   assert.equal(separator.mutation.value.value, '"hello world"|"this, [is] fine"');
 
-  const radixMetadata = parseOk('create $.inventory.badRadix with :radix[03], %101');
-  assert.equal(radixMetadata.mutation.value.datatype, 'radix[03]');
+  const radixMetadata = parseOk('create $.inventory.badRadix with :radix[65], %101');
+  assert.equal(radixMetadata.mutation.value.datatype, 'radix[65]');
   assert.equal(radixMetadata.mutation.value.kind, 'radix');
   assert.equal(radixMetadata.mutation.value.value, '101');
 
@@ -314,8 +314,8 @@ test('parses instruction value literal families', () => {
   assert.equal(commaSeparatorMetadata.mutation.value.kind, 'separator');
   assert.equal(commaSeparatorMetadata.mutation.value.value, '"hello, world"');
 
-  const kadotMetadata = parseOk('create $.inventory.badKadot with :kadot[.], ^1.2.3');
-  assert.equal(kadotMetadata.mutation.value.datatype, 'kadot[.]');
+  const kadotMetadata = parseOk('create $.inventory.badKadot with :kadot["."], ^1.2.3');
+  assert.equal(kadotMetadata.mutation.value.datatype, 'kadot["."]');
   assert.equal(kadotMetadata.mutation.value.kind, 'separator');
   assert.equal(kadotMetadata.mutation.value.value, '1.2.3');
 
@@ -399,13 +399,13 @@ test('parses instruction container value literals', () => {
     ],
   );
 
-  const nestedCustomDatatypeResult = parseInstruction('create $.types.relationships with :object, { sibling = :relationship<sibling>[brother], "Bob" }');
+  const nestedCustomDatatypeResult = parseInstruction('create $.types.relationships with :object, { sibling = :relationship<sibling>["brother"], "Bob" }');
   assert.equal(nestedCustomDatatypeResult.ok, true);
   assert.deepEqual(
     nestedCustomDatatypeResult.warnings.map((warning) => warning.code),
     ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
   );
-  assert.equal(nestedCustomDatatypeResult.warnings[0].datatype, 'relationship<sibling>[brother]');
+  assert.equal(nestedCustomDatatypeResult.warnings[0].datatype, 'relationship<sibling>["brother"]');
 
   const untypedNestedFamiliesResult = parseInstruction('create $.types.settings with :object, { when = 2026-10-10 copy = ~target pair = ("sku", 7) }');
   assert.equal(untypedNestedFamiliesResult.ok, true);
@@ -449,10 +449,10 @@ test('parses instruction comments and complex datatype intent', () => {
     'replace $.inventory.qty with :int32, 10',
   ].join('\n'));
 
-  const complexDatatype = parseOk('create $.relationship with :relationship<sibling>[brother], "Bob"');
-  assert.equal(complexDatatype.mutation.value.datatype, 'relationship<sibling>[brother]');
+  const complexDatatype = parseOk('create $.relationship with :relationship<sibling>["brother"], "Bob"');
+  assert.equal(complexDatatype.mutation.value.datatype, 'relationship<sibling>["brother"]');
   assert.equal(complexDatatype.mutation.value.kind, 'string');
-  assert.equal(complexDatatype.canonical, 'create $.relationship with :relationship<sibling>[brother], "Bob"');
+  assert.equal(complexDatatype.canonical, 'create $.relationship with :relationship<sibling>["brother"], "Bob"');
 
   const replaceWithoutDelimiter = parseOk('replace $.inventory.qty with :int32 10');
   assert.equal(replaceWithoutDelimiter.mutation.value.datatype, 'int32');
@@ -1111,7 +1111,7 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(jsonNestedEscapedQuotedKeyTarget.errors[0].targetFormat, 'json');
   assert.equal(jsonNestedEscapedQuotedKeyTarget.errors[0].valuePath, 'value["quote\\"key"]');
 
-  const aeonNestedCustomDatatype = planOk('create $.inventory.nestedRelationship with :object, { sibling = :relationship<sibling>[brother], "Bob" }', namespace);
+  const aeonNestedCustomDatatype = planOk('create $.inventory.nestedRelationship with :object, { sibling = :relationship<sibling>["brother"], "Bob" }', namespace);
   assert.deepEqual(
     aeonNestedCustomDatatype.warnings.map((warning) => warning.code),
     ['SANSA_INSTRUCTION_NESTED_VALUE_INTENT_FLATTENED'],
@@ -1131,12 +1131,12 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonReferenceSelectorTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonReferenceSelectorTarget.errors[0].valuePath, 'operations[0].value');
 
-  const aeonInvalidRadixDatatype = planOk('create $.inventory.badRadix with :radix[03], %101', namespace);
+  const aeonInvalidRadixDatatype = planOk('create $.inventory.badRadix with :radix[65], %101', namespace);
   const aeonInvalidRadixDatatypeTarget = validateMutationPlanTarget(aeonInvalidRadixDatatype.plan, 'aeon');
   assert.equal(aeonInvalidRadixDatatypeTarget.ok, false);
   assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].datatype, 'radix[03]');
+  assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].datatype, 'radix[65]');
 
   const aeonUnsupportedRadixAlias = planOk('create $.inventory.badRadixAlias with :radix16, %10', namespace);
   const aeonUnsupportedRadixAliasTarget = validateMutationPlanTarget(aeonUnsupportedRadixAlias.plan, 'aeon');
@@ -1145,7 +1145,7 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].datatype, 'radix16');
 
-  const aeonQuotedSeparatorCompatible = planOk('create $.inventory.parts with :sep[|], ^"hello world"|"this, [is] fine"', namespace);
+  const aeonQuotedSeparatorCompatible = planOk('create $.inventory.parts with :sep["|"], ^"hello world"|"this, [is] fine"', namespace);
   const aeonQuotedSeparatorTarget = validateMutationPlanTarget(aeonQuotedSeparatorCompatible.plan, 'aeon');
   assert.equal(aeonQuotedSeparatorTarget.ok, true, JSON.stringify(aeonQuotedSeparatorTarget.errors ?? []));
 
@@ -1156,12 +1156,12 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonInvalidSeparatorDatatypeTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonInvalidSeparatorDatatypeTarget.errors[0].datatype, 'sep[","]');
 
-  const aeonInvalidKadotMetadata = planOk('create $.inventory.badKadot with :kadot[.], ^1.2.3', namespace);
+  const aeonInvalidKadotMetadata = planOk('create $.inventory.badKadot with :kadot["."], ^1.2.3', namespace);
   const aeonInvalidKadotMetadataTarget = validateMutationPlanTarget(aeonInvalidKadotMetadata.plan, 'aeon');
   assert.equal(aeonInvalidKadotMetadataTarget.ok, false);
   assert.equal(aeonInvalidKadotMetadataTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonInvalidKadotMetadataTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonInvalidKadotMetadataTarget.errors[0].datatype, 'kadot[.]');
+  assert.equal(aeonInvalidKadotMetadataTarget.errors[0].datatype, 'kadot["."]');
 
   const tupleIncompatible = planOk('create $.inventory.pair with :tuple, ("sku", 7)', namespace);
   const tupleTarget = validateMutationPlanTarget(tupleIncompatible.plan, 'json');

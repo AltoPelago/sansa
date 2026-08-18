@@ -1438,7 +1438,7 @@ export interface QualifierTerm {
   readonly arguments: readonly QualifierArgument[];
 }
 
-export type QualifierArgument = QualifierTokenArgument | QualifierQuotedArgument;
+export type QualifierArgument = QualifierTokenArgument | QualifierQuotedArgument | QualifierNumberArgument;
 
 export interface QualifierTokenArgument {
   readonly kind: 'token';
@@ -1448,6 +1448,11 @@ export interface QualifierTokenArgument {
 export interface QualifierQuotedArgument {
   readonly kind: 'quoted';
   readonly value: string;
+}
+
+export interface QualifierNumberArgument {
+  readonly kind: 'number';
+  readonly value: number;
 }
 
 export class SansaParseError extends Error {

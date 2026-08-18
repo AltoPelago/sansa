@@ -98,11 +98,19 @@ test('parses qualifier parameters and quoted arguments', () => {
   assert.equal(address.canonical, '$.inventory:csv[","]');
 });
 
-test('parses repeated qualifier arguments', () => {
-  const address = parseOk('$.key:string[","]["."]');
+test('parses multiple qualifier clarifier values', () => {
+  const address = parseOk('$.key:string[",","."]');
   const args = address.qualifierExpression.terms[0].arguments;
   assert.deepEqual(args.map((arg) => arg.value), [',', '.']);
-  assert.equal(address.canonical, '$.key:string[","]["."]');
+  assert.equal(address.canonical, '$.key:string[",","."]');
+});
+
+test('parses numeric qualifier clarifier values', () => {
+  const address = parseOk('$.bits:radix[16]');
+  const args = address.qualifierExpression.terms[0].arguments;
+  assert.equal(args[0].kind, 'number');
+  assert.equal(args[0].value, 16);
+  assert.equal(address.canonical, '$.bits:radix[16]');
 });
 
 test('parses nested qualifier terms without nested unions', () => {
@@ -153,7 +161,15 @@ test('rejects empty position ranges', () => {
 });
 
 test('rejects raw comma in qualifier arguments', () => {
-  parseBad('$.inventory:csv[,]', 'SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR');
+  parseBad('$.inventory:csv[,]', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
+});
+
+test('rejects unquoted qualifier string clarifiers', () => {
+  parseBad('$.version:sep[.]', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
+});
+
+test('rejects repeated qualifier clarifier lists', () => {
+  parseBad('$.key:string[","]["."]', 'SANSA_INVALID_QUALIFIER');
 });
 
 test('rejects nested qualifier unions', () => {

@@ -366,7 +366,7 @@ const root = binding({
         binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
         binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
         binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
-        binding({ name: 'version', address: '$.types.version', semanticType: 'sep[.]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
+        binding({ name: 'version', address: '$.types.version', semanticType: 'sep["."]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),

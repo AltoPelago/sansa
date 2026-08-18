@@ -1,5 +1,5 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
+const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
 export const SANSA_MAX_POSITION_INDEX = 999_999;
 export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
@@ -2021,7 +2021,7 @@ function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
       ),
     };
   }
-  if (!/^(?:sep|separator)(?:\[\s*[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]\s*\])+$/i.test(source)) {
+  if (!/^(?:sep|separator)\[\s*"[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]"\s*(?:,\s*"[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]"\s*)*\]$/i.test(source)) {
     return {
       ok: false,
       error: mutationTargetSurfaceError(
@@ -5862,14 +5862,15 @@ export function renderQualifierTerm(term) {
   for (const group of parameterGroups) {
     output += `<${group.map(renderQualifierTerm).join(',')}>`;
   }
-  for (const argument of term.arguments) {
-    output += `[${renderQualifierArgument(argument)}]`;
+  if (term.arguments.length > 0) {
+    output += `[${term.arguments.map(renderQualifierArgument).join(',')}]`;
   }
   return output;
 }
 
 function renderQualifierArgument(argument) {
   if (argument.kind === 'token') return argument.value;
+  if (argument.kind === 'number') return String(argument.value);
   return quotePayload(argument.value);
 }
 
@@ -6048,9 +6049,15 @@ class AddressParser {
       parameters.push(...group);
     }
 
-    while (this.match('[')) {
+    if (this.match('[')) {
       args.push(this.parseQualifierArgument());
+      while (this.match(',')) {
+        args.push(this.parseQualifierArgument());
+      }
       this.consume(']');
+      if (this.peek() === '[') {
+        this.fail('Qualifier clarifiers must use a single bracketed list', 'SANSA_INVALID_QUALIFIER');
+      }
     }
 
     const next = this.peek();
@@ -6067,17 +6074,13 @@ class AddressParser {
     }
 
     const start = this.index;
-    while (!this.atEnd() && this.peek() !== ']') {
-      const char = this.peek();
-      if (!isQualifierArgumentChar(char)) {
-        this.fail(`Invalid unquoted qualifier argument character '${char}'`, 'SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR');
-      }
+    while (!this.atEnd() && this.peek() !== ']' && this.peek() !== ',') {
       this.index += 1;
     }
     if (this.index === start) this.fail('Expected qualifier argument', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
     const value = this.input.slice(start, this.index);
-    if (!QUALIFIER_ARG_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
-    return { kind: 'token', value };
+    if (!QUALIFIER_NUMBER_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
+    return { kind: 'number', value: Number(value) };
   }
 
   parseIdentifier(context) {
