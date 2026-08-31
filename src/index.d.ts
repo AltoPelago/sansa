@@ -1088,7 +1088,7 @@ export interface SansaQueryLiteralExpression {
     | 'date'
     | 'time'
     | 'datetime'
-    | 'zrut'
+    | 'wtc'
     | 'null';
   readonly value: string | number | boolean | null;
   readonly nullReason?: string;

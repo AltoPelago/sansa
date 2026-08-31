@@ -9,6 +9,39 @@ versions may still include breaking changes when the SANSA specifications move.
 
 No notable changes yet.
 
+## 0.10.0 - 2026-09-01
+
+### Breaking
+
+- Renamed the AEON temporal literal family from `zrut` to `wtc` across query,
+  instruction, mutation, workbench, fixture, declaration, and documentation
+  surfaces.
+- Changed qualifier datatype clarifiers to one bracketed list. String
+  clarifiers must now be quoted, multiple values use comma separation inside
+  the same brackets, and numeric clarifiers such as `radix[16]` are represented
+  as numbers. Repeated clarifier lists and unquoted string clarifiers are
+  rejected.
+
+### Added
+
+- Added experimental `traverseGraph(...)` and `traverseGraphSequence(...)`
+  APIs for declared, directed relationship traversal with ordered path
+  provenance.
+- Added experimental graph capability metadata covering schema-version
+  applicability, semantic-type constraints, edge cardinality, cycle policy,
+  authorization hooks, and explicit traversal budgets.
+
+### Changed
+
+- Updated address, instruction, mutation, query, fixture, stress, and API
+  contract surfaces to use the unified AEON datatype clarifier grammar.
+
+### Security
+
+- Graph traversal requires explicit budgets and applies an independent
+  authorization decision to every traversal step without granting authority to
+  composed Query reads.
+
 ## 0.9.1 - 2026-08-02
 
 ### Added

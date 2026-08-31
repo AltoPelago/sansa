@@ -36,7 +36,7 @@ const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'date',
   'time',
   'datetime',
-  'zrut',
+  'wtc',
   'temporal',
   'lexicalStructuredScalar',
   'container',
@@ -1925,7 +1925,7 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
       return typeof value === 'string' && isQueryTemporalLiteral(value, representation)
         ? { ok: true }
         : invalidAeonTargetValue(`${representation} literals must use valid AEON temporal text`, path, operationIndex);
@@ -2115,7 +2115,7 @@ function isReservedAeonDatatypeBase(base) {
     'date',
     'time',
     'datetime',
-    'zrut',
+    'wtc',
     'sep',
     'separator',
     'kadot',
@@ -2334,7 +2334,7 @@ function representationKindFromMutationName(name, { allowUnknown = false } = {})
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
-  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;
   if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
   return allowUnknown ? base : undefined;
 }
@@ -4471,7 +4471,7 @@ function queryLiteralMetadata(expression) {
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
       return { kind: expression.kind, category: 'temporal', semanticType: expression.kind };
     case 'null':
       return { kind: 'null', category: 'explicitNull', nullReason: expression.nullReason };
@@ -5203,7 +5203,7 @@ function compareMinimumOrdering(left, right, profile) {
 function normalizeValueSemanticsCategory(category) {
   if (category === 'sansa') return 'sansaAddress';
   if (category === 'cloneReference' || category === 'pointerReference') return 'referenceForm';
-  if (['date', 'time', 'datetime', 'zrut'].includes(category)) return 'temporal';
+  if (['date', 'time', 'datetime', 'wtc'].includes(category)) return 'temporal';
   return category;
 }
 
@@ -7179,7 +7179,7 @@ class QueryExpressionParser {
     const source = this.readSimpleLiteralPayload();
     const kind = source.includes('T')
       ? source.includes('&')
-        ? 'zrut'
+        ? 'wtc'
         : 'datetime'
       : source.includes(':')
         ? 'time'
@@ -8060,7 +8060,7 @@ function isQueryTemporalLiteral(source, kind) {
       && isValidDateParts(match[1], match[2], match[3])
       && isValidTimeMatch(match, 4);
   }
-  if (kind === 'zrut') {
+  if (kind === 'wtc') {
     const match = new RegExp(`^${date}T${datetimeTime}&(${zone})$`).exec(source);
     return Boolean(match)
       && isValidDateParts(match[1], match[2], match[3])

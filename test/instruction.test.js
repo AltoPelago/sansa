@@ -1292,7 +1292,7 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('create $.x with :sep, ^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
   parseBad('create $.x with :date, 2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseBad('create $.x with :time, 24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
-  parseBad('create $.x with :zrut, 2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseBad('create $.x with :wtc, 2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
 test('surfaces initial lowering boundary diagnostics', () => {

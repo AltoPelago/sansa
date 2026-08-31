@@ -666,7 +666,7 @@ function validateAeonWorkbenchScalarValue(value, representation, path) {
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
       return typeof value === 'string' && value.length > 0
         ? { ok: true }
         : invalidAeonWorkbenchValue(`${representation} literals must be non-empty text`, path);
@@ -1110,7 +1110,7 @@ function renderScalarValue(binding) {
   if (kind === 'radix') return `%${value}`;
   if (kind === 'encoding') return `&${value}`;
   if (kind === 'separator') return `^${value}`;
-  if (['date', 'time', 'datetime', 'zrut'].includes(kind)) return String(value);
+  if (['date', 'time', 'datetime', 'wtc'].includes(kind)) return String(value);
   if (kind === 'sansaAddress' || kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
   }
@@ -1240,7 +1240,7 @@ function semanticTypeFromRepresentationKind(kind) {
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
     case 'null':
     case 'nan':
     case 'infinity':
@@ -1278,7 +1278,7 @@ function representationKindFromName(name, { allowUnknown = false } = {}) {
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
-  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;
   if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
   return allowUnknown ? base : undefined;
 }
