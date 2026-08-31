@@ -180,7 +180,7 @@
           {
             "name": "version",
             "address": "$.types.version",
-            "semanticType": "sep[.]",
+            "semanticType": "sep[\".\"]",
             "representationKind": "separator",
             "scalarKind": "separator",
             "value": "0.11.0"
@@ -212,9 +212,9 @@
           {
             "name": "zone",
             "address": "$.types.zone",
-            "semanticType": "zrut",
-            "representationKind": "zrut",
-            "scalarKind": "zrut",
+            "semanticType": "wtc",
+            "representationKind": "wtc",
+            "scalarKind": "wtc",
             "value": "2026-07-25T09:30:00Z&Australia/Melbourne"
           },
           {

@@ -210,17 +210,17 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(reducedDatetime.value, '2026-07-25T09Z');
   assert.equal(renderQueryExpression(reducedDatetime), '2026-07-25T09Z');
 
-  const zrut = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
-  assert.equal(zrut.type, 'literalExpression');
-  assert.equal(zrut.kind, 'zrut');
-  assert.equal(zrut.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
-  assert.equal(renderQueryExpression(zrut), '2026-07-25T09:30:00Z&Australia/Melbourne');
+  const wtc = parseExpressionOk('2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(wtc.type, 'literalExpression');
+  assert.equal(wtc.kind, 'wtc');
+  assert.equal(wtc.value, '2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(renderQueryExpression(wtc), '2026-07-25T09:30:00Z&Australia/Melbourne');
 
-  const reducedZrut = parseExpressionOk('2026-07-25T09Z&Europe/Belgium/Brussels');
-  assert.equal(reducedZrut.type, 'literalExpression');
-  assert.equal(reducedZrut.kind, 'zrut');
-  assert.equal(reducedZrut.value, '2026-07-25T09Z&Europe/Belgium/Brussels');
-  assert.equal(renderQueryExpression(reducedZrut), '2026-07-25T09Z&Europe/Belgium/Brussels');
+  const reducedWtc = parseExpressionOk('2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(reducedWtc.type, 'literalExpression');
+  assert.equal(reducedWtc.kind, 'wtc');
+  assert.equal(reducedWtc.value, '2026-07-25T09Z&Europe/Belgium/Brussels');
+  assert.equal(renderQueryExpression(reducedWtc), '2026-07-25T09Z&Europe/Belgium/Brussels');
 
   const nullLiteral = parseExpressionOk('!notSet');
   assert.equal(nullLiteral.type, 'literalExpression');

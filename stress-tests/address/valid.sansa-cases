@@ -41,11 +41,11 @@ $.result:number|nan
 ---
 $.inventory:list<string>
 ---
-$.version:sep[.]
+$.version:sep["."]
 ---
 $.inventory:csv[","]
 ---
-$.claim:type<type>[arg]
+$.claim:type<type>["arg"]
 ---
 $#record%object
 ---
@@ -61,7 +61,7 @@ $:document<invoice>
 ---
 $.["list"][2]:rule["+"]
 ---
-$.key:string[","]["."]
+$.key:string[",","."]
 ---
 $.["list"][2][2]
 ---

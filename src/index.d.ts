@@ -141,6 +141,26 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION'
   | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
 
+export type SansaGraphErrorCode =
+  | 'SANSA_GRAPH_INVALID_INPUT'
+  | 'SANSA_GRAPH_BUDGET_REQUIRED'
+  | 'SANSA_GRAPH_INVALID_BUDGET'
+  | 'SANSA_GRAPH_BUDGET_EXCEEDED'
+  | 'SANSA_GRAPH_CYCLE_DETECTED'
+  | 'SANSA_GRAPH_INVALID_DECLARATION'
+  | 'SANSA_GRAPH_DUPLICATE_DECLARATION'
+  | 'SANSA_GRAPH_SCHEMA_VERSION_UNSUPPORTED'
+  | 'SANSA_GRAPH_START_ADDRESS_MISSING'
+  | 'SANSA_GRAPH_SOURCE_TYPE_MISMATCH'
+  | 'SANSA_GRAPH_EDGE_MISSING'
+  | 'SANSA_GRAPH_EDGE_CARDINALITY_MISMATCH'
+  | 'SANSA_GRAPH_EDGE_ADDRESS_MISSING'
+  | 'SANSA_GRAPH_END_ADDRESS_MISSING'
+  | 'SANSA_GRAPH_TARGET_TYPE_MISMATCH'
+  | 'SANSA_GRAPH_INVALID_REFERENCE_TARGET'
+  | 'SANSA_GRAPH_DANGLING_TARGET'
+  | 'SANSA_GRAPH_STEP_UNAUTHORIZED';
+
 export type SansaQueryEvaluateErrorCode =
   | 'SANSA_QUERY_POLICY_VIOLATION'
   | 'SANSA_QUERY_BUDGET_EXCEEDED'
@@ -284,6 +304,111 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly namespaceState?: (() => unknown) | unknown;
   readonly mutate?: SansaMutationAdapter<TBinding>;
 }
+
+export interface SansaGraphRelationshipDeclaration {
+  readonly id: string;
+  readonly direction: 'directed';
+  readonly schemaVersions: readonly string[];
+  readonly namespaceTransition: 'same-namespace';
+  readonly referenceForm: 'absolute-address-reference';
+  readonly sourceSemanticTypes: readonly string[];
+  readonly targetSemanticTypes: readonly string[];
+  readonly edgeAddress: string;
+  readonly edgeCardinality: 'zero-or-one' | 'exactly-one' | 'zero-or-more' | 'one-or-more';
+  readonly missingEdge: 'omit' | 'error';
+  readonly danglingTarget: 'omit' | 'error';
+}
+
+export interface SansaGraphBudget {
+  readonly maxDepth: number;
+  readonly maxStartBindings: number;
+  readonly maxVisitedNodes: number;
+  readonly maxVisitedEdges: number;
+  readonly maxResults: number;
+}
+
+export interface SansaGraphTraversalMetrics {
+  readonly visitedNodes: number;
+  readonly visitedEdges: number;
+}
+
+export interface SansaGraphTraversalStep<TBinding extends object = SansaResolveBinding> {
+  readonly start: TBinding;
+  readonly edge: TBinding;
+  readonly end: TBinding;
+  readonly declaration: SansaGraphRelationshipDeclaration;
+}
+
+export interface SansaGraphTraversalOptions<TBinding extends object = SansaResolveBinding> {
+  readonly budget: SansaGraphBudget;
+  readonly schemaVersion: string;
+  readonly authorizeStep?: (step: SansaGraphTraversalStep<TBinding>) => boolean;
+}
+
+export interface SansaGraphPath<TBinding extends object = SansaResolveBinding> {
+  readonly declarationId: string;
+  readonly start: TBinding;
+  readonly startAddress: string;
+  readonly edge: TBinding;
+  readonly edgeAddress: string;
+  readonly end: TBinding;
+  readonly endAddress: string;
+}
+
+export interface SansaGraphDiagnostic {
+  readonly code: SansaGraphErrorCode | SansaResolveErrorCode | SansaParseErrorCode;
+  readonly message: string;
+  readonly declarationId?: string;
+  readonly startAddress?: string;
+  readonly edgeAddress?: string;
+  readonly targetAddress?: string;
+  readonly budget?: string;
+  readonly limit?: number;
+  readonly observed?: number;
+}
+
+export type SansaGraphTraversalResult<TBinding extends object = SansaResolveBinding> =
+  | {
+      readonly ok: true;
+      readonly bindings: readonly TBinding[];
+      readonly paths: readonly SansaGraphPath<TBinding>[];
+      readonly metrics: SansaGraphTraversalMetrics;
+      readonly diagnostics: readonly SansaGraphDiagnostic[];
+    }
+  | {
+      readonly ok: false;
+      readonly bindings: readonly [];
+      readonly paths: readonly [];
+      readonly errors: readonly SansaGraphDiagnostic[];
+    };
+
+export interface SansaGraphSequencePath<TBinding extends object = SansaResolveBinding> {
+  readonly start: TBinding;
+  readonly startAddress: string;
+  readonly end: TBinding;
+  readonly endAddress: string;
+  readonly steps: readonly SansaGraphPath<TBinding>[];
+}
+
+export interface SansaGraphSequenceOptions<TBinding extends object = SansaResolveBinding>
+  extends SansaGraphTraversalOptions<TBinding> {
+  readonly cyclePolicy: 'omit' | 'error';
+}
+
+export type SansaGraphSequenceResult<TBinding extends object = SansaResolveBinding> =
+  | {
+      readonly ok: true;
+      readonly bindings: readonly TBinding[];
+      readonly paths: readonly SansaGraphSequencePath<TBinding>[];
+      readonly metrics: SansaGraphTraversalMetrics;
+      readonly diagnostics: readonly SansaGraphDiagnostic[];
+    }
+  | {
+      readonly ok: false;
+      readonly bindings: readonly [];
+      readonly paths: readonly [];
+      readonly errors: readonly SansaGraphDiagnostic[];
+    };
 
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
   readonly parse?: SansaParseOptions;
@@ -963,7 +1088,7 @@ export interface SansaQueryLiteralExpression {
     | 'date'
     | 'time'
     | 'datetime'
-    | 'zrut'
+    | 'wtc'
     | 'null';
   readonly value: string | number | boolean | null;
   readonly nullReason?: string;
@@ -1313,7 +1438,7 @@ export interface QualifierTerm {
   readonly arguments: readonly QualifierArgument[];
 }
 
-export type QualifierArgument = QualifierTokenArgument | QualifierQuotedArgument;
+export type QualifierArgument = QualifierTokenArgument | QualifierQuotedArgument | QualifierNumberArgument;
 
 export interface QualifierTokenArgument {
   readonly kind: 'token';
@@ -1323,6 +1448,11 @@ export interface QualifierTokenArgument {
 export interface QualifierQuotedArgument {
   readonly kind: 'quoted';
   readonly value: string;
+}
+
+export interface QualifierNumberArgument {
+  readonly kind: 'number';
+  readonly value: number;
 }
 
 export class SansaParseError extends Error {
@@ -1377,6 +1507,18 @@ export function resolveAddress<TBinding extends object = SansaResolveBinding>(
   namespace: SansaResolveNamespace<TBinding>,
   options?: SansaResolveOptions<TBinding>,
 ): SansaResolveResult<TBinding>;
+export function traverseGraph<TBinding extends object = SansaResolveBinding>(
+  starts: readonly TBinding[],
+  namespace: SansaResolveNamespace<TBinding>,
+  declarations: readonly SansaGraphRelationshipDeclaration[],
+  options: SansaGraphTraversalOptions<TBinding>,
+): SansaGraphTraversalResult<TBinding>;
+export function traverseGraphSequence<TBinding extends object = SansaResolveBinding>(
+  starts: readonly TBinding[],
+  namespace: SansaResolveNamespace<TBinding>,
+  hops: readonly (readonly SansaGraphRelationshipDeclaration[])[],
+  options: SansaGraphSequenceOptions<TBinding>,
+): SansaGraphSequenceResult<TBinding>;
 export function renderAddress(address: SansaAddress): string;
 export function renderQuery(query: SansaQuery): string;
 export function renderQueryExpression(expression: SansaQueryExpression): string;

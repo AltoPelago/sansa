@@ -360,13 +360,13 @@ const root = binding({
         binding({ name: 'released', address: '$.types.released', semanticType: 'date', representationKind: 'date', scalarKind: 'date', value: '2026-07-25' }),
         binding({ name: 'window', address: '$.types.window', semanticType: 'time', representationKind: 'time', scalarKind: 'time', value: '09:30:00Z' }),
         binding({ name: 'stamp', address: '$.types.stamp', semanticType: 'datetime', representationKind: 'datetime', scalarKind: 'datetime', value: '2026-07-25T09:30:00Z' }),
-        binding({ name: 'zone', address: '$.types.zone', semanticType: 'zrut', representationKind: 'zrut', scalarKind: 'zrut', value: '2026-07-25T09:30:00Z&Australia/Melbourne' }),
+        binding({ name: 'zone', address: '$.types.zone', semanticType: 'wtc', representationKind: 'wtc', scalarKind: 'wtc', value: '2026-07-25T09:30:00Z&Australia/Melbourne' }),
         binding({ name: 'color', address: '$.types.color', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
         binding({ name: 'colorCopy', address: '$.types.colorCopy', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
         binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
         binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
         binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
-        binding({ name: 'version', address: '$.types.version', semanticType: 'sep[.]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
+        binding({ name: 'version', address: '$.types.version', semanticType: 'sep["."]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
@@ -1382,13 +1382,13 @@ test('follows the comparison policy matrix', () => {
   assert.equal(datetimeLiteralComparison.ok, true, JSON.stringify(datetimeLiteralComparison.errors ?? []));
   assert.deepEqual(datetimeLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.stamp']);
 
-  const zrutLiteralComparison = evaluateQuery([
+  const wtcLiteralComparison = evaluateQuery([
     'from $.types.zone',
     'where . == 2026-07-25T09:30:00Z&Australia/Melbourne',
     'select .',
   ].join('\n'), namespace);
-  assert.equal(zrutLiteralComparison.ok, true, JSON.stringify(zrutLiteralComparison.errors ?? []));
-  assert.deepEqual(zrutLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
+  assert.equal(wtcLiteralComparison.ok, true, JSON.stringify(wtcLiteralComparison.errors ?? []));
+  assert.deepEqual(wtcLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
 
   const temporalCrossFamilyComparison = evaluateQuery([
     'from $.types.stamp',

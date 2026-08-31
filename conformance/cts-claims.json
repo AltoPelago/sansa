@@ -2,7 +2,7 @@
   "claim_format": "aeonite.cts-claims.v1",
   "repository": "AltoPelago/sansa",
   "implementation": "@altopelago/sansa",
-  "implementation_version": "0.9.1",
+  "implementation_version": "0.10.0",
   "cts_repository": "aeonite-org/aeonite-cts",
   "cts_protocol": "cts.protocol.v1",
   "claims": [
@@ -26,20 +26,20 @@
     },
     {
       "surface": "sansa-query-parser",
-      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.1",
+      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.2",
       "status": "claimed",
       "command": "npm run cts:query",
       "notes": "The default command excludes experimental extension cases."
     },
     {
       "surface": "sansa-query-experimental",
-      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.1",
+      "snapshot_id": "sansa-query-parser-cts-v1-snapshot-0.2",
       "status": "experimental",
       "command": "npm run cts:query:experimental"
     },
     {
       "surface": "sansa-instruction",
-      "snapshot_id": "sansa-instruction-cts-v1-snapshot-0.1",
+      "snapshot_id": "sansa-instruction-cts-v1-snapshot-0.2",
       "status": "experimental",
       "command": "npm run cts:instruction"
     },

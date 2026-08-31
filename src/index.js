@@ -1,5 +1,5 @@
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const QUALIFIER_ARG_RE = /^[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]+$/;
+const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
 export const SANSA_MAX_POSITION_INDEX = 999_999;
 export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
@@ -36,7 +36,7 @@ const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'date',
   'time',
   'datetime',
-  'zrut',
+  'wtc',
   'temporal',
   'lexicalStructuredScalar',
   'container',
@@ -1925,7 +1925,7 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
       return typeof value === 'string' && isQueryTemporalLiteral(value, representation)
         ? { ok: true }
         : invalidAeonTargetValue(`${representation} literals must use valid AEON temporal text`, path, operationIndex);
@@ -2021,7 +2021,7 @@ function validateAeonSeparatorDatatypeSurface(datatype, base, operationIndex) {
       ),
     };
   }
-  if (!/^(?:sep|separator)(?:\[\s*[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]\s*\])+$/i.test(source)) {
+  if (!/^(?:sep|separator)\[\s*"[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]"\s*(?:,\s*"[A-Za-z0-9!#$%&*+\-.:;=?@^_|~<>]"\s*)*\]$/i.test(source)) {
     return {
       ok: false,
       error: mutationTargetSurfaceError(
@@ -2115,7 +2115,7 @@ function isReservedAeonDatatypeBase(base) {
     'date',
     'time',
     'datetime',
-    'zrut',
+    'wtc',
     'sep',
     'separator',
     'kadot',
@@ -2334,7 +2334,7 @@ function representationKindFromMutationName(name, { allowUnknown = false } = {})
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
-  if (['date', 'time', 'datetime', 'zrut'].includes(base)) return base;
+  if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;
   if (['cloneReference', 'pointerReference', 'referenceForm'].includes(base)) return base;
   return allowUnknown ? base : undefined;
 }
@@ -2513,6 +2513,342 @@ export function resolveAddress(input, namespace, options = {}) {
   }
 
   return { ok: true, bindings: current, diagnostics: [] };
+}
+
+export function traverseGraph(starts, namespace, declarations, options = {}) {
+  const invalid = validateGraphInput(starts, namespace, declarations, options);
+  if (invalid) return { ok: false, bindings: [], paths: [], errors: [invalid] };
+
+  const paths = [];
+  const bindings = [];
+  const bindingAddresses = new Set();
+  let visitedEdges = 0;
+
+  for (const start of starts) {
+    const startAddress = graphBindingAddress(start, namespace);
+    if (!startAddress) {
+      return graphFailure('SANSA_GRAPH_START_ADDRESS_MISSING', 'Graph start binding has no canonical address');
+    }
+    for (const declaration of declarations) {
+      if (!declaration.schemaVersions.includes(options.schemaVersion)) {
+        return graphFailure('SANSA_GRAPH_SCHEMA_VERSION_UNSUPPORTED', `Relationship '${declaration.id}' does not apply to schema version '${options.schemaVersion}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      const sourceSemanticType = graphBindingSemanticType(start, namespace);
+      if (!declaration.sourceSemanticTypes.includes(sourceSemanticType)) {
+        return graphFailure('SANSA_GRAPH_SOURCE_TYPE_MISMATCH', `Relationship '${declaration.id}' does not admit source semantic type '${sourceSemanticType || '<unknown>'}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      const edges = resolveAddress(declaration.edgeAddress, namespace, {
+        contextualRoot: start,
+        maxBindings: options.budget.maxVisitedEdges,
+      });
+      if (!edges.ok) return { ok: false, bindings: [], paths: [], errors: edges.errors };
+      if (edges.bindings.length === 0 && declaration.missingEdge === 'error') {
+        return graphFailure('SANSA_GRAPH_EDGE_MISSING', `Relationship '${declaration.id}' has no edge at '${declaration.edgeAddress}'`, {
+          declarationId: declaration.id,
+          startAddress,
+        });
+      }
+      if (!graphCardinalityMatches(declaration.edgeCardinality, edges.bindings.length)) {
+        return graphFailure('SANSA_GRAPH_EDGE_CARDINALITY_MISMATCH', `Relationship '${declaration.id}' edge cardinality '${declaration.edgeCardinality}' rejected ${edges.bindings.length} resolved edges`, {
+          declarationId: declaration.id,
+          startAddress,
+          observed: edges.bindings.length,
+        });
+      }
+      for (const edge of edges.bindings) {
+        visitedEdges += 1;
+        if (visitedEdges > options.budget.maxVisitedEdges) {
+          return graphBudgetFailure('maxVisitedEdges', options.budget.maxVisitedEdges, visitedEdges);
+        }
+        const edgeAddress = graphBindingAddress(edge, namespace);
+        if (!edgeAddress) {
+          return graphFailure('SANSA_GRAPH_EDGE_ADDRESS_MISSING', 'Graph relationship edge has no canonical address', {
+            declarationId: declaration.id,
+            startAddress,
+          });
+        }
+        const targetAddress = graphReferenceTarget(graphBindingValue(edge, namespace));
+        if (!targetAddress) {
+          return graphFailure('SANSA_GRAPH_INVALID_REFERENCE_TARGET', `Relationship edge '${edgeAddress}' does not contain an absolute SANSA address reference`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+          });
+        }
+        const target = resolveAddress(targetAddress, namespace, { maxBindings: 2 });
+        if (!target.ok) return { ok: false, bindings: [], paths: [], errors: target.errors };
+        if (target.bindings.length === 0) {
+          if (declaration.danglingTarget === 'error') {
+            return graphFailure('SANSA_GRAPH_DANGLING_TARGET', `Relationship edge '${edgeAddress}' targets missing binding '${targetAddress}'`, {
+              declarationId: declaration.id,
+              startAddress,
+              edgeAddress,
+              targetAddress,
+            });
+          }
+          continue;
+        }
+        const end = target.bindings[0];
+        const endAddress = graphBindingAddress(end, namespace);
+        if (!endAddress) {
+          return graphFailure('SANSA_GRAPH_END_ADDRESS_MISSING', 'Graph relationship target has no canonical address', {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        const targetSemanticType = graphBindingSemanticType(end, namespace);
+        if (!declaration.targetSemanticTypes.includes(targetSemanticType)) {
+          return graphFailure('SANSA_GRAPH_TARGET_TYPE_MISMATCH', `Relationship '${declaration.id}' does not admit target semantic type '${targetSemanticType || '<unknown>'}'`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        if (options.authorizeStep && options.authorizeStep({ start, edge, end, declaration }) !== true) {
+          return graphFailure('SANSA_GRAPH_STEP_UNAUTHORIZED', `Traversal step through relationship '${declaration.id}' was not authorized`, {
+            declarationId: declaration.id,
+            startAddress,
+            edgeAddress,
+            targetAddress,
+          });
+        }
+        paths.push({
+          declarationId: declaration.id,
+          start,
+          startAddress,
+          edge,
+          edgeAddress,
+          end,
+          endAddress,
+        });
+        if (paths.length > options.budget.maxResults) {
+          return graphBudgetFailure('maxResults', options.budget.maxResults, paths.length);
+        }
+        if (!bindingAddresses.has(endAddress)) {
+          bindingAddresses.add(endAddress);
+          bindings.push(end);
+          if (bindings.length > options.budget.maxVisitedNodes) {
+            return graphBudgetFailure('maxVisitedNodes', options.budget.maxVisitedNodes, bindings.length);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    bindings,
+    paths,
+    metrics: { visitedNodes: bindings.length, visitedEdges },
+    diagnostics: [],
+  };
+}
+
+export function traverseGraphSequence(starts, namespace, hops, options = {}) {
+  if (!Array.isArray(hops) || hops.length === 0 || !['omit', 'error'].includes(options.cyclePolicy)) {
+    return graphFailure('SANSA_GRAPH_INVALID_INPUT', 'Graph sequence traversal requires one or more declaration hops and an explicit cycle policy');
+  }
+  if (!options.budget || !Number.isSafeInteger(options.budget.maxDepth) || options.budget.maxDepth < hops.length) {
+    return graphBudgetFailure('maxDepth', options.budget?.maxDepth, hops.length);
+  }
+  if (!Array.isArray(starts) || starts.length > options.budget.maxStartBindings) {
+    return graphBudgetFailure('maxStartBindings', options.budget.maxStartBindings, Array.isArray(starts) ? starts.length : undefined);
+  }
+  for (const declarations of hops) {
+    const invalid = validateGraphInput(starts, namespace, declarations, options);
+    if (invalid) return { ok: false, bindings: [], paths: [], errors: [invalid] };
+  }
+
+  let frontier = [];
+  for (const start of starts) {
+    const startAddress = graphBindingAddress(start, namespace);
+    if (!startAddress) return graphFailure('SANSA_GRAPH_START_ADDRESS_MISSING', 'Graph start binding has no canonical address');
+    frontier.push({ start, startAddress, current: start, steps: [], seen: new Set([startAddress]) });
+  }
+
+  const visitedNodeAddresses = new Set();
+  let visitedEdges = 0;
+  for (const declarations of hops) {
+    const next = [];
+    for (const path of frontier) {
+      const traversed = traverseGraph([path.current], namespace, declarations, options);
+      if (!traversed.ok) return traversed;
+      visitedEdges += traversed.metrics.visitedEdges;
+      if (visitedEdges > options.budget.maxVisitedEdges) {
+        return graphBudgetFailure('maxVisitedEdges', options.budget.maxVisitedEdges, visitedEdges);
+      }
+      for (const step of traversed.paths) {
+        if (path.seen.has(step.endAddress)) {
+          if (options.cyclePolicy === 'error') {
+            return graphFailure('SANSA_GRAPH_CYCLE_DETECTED', `Graph sequence revisited binding '${step.endAddress}'`, {
+              declarationId: step.declarationId,
+              startAddress: path.startAddress,
+              edgeAddress: step.edgeAddress,
+              targetAddress: step.endAddress,
+            });
+          }
+          continue;
+        }
+        visitedNodeAddresses.add(step.endAddress);
+        if (visitedNodeAddresses.size > options.budget.maxVisitedNodes) {
+          return graphBudgetFailure('maxVisitedNodes', options.budget.maxVisitedNodes, visitedNodeAddresses.size);
+        }
+        next.push({
+          ...path,
+          current: step.end,
+          steps: [...path.steps, step],
+          seen: new Set([...path.seen, step.endAddress]),
+        });
+        if (next.length > options.budget.maxResults) {
+          return graphBudgetFailure('maxResults', options.budget.maxResults, next.length);
+        }
+      }
+    }
+    frontier = next;
+    if (frontier.length === 0) break;
+  }
+
+  const bindings = [];
+  const finalAddresses = new Set();
+  const paths = frontier.map((path) => {
+    const endAddress = graphBindingAddress(path.current, namespace);
+    if (!finalAddresses.has(endAddress)) {
+      finalAddresses.add(endAddress);
+      bindings.push(path.current);
+    }
+    return {
+      start: path.start,
+      startAddress: path.startAddress,
+      end: path.current,
+      endAddress,
+      steps: path.steps,
+    };
+  });
+  return {
+    ok: true,
+    bindings,
+    paths,
+    metrics: { visitedNodes: visitedNodeAddresses.size, visitedEdges },
+    diagnostics: [],
+  };
+}
+
+function validateGraphInput(starts, namespace, declarations, options) {
+  if (!Array.isArray(starts) || !namespace || typeof namespace !== 'object' || !Array.isArray(declarations)) {
+    return graphError('SANSA_GRAPH_INVALID_INPUT', 'Graph traversal requires start bindings, a namespace, and relationship declarations');
+  }
+  if (!options.budget || typeof options.budget !== 'object') {
+    return graphError('SANSA_GRAPH_BUDGET_REQUIRED', 'Graph traversal requires an explicit budget');
+  }
+  if (typeof options.schemaVersion !== 'string' || options.schemaVersion.length === 0) {
+    return graphError('SANSA_GRAPH_INVALID_INPUT', 'Graph traversal requires an explicit schema version');
+  }
+  for (const field of ['maxDepth', 'maxStartBindings', 'maxVisitedNodes', 'maxVisitedEdges', 'maxResults']) {
+    const value = options.budget[field];
+    if (!Number.isSafeInteger(value) || value < 0) {
+      return graphError('SANSA_GRAPH_INVALID_BUDGET', `Graph budget '${field}' must be a non-negative safe integer`, { budget: field });
+    }
+  }
+  if (declarations.length > 0 && options.budget.maxDepth < 1) {
+    return graphError('SANSA_GRAPH_BUDGET_EXCEEDED', 'Graph depth budget exceeded', {
+      budget: 'maxDepth',
+      limit: options.budget.maxDepth,
+      observed: 1,
+    });
+  }
+  if (starts.length > options.budget.maxStartBindings) {
+    return graphError('SANSA_GRAPH_BUDGET_EXCEEDED', 'Graph start binding budget exceeded', {
+      budget: 'maxStartBindings',
+      limit: options.budget.maxStartBindings,
+      observed: starts.length,
+    });
+  }
+  const ids = new Set();
+  for (const declaration of declarations) {
+    if (!declaration || typeof declaration !== 'object'
+      || typeof declaration.id !== 'string' || declaration.id.length === 0
+      || declaration.direction !== 'directed'
+      || !isNonEmptyUniqueStringArray(declaration.schemaVersions)
+      || declaration.namespaceTransition !== 'same-namespace'
+      || declaration.referenceForm !== 'absolute-address-reference'
+      || !isNonEmptyUniqueStringArray(declaration.sourceSemanticTypes)
+      || !isNonEmptyUniqueStringArray(declaration.targetSemanticTypes)
+      || typeof declaration.edgeAddress !== 'string' || !declaration.edgeAddress.startsWith('?')
+      || !['zero-or-one', 'exactly-one', 'zero-or-more', 'one-or-more'].includes(declaration.edgeCardinality)
+      || (declaration.missingEdge !== 'omit' && declaration.missingEdge !== 'error')
+      || (declaration.danglingTarget !== 'omit' && declaration.danglingTarget !== 'error')) {
+      return graphError('SANSA_GRAPH_INVALID_DECLARATION', 'Graph relationship declaration is invalid');
+    }
+    if (ids.has(declaration.id)) {
+      return graphError('SANSA_GRAPH_DUPLICATE_DECLARATION', `Graph relationship declaration '${declaration.id}' is duplicated`, {
+        declarationId: declaration.id,
+      });
+    }
+    ids.add(declaration.id);
+  }
+  return null;
+}
+
+function graphBindingAddress(binding, namespace) {
+  if (typeof binding?.address === 'string') return binding.address;
+  const handle = namespace.bindingHandle?.(binding);
+  return typeof handle === 'string' ? handle : undefined;
+}
+
+function graphBindingValue(binding, namespace) {
+  return namespace.value ? namespace.value(binding) : binding?.value;
+}
+
+function graphBindingSemanticType(binding, namespace) {
+  const value = typeof namespace.semanticType === 'function'
+    ? namespace.semanticType(binding)
+    : binding?.semanticType ?? binding?.datatype;
+  return typeof value === 'string' ? value : '';
+}
+
+function graphCardinalityMatches(cardinality, observed) {
+  if (cardinality === 'zero-or-one') return observed <= 1;
+  if (cardinality === 'exactly-one') return observed === 1;
+  if (cardinality === 'one-or-more') return observed >= 1;
+  return true;
+}
+
+function isNonEmptyUniqueStringArray(value) {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((item) => typeof item === 'string' && item.length > 0)
+    && new Set(value).size === value.length;
+}
+
+function graphReferenceTarget(value) {
+  if (typeof value === 'string' && value.startsWith('$')) return value;
+  if (!value || typeof value !== 'object') return undefined;
+  if ((value.type === 'PointerReference' || value.type === 'CloneReference') && typeof value.target === 'string' && value.target.startsWith('$')) {
+    return value.target;
+  }
+  if (value.type === 'StringLiteral' && typeof value.value === 'string' && value.value.startsWith('$')) return value.value;
+  return undefined;
+}
+
+function graphBudgetFailure(budget, limit, observed) {
+  return graphFailure('SANSA_GRAPH_BUDGET_EXCEEDED', `Graph budget '${budget}' exceeded`, { budget, limit, observed });
+}
+
+function graphFailure(code, message, details = {}) {
+  return { ok: false, bindings: [], paths: [], errors: [graphError(code, message, details)] };
+}
+
+function graphError(code, message, details = {}) {
+  return { code, message, ...details };
 }
 
 export function renderAddress(address) {
@@ -4135,7 +4471,7 @@ function queryLiteralMetadata(expression) {
     case 'date':
     case 'time':
     case 'datetime':
-    case 'zrut':
+    case 'wtc':
       return { kind: expression.kind, category: 'temporal', semanticType: expression.kind };
     case 'null':
       return { kind: 'null', category: 'explicitNull', nullReason: expression.nullReason };
@@ -4867,7 +5203,7 @@ function compareMinimumOrdering(left, right, profile) {
 function normalizeValueSemanticsCategory(category) {
   if (category === 'sansa') return 'sansaAddress';
   if (category === 'cloneReference' || category === 'pointerReference') return 'referenceForm';
-  if (['date', 'time', 'datetime', 'zrut'].includes(category)) return 'temporal';
+  if (['date', 'time', 'datetime', 'wtc'].includes(category)) return 'temporal';
   return category;
 }
 
@@ -5526,14 +5862,15 @@ export function renderQualifierTerm(term) {
   for (const group of parameterGroups) {
     output += `<${group.map(renderQualifierTerm).join(',')}>`;
   }
-  for (const argument of term.arguments) {
-    output += `[${renderQualifierArgument(argument)}]`;
+  if (term.arguments.length > 0) {
+    output += `[${term.arguments.map(renderQualifierArgument).join(',')}]`;
   }
   return output;
 }
 
 function renderQualifierArgument(argument) {
   if (argument.kind === 'token') return argument.value;
+  if (argument.kind === 'number') return String(argument.value);
   return quotePayload(argument.value);
 }
 
@@ -5712,9 +6049,15 @@ class AddressParser {
       parameters.push(...group);
     }
 
-    while (this.match('[')) {
+    if (this.match('[')) {
       args.push(this.parseQualifierArgument());
+      while (this.match(',')) {
+        args.push(this.parseQualifierArgument());
+      }
       this.consume(']');
+      if (this.peek() === '[') {
+        this.fail('Qualifier clarifiers must use a single bracketed list', 'SANSA_INVALID_QUALIFIER');
+      }
     }
 
     const next = this.peek();
@@ -5731,17 +6074,13 @@ class AddressParser {
     }
 
     const start = this.index;
-    while (!this.atEnd() && this.peek() !== ']') {
-      const char = this.peek();
-      if (!isQualifierArgumentChar(char)) {
-        this.fail(`Invalid unquoted qualifier argument character '${char}'`, 'SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR');
-      }
+    while (!this.atEnd() && this.peek() !== ']' && this.peek() !== ',') {
       this.index += 1;
     }
     if (this.index === start) this.fail('Expected qualifier argument', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
     const value = this.input.slice(start, this.index);
-    if (!QUALIFIER_ARG_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
-    return { kind: 'token', value };
+    if (!QUALIFIER_NUMBER_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
+    return { kind: 'number', value: Number(value) };
   }
 
   parseIdentifier(context) {
@@ -6840,7 +7179,7 @@ class QueryExpressionParser {
     const source = this.readSimpleLiteralPayload();
     const kind = source.includes('T')
       ? source.includes('&')
-        ? 'zrut'
+        ? 'wtc'
         : 'datetime'
       : source.includes(':')
         ? 'time'
@@ -7721,7 +8060,7 @@ function isQueryTemporalLiteral(source, kind) {
       && isValidDateParts(match[1], match[2], match[3])
       && isValidTimeMatch(match, 4);
   }
-  if (kind === 'zrut') {
+  if (kind === 'wtc') {
     const match = new RegExp(`^${date}T${datetimeTime}&(${zone})$`).exec(source);
     return Boolean(match)
       && isValidDateParts(match[1], match[2], match[3])

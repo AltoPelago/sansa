@@ -163,10 +163,10 @@
       "qualifierTerms": ["tuple"]
     },
     {
-      "id": "qualified-token-argument",
-      "source": "$.version:sep[.]",
+      "id": "qualified-string-clarifier",
+      "source": "$.version:sep[\".\"]",
       "valid": true,
-      "canonical": "$.version:sep[.]",
+      "canonical": "$.version:sep[\".\"]",
       "exact": true,
       "qualifierTerms": ["sep"]
     },
@@ -179,18 +179,18 @@
       "qualifierTerms": ["csv"]
     },
     {
-      "id": "qualified-repeated-arguments",
-      "source": "$.key:string[\",\"][\".\"]",
+      "id": "qualified-multiple-clarifier-values",
+      "source": "$.key:string[\",\",\".\"]",
       "valid": true,
-      "canonical": "$.key:string[\",\"][\".\"]",
+      "canonical": "$.key:string[\",\",\".\"]",
       "exact": true,
       "qualifierTerms": ["string"]
     },
     {
       "id": "qualified-rich-host-surface",
-      "source": "$.claim:type<type>[arg]",
+      "source": "$.claim:type<type>[\"arg\"]",
       "valid": true,
-      "canonical": "$.claim:type<type>[arg]",
+      "canonical": "$.claim:type<type>[\"arg\"]",
       "exact": true,
       "qualifierTerms": ["type"]
     },
@@ -198,7 +198,7 @@
       "id": "reject-raw-comma-argument",
       "source": "$.inventory:csv[,]",
       "valid": false,
-      "error": "SANSA_INVALID_QUALIFIER_ARGUMENT_CHAR"
+      "error": "SANSA_EXPECTED_QUALIFIER_ARGUMENT"
     },
     {
       "id": "reject-empty-qualifier-argument",

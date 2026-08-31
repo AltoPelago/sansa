@@ -491,7 +491,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     op: 'create',
     parent: '$.inventory',
     name: 'badRadixDatatype',
-    datatype: 'radix[03]',
+    datatype: 'radix[65]',
     kind: 'radix',
     value: '101',
   }, namespace);
@@ -499,7 +499,7 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonInvalidRadixDatatypeResult.ok, false);
   assert.equal(aeonInvalidRadixDatatypeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonInvalidRadixDatatypeResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonInvalidRadixDatatypeResult.errors[0].datatype, 'radix[03]');
+  assert.equal(aeonInvalidRadixDatatypeResult.errors[0].datatype, 'radix[65]');
 
   const aeonUnsupportedRadixAlias = planOk({
     op: 'create',
@@ -532,7 +532,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     op: 'create',
     parent: '$.inventory',
     name: 'quotedSeparator',
-    datatype: 'sep[|]',
+    datatype: 'sep["|"]',
     kind: 'separator',
     value: '"hello world"|"this, [is] fine"',
   }, namespace);
@@ -570,7 +570,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     op: 'create',
     parent: '$.inventory',
     name: 'badKadot',
-    datatype: 'kadot[.]',
+    datatype: 'kadot["."]',
     kind: 'separator',
     value: '1.2.3',
   }, namespace);
@@ -578,7 +578,7 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonInvalidKadotMetadataResult.ok, false);
   assert.equal(aeonInvalidKadotMetadataResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonInvalidKadotMetadataResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonInvalidKadotMetadataResult.errors[0].datatype, 'kadot[.]');
+  assert.equal(aeonInvalidKadotMetadataResult.errors[0].datatype, 'kadot["."]');
 });
 
 test('validates mutation plans against custom target surfaces', () => {

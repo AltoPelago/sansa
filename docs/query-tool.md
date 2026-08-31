@@ -147,7 +147,7 @@ example `#ff00aa`, `%ff00aa`,
 `2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
 `2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
 through the active temporal value-semantics profile; the default profile uses
-canonical payload order for `date`, `time`, `datetime`, and `zrut` families. It rejects mixed-type
+canonical payload order for `date`, `time`, `datetime`, and `wtc` families. It rejects mixed-type
 comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
 temporal comparison, Boolean ordering, container ordering, explicit null
 comparison, and NaN comparison.

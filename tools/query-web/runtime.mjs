@@ -604,7 +604,7 @@ function scalarKindFromValue(value, semanticType) {
 
 function temporalKindFromSemanticType(semanticType) {
   const base = typeof semanticType === 'string' ? semanticType.split(/[<\[]/, 1)[0] : undefined;
-  return ['date', 'time', 'datetime', 'zrut'].includes(base) ? base : 'datetime';
+  return ['date', 'time', 'datetime', 'wtc'].includes(base) ? base : 'datetime';
 }
 
 function referenceFormValue(type, path) {
@@ -714,7 +714,7 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (metadata?.kind === 'radix') return `%${value}`;
   if (metadata?.kind === 'encoding') return `&${value}`;
   if (metadata?.kind === 'separator') return `^${value}`;
-  if (['date', 'time', 'datetime', 'zrut'].includes(metadata?.kind)) return String(value);
+  if (['date', 'time', 'datetime', 'wtc'].includes(metadata?.kind)) return String(value);
   if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
   }

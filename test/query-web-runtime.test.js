@@ -225,13 +225,13 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(datetimeLiteralComparison.ok, true, JSON.stringify(datetimeLiteralComparison.errors ?? []));
   assert.equal(datetimeLiteralComparison.text, '$.types.stamp = 2026-07-25T09:30:00Z');
 
-  const zrutLiteralComparison = await evaluateQueryForWorkbench({
+  const wtcLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
     query: 'from $.types.zone\nwhere . == 2026-07-25T09:30:00Z&Australia/Melbourne\nselect .',
   });
-  assert.equal(zrutLiteralComparison.ok, true, JSON.stringify(zrutLiteralComparison.errors ?? []));
-  assert.equal(zrutLiteralComparison.text, '$.types.zone = 2026-07-25T09:30:00Z&Australia/Melbourne');
+  assert.equal(wtcLiteralComparison.ok, true, JSON.stringify(wtcLiteralComparison.errors ?? []));
+  assert.equal(wtcLiteralComparison.text, '$.types.zone = 2026-07-25T09:30:00Z&Australia/Melbourne');
 
   const temporalCrossFamilyComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
