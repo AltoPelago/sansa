@@ -1198,11 +1198,12 @@ The evaluator does not execute host-supplied functions. Function support is limi
 }
 ```
 
-Arguments are either:
+Arguments are one of:
 
 ```js
 { kind: "token", value }
 { kind: "quoted", value }
+{ kind: "number", value }
 ```
 
 Top-level qualifier unions are represented by multiple `terms`. Nested qualifier unions inside generic parameters are rejected.
