@@ -332,6 +332,7 @@ Resolve invariants:
 - Current bindings are processed in Binding Set order.
 - Per-binding results are appended in deterministic local structural order.
 - Resolve does not implicitly deduplicate bindings; repeated traversal routes may produce repeated binding occurrences.
+- Resolve returns the original host bindings rather than reconstructed copies. Opaque occurrence metadata such as an AES `identity` is therefore preserved, but selectors, ordering, multiplicity, and canonical addresses never derive from that identity.
 - A supported selector that is structurally inapplicable to one input binding produces no bindings for that branch.
 - Unsupported or forbidden operations fail explicitly.
 - Every output binding is expected to retain a canonical address when the host adapter exposes one.

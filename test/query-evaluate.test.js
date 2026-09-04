@@ -10,6 +10,7 @@ function binding({
   representationKind,
   scalarKind,
   nullReason,
+  identity,
   value,
   children = [],
   localSpaces,
@@ -22,6 +23,7 @@ function binding({
     ...(representationKind === undefined ? {} : { representationKind }),
     ...(scalarKind === undefined ? {} : { scalarKind }),
     ...(nullReason === undefined ? {} : { nullReason }),
+    ...(identity === undefined ? {} : { identity }),
     ...(value === undefined ? {} : { value }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
     children,
@@ -55,9 +57,10 @@ const item0 = binding({
 const item1 = binding({
   index: 1,
   address: '$.inventory.items[1]',
+  identity: 'ITEM1',
   representationKind: 'object',
   children: [
-    binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
+    binding({ name: 'sku', address: '$.inventory.items[1].sku', identity: 'SKU1', semanticType: 'string', representationKind: 'string', value: 'B-200' }),
     binding({ name: 'name', address: '$.inventory.items[1].name', semanticType: 'string', representationKind: 'string', value: 'Bracket' }),
     binding({ name: 'category', address: '$.inventory.items[1].category', semanticType: 'string', representationKind: 'string', value: 'hardware' }),
     binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'string', representationKind: 'string', value: 'active' }),
@@ -591,6 +594,10 @@ test('evaluates query sources with position range selectors', () => {
     ['$.inventory.items[1].sku'],
     ['$.inventory.items[2].sku'],
   ]);
+  assert.strictEqual(result.results[0]?.binding, item1);
+  assert.equal(result.results[0]?.binding.identity, 'ITEM1');
+  assert.strictEqual(result.results[0]?.value.bindings[0], item1.children[0]);
+  assert.equal(result.results[0]?.value.bindings[0]?.identity, 'SKU1');
 });
 
 test('keeps multi-binding projections inside one candidate result record', () => {

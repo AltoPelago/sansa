@@ -262,6 +262,8 @@ export interface SansaMutateDiagnostic {
 
 export interface SansaResolveBinding {
   readonly address?: string;
+  /** Opaque structural occurrence identity supplied by the host namespace. */
+  readonly identity?: string;
   readonly name?: string;
   readonly key?: string;
   readonly index?: number;

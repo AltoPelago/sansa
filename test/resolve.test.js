@@ -8,6 +8,7 @@ function binding({
   index,
   semanticType,
   representationKind,
+  identity,
   children = [],
   attributeSpace,
   localSpaces,
@@ -18,6 +19,7 @@ function binding({
     ...(index === undefined ? {} : { index }),
     ...(semanticType === undefined ? {} : { semanticType }),
     ...(representationKind === undefined ? {} : { representationKind }),
+    ...(identity === undefined ? {} : { identity }),
     children,
     ...(attributeSpace === undefined ? {} : { attributeSpace }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
@@ -29,9 +31,9 @@ function addresses(result) {
   return result.bindings.map((entry) => entry.address);
 }
 
-const sku0 = binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string' });
+const sku0 = binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string', identity: 'SKU0' });
 const qty0 = binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number' });
-const sku1 = binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string' });
+const sku1 = binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', identity: 'SKU1' });
 const qty1 = binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number' });
 const status1 = binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'boolean', representationKind: 'bool' });
 const item0 = binding({ index: 0, address: '$.inventory.items[0]', representationKind: 'object', children: [sku0, qty0] });
@@ -118,6 +120,19 @@ test('resolves exact absolute addresses to zero or one binding', () => {
   });
   assert.equal(ambiguous.ok, false);
   assert.equal(ambiguous.errors[0].code, 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION');
+});
+
+test('returns original bindings with structural identity as opaque metadata', () => {
+  const result = resolveAddress('$.inventory.items.*.sku', namespace);
+
+  assert.equal(result.ok, true);
+  assert.strictEqual(result.bindings[0], sku0);
+  assert.strictEqual(result.bindings[1], sku1);
+  assert.deepEqual(result.bindings.map((entry) => entry.identity), ['SKU0', 'SKU1']);
+  assert.deepEqual(result.bindings.map((entry) => entry.address), [
+    '$.inventory.items[0].sku',
+    '$.inventory.items[1].sku',
+  ]);
 });
 
 test('resolves direct and descendant expansion selectors', () => {
