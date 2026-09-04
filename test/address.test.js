@@ -85,13 +85,12 @@ test('parses expanded address expressions', () => {
   ]);
 });
 
-test('parses hyphenated representation kind filters without widening identifiers', () => {
-  const address = parseOk('$.document[0]%node-head');
-  assert.deepEqual(address.selectors.at(-1), { type: 'representationKindFilter', name: 'node-head' });
-  assert.equal(address.canonical, '$.document[0]%node-head');
+test('parses PascalCase representation kind filters with the standard identifier grammar', () => {
+  const address = parseOk('$.document[0]%NodeHead');
+  assert.deepEqual(address.selectors.at(-1), { type: 'representationKindFilter', name: 'NodeHead' });
+  assert.equal(address.canonical, '$.document[0]%NodeHead');
 
-  parseBad('$.document[0]%node-', 'SANSA_EXPECTED_IDENTIFIER');
-  parseBad('$.document[0]%node--head', 'SANSA_EXPECTED_IDENTIFIER');
+  parseBad('$.document[0]%node-head', 'SANSA_UNEXPECTED_CHARACTER');
 });
 
 test('parses qualified address literals', () => {

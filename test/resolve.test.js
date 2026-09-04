@@ -110,31 +110,31 @@ const ambiguousRoot = binding({
   ],
 });
 
-const nestedNodeText = binding({ index: 0, address: '$.document[0][1][0][0]', representationKind: 'string' });
+const nestedNodeText = binding({ index: 0, address: '$.document[0][1][0][0]', representationKind: 'StringLiteral' });
 const nestedNodeHead = binding({
   index: 0,
   address: '$.document[0][1][0]',
-  representationKind: 'node-head',
+  representationKind: 'NodeHead',
   children: [nestedNodeText],
 });
 const nestedNode = binding({
   index: 1,
   address: '$.document[0][1]',
-  representationKind: 'node',
+  representationKind: 'NodeLiteral',
   children: [nestedNodeHead],
 });
-const nodeText = binding({ index: 0, address: '$.document[0][0]', representationKind: 'string' });
-const nodeRole = binding({ name: 'role', address: '$.document[0].@.role', representationKind: 'string' });
-const nodeHeadAttributes = binding({ address: '$.document[0].@', representationKind: 'object', children: [nodeRole] });
+const nodeText = binding({ index: 0, address: '$.document[0][0]', representationKind: 'StringLiteral' });
+const nodeRole = binding({ name: 'role', address: '$.document[0].@.role', representationKind: 'StringLiteral' });
+const nodeHeadAttributes = binding({ address: '$.document[0].@', representationKind: 'ObjectNode', children: [nodeRole] });
 const nodeHead = binding({
   index: 0,
   address: '$.document[0]',
-  representationKind: 'node-head',
+  representationKind: 'NodeHead',
   children: [nodeText, nestedNode],
   attributeSpace: nodeHeadAttributes,
 });
-const documentNode = binding({ name: 'document', address: '$.document', representationKind: 'node', children: [nodeHead] });
-const nodeRoot = binding({ address: '$', representationKind: 'object', children: [documentNode] });
+const documentNode = binding({ name: 'document', address: '$.document', representationKind: 'NodeLiteral', children: [nodeHead] });
+const nodeRoot = binding({ address: '$', representationKind: 'ObjectNode', children: [documentNode] });
 const nodeParents = new Map([
   [nodeRoot, null],
   [documentNode, nodeRoot],
@@ -322,12 +322,12 @@ test('navigates portable nodes through node heads before their content', () => {
     '$.document[0][1][0]',
     '$.document[0][1][0][0]',
   ]);
-  assert.deepEqual(addresses(resolveAddress('$.document.**%node-head', portableNodeNamespace)), [
+  assert.deepEqual(addresses(resolveAddress('$.document.**%NodeHead', portableNodeNamespace)), [
     '$.document[0]',
     '$.document[0][1][0]',
   ]);
-  assert.deepEqual(addresses(resolveAddress('$.document[0][1].^%node-head', portableNodeNamespace)), ['$.document[0]']);
-  assert.deepEqual(addresses(resolveAddress('$.document[0][1][0].^%node', portableNodeNamespace)), ['$.document[0][1]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1].^%NodeHead', portableNodeNamespace)), ['$.document[0]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1][0].^%NodeLiteral', portableNodeNamespace)), ['$.document[0][1]']);
   assert.deepEqual(addresses(resolveAddress('$.document[0].@.role', portableNodeNamespace)), ['$.document[0].@.role']);
   assert.deepEqual(addresses(resolveAddress('$.document[1]', portableNodeNamespace)), []);
 });
