@@ -9,6 +9,23 @@ versions may still include breaking changes when the SANSA specifications move.
 
 No notable changes yet.
 
+## 0.10.1 - 2026-09-05
+
+### Added
+
+- Preserved structural identity as opaque binding metadata throughout SANSA
+  resolution without using identity to construct or compare addresses.
+
+### Fixed
+
+- Accepted exact normative representation names such as `NodeLiteral` and
+  `NodeHead` in `%kind` filters while retaining existing lower-first matching
+  for compatible host namespaces.
+- Kept representation-kind filters on the ordinary identifier grammar and
+  rejected the obsolete hyphenated `%node-head` spelling.
+- Aligned portable AES node-navigation fixtures with the explicit
+  `NodeLiteral` → `NodeHead` → content hierarchy.
+
 ## 0.10.0 - 2026-09-01
 
 ### Breaking
