@@ -110,6 +110,49 @@ const ambiguousRoot = binding({
   ],
 });
 
+const nestedNodeText = binding({ index: 0, address: '$.document[0][1][0][0]', representationKind: 'string' });
+const nestedNodeHead = binding({
+  index: 0,
+  address: '$.document[0][1][0]',
+  representationKind: 'node-head',
+  children: [nestedNodeText],
+});
+const nestedNode = binding({
+  index: 1,
+  address: '$.document[0][1]',
+  representationKind: 'node',
+  children: [nestedNodeHead],
+});
+const nodeText = binding({ index: 0, address: '$.document[0][0]', representationKind: 'string' });
+const nodeRole = binding({ name: 'role', address: '$.document[0].@.role', representationKind: 'string' });
+const nodeHeadAttributes = binding({ address: '$.document[0].@', representationKind: 'object', children: [nodeRole] });
+const nodeHead = binding({
+  index: 0,
+  address: '$.document[0]',
+  representationKind: 'node-head',
+  children: [nodeText, nestedNode],
+  attributeSpace: nodeHeadAttributes,
+});
+const documentNode = binding({ name: 'document', address: '$.document', representationKind: 'node', children: [nodeHead] });
+const nodeRoot = binding({ address: '$', representationKind: 'object', children: [documentNode] });
+const nodeParents = new Map([
+  [nodeRoot, null],
+  [documentNode, nodeRoot],
+  [nodeHead, documentNode],
+  [nodeText, nodeHead],
+  [nestedNode, nodeHead],
+  [nestedNodeHead, nestedNode],
+  [nestedNodeText, nestedNodeHead],
+  [nodeHeadAttributes, nodeHead],
+  [nodeRole, nodeHeadAttributes],
+]);
+const portableNodeNamespace = {
+  root: nodeRoot,
+  children: (entry) => entry.children,
+  parent: (entry) => nodeParents.get(entry),
+  attributeSpace: (entry) => entry.attributeSpace,
+};
+
 test('resolves exact absolute addresses to zero or one binding', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku', namespace)), ['$.inventory.items[1].sku']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2].sku', namespace)), []);
@@ -264,6 +307,29 @@ test('resolves semantic type and representation kind filters over the current bi
   ]);
   assert.deepEqual(addresses(resolveAddress('$.reading#measurement', namespace)), ['$.reading']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items.*.qty#string', namespace)), []);
+});
+
+test('navigates portable nodes through node heads before their content', () => {
+  assert.deepEqual(addresses(resolveAddress('$.document.*', portableNodeNamespace)), ['$.document[0]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0].*', portableNodeNamespace)), [
+    '$.document[0][0]',
+    '$.document[0][1]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document.**', portableNodeNamespace)), [
+    '$.document[0]',
+    '$.document[0][0]',
+    '$.document[0][1]',
+    '$.document[0][1][0]',
+    '$.document[0][1][0][0]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document.**%node-head', portableNodeNamespace)), [
+    '$.document[0]',
+    '$.document[0][1][0]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1].^%node-head', portableNodeNamespace)), ['$.document[0]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1][0].^%node', portableNodeNamespace)), ['$.document[0][1]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0].@.role', portableNodeNamespace)), ['$.document[0].@.role']);
+  assert.deepEqual(addresses(resolveAddress('$.document[1]', portableNodeNamespace)), []);
 });
 
 test('resolves attribute-space traversal only when the host exposes attributes', () => {

@@ -807,6 +807,8 @@ Exact member and position selectors select direct children. This implementation 
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
 
+Representation-kind names may use hyphen-separated segments, so portable AES kinds such as `%node-head` are directly selectable. An AES-backed namespace exposes a portable node's indexed heads as the node's direct children and exposes each head's indexed content as that head's direct children: `node[head-index][content-index]`. It must not collapse content directly beneath the outer node. Parent traversal exposes the inverse hierarchy. SANSA traverses the structure supplied by the host adapter; AES topology validation remains the host's responsibility.
+
 `?` uses a binding supplied through `options.contextualRoot` or `namespace.contextualRoot`. Unlike `root`, `contextualRoot` is a binding value, not a callback. Hosts that need a dynamic contextual root should resolve it before calling `resolveAddress`. Attribute and local address-space traversal are explicit transitions through `.@` and `.<"name">`. They fail explicitly unless exposed by the namespace adapter or binding model. When local-space traversal is supported but a binding does not expose the named local space, normal resolution returns an empty binding set.
 
 Qualifiers are preserved by the parser but ignored by generic structural resolution.

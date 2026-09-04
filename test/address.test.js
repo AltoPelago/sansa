@@ -85,6 +85,15 @@ test('parses expanded address expressions', () => {
   ]);
 });
 
+test('parses hyphenated representation kind filters without widening identifiers', () => {
+  const address = parseOk('$.document[0]%node-head');
+  assert.deepEqual(address.selectors.at(-1), { type: 'representationKindFilter', name: 'node-head' });
+  assert.equal(address.canonical, '$.document[0]%node-head');
+
+  parseBad('$.document[0]%node-', 'SANSA_EXPECTED_IDENTIFIER');
+  parseBad('$.document[0]%node--head', 'SANSA_EXPECTED_IDENTIFIER');
+});
+
 test('parses qualified address literals', () => {
   const address = parseOk('$.result:number|nan');
   assert.equal(address.qualifierExpression.terms.length, 2);

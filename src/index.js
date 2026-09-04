@@ -5918,7 +5918,7 @@ class AddressParser {
       }
       if (char === '%') {
         this.index += 1;
-        selectors.push({ type: 'representationKindFilter', name: this.parseIdentifier('representation kind filter') });
+        selectors.push({ type: 'representationKindFilter', name: this.parseRepresentationKindName() });
         continue;
       }
       if (isLayout(char)) this.fail('Whitespace is not allowed inside a SANSA address', 'SANSA_UNEXPECTED_WHITESPACE');
@@ -6089,6 +6089,19 @@ class AddressParser {
     if (!isIdentifierStart(first)) this.fail(`Expected ${context}`, 'SANSA_EXPECTED_IDENTIFIER');
     this.index += 1;
     while (isIdentifierContinue(this.peek())) this.index += 1;
+    return this.input.slice(start, this.index);
+  }
+
+  parseRepresentationKindName() {
+    const context = 'representation kind filter';
+    const start = this.index;
+    this.parseIdentifier(context);
+    while (this.match('-')) {
+      if (!isIdentifierContinue(this.peek())) {
+        this.fail(`Expected ${context}`, 'SANSA_EXPECTED_IDENTIFIER');
+      }
+      while (isIdentifierContinue(this.peek())) this.index += 1;
+    }
     return this.input.slice(start, this.index);
   }
 
