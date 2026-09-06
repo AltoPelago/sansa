@@ -1,12 +1,13 @@
 # SANSA Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against
-AEON source or a host-neutral JSON namespace fixture:
+AEON source, portable Telex AES, or a host-neutral JSON namespace fixture:
 
 ```bash
 npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
 npm run query -- --format json --query 'from $.inventory.items.* where any(.roles.* == "admin") select { sku = .sku name = .name }'
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.aeon
+npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.telex.aes
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
 npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
@@ -26,11 +27,22 @@ into a SANSA resolver namespace; JSON fixtures expose bindings with `address`,
 `children`, optional `attributeSpace` or `attributes`, optional `localSpaces`,
 and scalar values through `value` or `scalar`.
 
+`.telex.aes` fixtures are parsed and validated with an optional AEON AES
+runtime, then adapted directly from the complete portable event stream. The
+adapter preserves record order, flat attribute spaces, structural occurrence
+identity, datatype components, and the explicit `NodeLiteral` → `NodeHead` →
+content hierarchy. Partial streams are rejected because this tool has no
+external namespace state with which to complete them.
+
 AEON fixture support is optional so SANSA can remain a lower-level package. For
 published-package use, install `@altopelago/aeon-core` in the calling project or
 set `SANSA_AEON_CORE_MODULE` to an AEON Core module path or specifier. Inside
 the aeon-family development workspace, the tool also falls back to the sibling
 AEON TypeScript build path.
+
+Telex fixture support follows the same optional-integration model. Install
+`@altopelago/aeon-aes`, set `SANSA_AEON_AES_MODULE`, or use the sibling AES
+TypeScript build in the aeon-family development workspace.
 
 The CLI can also mount JSON params at `$.<"params">` using `--params` or
 `--params-file`. Params may be supplied as a full fixture binding with
@@ -58,7 +70,8 @@ through `--max-from-bindings`, `--max-where-candidates`,
 
 ## Browser Workbench
 
-For browser-based testing against `.aeon` source, run the technical workbench:
+For browser-based testing against `.aeon`, `.telex.aes`, or JSON fixture input,
+run the technical workbench:
 
 ```bash
 npm run query:web
@@ -86,11 +99,12 @@ fixtures. See [instruction-tool.md](instruction-tool.md) for details.
 
 The workbench defaults to [../fixtures/query-inventory.aeon](../fixtures/query-inventory.aeon),
 derives a SANSA resolver namespace from the optional AEON TypeScript Core
-runtime, and runs SANSA.Query over that derived graph. It also includes a params
+runtime, and runs SANSA.Query over that derived graph. Telex mode uses the
+portable AES adapter described above. It also includes a params
 local-space editor mounted at `$.<"params">`, a Normal/Validation policy toggle,
 a Transform extension toggle, a value-semantics profile selector, optional
-budget limit inputs, plus a JSON fixture mode for debugging the resolver shape
-directly.
+budget limit inputs, plus Telex and JSON fixture modes for testing portable and
+host-shaped resolver input directly.
 
 In text mode, failed parses and evaluations render compact diagnostic lines
 with phase and candidate context when available. JSON mode exposes the full

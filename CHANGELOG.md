@@ -7,7 +7,12 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
-No notable changes yet.
+### Added
+
+- Added direct complete `telex.aes` input to the Query CLI and browser
+  workbench. The adapter preserves portable paths, record order, structural
+  identities, datatype components, flat attributes, and expanded node heads
+  without reconstructing the AEON parser AST.
 
 ## 0.10.1 - 2026-09-05
 

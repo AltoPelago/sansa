@@ -61,7 +61,7 @@ The Instruction and Mutate CTS lanes are experimental and are not included in `n
 ## Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against
-AEON source or a host-neutral JSON namespace fixture:
+AEON source, portable Telex AES, or a host-neutral JSON namespace fixture:
 
 ```bash
 npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
@@ -70,7 +70,9 @@ npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") sel
 The default CLI fixture is [fixtures/query-inventory.json](fixtures/query-inventory.json),
 which keeps `sansa-query` self-contained after package install. `.aeon` fixture
 support is optional and uses an AEON TypeScript Core runtime when one is
-available.
+available. `.telex.aes` fixture support uses the optional
+`@altopelago/aeon-aes` runtime and projects complete portable records directly
+into a SANSA namespace without rebuilding an AEON parser AST.
 
 For browser-based technical testing, run the Query Workbench:
 

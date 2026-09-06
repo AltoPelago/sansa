@@ -134,7 +134,7 @@ function handleQueryApi(request, response) {
       const result = action === 'parse'
         ? parseQueryForWorkbench(String(payload.query ?? ''))
         : await evaluateQueryForWorkbench({
-          sourceKind: payload.sourceKind === 'json' ? 'json' : 'aeon',
+          sourceKind: ['json', 'telex'].includes(payload.sourceKind) ? payload.sourceKind : 'aeon',
           source: String(payload.source ?? ''),
           query: String(payload.query ?? ''),
           paramsSource: String(payload.paramsSource ?? ''),

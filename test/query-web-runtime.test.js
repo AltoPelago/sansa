@@ -5,6 +5,7 @@ import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../too
 import {
   evaluateQueryForWorkbench,
   namespaceFromAeonSource,
+  namespaceFromTelexSource,
   parseQueryForWorkbench,
 } from '../tools/query-web/runtime.mjs';
 
@@ -42,6 +43,28 @@ function testAeonRuntime(name, fn) {
       return;
     }
 
+    await fn(t);
+  });
+}
+
+let telexRuntimeProbe;
+
+async function hasTelexRuntime() {
+  if (telexRuntimeProbe !== undefined) return telexRuntimeProbe;
+  const result = await namespaceFromTelexSource('telex.aes=0\n');
+  telexRuntimeProbe = result.ok
+    ? { ok: true }
+    : { ok: false, message: result.errors?.[0]?.message ?? 'Telex runtime unavailable' };
+  return telexRuntimeProbe;
+}
+
+function testTelexRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasTelexRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
     await fn(t);
   });
 }
@@ -90,6 +113,98 @@ testAeonRuntime('query web runtime evaluates against AEON source', async () => {
       value: 'B-200',
     },
   ]);
+});
+
+testTelexRuntime('query web runtime evaluates directly against Telex AES', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: 'from $.inventory.items.* where contains(.sku, "B") select .sku',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.sourceKind, 'telex');
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
+  assert.equal(result.results[0].binding.representationKind, 'ObjectNode');
+  assert.equal(result.results[0].value.bindings[0].representationKind, 'StringLiteral');
+});
+
+testTelexRuntime('portable namespace keeps identities outside path identity and expands node heads', async () => {
+  const source = [
+    'telex.aes=0',
+    '',
+    'path=$.page',
+    'kind=NodeLiteral',
+    'identity=NODE',
+    '',
+    'path=$.page[0]',
+    'kind=NodeHead',
+    'identity=HEAD',
+    'value=tag',
+    '',
+    'path=$.page[0].@.x',
+    'kind=NumberLiteral',
+    'identity=ATTRIBUTE',
+    'value=2',
+    '',
+    'path=$.page[0][0]',
+    'kind=StringLiteral',
+    'identity=CHILD',
+    'value=hello',
+    '',
+  ].join('\n');
+  const result = await namespaceFromTelexSource(source);
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  const page = result.namespace.root.children[0];
+  const head = page.children[0];
+  const child = head.children[0];
+  const attribute = head.attributeSpace.children[0];
+  assert.deepEqual(
+    [page.address, page.identity, page.nodeTag],
+    ['$.page', 'NODE', 'tag'],
+  );
+  assert.deepEqual(
+    [head.address, head.identity, head.representationKind],
+    ['$.page[0]', 'HEAD', 'NodeHead'],
+  );
+  assert.deepEqual(
+    [child.address, child.identity],
+    ['$.page[0][0]', 'CHILD'],
+  );
+  assert.deepEqual(
+    [attribute.address, attribute.identity],
+    ['$.page[0].@.x', 'ATTRIBUTE'],
+  );
+  assert.equal(result.namespace.parent(child), head);
+  assert.equal(result.namespace.parent(attribute), head.attributeSpace);
+
+  const selected = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: 'from $.page select .[0]%NodeHead',
+  });
+  assert.equal(selected.ok, true, JSON.stringify(selected.errors ?? []));
+  assert.equal(selected.results[0].binding.identity, 'NODE');
+  assert.equal(selected.results[0].value.bindings[0].identity, 'HEAD');
+  assert.equal(selected.results[0].value.bindings[0].address, '$.page[0]');
+});
+
+testTelexRuntime('portable namespace rejects partial streams without external state', async () => {
+  const result = await namespaceFromTelexSource([
+    'telex.aes=0',
+    'profile=aes.partial.v0',
+    '',
+    'path=$.missing.child',
+    'kind=StringLiteral',
+    'value=value',
+    '',
+  ].join('\n'));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED');
 });
 
 testAeonRuntime('query web runtime evaluates AEON toggle literal comparisons', async () => {

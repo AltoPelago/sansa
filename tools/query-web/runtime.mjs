@@ -2,9 +2,10 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { evaluateQuery, parseQuery } from '../../src/index.js';
+import { evaluateQuery, parseAddress, parseQuery } from '../../src/index.js';
 
 const devAeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
+const devAeonAesUrl = new URL('../../../aeon/implementations/typescript/packages/aes/dist/index.js', import.meta.url);
 const requireFromCwd = createRequire(resolvePath(process.cwd(), 'package.json'));
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
@@ -42,7 +43,9 @@ export async function evaluateQueryForWorkbench({
 }) {
   const namespaceResult = sourceKind === 'json'
     ? namespaceFromJsonSource(source)
-    : await namespaceFromAeonSource(source);
+    : sourceKind === 'telex'
+      ? await namespaceFromTelexSource(source)
+      : await namespaceFromAeonSource(source);
 
   if (!namespaceResult.ok) {
     return namespaceResult;
@@ -172,6 +175,107 @@ export async function namespaceFromAeonSource(source) {
   };
 }
 
+/**
+ * Build a SANSA namespace directly from a complete portable AES stream.
+ * The adapter retains portable paths and occurrence identities; it does not
+ * reconstruct the implementation-specific AEON parser AST.
+ */
+export async function namespaceFromTelexSource(source) {
+  const loaded = await loadAeonAes();
+  if (!loaded.ok) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_TELEX_RUNTIME_UNAVAILABLE',
+      message: loaded.message,
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'telex',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  const aes = loaded.module;
+  let parsed;
+  try {
+    parsed = aes.parseTelex(source);
+  } catch (error) {
+    const errors = [{
+      code: error?.code ?? 'TELEX_SYNTAX_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+      ...(Number.isInteger(error?.line) ? { line: error.line } : {}),
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'telex',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  const validation = aes.validateTelex(parsed, {
+    profile: parsed.profile,
+    projection: parsed.projection,
+  });
+  if (!validation.valid) {
+    const errors = validation.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      ...(typeof diagnostic.path === 'string' ? { path: diagnostic.path } : {}),
+      ...(Number.isInteger(diagnostic.record) ? { record: diagnostic.record } : {}),
+    }));
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'telex',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  if (parsed.profile !== aes.COMPLETE_AES_PROFILE) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED',
+      message: `SANSA query navigation requires '${aes.COMPLETE_AES_PROFILE}' when no external namespace state is supplied.`,
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'telex',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      namespace: buildNamespaceFromPortableRecords(parsed.records),
+      diagnostics: [],
+      telex: {
+        version: parsed.version,
+        profile: parsed.profile,
+        projection: parsed.projection,
+        canonical: parsed.canonical,
+      },
+    };
+  } catch (error) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_INVALID_PORTABLE_AES',
+      message: error instanceof Error ? error.message : String(error),
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'telex',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+}
+
 async function mountParamsLocalSpace(namespace, paramsSource) {
   if (String(paramsSource).trim().length === 0) {
     return { ok: true, namespace, diagnostics: [] };
@@ -270,6 +374,27 @@ async function loadAeonCore() {
   };
 }
 
+async function loadAeonAes() {
+  const candidates = aeonAesCandidates();
+  const failures = [];
+  for (const candidate of candidates) {
+    try {
+      return { ok: true, module: await import(candidate.href) };
+    } catch (error) {
+      failures.push(`${candidate.label}: ${error.message}`);
+    }
+  }
+
+  return {
+    ok: false,
+    message: [
+      'Could not load an AEON AES TypeScript runtime.',
+      'Install @altopelago/aeon-aes in the calling project, set SANSA_AEON_AES_MODULE to a module path or specifier, or run from the aeon-family development workspace.',
+      ...(failures.length === 0 ? [] : [`Tried: ${failures.join('; ')}`]),
+    ].join(' '),
+  };
+}
+
 function aeonCoreCandidates() {
   const candidates = [];
   if (process.env.SANSA_AEON_CORE_MODULE) {
@@ -293,6 +418,35 @@ function aeonCoreCandidates() {
     candidates.push({
       label: 'aeon-family development path',
       href: devAeonCoreUrl.href,
+    });
+  }
+
+  return candidates;
+}
+
+function aeonAesCandidates() {
+  const candidates = [];
+  if (process.env.SANSA_AEON_AES_MODULE) {
+    candidates.push({
+      label: 'SANSA_AEON_AES_MODULE',
+      href: moduleHref(process.env.SANSA_AEON_AES_MODULE),
+    });
+  }
+
+  try {
+    candidates.push({
+      label: '@altopelago/aeon-aes',
+      href: pathToFileURL(requireFromCwd.resolve('@altopelago/aeon-aes')).href,
+    });
+  } catch {
+    // Optional integration. AEON and JSON sources do not need the AES codec.
+  }
+
+  const devPath = fileURLToPath(devAeonAesUrl);
+  if (existsSync(devPath)) {
+    candidates.push({
+      label: 'aeon-family development path',
+      href: devAeonAesUrl.href,
     });
   }
 
@@ -392,6 +546,12 @@ function buildNamespaceFromEvents(events, formatPath) {
     attributeSpace: (binding) => binding.attributeSpace,
     localSpace: (binding, name) => binding.localSpaces?.[name],
     parent: (binding) => parents.get(binding) ?? binding.parent,
+    representationKindMatches: (binding, expected) => {
+      const actual = binding.representationKind;
+      return actual === expected
+        || lowerFirst(actual) === expected
+        || portableRepresentationAlias(actual) === expected;
+    },
   };
 }
 
@@ -427,6 +587,228 @@ function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
     return binding;
   });
   return attributeSpace;
+}
+
+function buildNamespaceFromPortableRecords(records) {
+  const root = {
+    address: '$',
+    representationKind: 'object',
+    children: [],
+  };
+  const bodyRecords = records.filter((record) => typeof record.path === 'string');
+  const byAddress = new Map([['$', root]]);
+  const parsedByAddress = new Map();
+  const parents = new Map([[root, null]]);
+
+  for (const record of bodyRecords) {
+    const parsed = parseAddress(record.path);
+    if (!parsed.ok || !parsed.address.isExact) {
+      const message = parsed.ok
+        ? `Portable AES path is not exact: ${record.path}`
+        : parsed.errors[0]?.message ?? `Invalid portable AES path: ${record.path}`;
+      throw new Error(message);
+    }
+    const selectors = parsed.address.selectors;
+    const final = selectors[selectors.length - 1];
+    if (!final || !['member', 'position'].includes(final.type)) {
+      throw new Error(`Portable AES event path must end in a member or index: ${record.path}`);
+    }
+
+    byAddress.set(record.path, portableBinding(record, final));
+    parsedByAddress.set(record.path, parsed.address);
+  }
+
+  for (const record of bodyRecords) {
+    const binding = byAddress.get(record.path);
+    const address = parsedByAddress.get(record.path);
+    let currentAddress = '$';
+    let parent = root;
+
+    for (const selector of address.selectors.slice(0, -1)) {
+      if (selector.type === 'attributeSpace') {
+        const spaceAddress = `${currentAddress}.@`;
+        let space = byAddress.get(spaceAddress);
+        if (!space) {
+          space = {
+            address: spaceAddress,
+            representationKind: 'attributeSpace',
+            children: [],
+          };
+          byAddress.set(spaceAddress, space);
+          parents.set(space, parent);
+          parent.attributeSpace = space;
+        }
+        currentAddress = spaceAddress;
+        parent = space;
+        continue;
+      }
+
+      currentAddress = selector.type === 'member'
+        ? appendMember(currentAddress, selector.name)
+        : `${currentAddress}[${selector.index}]`;
+      const nextParent = byAddress.get(currentAddress);
+      if (!nextParent) {
+        throw new Error(`Portable AES path '${record.path}' has no parent binding '${currentAddress}'.`);
+      }
+      parent = nextParent;
+    }
+
+    parent.children.push(binding);
+    parents.set(binding, parent);
+    if (binding.representationKind === 'NodeHead' && parent.representationKind === 'NodeLiteral') {
+      parent.nodeTag = binding.value;
+    }
+  }
+
+  return {
+    root,
+    children: (binding) => binding.children ?? [],
+    attributeSpace: (binding) => binding.attributeSpace,
+    localSpace: (binding, name) => binding.localSpaces?.[name],
+    parent: (binding) => parents.get(binding) ?? binding.parent,
+  };
+}
+
+function portableBinding(record, finalSelector) {
+  const semanticType = typeof record.datatype === 'string'
+    ? record.datatype
+    : portableSemanticType(record.kind);
+  const binding = {
+    address: record.path,
+    children: [],
+    representationKind: record.kind,
+    ...(finalSelector.type === 'member' ? { name: finalSelector.name } : { index: finalSelector.index }),
+    ...(typeof record.identity === 'string' ? { identity: record.identity } : {}),
+    ...(semanticType === undefined ? {} : { semanticType }),
+    ...(typeof record.datatype === 'string' ? { datatype: record.datatype } : {}),
+    ...(Array.isArray(record.generics) ? { generics: record.generics } : {}),
+    ...(Array.isArray(record.clarifiers) ? { clarifiers: record.clarifiers } : {}),
+    ...(typeof record.origin === 'string' ? { origin: record.origin } : {}),
+    ...(typeof record.span === 'string' ? { span: record.span } : {}),
+  };
+  const scalarKind = portableScalarKind(record.kind);
+  if (scalarKind !== undefined) binding.scalarKind = scalarKind;
+  const scalar = scalarFromPortableRecord(record);
+  if (scalar.ok) binding.value = scalar.value;
+  if (record.kind === 'NullLiteral') binding.nullReason = record.value;
+  if (record.kind === 'NodeHead' && typeof record.value === 'string') binding.nodeTag = record.value;
+  return binding;
+}
+
+function portableSemanticType(kind) {
+  switch (kind) {
+    case 'StringLiteral': return 'string';
+    case 'NumberLiteral': return 'number';
+    case 'InfinityLiteral': return 'infinity';
+    case 'NaNLiteral': return 'nan';
+    case 'NullLiteral': return 'null';
+    case 'BooleanLiteral': return 'boolean';
+    case 'ToggleLiteral': return 'toggle';
+    case 'HexLiteral': return 'hex';
+    case 'RadixLiteral': return 'radix';
+    case 'EncodingLiteral': return 'encoding';
+    case 'SeparatorLiteral': return 'sep';
+    case 'SansaAddressLiteral': return 'sansa';
+    case 'DateLiteral': return 'date';
+    case 'TimeLiteral': return 'time';
+    case 'DateTimeLiteral': return 'datetime';
+    case 'WTCDateTimeLiteral': return 'wtc';
+    default: return undefined;
+  }
+}
+
+function portableScalarKind(kind) {
+  switch (kind) {
+    case 'NullLiteral': return 'null';
+    case 'InfinityLiteral': return 'infinity';
+    case 'NaNLiteral': return 'nan';
+    case 'ToggleLiteral': return 'toggle';
+    case 'HexLiteral': return 'hex';
+    case 'RadixLiteral': return 'radix';
+    case 'EncodingLiteral': return 'encoding';
+    case 'SeparatorLiteral': return 'separator';
+    case 'SansaAddressLiteral': return 'sansaAddress';
+    case 'DateLiteral': return 'date';
+    case 'TimeLiteral': return 'time';
+    case 'DateTimeLiteral': return 'datetime';
+    case 'WTCDateTimeLiteral': return 'wtc';
+    case 'CloneReference':
+    case 'PointerReference':
+      return 'referenceForm';
+    default:
+      return undefined;
+  }
+}
+
+function portableRepresentationAlias(kind) {
+  switch (kind) {
+    case 'StringLiteral': return 'string';
+    case 'NumberLiteral': return 'number';
+    case 'InfinityLiteral': return 'infinity';
+    case 'NaNLiteral': return 'nan';
+    case 'NullLiteral': return 'null';
+    case 'BooleanLiteral': return 'boolean';
+    case 'ToggleLiteral': return 'toggle';
+    case 'HexLiteral': return 'hex';
+    case 'RadixLiteral': return 'radix';
+    case 'EncodingLiteral': return 'encoding';
+    case 'SeparatorLiteral': return 'separator';
+    case 'SansaAddressLiteral': return 'sansa';
+    case 'DateLiteral': return 'date';
+    case 'TimeLiteral': return 'time';
+    case 'DateTimeLiteral': return 'datetime';
+    case 'WTCDateTimeLiteral': return 'wtc';
+    case 'ObjectNode': return 'object';
+    case 'ListNode': return 'list';
+    case 'TupleLiteral': return 'tuple';
+    case 'NodeLiteral': return 'node';
+    case 'CloneReference': return 'cloneReference';
+    case 'PointerReference': return 'pointerReference';
+    default: return undefined;
+  }
+}
+
+function scalarFromPortableRecord(record) {
+  switch (record.kind) {
+    case 'StringLiteral':
+    case 'HexLiteral':
+    case 'RadixLiteral':
+    case 'EncodingLiteral':
+    case 'SeparatorLiteral':
+    case 'DateLiteral':
+    case 'TimeLiteral':
+    case 'DateTimeLiteral':
+    case 'WTCDateTimeLiteral':
+    case 'NodeHead':
+      return { ok: true, value: record.value ?? '' };
+    case 'SansaAddressLiteral':
+      return {
+        ok: true,
+        value: {
+          type: 'SansaAddressLiteral',
+          address: record.value ?? '',
+          canonical: record.value ?? '',
+        },
+      };
+    case 'NumberLiteral':
+      return { ok: true, value: Number(record.value) };
+    case 'InfinityLiteral':
+      return { ok: true, value: record.value === '-Infinity' ? -Infinity : Infinity };
+    case 'NaNLiteral':
+      return { ok: true, value: Number.NaN };
+    case 'BooleanLiteral':
+      return { ok: true, value: record.value === 'true' };
+    case 'ToggleLiteral':
+      return { ok: true, value: record.value ?? '' };
+    case 'NullLiteral':
+      return { ok: true, value: null };
+    case 'CloneReference':
+      return { ok: true, value: referenceFormValue('CloneReference', record.value ?? '') };
+    case 'PointerReference':
+      return { ok: true, value: referenceFormValue('PointerReference', record.value ?? '') };
+    default:
+      return { ok: false };
+  }
 }
 
 function appendMember(base, name) {
@@ -772,6 +1154,7 @@ function renderBindingInspectLines(binding, label) {
   return [
     ...(summary.name === undefined ? [] : [`${label}.name: ${summary.name}`]),
     ...(summary.index === undefined ? [] : [`${label}.index: ${summary.index}`]),
+    ...(summary.identity === undefined ? [] : [`${label}.identity: ${summary.identity}`]),
     ...(summary.semanticType === undefined ? [] : [`${label}.semanticType: ${summary.semanticType}`]),
     ...(summary.representationKind === undefined ? [] : [`${label}.representationKind: ${summary.representationKind}`]),
     ...(summary.scalarKind === undefined ? [] : [`${label}.scalarKind: ${summary.scalarKind}`]),
@@ -825,6 +1208,7 @@ function summarizeBinding(binding) {
     ...(binding.address === undefined ? {} : { address: binding.address }),
     ...(binding.name === undefined ? {} : { name: binding.name }),
     ...(binding.index === undefined ? {} : { index: binding.index }),
+    ...(binding.identity === undefined ? {} : { identity: binding.identity }),
     ...(binding.semanticType === undefined ? {} : { semanticType: binding.semanticType }),
     ...(binding.representationKind === undefined ? {} : { representationKind: binding.representationKind }),
     ...(binding.scalarKind === undefined ? {} : { scalarKind: binding.scalarKind }),
