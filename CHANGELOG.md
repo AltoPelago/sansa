@@ -13,6 +13,12 @@ versions may still include breaking changes when the SANSA specifications move.
   workbench. The adapter preserves portable paths, record order, structural
   identities, datatype components, flat attributes, and expanded node heads
   without reconstructing the AEON parser AST.
+- Added a conservative Telex target surface and Mutate Workbench source mode.
+  Exact scalar replacement now re-emits complete Telex while retaining event
+  order, paths, identities, datatype components, and flat attributes. Changed
+  events discard stale origin/span coordinates; structural rewrites fail closed
+  pending a portable path-rewrite contract. The Instruction CLI can select the
+  same representability surface with `--target telex` or `--target telex.aes`.
 
 ## 0.10.1 - 2026-09-05
 

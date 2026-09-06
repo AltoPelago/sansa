@@ -28,7 +28,7 @@ CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/ct
 - SANSA.Query evaluation for `from`, Boolean `where`, `order by`, `offset`, `limit`, and `select` over literals, resolution expressions, comparisons, Boolean operators, membership, cardinality predicates, built-in string functions, function-like operators, and projection expressions
 - experimental SANSA.Mutate structured planning for exact `create`, `replace`, `remove`, ordered `insert`, and same-container `move`
 - experimental SANSA.Mutate value-intent preservation and operation, precondition, and value budgets
-- experimental SANSA.Mutate target-surface validation for AEON, JSON-compatible, and custom target representability checks
+- experimental SANSA.Mutate target-surface validation for AEON, JSON-compatible, Telex scalar replacement, and custom target representability checks
 - experimental workbench-only SANSA.Mutate policy plan filter for trusted consumer authorization tests
 - experimental mutation apply through explicit host mutation hooks with stale-target checks
 - experimental SANSA.Instruction parsing, candidate-relative lowering, and mutation-planner bridging for conservative mutation verbs
@@ -90,15 +90,21 @@ npm run mutate:web
 
 Then open `http://127.0.0.1:4173/tools/mutate-web/`.
 
-The Mutate Workbench accepts either structured mutation-request JSON or
+The Mutate Workbench accepts AEON source or complete portable Telex AES plus either structured mutation-request JSON or
 proposal-stage SANSA Instruction source, then uses the same plan/apply preview
 surface. It also includes an experimental target selector so planned mutations
-can be checked against AEON or JSON-compatible representation surfaces before
+can be checked against AEON, JSON-compatible, or Telex representation surfaces before
 apply/render. JSON responses include `targetProfile` metadata that names the
 selected representability boundary. Its phase model is intentionally explicit: parse Instruction
 source when present, lower to exact structured mutation operations, plan through
 SANSA.Mutate, run optional consumer policy, run optional target-surface
 validation, then preview or apply through host mutation hooks.
+Telex apply currently supports replacement of existing scalar events only. It
+re-emits a complete Telex stream without reconstructing AEON source, preserves
+event order, path, structural identity, datatype components, and separate
+attribute events, and clears stale `origin`/`span` coordinates on the changed
+event. Structural operations remain explicit target-surface failures until a
+portable path-rewrite contract is defined.
 The optional policy panel is a workbench-only prototype of the experimental
 `sansa.mutate.policy.planFilter` slice for trusted consumer authorization tests;
 its current boundary is documented in

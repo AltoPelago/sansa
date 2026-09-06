@@ -181,7 +181,7 @@ export async function namespaceFromAeonSource(source) {
  * reconstruct the implementation-specific AEON parser AST.
  */
 export async function namespaceFromTelexSource(source) {
-  const loaded = await loadAeonAes();
+  const loaded = await loadAeonAesRuntime();
   if (!loaded.ok) {
     const errors = [{
       code: 'SANSA_QUERY_WORKBENCH_TELEX_RUNTIME_UNAVAILABLE',
@@ -257,8 +257,11 @@ export async function namespaceFromTelexSource(source) {
       telex: {
         version: parsed.version,
         profile: parsed.profile,
+        profileExplicit: parsed.profileExplicit,
         projection: parsed.projection,
+        projectionExplicit: parsed.projectionExplicit,
         canonical: parsed.canonical,
+        records: parsed.records,
       },
     };
   } catch (error) {
@@ -374,7 +377,7 @@ async function loadAeonCore() {
   };
 }
 
-async function loadAeonAes() {
+export async function loadAeonAesRuntime() {
   const candidates = aeonAesCandidates();
   const failures = [];
   for (const candidate of candidates) {

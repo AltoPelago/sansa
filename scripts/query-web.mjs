@@ -92,6 +92,7 @@ function handleMutateApi(request, response) {
       }
 
       const result = await runMutationForWorkbench({
+        sourceKind: payload.sourceKind === 'telex' ? 'telex' : 'aeon',
         source: String(payload.source ?? ''),
         requestSource: String(payload.requestSource ?? ''),
         requestKind: payload.requestKind === 'instruction' ? 'instruction' : 'structured',

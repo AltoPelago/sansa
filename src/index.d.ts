@@ -269,6 +269,8 @@ export interface SansaResolveBinding {
   readonly index?: number;
   readonly semanticType?: string;
   readonly datatype?: string;
+  readonly generics?: readonly SansaDatatypeGenericComponent[];
+  readonly clarifiers?: readonly SansaDatatypeClarifierComponent[];
   readonly representationKind?: string;
   readonly kind?: string;
   readonly type?: string;
@@ -278,11 +280,32 @@ export interface SansaResolveBinding {
   readonly nullReason?: string;
   readonly value?: unknown;
   readonly scalar?: unknown;
+  readonly origin?: string;
+  readonly span?: string;
   readonly children?: readonly SansaResolveBinding[];
   readonly parent?: SansaResolveBinding | null;
   readonly attributeSpace?: SansaResolveBinding;
   readonly attributes?: SansaResolveBinding;
 }
+
+export interface SansaDatatypeDescriptor {
+  readonly datatype: string;
+  readonly generics: readonly SansaDatatypeGenericComponent[];
+  readonly clarifiers: readonly SansaDatatypeClarifierComponent[];
+}
+
+export interface SansaDatatypeStringComponent {
+  readonly kind: 'StringLiteral';
+  readonly value: string;
+}
+
+export interface SansaDatatypeNumberComponent {
+  readonly kind: 'NumberLiteral';
+  readonly value: string;
+}
+
+export type SansaDatatypeGenericComponent = SansaDatatypeDescriptor | SansaDatatypeNumberComponent;
+export type SansaDatatypeClarifierComponent = SansaDatatypeStringComponent | SansaDatatypeNumberComponent;
 
 export interface SansaResolveNamespace<TBinding extends object = SansaResolveBinding> {
   readonly root: TBinding | (() => TBinding | undefined);
@@ -632,6 +655,8 @@ export type SansaMutationTargetSurfaceInput<TBinding extends object = SansaResol
   | 'aeon'
   | 'json'
   | 'json-compatible'
+  | 'telex'
+  | 'telex.aes'
   | SansaMutationTargetSurface<TBinding>;
 
 export interface SansaMutationTargetSurface<TBinding extends object = SansaResolveBinding> {

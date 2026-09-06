@@ -80,12 +80,18 @@ npm run query:web
 Then open `http://127.0.0.1:4173/tools/query-web/`.
 
 The same server also exposes the experimental SANSA Mutate Workbench at
-`http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon`
-source input plus an editor that can accept structured JSON mutation requests
+`http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon` or
+complete `.telex.aes` source input plus an editor that can accept structured JSON mutation requests
 or proposal-stage SANSA Instruction source. Structured JSON runs
 `planMutation(...)` directly. Instruction source runs `planInstruction(...)`,
 then uses the returned plan for the same apply preview path. Each request runs
 against a fresh in-memory namespace.
+
+Telex apply is intentionally limited to exact scalar replacement. Successful
+apply re-emits a complete portable stream while preserving event ordering,
+paths, identities, datatype components, and separate attributes. It removes
+stale origin/span coordinates from the changed event. Structural rewrites are
+rejected until their portable path and reference rewriting rules are defined.
 
 For command-line testing of proposal-stage SANSA.Instruction, use the
 standalone Instruction tool:

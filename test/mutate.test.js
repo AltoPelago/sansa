@@ -581,6 +581,28 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonInvalidKadotMetadataResult.errors[0].datatype, 'kadot["."]');
 });
 
+test('limits the built-in Telex target surface to portable scalar replacement', () => {
+  const namespace = sampleNamespace();
+  const sku = namespace.root.children[0].children[0];
+  sku.representationKind = 'StringLiteral';
+
+  const replace = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  assert.equal(validateMutationPlanTarget(replace, 'telex').ok, true);
+  assert.equal(validateMutationPlanTarget(replace, 'telex.aes').ok, true);
+
+  const remove = planOk({ op: 'remove', target: '$.inventory.sku' }, namespace);
+  const removeResult = validateMutationPlanTarget(remove, 'telex');
+  assert.equal(removeResult.ok, false);
+  assert.equal(removeResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION');
+  assert.equal(removeResult.errors[0].targetFormat, 'telex');
+
+  sku.representationKind = 'ObjectNode';
+  const containerReplace = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);
+  const containerResult = validateMutationPlanTarget(containerReplace, 'telex');
+  assert.equal(containerResult.ok, false);
+  assert.equal(containerResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+});
+
 test('validates mutation plans against custom target surfaces', () => {
   const namespace = sampleNamespace();
   const plan = planOk({ op: 'replace', target: '$.inventory.sku', value: 'B-200' }, namespace);

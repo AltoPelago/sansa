@@ -505,7 +505,7 @@ Successful apply returns one result record per applied operation. Result records
 
 If a mutation hook rejects or throws during consumer-selected non-atomic apply, the result is `ok: false` with `SANSA_MUTATE_APPLY_FAILED`. `operationResults` may contain records for hooks that already completed before the failure. This must not be interpreted as full plan success; rollback, transactionality, retries, and compensation remain adapter or consumer responsibilities.
 
-The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. For AEON-backed bindings this summary preserves `semanticType`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, and a JSON-safe `value` where available, so tools can inspect applied literal-family metadata without parsing the rendered Source Result text.
+The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. It preserves `identity`, `semanticType`, split `datatype` / `generics` / `clarifiers`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, `origin`, `span`, and a JSON-safe `value` where available, so tools can inspect applied literal-family and portable AES metadata without parsing the rendered Source Result text. Fields unavailable on a host binding remain absent.
 
 This API does not authorize operations, validate proposed values against
 schemas, follow references implicitly, or provide storage transactions.
@@ -596,7 +596,8 @@ npm run query:web
 The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. Its Telex mode consumes a complete portable AES stream directly, while JSON fixture mode remains available for resolver-shape debugging. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `sourceKind: "aeon" | "telex" | "json"`, `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
 The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon`
-source, plan/apply mode, operation/precondition/value mutation budgets, parse
+source or complete portable Telex AES selected with `sourceKind: "aeon" |
+"telex"`, plan/apply mode, operation/precondition/value mutation budgets, parse
 position-limit input, apply options such as `requireAtomic` and
 `recheckPreconditions`, an optional experimental mutation policy plan filter, and one
 of two request input forms:
@@ -607,11 +608,12 @@ of two request input forms:
   which runs `planInstruction(...)` and then uses the returned plan for the
   same preview/apply path.
 
-The endpoint compiles the AEON source into a fresh host-neutral namespace for
-each request, layers an in-memory mutation adapter over that namespace, and
-returns the structured plan/result plus an AEON-ish rendered source tree after
-apply. It is a technical testing surface for structured mutation requests and
-proposal-stage instructions, not a canonical AEON source rewriter.
+For AEON input, the endpoint compiles the source into a fresh host-neutral
+namespace, layers an in-memory mutation adapter over that namespace, and
+returns an AEON-ish rendered source tree. It is not a canonical AEON source
+rewriter. For Telex input, it validates a complete stream, plans against the
+portable namespace directly, and re-emits Telex after apply without creating an
+AEON AST or source document.
 
 When the experimental mutation policy plan filter is enabled, policy JSON is trusted
 consumer input and is validated before authorization. Unsupported top-level or
@@ -629,8 +631,9 @@ validateMutationPlanTarget(...)
 applyMutationPlan(...)
 ```
 
-Built-in target surfaces currently include `"aeon"` and `"json"`.
-`"json-compatible"` is accepted as an alias for `"json"`. Callers may also pass
+Built-in target surfaces currently include `"aeon"`, `"json"`, and `"telex"`.
+`"json-compatible"` is accepted as an alias for `"json"`; `"telex.aes"` is an
+alias for `"telex"`. Callers may also pass
 a custom target surface object with an `id` and `validateOperation(operation,
 context)` hook. Target-surface failures are not SANSA parse or
 mutation-planning failures: they mean the target format cannot represent the
@@ -644,8 +647,8 @@ failures include `datatype`; value representability failures may include
 `valuePath` to identify the rejected planned value position.
 
 The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
-`"aeon"` and can be set to `"json"` through the browser target selector or the
-`/api/mutate` request payload.
+the selected source format and can be set explicitly through the browser target
+selector or the `/api/mutate` request payload.
 
 The `/api/mutate` response includes a `targetProfile` object in JSON mode:
 
@@ -687,6 +690,18 @@ JSON target mode accepts ordinary JSON-compatible object/list/string/number/
 boolean/null values, but rejects AEON-only representational features such as
 attribute-space mutations, `sansa` datatype hints, parameterized datatypes,
 tuples, nodes, references, NaN, and Infinity.
+
+Telex target mode is deliberately narrower in this release. It accepts only an
+exact `replace` of an existing portable scalar event with a representable
+scalar value. The writer preserves record order, address, identity, datatype
+components when unchanged, and all separate attribute events. An explicit new
+datatype is parsed into `datatype`, `generics`, and `clarifiers` before the wire
+encoder recombines it. Because `origin` and `span` identify bytes in the input
+artifact, the changed event loses both fields; untouched events retain them.
+Create, remove, insert, move, container replacement, node-head replacement, and
+reference replacement fail at the target-surface boundary. Those operations
+need an explicit portable path-reindexing/reference-translation contract before
+the adapter can claim deterministic Telex output.
 
 When the workbench policy toggle is enabled, the endpoint accepts
 `options.policySource` containing a JSON policy document. The endpoint plans
