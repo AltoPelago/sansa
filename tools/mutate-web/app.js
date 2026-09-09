@@ -139,7 +139,7 @@ async function loadDefaults() {
     '}',
   ].join('\n'));
   defaultSources.telex = await fetchText('/fixtures/query-inventory.telex.aes', [
-    'telex.aes=0',
+    'telex.aes=1',
     '',
     'path=$.inventory',
     'kind=ObjectNode',

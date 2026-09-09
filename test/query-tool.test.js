@@ -65,7 +65,7 @@ let telexRuntimeProbe;
 function testTelexRuntime(name, fn) {
   test(name, async (t) => {
     if (telexRuntimeProbe === undefined) {
-      const result = await namespaceFromTelexSource('telex.aes=0\n');
+      const result = await namespaceFromTelexSource('telex.aes=1\n');
       telexRuntimeProbe = result.ok
         ? { ok: true }
         : { ok: false, message: result.errors?.[0]?.message ?? 'Telex runtime unavailable' };

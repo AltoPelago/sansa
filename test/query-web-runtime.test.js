@@ -51,7 +51,7 @@ let telexRuntimeProbe;
 
 async function hasTelexRuntime() {
   if (telexRuntimeProbe !== undefined) return telexRuntimeProbe;
-  const result = await namespaceFromTelexSource('telex.aes=0\n');
+  const result = await namespaceFromTelexSource('telex.aes=1\n');
   telexRuntimeProbe = result.ok
     ? { ok: true }
     : { ok: false, message: result.errors?.[0]?.message ?? 'Telex runtime unavailable' };
@@ -133,7 +133,7 @@ testTelexRuntime('query web runtime evaluates directly against Telex AES', async
 
 testTelexRuntime('portable namespace keeps identities outside path identity and expands node heads', async () => {
   const source = [
-    'telex.aes=0',
+    'telex.aes=1',
     '',
     'path=$.page',
     'kind=NodeLiteral',
@@ -194,8 +194,8 @@ testTelexRuntime('portable namespace keeps identities outside path identity and 
 
 testTelexRuntime('portable namespace rejects partial streams without external state', async () => {
   const result = await namespaceFromTelexSource([
-    'telex.aes=0',
-    'profile=aes.partial.v0',
+    'telex.aes=1',
+    'profile=aes.partial.v1',
     '',
     'path=$.missing.child',
     'kind=StringLiteral',

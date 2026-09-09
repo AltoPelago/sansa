@@ -287,8 +287,8 @@ test('mutate web runtime replaces Telex scalar events and preserves portable eve
 test('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
   const digest = 'a'.repeat(64);
   const source = [
-    'telex.aes=0',
-    'profile=aes.complete.v0',
+    'telex.aes=1',
+    'profile=aes.complete.v1',
     '',
     'path=$.a',
     'kind=StringLiteral',
@@ -355,8 +355,8 @@ test('mutate web runtime rejects ambiguous Telex structural rewrites', async () 
 
 test('mutate web runtime rejects partial Telex before mutation planning', async () => {
   const source = [
-    'telex.aes=0',
-    'profile=aes.partial.v0',
+    'telex.aes=1',
+    'profile=aes.partial.v1',
     '',
     'path=$.missing.child',
     'kind=StringLiteral',

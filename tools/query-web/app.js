@@ -130,7 +130,7 @@ async function loadDefaultSources() {
   ].join('\n'));
   defaultJsonSource = await fetchText('/fixtures/query-inventory.json', '{\n  "root": {\n    "address": "$",\n    "children": []\n  }\n}');
   defaultTelexSource = await fetchText('/fixtures/query-inventory.telex.aes', [
-    'telex.aes=0',
+    'telex.aes=1',
     '',
     'path=$.inventory',
     'kind=ObjectNode',
