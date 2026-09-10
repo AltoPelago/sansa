@@ -1686,7 +1686,7 @@ function resolveMutationTargetSurface(targetSurface) {
     ok: false,
     error: mutationTargetSurfaceError(
       'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
-      'Mutation target surface must be "aeon", "json", "telex", or an object with validateOperation',
+      'Mutation target surface must be "aeon", "json", "json-compatible", "telex", "telex.aes", or an object with validateOperation',
       { targetFormat: targetSurfaceId(targetSurface) },
     ),
   };

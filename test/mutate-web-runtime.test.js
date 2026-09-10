@@ -306,6 +306,27 @@ testTelexRuntime('mutate web runtime replaces Telex scalar events and preserves 
   assert.equal(loaded.module.validateTelex(after).valid, true);
 });
 
+testTelexRuntime('mutate web runtime retains a derived semantic type for untyped Telex scalars', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.label',
+    'kind=StringLiteral',
+    'value=old',
+    '',
+  ].join('\n');
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.label', value: 'new' }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.result.operationResults[0].affectedBinding.datatype, undefined);
+  assert.equal(result.result.operationResults[0].affectedBinding.semanticType, 'string');
+});
+
 testTelexRuntime('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
   const digest = 'a'.repeat(64);
   const source = [

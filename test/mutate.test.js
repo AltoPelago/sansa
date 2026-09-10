@@ -191,6 +191,8 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(unsupportedTarget.errors[0].phase, 'target');
   assert.equal(unsupportedTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
   assert.equal(unsupportedTarget.errors[0].targetFormat, 'xml');
+  assert.match(unsupportedTarget.errors[0].message, /"json-compatible"/);
+  assert.match(unsupportedTarget.errors[0].message, /"telex\.aes"/);
 
   const aeonInvalidDatatype = planOk({
     op: 'create',

@@ -131,6 +131,20 @@ testTelexRuntime('query web runtime evaluates directly against Telex AES', async
   assert.equal(result.results[0].value.bindings[0].representationKind, 'StringLiteral');
 });
 
+testTelexRuntime('portable namespace applies exact, lower-first, and portable %kind matching', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
+  for (const kind of ['ObjectNode', 'objectNode', 'object']) {
+    const result = await evaluateQueryForWorkbench({
+      sourceKind: 'telex',
+      source,
+      query: `from $.types%${kind}\nselect .`,
+    });
+    assert.equal(result.ok, true, `${kind}: ${JSON.stringify(result.errors ?? [])}`);
+    assert.equal(result.count, 1, kind);
+    assert.equal(result.results[0].binding.representationKind, 'ObjectNode', kind);
+  }
+});
+
 testTelexRuntime('portable namespace keeps identities outside path identity and expands node heads', async () => {
   const source = [
     'telex.aes=1',

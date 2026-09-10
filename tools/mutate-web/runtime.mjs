@@ -736,7 +736,7 @@ function invalidPortableScalar(kind, expected) {
 function applyPortableScalarRecordToBinding(binding, record) {
   binding.representationKind = record.kind;
   binding.datatype = record.datatype;
-  binding.semanticType = record.datatype;
+  binding.semanticType = record.datatype ?? portableScalarSemanticTypeForWorkbench(record.kind);
   binding.generics = record.generics;
   binding.clarifiers = record.clarifiers;
   binding.scalarKind = portableScalarKindForWorkbench(record.kind);
@@ -745,6 +745,16 @@ function applyPortableScalarRecordToBinding(binding, record) {
   else delete binding.nullReason;
   delete binding.origin;
   delete binding.span;
+}
+
+function portableScalarSemanticTypeForWorkbench(kind) {
+  return {
+    StringLiteral: 'string', NumberLiteral: 'number', BooleanLiteral: 'boolean',
+    NullLiteral: 'null', InfinityLiteral: 'infinity', NaNLiteral: 'nan', ToggleLiteral: 'toggle',
+    HexLiteral: 'hex', RadixLiteral: 'radix', EncodingLiteral: 'encoding', SeparatorLiteral: 'sep',
+    SansaAddressLiteral: 'sansa', DateLiteral: 'date', TimeLiteral: 'time',
+    DateTimeLiteral: 'datetime', WTCDateTimeLiteral: 'wtc',
+  }[kind];
 }
 
 function portableScalarKindForWorkbench(kind) {

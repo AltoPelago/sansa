@@ -363,7 +363,7 @@ async function loadAeonCore() {
     try {
       return { ok: true, module: await import(candidate.href) };
     } catch (error) {
-      failures.push(`${candidate.label}: ${error.message}`);
+      failures.push(`${candidate.label}: ${caughtErrorMessage(error)}`);
     }
   }
 
@@ -384,7 +384,7 @@ export async function loadAeonAesRuntime() {
     try {
       return { ok: true, module: await import(candidate.href) };
     } catch (error) {
-      failures.push(`${candidate.label}: ${error.message}`);
+      failures.push(`${candidate.label}: ${caughtErrorMessage(error)}`);
     }
   }
 
@@ -465,6 +465,15 @@ function moduleHref(specifier) {
     return pathToFileURL(requireFromCwd.resolve(specifier)).href;
   } catch {
     return specifier;
+  }
+}
+
+function caughtErrorMessage(error) {
+  if (error instanceof Error) return error.message;
+  try {
+    return String(error);
+  } catch {
+    return 'Unknown module import failure';
   }
 }
 
@@ -669,6 +678,12 @@ function buildNamespaceFromPortableRecords(records) {
     attributeSpace: (binding) => binding.attributeSpace,
     localSpace: (binding, name) => binding.localSpaces?.[name],
     parent: (binding) => parents.get(binding) ?? binding.parent,
+    representationKindMatches: (binding, expected) => {
+      const actual = binding.representationKind;
+      return actual === expected
+        || lowerFirst(actual) === expected
+        || portableRepresentationAlias(actual) === expected;
+    },
   };
 }
 
