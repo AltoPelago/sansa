@@ -36,6 +36,28 @@ function testAeonRuntime(name, fn) {
   });
 }
 
+let telexRuntimeProbe;
+
+async function hasTelexRuntime() {
+  if (telexRuntimeProbe !== undefined) return telexRuntimeProbe;
+  const result = await loadAeonAesRuntime();
+  telexRuntimeProbe = result.ok
+    ? { ok: true }
+    : { ok: false, message: result.message ?? 'Telex runtime unavailable' };
+  return telexRuntimeProbe;
+}
+
+function testTelexRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasTelexRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
+    await fn(t);
+  });
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -250,7 +272,7 @@ testAeonRuntime('mutate web runtime applies mutations to an isolated source tree
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
 });
 
-test('mutate web runtime replaces Telex scalar events and preserves portable event order', async () => {
+testTelexRuntime('mutate web runtime replaces Telex scalar events and preserves portable event order', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
   const loaded = await loadAeonAesRuntime();
   assert.equal(loaded.ok, true, loaded.message);
@@ -284,7 +306,7 @@ test('mutate web runtime replaces Telex scalar events and preserves portable eve
   assert.equal(loaded.module.validateTelex(after).valid, true);
 });
 
-test('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
+testTelexRuntime('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
   const digest = 'a'.repeat(64);
   const source = [
     'telex.aes=1',
@@ -330,7 +352,7 @@ test('mutate web runtime retains identity and attributes but clears stale source
   assert.equal(attribute.span, '4:5');
 });
 
-test('mutate web runtime rejects ambiguous Telex structural rewrites', async () => {
+testTelexRuntime('mutate web runtime rejects ambiguous Telex structural rewrites', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
   const create = await runMutationForWorkbench({
     sourceKind: 'telex',
@@ -353,7 +375,7 @@ test('mutate web runtime rejects ambiguous Telex structural rewrites', async () 
   assert.equal(node.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
 });
 
-test('mutate web runtime rejects partial Telex before mutation planning', async () => {
+testTelexRuntime('mutate web runtime rejects partial Telex before mutation planning', async () => {
   const source = [
     'telex.aes=1',
     'profile=aes.partial.v1',
