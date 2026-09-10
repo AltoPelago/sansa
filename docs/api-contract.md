@@ -332,6 +332,7 @@ Resolve invariants:
 - Current bindings are processed in Binding Set order.
 - Per-binding results are appended in deterministic local structural order.
 - Resolve does not implicitly deduplicate bindings; repeated traversal routes may produce repeated binding occurrences.
+- Resolve returns the original host bindings rather than reconstructed copies. Opaque occurrence metadata such as an AES `identity` is therefore preserved, but selectors, ordering, multiplicity, and canonical addresses never derive from that identity.
 - A supported selector that is structurally inapplicable to one input binding produces no bindings for that branch.
 - Unsupported or forbidden operations fail explicitly.
 - Every output binding is expected to retain a canonical address when the host adapter exposes one.
@@ -504,7 +505,7 @@ Successful apply returns one result record per applied operation. Result records
 
 If a mutation hook rejects or throws during consumer-selected non-atomic apply, the result is `ok: false` with `SANSA_MUTATE_APPLY_FAILED`. `operationResults` may contain records for hooks that already completed before the failure. This must not be interpreted as full plan success; rollback, transactionality, retries, and compensation remain adapter or consumer responsibilities.
 
-The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. For AEON-backed bindings this summary preserves `semanticType`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, and a JSON-safe `value` where available, so tools can inspect applied literal-family metadata without parsing the rendered Source Result text.
+The Mutate Workbench JSON response includes a compact `affectedBinding` summary for each applied operation. It preserves `identity`, `semanticType`, split `datatype` / `generics` / `clarifiers`, `representationKind`, `scalarKind`, `nullReason`, `nodeTag`, `origin`, `span`, and a JSON-safe `value` where available, so tools can inspect applied literal-family and portable AES metadata without parsing the rendered Source Result text. Fields unavailable on a host binding remain absent.
 
 This API does not authorize operations, validate proposed values against
 schemas, follow references implicitly, or provide storage transactions.
@@ -567,8 +568,8 @@ Options:
 
 - `--query`, `-q`: query source
 - `--query-file`: read query source from a file
-- `--fixture`, `-f`: AEON or JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
-- `--fixture-kind`: force fixture kind as `aeon` or `json`; otherwise inferred from the file extension
+- `--fixture`, `-f`: AEON, Telex AES, or JSON namespace fixture, defaulting to `fixtures/query-inventory.json`
+- `--fixture-kind`: force fixture kind as `aeon`, `telex`, or `json`; otherwise inferred from the file extension
 - `--params`: JSON params mounted at `$.<"params">`
 - `--params-file`: read JSON params from a file and mount them at `$.<"params">`
 - `--mode`: `evaluate` or `parse`
@@ -580,9 +581,9 @@ Options:
 - `--max-order-candidates`: fail if order by would sort more than this many candidates
 - `--max-result-records`: fail if select would produce more than this many result records
 
-The default CLI fixture is JSON so `sansa-query` can run without optional host integrations after package install. AEON fixtures are compiled with an optional AEON TypeScript Core runtime and adapted into a SANSA resolver namespace. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
+The default CLI fixture is JSON so `sansa-query` can run without optional host integrations after package install. AEON fixtures are compiled with an optional AEON TypeScript Core runtime and adapted into a SANSA resolver namespace. Telex fixtures use an optional AEON AES runtime and adapt complete portable records directly, preserving flat attributes, structural identities, datatype components, record order, and expanded node heads. Partial streams require external state and are rejected by this adapter. JSON fixture bindings remain host-neutral objects. The built-in JSON adapter reads `root`, `children`, `attributeSpace` or `attributes`, `localSpaces`, and scalar values through `value` or `scalar`.
 
-AEON fixture support is optional. The tool resolves AEON Core from `SANSA_AEON_CORE_MODULE`, from an installed `@altopelago/aeon-core` visible to the calling project, or from the sibling aeon-family development workspace path. JSON fixtures and Query parsing do not require AEON Core.
+AEON fixture support is optional. The tool resolves AEON Core from `SANSA_AEON_CORE_MODULE`, from an installed `@altopelago/aeon-core` visible to the calling project, or from the sibling aeon-family development workspace path. Telex support resolves the AES codec from `SANSA_AEON_AES_MODULE`, an installed `@altopelago/aeon-aes`, or the corresponding sibling development build. JSON fixtures and Query parsing require neither runtime.
 
 Params may be supplied either as a full local-space fixture binding with `children`, or as a simple object map. Structured SANSA Address Literal values use `{ "type": "SansaAddressLiteral", "address": "..." }`; these are preserved as `sansa` bindings so query expressions can activate them with `path(...)`.
 
@@ -592,10 +593,11 @@ The package also includes a browser workbench:
 npm run query:web
 ```
 
-The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. JSON fixture mode remains available for direct resolver-shape debugging. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
+The workbench server serves [tools/query-web](../tools/query-web) and [tools/mutate-web](../tools/mutate-web). The Query Workbench defaults to `.aeon` source input and exposes a local `/api/query` endpoint. For `.aeon` source, the endpoint uses the optional AEON TypeScript core compiler to derive a host-neutral SANSA resolver namespace before running SANSA.Query. Its Telex mode consumes a complete portable AES stream directly, while JSON fixture mode remains available for resolver-shape debugging. A params editor mounts a small AEON source snippet as `$.<"params">`; top-level params bindings become children of that local address space. The browser UI includes a Normal/Validation policy toggle, a Transform extension toggle, and evaluation budget inputs. `/api/query` accepts `sourceKind: "aeon" | "telex" | "json"`, `policy: "validation"`, `transformExtensions: false`, and `budget` for evaluate requests.
 
 The experimental Mutate Workbench exposes `/api/mutate`. It accepts `.aeon`
-source, plan/apply mode, operation/precondition/value mutation budgets, parse
+source or complete portable Telex AES selected with `sourceKind: "aeon" |
+"telex"`, plan/apply mode, operation/precondition/value mutation budgets, parse
 position-limit input, apply options such as `requireAtomic` and
 `recheckPreconditions`, an optional experimental mutation policy plan filter, and one
 of two request input forms:
@@ -606,11 +608,12 @@ of two request input forms:
   which runs `planInstruction(...)` and then uses the returned plan for the
   same preview/apply path.
 
-The endpoint compiles the AEON source into a fresh host-neutral namespace for
-each request, layers an in-memory mutation adapter over that namespace, and
-returns the structured plan/result plus an AEON-ish rendered source tree after
-apply. It is a technical testing surface for structured mutation requests and
-proposal-stage instructions, not a canonical AEON source rewriter.
+For AEON input, the endpoint compiles the source into a fresh host-neutral
+namespace, layers an in-memory mutation adapter over that namespace, and
+returns an AEON-ish rendered source tree. It is not a canonical AEON source
+rewriter. For Telex input, it validates a complete stream, plans against the
+portable namespace directly, and re-emits Telex after apply without creating an
+AEON AST or source document.
 
 When the experimental mutation policy plan filter is enabled, policy JSON is trusted
 consumer input and is validated before authorization. Unsupported top-level or
@@ -628,8 +631,9 @@ validateMutationPlanTarget(...)
 applyMutationPlan(...)
 ```
 
-Built-in target surfaces currently include `"aeon"` and `"json"`.
-`"json-compatible"` is accepted as an alias for `"json"`. Callers may also pass
+Built-in target surfaces currently include `"aeon"`, `"json"`, and `"telex"`.
+`"json-compatible"` is accepted as an alias for `"json"`; `"telex.aes"` is an
+alias for `"telex"`. Callers may also pass
 a custom target surface object with an `id` and `validateOperation(operation,
 context)` hook. Target-surface failures are not SANSA parse or
 mutation-planning failures: they mean the target format cannot represent the
@@ -643,8 +647,8 @@ failures include `datatype`; value representability failures may include
 `valuePath` to identify the rejected planned value position.
 
 The Mutate Workbench uses this same API. Its `options.targetFormat` defaults to
-`"aeon"` and can be set to `"json"` through the browser target selector or the
-`/api/mutate` request payload.
+the selected source format and can be set explicitly through the browser target
+selector or the `/api/mutate` request payload.
 
 The `/api/mutate` response includes a `targetProfile` object in JSON mode:
 
@@ -686,6 +690,18 @@ JSON target mode accepts ordinary JSON-compatible object/list/string/number/
 boolean/null values, but rejects AEON-only representational features such as
 attribute-space mutations, `sansa` datatype hints, parameterized datatypes,
 tuples, nodes, references, NaN, and Infinity.
+
+Telex target mode is deliberately narrower in this release. It accepts only an
+exact `replace` of an existing portable scalar event with a representable
+scalar value. The writer preserves record order, address, identity, datatype
+components when unchanged, and all separate attribute events. An explicit new
+datatype is parsed into `datatype`, `generics`, and `clarifiers` before the wire
+encoder recombines it. Because `origin` and `span` identify bytes in the input
+artifact, the changed event loses both fields; untouched events retain them.
+Create, remove, insert, move, container replacement, node-head replacement, and
+reference replacement fail at the target-surface boundary. Those operations
+need an explicit portable path-reindexing/reference-translation contract before
+the adapter can claim deterministic Telex output.
 
 When the workbench policy toggle is enabled, the endpoint accepts
 `options.policySource` containing a JSON policy document. The endpoint plans
@@ -805,6 +821,8 @@ For simple hosts, bindings may expose fields directly:
 Exact member and position selectors select direct children. This implementation caps position indexes and position range endpoints at `999999`; SANSA v1 portability requires implementations to support at least one million addressable positions, expressed as indexes `0` through `999999` inclusive. Larger accepted values are implementation-defined and non-portable. Implementations that accept larger values should surface `SANSA_NON_PORTABLE_POSITION_INDEX` when their host API supports non-fatal diagnostics. Position ranges select inclusive positional children exposed by the host binding; open start means position `0`, open end means through the final exposed positional child, and reversed ranges resolve to an empty binding set. `.^` selects an exposed parent binding, resolves empty at the effective resolution root unless stricter policy is requested, and fails explicitly when parent traversal is unsupported or forbidden. `.*` returns direct children. `.**` returns descendants in deterministic preorder, excluding the current binding. Descendant expansion follows structural children only; it does not implicitly enter attribute or local address spaces. `.("pattern")` selects direct children whose binding name matches the complete glob pattern, where `?` matches one Unicode code point and `*` matches zero or more Unicode code points. Within the decoded pattern payload, `\?`, `\*`, and `\\` match literal question mark, asterisk, and backslash characters respectively. Pattern matching operates on the exact exposed binding name without normalization or locale-sensitive comparison.
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
+
+Representation-kind names use the ordinary identifier grammar. An AES-backed namespace exposes normative AEON representation names directly, so `%NodeHead` selects node heads without a separate SANSA vocabulary. A portable `NodeLiteral` exposes its indexed `NodeHead` values as direct children, and each head exposes its indexed content as direct children: `NodeLiteral[head-index][content-index]`. It must not collapse content directly beneath the outer node. Parent traversal exposes the inverse hierarchy. SANSA traverses the structure supplied by the host adapter; AES topology validation remains the host's responsibility.
 
 `?` uses a binding supplied through `options.contextualRoot` or `namespace.contextualRoot`. Unlike `root`, `contextualRoot` is a binding value, not a callback. Hosts that need a dynamic contextual root should resolve it before calling `resolveAddress`. Attribute and local address-space traversal are explicit transitions through `.@` and `.<"name">`. They fail explicitly unless exposed by the namespace adapter or binding model. When local-space traversal is supported but a binding does not expose the named local space, normal resolution returns an empty binding set.
 

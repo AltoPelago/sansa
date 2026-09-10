@@ -8,6 +8,7 @@ function binding({
   index,
   semanticType,
   representationKind,
+  identity,
   children = [],
   attributeSpace,
   localSpaces,
@@ -18,6 +19,7 @@ function binding({
     ...(index === undefined ? {} : { index }),
     ...(semanticType === undefined ? {} : { semanticType }),
     ...(representationKind === undefined ? {} : { representationKind }),
+    ...(identity === undefined ? {} : { identity }),
     children,
     ...(attributeSpace === undefined ? {} : { attributeSpace }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
@@ -29,9 +31,9 @@ function addresses(result) {
   return result.bindings.map((entry) => entry.address);
 }
 
-const sku0 = binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string' });
+const sku0 = binding({ name: 'sku', address: '$.inventory.items[0].sku', semanticType: 'string', representationKind: 'string', identity: 'SKU0' });
 const qty0 = binding({ name: 'qty', address: '$.inventory.items[0].qty', semanticType: 'number', representationKind: 'number' });
-const sku1 = binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string' });
+const sku1 = binding({ name: 'sku', address: '$.inventory.items[1].sku', semanticType: 'string', representationKind: 'string', identity: 'SKU1' });
 const qty1 = binding({ name: 'qty', address: '$.inventory.items[1].qty', semanticType: 'number', representationKind: 'number' });
 const status1 = binding({ name: 'status', address: '$.inventory.items[1].status', semanticType: 'boolean', representationKind: 'bool' });
 const item0 = binding({ index: 0, address: '$.inventory.items[0]', representationKind: 'object', children: [sku0, qty0] });
@@ -108,6 +110,49 @@ const ambiguousRoot = binding({
   ],
 });
 
+const nestedNodeText = binding({ index: 0, address: '$.document[0][1][0][0]', representationKind: 'StringLiteral' });
+const nestedNodeHead = binding({
+  index: 0,
+  address: '$.document[0][1][0]',
+  representationKind: 'NodeHead',
+  children: [nestedNodeText],
+});
+const nestedNode = binding({
+  index: 1,
+  address: '$.document[0][1]',
+  representationKind: 'NodeLiteral',
+  children: [nestedNodeHead],
+});
+const nodeText = binding({ index: 0, address: '$.document[0][0]', representationKind: 'StringLiteral' });
+const nodeRole = binding({ name: 'role', address: '$.document[0].@.role', representationKind: 'StringLiteral' });
+const nodeHeadAttributes = binding({ address: '$.document[0].@', representationKind: 'ObjectNode', children: [nodeRole] });
+const nodeHead = binding({
+  index: 0,
+  address: '$.document[0]',
+  representationKind: 'NodeHead',
+  children: [nodeText, nestedNode],
+  attributeSpace: nodeHeadAttributes,
+});
+const documentNode = binding({ name: 'document', address: '$.document', representationKind: 'NodeLiteral', children: [nodeHead] });
+const nodeRoot = binding({ address: '$', representationKind: 'ObjectNode', children: [documentNode] });
+const nodeParents = new Map([
+  [nodeRoot, null],
+  [documentNode, nodeRoot],
+  [nodeHead, documentNode],
+  [nodeText, nodeHead],
+  [nestedNode, nodeHead],
+  [nestedNodeHead, nestedNode],
+  [nestedNodeText, nestedNodeHead],
+  [nodeHeadAttributes, nodeHead],
+  [nodeRole, nodeHeadAttributes],
+]);
+const portableNodeNamespace = {
+  root: nodeRoot,
+  children: (entry) => entry.children,
+  parent: (entry) => nodeParents.get(entry),
+  attributeSpace: (entry) => entry.attributeSpace,
+};
+
 test('resolves exact absolute addresses to zero or one binding', () => {
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[1].sku', namespace)), ['$.inventory.items[1].sku']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items[2].sku', namespace)), []);
@@ -118,6 +163,19 @@ test('resolves exact absolute addresses to zero or one binding', () => {
   });
   assert.equal(ambiguous.ok, false);
   assert.equal(ambiguous.errors[0].code, 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION');
+});
+
+test('returns original bindings with structural identity as opaque metadata', () => {
+  const result = resolveAddress('$.inventory.items.*.sku', namespace);
+
+  assert.equal(result.ok, true);
+  assert.strictEqual(result.bindings[0], sku0);
+  assert.strictEqual(result.bindings[1], sku1);
+  assert.deepEqual(result.bindings.map((entry) => entry.identity), ['SKU0', 'SKU1']);
+  assert.deepEqual(result.bindings.map((entry) => entry.address), [
+    '$.inventory.items[0].sku',
+    '$.inventory.items[1].sku',
+  ]);
 });
 
 test('resolves direct and descendant expansion selectors', () => {
@@ -249,6 +307,29 @@ test('resolves semantic type and representation kind filters over the current bi
   ]);
   assert.deepEqual(addresses(resolveAddress('$.reading#measurement', namespace)), ['$.reading']);
   assert.deepEqual(addresses(resolveAddress('$.inventory.items.*.qty#string', namespace)), []);
+});
+
+test('navigates portable nodes through node heads before their content', () => {
+  assert.deepEqual(addresses(resolveAddress('$.document.*', portableNodeNamespace)), ['$.document[0]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0].*', portableNodeNamespace)), [
+    '$.document[0][0]',
+    '$.document[0][1]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document.**', portableNodeNamespace)), [
+    '$.document[0]',
+    '$.document[0][0]',
+    '$.document[0][1]',
+    '$.document[0][1][0]',
+    '$.document[0][1][0][0]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document.**%NodeHead', portableNodeNamespace)), [
+    '$.document[0]',
+    '$.document[0][1][0]',
+  ]);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1].^%NodeHead', portableNodeNamespace)), ['$.document[0]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0][1][0].^%NodeLiteral', portableNodeNamespace)), ['$.document[0][1]']);
+  assert.deepEqual(addresses(resolveAddress('$.document[0].@.role', portableNodeNamespace)), ['$.document[0].@.role']);
+  assert.deepEqual(addresses(resolveAddress('$.document[1]', portableNodeNamespace)), []);
 });
 
 test('resolves attribute-space traversal only when the host exposes attributes', () => {

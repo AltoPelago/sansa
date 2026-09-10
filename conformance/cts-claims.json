@@ -2,7 +2,7 @@
   "claim_format": "aeonite.cts-claims.v1",
   "repository": "AltoPelago/sansa",
   "implementation": "@altopelago/sansa",
-  "implementation_version": "0.10.0",
+  "implementation_version": "0.10.1",
   "cts_repository": "aeonite-org/aeonite-cts",
   "cts_protocol": "cts.protocol.v1",
   "claims": [

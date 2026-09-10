@@ -1670,6 +1670,9 @@ function resolveMutationTargetSurface(targetSurface) {
   if (targetSurface === 'json' || targetSurface === 'json-compatible') {
     return { ok: true, surface: jsonMutationTargetSurface };
   }
+  if (targetSurface === 'telex' || targetSurface === 'telex.aes') {
+    return { ok: true, surface: telexMutationTargetSurface };
+  }
   if (targetSurface && typeof targetSurface === 'object' && typeof targetSurface.validateOperation === 'function') {
     return {
       ok: true,
@@ -1683,7 +1686,7 @@ function resolveMutationTargetSurface(targetSurface) {
     ok: false,
     error: mutationTargetSurfaceError(
       'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
-      'Mutation target surface must be "aeon", "json", or an object with validateOperation',
+      'Mutation target surface must be "aeon", "json", "json-compatible", "telex", "telex.aes", or an object with validateOperation',
       { targetFormat: targetSurfaceId(targetSurface) },
     ),
   };
@@ -1723,6 +1726,159 @@ const jsonMutationTargetSurface = Object.freeze({
     return validateJsonTargetValue(operation.value, context.operationIndex, 'value');
   },
 });
+
+const TELEX_SCALAR_KINDS = new Set([
+  'StringLiteral',
+  'NumberLiteral',
+  'InfinityLiteral',
+  'NaNLiteral',
+  'NullLiteral',
+  'BooleanLiteral',
+  'ToggleLiteral',
+  'HexLiteral',
+  'RadixLiteral',
+  'EncodingLiteral',
+  'SeparatorLiteral',
+  'SansaAddressLiteral',
+  'DateLiteral',
+  'TimeLiteral',
+  'DateTimeLiteral',
+  'WTCDateTimeLiteral',
+]);
+
+const TELEX_KIND_ALIASES = new Map([
+  ['string', 'StringLiteral'], ['trimtick', 'StringLiteral'], ['prose', 'StringLiteral'],
+  ['number', 'NumberLiteral'], ['n', 'NumberLiteral'], ['integer', 'NumberLiteral'],
+  ['boolean', 'BooleanLiteral'], ['bool', 'BooleanLiteral'], ['toggle', 'ToggleLiteral'],
+  ['null', 'NullLiteral'], ['nan', 'NaNLiteral'], ['infinity', 'InfinityLiteral'],
+  ['hex', 'HexLiteral'], ['radix', 'RadixLiteral'], ['encoding', 'EncodingLiteral'],
+  ['base64', 'EncodingLiteral'], ['embed', 'EncodingLiteral'], ['inline', 'EncodingLiteral'],
+  ['separator', 'SeparatorLiteral'], ['sep', 'SeparatorLiteral'], ['csv', 'SeparatorLiteral'],
+  ['sansa', 'SansaAddressLiteral'], ['sansaaddress', 'SansaAddressLiteral'],
+  ['date', 'DateLiteral'], ['time', 'TimeLiteral'], ['datetime', 'DateTimeLiteral'], ['wtc', 'WTCDateTimeLiteral'],
+]);
+
+const telexMutationTargetSurface = Object.freeze({
+  id: 'telex',
+  validateOperation(operation, context) {
+    if (operation.op !== 'replace') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION',
+          `Target 'telex' currently supports scalar replacement only; '${operation.op}' requires a portable path-rewrite contract`,
+          { operationIndex: context.operationIndex, targetFormat: 'telex' },
+        ),
+      };
+    }
+    const exposedKind = operation.target?.binding?.representationKind;
+    const kind = TELEX_SCALAR_KINDS.has(exposedKind)
+      ? exposedKind
+      : TELEX_KIND_ALIASES.get(String(exposedKind ?? '').toLowerCase());
+    if (!TELEX_SCALAR_KINDS.has(kind)) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+          `Target 'telex' cannot replace '${exposedKind ?? 'unknown'}' bindings in the scalar-replacement profile`,
+          { operationIndex: context.operationIndex, targetFormat: 'telex' },
+        ),
+      };
+    }
+    if (operation.value !== null && typeof operation.value === 'object') {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          "Target 'telex' scalar replacement requires a scalar mutation value",
+          { operationIndex: context.operationIndex, targetFormat: 'telex', valuePath: `operations[${context.operationIndex}].value` },
+        ),
+      };
+    }
+    const proposedKind = telexProposedScalarKind(operation, kind);
+    if (!proposedKind.ok) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          proposedKind.code,
+          proposedKind.message,
+          { operationIndex: context.operationIndex, targetFormat: 'telex', ...(operation.datatype === undefined ? {} : { datatype: operation.datatype }) },
+        ),
+      };
+    }
+    const valueResult = validateTelexScalarMutationValue(proposedKind.kind, operation.value, kind);
+    if (!valueResult.ok) {
+      return {
+        ok: false,
+        error: mutationTargetSurfaceError(
+          'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE',
+          valueResult.message,
+          { operationIndex: context.operationIndex, targetFormat: 'telex', valuePath: `operations[${context.operationIndex}].value` },
+        ),
+      };
+    }
+    return { ok: true };
+  },
+});
+
+function telexProposedScalarKind(operation, fallback) {
+  if (operation.kind !== undefined) {
+    if (TELEX_SCALAR_KINDS.has(operation.kind)) return { ok: true, kind: operation.kind };
+    const alias = TELEX_KIND_ALIASES.get(String(operation.kind).toLowerCase());
+    if (alias !== undefined) return { ok: true, kind: alias };
+    return {
+      ok: false,
+      code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE',
+      message: `Target 'telex' scalar replacement cannot represent kind '${operation.kind}'`,
+    };
+  }
+  if (operation.datatype !== undefined) {
+    const base = datatypeBaseName(operation.datatype)?.toLowerCase();
+    const alias = TELEX_KIND_ALIASES.get(base);
+    if (alias !== undefined) return { ok: true, kind: alias };
+    if (/^(?:u?int|float|decimal)\d*$/u.test(base ?? '')) return { ok: true, kind: 'NumberLiteral' };
+    if (/^radix\d+$/u.test(base ?? '')) return { ok: true, kind: 'RadixLiteral' };
+    if (['object', 'list', 'tuple', 'node', 'clonereference', 'pointerreference'].includes(base)) {
+      return {
+        ok: false,
+        code: 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE',
+        message: `Target 'telex' scalar replacement cannot represent datatype '${operation.datatype}'`,
+      };
+    }
+  }
+  return { ok: true, kind: fallback };
+}
+
+function validateTelexScalarMutationValue(kind, value, currentKind) {
+  if (kind === 'NumberLiteral') {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? { ok: true }
+      : { ok: false, message: "Target 'telex' NumberLiteral replacement requires a finite JSON number" };
+  }
+  if (kind === 'BooleanLiteral') {
+    return typeof value === 'boolean'
+      ? { ok: true }
+      : { ok: false, message: "Target 'telex' BooleanLiteral replacement requires a JSON boolean" };
+  }
+  if (kind === 'NullLiteral') {
+    return (typeof value === 'string' && value.length > 0) || (value === null && currentKind === 'NullLiteral')
+      ? { ok: true }
+      : { ok: false, message: "Target 'telex' NullLiteral replacement requires a non-empty reason string, or null for an existing null event" };
+  }
+  if (kind === 'NaNLiteral') {
+    return value === null || value === 'NaN'
+      ? { ok: true }
+      : { ok: false, message: "Target 'telex' NaNLiteral replacement requires null or 'NaN'" };
+  }
+  if (kind === 'InfinityLiteral') {
+    return value === Infinity || value === -Infinity || ['Infinity', '+Infinity', '-Infinity'].includes(value)
+      ? { ok: true }
+      : { ok: false, message: "Target 'telex' InfinityLiteral replacement requires an infinity token" };
+  }
+  return typeof value === 'string'
+    ? { ok: true }
+    : { ok: false, message: `Target 'telex' ${kind} replacement requires a JSON string` };
+}
 
 function normalizeMutationTargetSurfaceOperationResult(result, context) {
   if (result === undefined || result === true || result?.ok === true) return { ok: true };
@@ -5815,7 +5971,7 @@ function matchesRepresentationKind(namespace, binding, expected) {
   const actual = typeof namespace.representationKind === 'function'
     ? namespace.representationKind(binding)
     : binding.representationKind ?? binding.kind ?? binding.type;
-  return typeof actual === 'string' && lowerFirst(actual) === expected;
+  return typeof actual === 'string' && (actual === expected || lowerFirst(actual) === expected);
 }
 
 function resolveBindingLimitError(limit, observed, selectorIndex) {

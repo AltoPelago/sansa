@@ -1,5 +1,6 @@
 import { defaultPolicy, firstMutateExampleId, mutateExampleGroups, mutateExamples as examples } from './examples.mjs';
 const sourceInput = document.querySelector('#sourceInput');
+const sourceKindInput = document.querySelector('#sourceKind');
 const sourceResultOutput = document.querySelector('#sourceResultOutput');
 const requestInput = document.querySelector('#requestInput');
 const requestInputLabel = document.querySelector('#requestInputLabel');
@@ -29,7 +30,7 @@ const sourceTabButtons = Array.from(document.querySelectorAll('[data-source-tab]
 const detailTabButtons = Array.from(document.querySelectorAll('[data-detail-tab]'));
 const requestKindInputs = Array.from(document.querySelectorAll('input[name="requestKind"]'));
 
-let defaultSource = '';
+const defaultSources = { aeon: '', telex: '' };
 let lastPayload = null;
 let activeSourceTab = 'input';
 let activeDetailTab = 'diagnostics';
@@ -48,9 +49,17 @@ exampleSelect.addEventListener('change', () => {
 });
 
 resetButton.addEventListener('click', () => {
-  sourceInput.value = defaultSource;
-  sourceStatus.textContent = 'default aeon';
+  sourceInput.value = defaultSources[sourceKind()];
+  sourceStatus.textContent = `default ${sourceKind()}`;
   setExample(exampleSelect.value);
+  void runMutation('plan');
+});
+
+sourceKindInput.addEventListener('change', () => {
+  sourceInput.value = defaultSources[sourceKind()];
+  targetFormatInput.value = sourceKind();
+  sourceStatus.textContent = `default ${sourceKind()}`;
+  sourceResultOutput.textContent = 'Run Plan or Apply to render the current source result.';
   void runMutation('plan');
 });
 
@@ -121,7 +130,7 @@ requestInput.addEventListener('keydown', (event) => {
 });
 
 async function loadDefaults() {
-  defaultSource = await fetchText('/fixtures/query-inventory.aeon', [
+  defaultSources.aeon = await fetchText('/fixtures/query-inventory.aeon', [
     'inventory = {',
     '  items:list<object> = [',
     '    { sku:string = "A-100" name:string = "Adapter" qty:int = 1 }',
@@ -129,7 +138,13 @@ async function loadDefaults() {
     '  ]',
     '}',
   ].join('\n'));
-  sourceInput.value = defaultSource;
+  defaultSources.telex = await fetchText('/fixtures/query-inventory.telex.aes', [
+    'telex.aes=1',
+    '',
+    'path=$.inventory',
+    'kind=ObjectNode',
+  ].join('\n'));
+  sourceInput.value = defaultSources.aeon;
   sourceStatus.textContent = 'default aeon';
 }
 
@@ -171,6 +186,7 @@ async function runMutation(mode) {
   resultStatus.textContent = mode === 'apply' ? 'applying' : 'planning';
   resultStatus.dataset.phase = mode === 'apply' ? 'apply' : 'plan';
   const payload = await mutateApi({
+    sourceKind: sourceKind(),
     source: sourceInput.value,
     requestSource: requestInput.value,
     requestKind: requestKind(),
@@ -282,6 +298,10 @@ function requestKind() {
   return document.querySelector('input[name="requestKind"]:checked')?.value ?? 'structured';
 }
 
+function sourceKind() {
+  return sourceKindInput.value === 'telex' ? 'telex' : 'aeon';
+}
+
 function currentExample() {
   return examples.find((entry) => entry.id === exampleSelect.value) ?? examples[0];
 }
@@ -334,7 +354,7 @@ function requestKindLabel() {
 }
 
 function setOptionInputs(options) {
-  targetFormatInput.value = options.targetFormat ?? 'aeon';
+  targetFormatInput.value = options.targetFormat ?? sourceKind();
   if (options.policySource !== undefined) {
     enforcePolicyInput.checked = true;
     policyInput.value = options.policySource;

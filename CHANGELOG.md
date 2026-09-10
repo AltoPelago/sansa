@@ -7,7 +7,32 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
-No notable changes yet.
+## 0.10.1 - 2026-09-11
+
+### Added
+
+- Added direct complete `telex.aes` input to the Query CLI and browser
+  workbench. The adapter preserves portable paths, record order, structural
+  identities, datatype components, flat attributes, and expanded node heads
+  without reconstructing the AEON parser AST.
+- Added a conservative Telex target surface and Mutate Workbench source mode.
+  Exact scalar replacement now re-emits complete Telex while retaining event
+  order, paths, identities, datatype components, and flat attributes. Changed
+  events discard stale origin/span coordinates; structural rewrites fail closed
+  pending a portable path-rewrite contract. The Instruction CLI can select the
+  same representability surface with `--target telex` or `--target telex.aes`.
+- Preserved structural identity as opaque binding metadata throughout SANSA
+  resolution without using identity to construct or compare addresses.
+
+### Fixed
+
+- Accepted exact normative representation names such as `NodeLiteral` and
+  `NodeHead` in `%kind` filters while retaining existing lower-first matching
+  for compatible host namespaces.
+- Kept representation-kind filters on the ordinary identifier grammar and
+  rejected the obsolete hyphenated `%node-head` spelling.
+- Aligned portable AES node-navigation fixtures with the explicit
+  `NodeLiteral` → `NodeHead` → content hierarchy.
 
 ## 0.10.0 - 2026-09-01
 

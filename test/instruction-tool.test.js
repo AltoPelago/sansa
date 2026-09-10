@@ -20,7 +20,7 @@ test('instruction tool help documents core options', () => {
   assert.match(result.stdout, /sansa-instruction --instruction <source>/);
   assert.match(result.stdout, /--mode <mode>/);
   assert.match(result.stdout, /--target <target>/);
-  assert.match(result.stdout, /aeon, json, or json-compatible/);
+  assert.match(result.stdout, /aeon, json, json-compatible, telex, or telex\.aes/);
   assert.match(result.stdout, /parse, lower, or plan/);
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
 });
@@ -138,6 +138,19 @@ test('instruction tool validates planned instructions against target surfaces', 
   assert.equal(ok.stderr, '');
   assert.match(ok.stdout, /target: aeon ok/);
 
+  const telex = runTool([
+    '--mode',
+    'plan',
+    '--target',
+    'telex',
+    '--instruction',
+    'replace $.inventory.items[0].sku with "A-101"',
+  ]);
+
+  assert.equal(telex.status, 0, telex.stderr);
+  assert.equal(telex.stderr, '');
+  assert.match(telex.stdout, /target: telex ok/);
+
   const rejected = runTool([
     '--mode',
     'plan',
@@ -205,7 +218,7 @@ test('instruction tool rejects unsupported target surface names before planning'
   assert.equal(result.status, 2);
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /unsupported --target 'xml'/);
-  assert.match(result.stderr, /Expected 'aeon', 'json', or 'json-compatible'/);
+  assert.match(result.stderr, /Expected 'aeon', 'json', 'json-compatible', 'telex', or 'telex\.aes'/);
 });
 
 test('instruction tool emits JSON diagnostics', () => {

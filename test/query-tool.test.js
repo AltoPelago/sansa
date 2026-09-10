@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
+import { namespaceFromAeonSource, namespaceFromTelexSource } from '../tools/query-web/runtime.mjs';
 
 const toolPath = fileURLToPath(new URL('../scripts/query.mjs', import.meta.url));
 const defaultParams = JSON.stringify({
@@ -60,6 +60,24 @@ function testAeonRuntime(name, fn) {
   });
 }
 
+let telexRuntimeProbe;
+
+function testTelexRuntime(name, fn) {
+  test(name, async (t) => {
+    if (telexRuntimeProbe === undefined) {
+      const result = await namespaceFromTelexSource('telex.aes=1\n');
+      telexRuntimeProbe = result.ok
+        ? { ok: true }
+        : { ok: false, message: result.errors?.[0]?.message ?? 'Telex runtime unavailable' };
+    }
+    if (!telexRuntimeProbe.ok) {
+      t.skip(telexRuntimeProbe.message);
+      return;
+    }
+    await fn(t);
+  });
+}
+
 test('query tool help documents fixture kind support', () => {
   const result = runTool(['--help']);
 
@@ -67,7 +85,7 @@ test('query tool help documents fixture kind support', () => {
   assert.equal(result.stderr, '');
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
   assert.match(result.stdout, /--fixture-kind <kind>/);
-  assert.match(result.stdout, /Force fixture kind: aeon or json/);
+  assert.match(result.stdout, /Force fixture kind: aeon, telex, or json/);
   assert.match(result.stdout, /--policy <policy>/);
   assert.match(result.stdout, /--value-semantics <profile>/);
   assert.match(result.stdout, /--disable-transform/);
@@ -414,6 +432,22 @@ testAeonRuntime('query tool honors explicit AEON fixture kind', () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
+});
+
+testTelexRuntime('query tool reads inferred and explicit Telex fixtures', () => {
+  const args = [
+    '--fixture',
+    'fixtures/query-inventory.telex.aes',
+    '--query',
+    'from $.inventory.items[0] select .sku',
+  ];
+  const inferred = runTool(args);
+  const explicit = runTool([...args, '--fixture-kind', 'telex']);
+
+  assert.equal(inferred.status, 0, inferred.stderr);
+  assert.equal(inferred.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
+  assert.equal(explicit.status, 0, explicit.stderr);
+  assert.equal(explicit.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
 });
 
 test('query tool mounts JSON params as a local address space', () => {

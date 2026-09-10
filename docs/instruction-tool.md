@@ -67,6 +67,7 @@ JSON output includes a sanitized plan summary instead of live binding objects.
 npm run instruction -- --mode plan --target aeon --instruction $'from $.inventory.items.*\nwhere .sku == "B-200"\nreplace .qty with :int32, 10'
 npm run instruction -- --mode plan --target json --instruction 'create $.types.selectorCliProbe with :sansa, $.inventory.items.*'
 npm run instruction -- --mode plan --target json-compatible --instruction 'create $.types.label with "ok"'
+npm run instruction -- --mode plan --target telex --instruction 'replace $.inventory.sku with "B-200"'
 ```
 
 The target check runs after planning by calling
@@ -74,6 +75,9 @@ The target check runs after planning by calling
 parsing, lowering, or mutation planning.
 `json-compatible` is accepted as an alias for the JSON target surface; target
 diagnostics still report normalized `targetFormat: "json"`.
+`telex.aes` is accepted as an alias for the Telex target surface. This checks
+the conservative scalar-replacement representability profile; it does not turn
+the current-process mutation plan into a portable serialized plan.
 
 ## Phase Model
 

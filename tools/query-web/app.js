@@ -20,6 +20,7 @@ const budgetInputs = Array.from(document.querySelectorAll('.budget-row input'));
 let defaultFixtureSource = '';
 let defaultJsonSource = '';
 let defaultAeonSource = '';
+let defaultTelexSource = '';
 let defaultParamsSource = '';
 let lastAction = 'evaluate';
 
@@ -34,10 +35,10 @@ exampleSelect.addEventListener('change', () => {
 });
 
 resetButton.addEventListener('click', () => {
-  fixtureInput.value = sourceKind() === 'json' ? defaultJsonSource : defaultAeonSource;
+  fixtureInput.value = defaultSourceForKind(sourceKind());
   paramsInput.value = defaultParamsSource;
   setExample(exampleSelect.value);
-  fixtureStatus.textContent = sourceKind() === 'json' ? 'default json' : 'default aeon';
+  fixtureStatus.textContent = `default ${sourceKind()}`;
   paramsStatus.textContent = 'default params';
   void runQuery();
 });
@@ -75,9 +76,11 @@ budgetInputs.forEach((input) => {
 });
 document.querySelectorAll('input[name="sourceKind"]').forEach((input) => {
   input.addEventListener('change', () => {
-    fixtureInput.value = sourceKind() === 'json' ? defaultJsonSource : defaultAeonSource;
-    sourceLabel.textContent = sourceKind() === 'json' ? 'Fixture JSON' : 'AEON Source';
-    fixtureStatus.textContent = sourceKind() === 'json' ? 'default json' : 'default aeon';
+    fixtureInput.value = defaultSourceForKind(sourceKind());
+    sourceLabel.textContent = sourceKind() === 'json'
+      ? 'Fixture JSON'
+      : sourceKind() === 'telex' ? 'Telex AES' : 'AEON Source';
+    fixtureStatus.textContent = `default ${sourceKind()}`;
     void runQuery();
   });
 });
@@ -126,6 +129,16 @@ async function loadDefaultSources() {
     '}',
   ].join('\n'));
   defaultJsonSource = await fetchText('/fixtures/query-inventory.json', '{\n  "root": {\n    "address": "$",\n    "children": []\n  }\n}');
+  defaultTelexSource = await fetchText('/fixtures/query-inventory.telex.aes', [
+    'telex.aes=1',
+    '',
+    'path=$.inventory',
+    'kind=ObjectNode',
+    '',
+    'path=$.inventory.items',
+    'kind=ListNode',
+    '',
+  ].join('\n'));
   defaultParamsSource = [
     'source:sansa = $.inventory.items.*',
     'field:sansa = ?.sku',
@@ -138,6 +151,12 @@ async function loadDefaultSources() {
   paramsInput.value = defaultParamsSource;
   fixtureStatus.textContent = 'default aeon';
   paramsStatus.textContent = 'default params';
+}
+
+function defaultSourceForKind(kind) {
+  if (kind === 'json') return defaultJsonSource;
+  if (kind === 'telex') return defaultTelexSource;
+  return defaultAeonSource;
 }
 
 async function fetchText(path, fallback) {

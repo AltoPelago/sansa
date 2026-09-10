@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateQuery, parseQuery } from '../src/index.js';
-import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
+import { namespaceFromAeonSource, namespaceFromTelexSource } from '../tools/query-web/runtime.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -202,9 +202,12 @@ async function readNamespaceFixture(path, explicitKind) {
     }
   }
 
-  const result = await namespaceFromAeonSource(source);
+  const result = kind === 'telex'
+    ? await namespaceFromTelexSource(source)
+    : await namespaceFromAeonSource(source);
   if (!result.ok) {
-    console.error(`SANSA Query tool error: could not compile AEON fixture '${path}':`);
+    const description = kind === 'telex' ? 'load Telex fixture' : 'compile AEON fixture';
+    console.error(`SANSA Query tool error: could not ${description} '${path}':`);
     console.error(result.text);
     return { ok: false };
   }
@@ -213,13 +216,14 @@ async function readNamespaceFixture(path, explicitKind) {
 
 function inferFixtureKind(path, explicitKind) {
   if (explicitKind !== undefined) {
-    if (explicitKind === 'json' || explicitKind === 'aeon') return explicitKind;
-    console.error(`SANSA Query tool error: unsupported --fixture-kind '${explicitKind}'. Expected 'json' or 'aeon'.`);
+    if (['json', 'aeon', 'telex'].includes(explicitKind)) return explicitKind;
+    console.error(`SANSA Query tool error: unsupported --fixture-kind '${explicitKind}'. Expected 'json', 'aeon', or 'telex'.`);
     process.exit(2);
   }
   if (path.endsWith('.json')) return 'json';
+  if (path.endsWith('.telex.aes')) return 'telex';
   if (path.endsWith('.aeon')) return 'aeon';
-  console.error(`SANSA Query tool error: could not infer fixture kind from '${path}'. Use --fixture-kind json or --fixture-kind aeon.`);
+  console.error(`SANSA Query tool error: could not infer fixture kind from '${path}'. Use --fixture-kind json, aeon, or telex.`);
   process.exit(2);
 }
 
@@ -582,14 +586,15 @@ function printHelp() {
 Usage:
   npm run query -- --query "from $.inventory.items.*\\nselect .sku"
   npm run query -- --query-file query.sansaq --fixture fixture.aeon
+  npm run query -- --query-file query.sansaq --fixture fixture.telex.aes
   npm run query -- --query-file query.sansaq --fixture fixture.json
   npm run query -- --mode parse --query "from $.inventory.items.*\\nselect .sku"
 
 Options:
   -q, --query <source>      Query source.
       --query-file <path>   Read query source from a file.
-  -f, --fixture <path>      AEON or JSON namespace fixture. Defaults to fixtures/query-inventory.json.
-      --fixture-kind <kind> Force fixture kind: aeon or json. Inferred from extension by default.
+  -f, --fixture <path>      AEON, Telex, or JSON namespace fixture. Defaults to fixtures/query-inventory.json.
+      --fixture-kind <kind> Force fixture kind: aeon, telex, or json. Inferred from extension by default.
       --params <json>       Mount JSON params at $.<"params">.
       --params-file <path>  Read JSON params and mount them at $.<"params">.
       --mode <mode>         evaluate or parse. Defaults to evaluate.

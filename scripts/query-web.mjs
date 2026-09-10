@@ -92,6 +92,7 @@ function handleMutateApi(request, response) {
       }
 
       const result = await runMutationForWorkbench({
+        sourceKind: payload.sourceKind === 'telex' ? 'telex' : 'aeon',
         source: String(payload.source ?? ''),
         requestSource: String(payload.requestSource ?? ''),
         requestKind: payload.requestKind === 'instruction' ? 'instruction' : 'structured',
@@ -134,7 +135,7 @@ function handleQueryApi(request, response) {
       const result = action === 'parse'
         ? parseQueryForWorkbench(String(payload.query ?? ''))
         : await evaluateQueryForWorkbench({
-          sourceKind: payload.sourceKind === 'json' ? 'json' : 'aeon',
+          sourceKind: ['json', 'telex'].includes(payload.sourceKind) ? payload.sourceKind : 'aeon',
           source: String(payload.source ?? ''),
           query: String(payload.query ?? ''),
           paramsSource: String(payload.paramsSource ?? ''),

@@ -1,5 +1,5 @@
 import { applyMutationPlan, planInstruction, planMutation, resolveAddress, validateMutationPlanTarget } from '../../src/index.js';
-import { namespaceFromAeonSource } from '../query-web/runtime.mjs';
+import { loadAeonAesRuntime, namespaceFromAeonSource, namespaceFromTelexSource } from '../query-web/runtime.mjs';
 
 const HANDLE_PROPERTY = '__sansaMutateWorkbenchHandle';
 const HANDLE_PREFIX = 'mutate-workbench';
@@ -26,23 +26,52 @@ const WORKBENCH_POLICY_RULE_FIELDS = new Set([
 
 export async function runMutationForWorkbench({
   source,
+  sourceKind = 'aeon',
   requestSource,
   requestKind = 'structured',
   mode = 'plan',
   options = {},
 }) {
-  const targetProfile = describeMutationTargetProfile(options.targetFormat);
-  const namespaceResult = await namespaceFromAeonSource(source);
+  const normalizedSourceKind = sourceKind === 'telex' ? 'telex' : 'aeon';
+  const targetProfile = describeMutationTargetProfile(options.targetFormat ?? normalizedSourceKind);
+  const namespaceResult = normalizedSourceKind === 'telex'
+    ? await namespaceFromTelexSource(source)
+    : await namespaceFromAeonSource(source);
   if (!namespaceResult.ok) {
+    const errors = normalizeDiagnostics(namespaceResult.errors ?? []).map((error) => ({
+      ...error,
+      code: String(error.code ?? 'SANSA_MUTATE_WORKBENCH_SOURCE_ERROR').replace(
+        'SANSA_QUERY_WORKBENCH_',
+        'SANSA_MUTATE_WORKBENCH_',
+      ),
+      phase: 'parse',
+    }));
     return {
-      ...namespaceResult,
+      ok: false,
       mode,
+      sourceKind: normalizedSourceKind,
+      phase: 'parse',
+      text: renderDiagnosticText(errors),
+      errors,
     };
   }
 
   const root = getRoot(namespaceResult.namespace);
   assignStableHandles(root);
-  const namespace = mutableNamespace(namespaceResult.namespace);
+  let telexState;
+  let namespace;
+  if (normalizedSourceKind === 'telex') {
+    const loaded = await loadAeonAesRuntime();
+    if (!loaded.ok) {
+      const errors = [{ code: 'SANSA_MUTATE_WORKBENCH_TELEX_RUNTIME_UNAVAILABLE', message: loaded.message, phase: 'parse' }];
+      return { ok: false, mode, sourceKind: normalizedSourceKind, phase: 'parse', text: renderDiagnosticText(errors), errors };
+    }
+    telexState = createTelexMutationState(namespaceResult.telex, loaded.module);
+    namespace = mutableTelexNamespace(namespaceResult.namespace, telexState);
+  } else {
+    namespace = mutableNamespace(namespaceResult.namespace);
+  }
+  const renderSource = () => telexState ? renderTelexMutationState(telexState) : renderBindingTree(root);
   const planOptions = mutationPlanOptions(options);
   const applyOptions = mutationApplyOptions(options);
   const planResult = requestKind === 'instruction'
@@ -60,7 +89,8 @@ export async function runMutationForWorkbench({
       text: renderDiagnosticText(planResult.errors, { fallbackPhase: planResult.phase ?? 'plan' }),
       errors,
       targetProfile,
-      source: renderBindingTree(root),
+      sourceKind: normalizedSourceKind,
+      source: renderSource(),
     };
   }
 
@@ -76,7 +106,8 @@ export async function runMutationForWorkbench({
       errors: normalizeDiagnostics(policyResult.errors),
       plan: summarizePlan(planResult.plan),
       targetProfile,
-      source: renderBindingTree(root),
+      sourceKind: normalizedSourceKind,
+      source: renderSource(),
     };
   }
 
@@ -92,7 +123,8 @@ export async function runMutationForWorkbench({
       errors: normalizeDiagnostics(targetResult.errors),
       plan: summarizePlan(planResult.plan),
       targetProfile,
-      source: renderBindingTree(root),
+      sourceKind: normalizedSourceKind,
+      source: renderSource(),
     };
   }
 
@@ -106,7 +138,8 @@ export async function runMutationForWorkbench({
       plan,
       ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
       targetProfile,
-      source: renderBindingTree(root),
+      sourceKind: normalizedSourceKind,
+      source: renderSource(),
       diagnostics: normalizeDiagnostics(planResult.diagnostics ?? []),
     };
   }
@@ -121,7 +154,30 @@ export async function runMutationForWorkbench({
       errors: normalizeDiagnostics(applied.errors),
       operationResults: summarizeOperationResults(applied.operationResults ?? []),
       targetProfile,
-      source: renderBindingTree(root),
+      sourceKind: normalizedSourceKind,
+      source: renderSource(),
+    };
+  }
+
+  let renderedSource;
+  try {
+    renderedSource = renderSource();
+  } catch (error) {
+    const errors = [{
+      code: 'SANSA_MUTATE_APPLY_FAILED',
+      message: error instanceof Error ? error.message : String(error),
+      phase: 'apply',
+    }];
+    return {
+      ok: false,
+      mode: 'apply',
+      sourceKind: normalizedSourceKind,
+      text: renderDiagnosticText(errors),
+      plan,
+      errors,
+      operationResults: summarizeOperationResults(applied.operationResults ?? []),
+      targetProfile,
+      source: String(source),
     };
   }
 
@@ -133,6 +189,7 @@ export async function runMutationForWorkbench({
     plan,
     ...(planResult.loweredRequest === undefined ? {} : { loweredRequest: planResult.loweredRequest }),
     targetProfile,
+    sourceKind: normalizedSourceKind,
     result: {
       planId: applied.planId,
       stateBefore: sanitizeJsonValue(applied.stateBefore),
@@ -140,7 +197,7 @@ export async function runMutationForWorkbench({
       operationResults: summarizeOperationResults(applied.operationResults),
       diagnostics: normalizeDiagnostics(applied.diagnostics ?? []),
     },
-    source: renderBindingTree(root),
+    source: renderedSource,
   };
 }
 
@@ -178,12 +235,23 @@ function enforceTargetSurfaceForWorkbench(plan, targetFormat) {
 }
 
 function describeMutationTargetProfile(targetFormat) {
-  const id = targetFormat === 'json' || targetFormat === 'json-compatible' ? 'json' : 'aeon';
+  const id = targetFormat === 'json' || targetFormat === 'json-compatible'
+    ? 'json'
+    : targetFormat === 'telex' || targetFormat === 'telex.aes'
+      ? 'telex'
+      : 'aeon';
   if (id === 'json') {
     return {
       id,
       boundary: 'representability',
       summary: 'JSON-compatible target surface: accepts ordinary JSON-compatible values and rejects AEON-only representation features.',
+    };
+  }
+  if (id === 'telex') {
+    return {
+      id,
+      boundary: 'representability',
+      summary: 'Telex target surface: currently permits deterministic replacement of an existing portable scalar event.',
     };
   }
   return {
@@ -499,6 +567,230 @@ function mutableNamespace(namespace) {
       },
     },
   };
+}
+
+function createTelexMutationState(telex, aes) {
+  return {
+    aes,
+    version: telex.version,
+    profile: telex.profile,
+    profileExplicit: telex.profileExplicit === true,
+    projection: telex.projection,
+    projectionExplicit: telex.projectionExplicit === true,
+    records: telex.records.map((record) => ({
+      ...record,
+      ...(Array.isArray(record.generics) ? { generics: structuredClone(record.generics) } : {}),
+      ...(Array.isArray(record.clarifiers) ? { clarifiers: structuredClone(record.clarifiers) } : {}),
+    })),
+  };
+}
+
+function mutableTelexNamespace(namespace, state) {
+  const recordsByPath = new Map();
+  for (let index = 0; index < state.records.length; index += 1) {
+    const path = state.records[index].path;
+    if (typeof path === 'string') recordsByPath.set(path, index);
+  }
+  return {
+    ...namespace,
+    root: getRoot(namespace),
+    mutate: {
+      supportsReplace: true,
+      supportsStableBindingIdentity: true,
+      supportsAtomicApply: true,
+      bindingHandle: (binding) => binding[HANDLE_PROPERTY],
+      observedState: (binding) => binding.revision ?? 0,
+      sameBinding: (left, right) => left === right || left?.[HANDLE_PROPERTY] === right?.[HANDLE_PROPERTY],
+      replace(target, value, operation) {
+        const recordIndex = recordsByPath.get(target.address);
+        if (recordIndex === undefined) {
+          return { ok: false, message: `Portable AES event '${target.address}' was not found.` };
+        }
+        const current = state.records[recordIndex];
+        const replacement = telexScalarReplacementRecord(current, value, operation, state.aes);
+        if (!replacement.ok) return replacement;
+        const candidateRecords = [...state.records];
+        candidateRecords[recordIndex] = replacement.record;
+        const validation = state.aes.validateTelexRecords(candidateRecords, {
+          profile: state.profile,
+          projection: state.projection,
+        });
+        if (!validation.valid) {
+          return {
+            ok: false,
+            message: validation.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('; '),
+          };
+        }
+        state.records = candidateRecords;
+        applyPortableScalarRecordToBinding(target, replacement.record);
+        bump(target);
+        return { binding: target, resultingAddress: target.address };
+      },
+    },
+  };
+}
+
+function telexScalarReplacementRecord(current, value, operation, aes) {
+  if (!current || typeof current.path !== 'string') {
+    return { ok: false, message: 'Telex scalar replacement requires a body event.' };
+  }
+  let descriptor;
+  if (operation.datatype !== undefined) {
+    try {
+      descriptor = aes.parseDatatypeDescriptor(operation.datatype);
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  const kind = portableKindForMutation(operation.kind, descriptor?.datatype, current.kind);
+  if (kind === undefined || !PORTABLE_MUTABLE_SCALAR_KINDS.has(kind)) {
+    return { ok: false, message: `Telex scalar replacement cannot represent kind '${kind ?? operation.kind ?? current.kind}'.` };
+  }
+  const payload = portableScalarPayload(kind, value, current);
+  if (!payload.ok) return payload;
+  const record = {
+    ...current,
+    kind,
+    value: payload.value,
+    ...(descriptor === undefined ? {} : {
+      datatype: descriptor.datatype,
+      generics: descriptor.generics,
+      clarifiers: descriptor.clarifiers,
+    }),
+  };
+  // Source coordinates describe the pre-mutation artifact and cannot be
+  // claimed by the newly produced value. Unchanged events retain theirs.
+  delete record.origin;
+  delete record.span;
+  return { ok: true, record };
+}
+
+const PORTABLE_MUTABLE_SCALAR_KINDS = new Set([
+  'StringLiteral', 'NumberLiteral', 'InfinityLiteral', 'NaNLiteral', 'NullLiteral',
+  'BooleanLiteral', 'ToggleLiteral', 'HexLiteral', 'RadixLiteral', 'EncodingLiteral',
+  'SeparatorLiteral', 'SansaAddressLiteral', 'DateLiteral', 'TimeLiteral',
+  'DateTimeLiteral', 'WTCDateTimeLiteral',
+]);
+
+const PORTABLE_KIND_ALIASES = new Map([
+  ['string', 'StringLiteral'], ['trimtick', 'StringLiteral'], ['prose', 'StringLiteral'],
+  ['number', 'NumberLiteral'], ['n', 'NumberLiteral'], ['integer', 'NumberLiteral'],
+  ['boolean', 'BooleanLiteral'], ['bool', 'BooleanLiteral'], ['toggle', 'ToggleLiteral'],
+  ['null', 'NullLiteral'], ['nan', 'NaNLiteral'], ['infinity', 'InfinityLiteral'],
+  ['hex', 'HexLiteral'], ['radix', 'RadixLiteral'], ['encoding', 'EncodingLiteral'],
+  ['base64', 'EncodingLiteral'], ['embed', 'EncodingLiteral'], ['inline', 'EncodingLiteral'],
+  ['separator', 'SeparatorLiteral'], ['sep', 'SeparatorLiteral'], ['csv', 'SeparatorLiteral'],
+  ['sansa', 'SansaAddressLiteral'], ['sansaaddress', 'SansaAddressLiteral'],
+  ['date', 'DateLiteral'], ['time', 'TimeLiteral'], ['datetime', 'DateTimeLiteral'], ['wtc', 'WTCDateTimeLiteral'],
+]);
+
+function portableKindForMutation(kind, datatype, fallback) {
+  if (PORTABLE_MUTABLE_SCALAR_KINDS.has(kind)) return kind;
+  const kindAlias = typeof kind === 'string' ? PORTABLE_KIND_ALIASES.get(kind.toLowerCase()) : undefined;
+  if (kindAlias !== undefined) return kindAlias;
+  if (typeof datatype === 'string') {
+    const base = datatype.toLowerCase();
+    const datatypeAlias = PORTABLE_KIND_ALIASES.get(base);
+    if (datatypeAlias !== undefined) return datatypeAlias;
+    if (/^(?:u?int|float|decimal)\d*$/u.test(base)) return 'NumberLiteral';
+    if (/^radix\d+$/u.test(base)) return 'RadixLiteral';
+  }
+  return PORTABLE_MUTABLE_SCALAR_KINDS.has(fallback) ? fallback : undefined;
+}
+
+function portableScalarPayload(kind, value, current) {
+  switch (kind) {
+    case 'NumberLiteral':
+      return typeof value === 'number' && Number.isFinite(value)
+        ? { ok: true, value: String(value) }
+        : invalidPortableScalar(kind, 'a finite JSON number');
+    case 'BooleanLiteral':
+      return typeof value === 'boolean'
+        ? { ok: true, value: String(value) }
+        : invalidPortableScalar(kind, 'a JSON boolean');
+    case 'NullLiteral':
+      if (typeof value === 'string' && value.length > 0) return { ok: true, value };
+      if (value === null && current.kind === 'NullLiteral' && typeof current.value === 'string') {
+        return { ok: true, value: current.value };
+      }
+      return invalidPortableScalar(kind, 'a non-empty null-reason string, or null when replacing an existing null event');
+    case 'NaNLiteral':
+      return value === null || value === 'NaN'
+        ? { ok: true, value: 'NaN' }
+        : invalidPortableScalar(kind, 'null or "NaN"');
+    case 'InfinityLiteral':
+      if (value === Infinity || value === 'Infinity' || value === '+Infinity') return { ok: true, value: 'Infinity' };
+      if (value === -Infinity || value === '-Infinity') return { ok: true, value: '-Infinity' };
+      return invalidPortableScalar(kind, '"Infinity", "+Infinity", or "-Infinity"');
+    default:
+      return typeof value === 'string'
+        ? { ok: true, value }
+        : invalidPortableScalar(kind, 'a JSON string');
+  }
+}
+
+function invalidPortableScalar(kind, expected) {
+  return { ok: false, message: `${kind} replacement requires ${expected}.` };
+}
+
+function applyPortableScalarRecordToBinding(binding, record) {
+  binding.representationKind = record.kind;
+  binding.datatype = record.datatype;
+  binding.semanticType = record.datatype ?? portableScalarSemanticTypeForWorkbench(record.kind);
+  binding.generics = record.generics;
+  binding.clarifiers = record.clarifiers;
+  binding.scalarKind = portableScalarKindForWorkbench(record.kind);
+  binding.value = portableScalarValueForWorkbench(record);
+  if (record.kind === 'NullLiteral') binding.nullReason = record.value;
+  else delete binding.nullReason;
+  delete binding.origin;
+  delete binding.span;
+}
+
+function portableScalarSemanticTypeForWorkbench(kind) {
+  return {
+    StringLiteral: 'string', NumberLiteral: 'number', BooleanLiteral: 'boolean',
+    NullLiteral: 'null', InfinityLiteral: 'infinity', NaNLiteral: 'nan', ToggleLiteral: 'toggle',
+    HexLiteral: 'hex', RadixLiteral: 'radix', EncodingLiteral: 'encoding', SeparatorLiteral: 'sep',
+    SansaAddressLiteral: 'sansa', DateLiteral: 'date', TimeLiteral: 'time',
+    DateTimeLiteral: 'datetime', WTCDateTimeLiteral: 'wtc',
+  }[kind];
+}
+
+function portableScalarKindForWorkbench(kind) {
+  return {
+    StringLiteral: 'string', NumberLiteral: 'number', BooleanLiteral: 'boolean',
+    NullLiteral: 'null', InfinityLiteral: 'infinity', NaNLiteral: 'nan', ToggleLiteral: 'toggle',
+    HexLiteral: 'hex', RadixLiteral: 'radix', EncodingLiteral: 'encoding', SeparatorLiteral: 'separator',
+    SansaAddressLiteral: 'sansaAddress', DateLiteral: 'date', TimeLiteral: 'time',
+    DateTimeLiteral: 'datetime', WTCDateTimeLiteral: 'wtc',
+  }[kind];
+}
+
+function portableScalarValueForWorkbench(record) {
+  if (record.kind === 'NumberLiteral') return Number(record.value);
+  if (record.kind === 'BooleanLiteral') return record.value === 'true';
+  if (record.kind === 'NullLiteral') return null;
+  if (record.kind === 'NaNLiteral') return Number.NaN;
+  if (record.kind === 'InfinityLiteral') return record.value === '-Infinity' ? -Infinity : Infinity;
+  if (record.kind === 'SansaAddressLiteral') {
+    return { type: 'SansaAddressLiteral', address: record.value, canonical: record.value };
+  }
+  return record.value;
+}
+
+function renderTelexMutationState(state) {
+  const validation = state.aes.validateTelexRecords(state.records, {
+    profile: state.profile,
+    projection: state.projection,
+  });
+  if (!validation.valid) {
+    throw new Error(validation.diagnostics.map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`).join('; '));
+  }
+  return state.aes.encodeTelex(state.records, {
+    ...(state.profileExplicit ? { profile: state.profile } : {}),
+    ...(state.projectionExplicit && state.projection !== null ? { projection: state.projection } : {}),
+  });
 }
 
 function getRoot(namespace) {
@@ -955,13 +1247,19 @@ function summarizeOperationResults(results) {
 function summarizeBinding(binding) {
   return {
     address: binding.address,
+    identity: binding.identity,
     name: binding.name,
     index: binding.index,
     semanticType: binding.semanticType,
+    datatype: binding.datatype,
+    generics: sanitizeJsonValue(binding.generics),
+    clarifiers: sanitizeJsonValue(binding.clarifiers),
     representationKind: binding.representationKind,
     scalarKind: binding.scalarKind,
     nullReason: binding.nullReason,
     nodeTag: binding.nodeTag,
+    origin: binding.origin,
+    span: binding.span,
     value: sanitizeJsonValue(binding.value),
   };
 }

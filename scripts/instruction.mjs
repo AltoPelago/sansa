@@ -32,8 +32,8 @@ if (!['text', 'json'].includes(format)) {
   console.error(`SANSA Instruction tool error: unsupported --format '${format}'. Expected 'text' or 'json'.`);
   process.exit(2);
 }
-if (args.target !== undefined && !['aeon', 'json', 'json-compatible'].includes(args.target)) {
-  console.error(`SANSA Instruction tool error: unsupported --target '${args.target}'. Expected 'aeon', 'json', or 'json-compatible'.`);
+if (args.target !== undefined && !['aeon', 'json', 'json-compatible', 'telex', 'telex.aes'].includes(args.target)) {
+  console.error(`SANSA Instruction tool error: unsupported --target '${args.target}'. Expected 'aeon', 'json', 'json-compatible', 'telex', or 'telex.aes'.`);
   process.exit(2);
 }
 if (args.target !== undefined && mode !== 'plan') {
@@ -415,7 +415,7 @@ Options:
                                    Defaults to fixtures/query-inventory.json.
       --fixture-kind <kind>        Force fixture kind: json or aeon.
       --mode <mode>                parse, lower, or plan. Defaults to lower.
-      --target <target>            Validate plan target surface: aeon, json, or json-compatible.
+      --target <target>            Validate plan target: aeon, json, json-compatible, telex, or telex.aes.
                                    Only available with --mode plan.
       --format <format>            text or json. Defaults to text.
   -h, --help                       Show this help.

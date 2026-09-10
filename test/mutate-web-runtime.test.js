@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { firstMutateExampleId, mutateExampleGroups, mutateExamples } from '../tools/mutate-web/examples.mjs';
 import { runMutationForWorkbench } from '../tools/mutate-web/runtime.mjs';
-import { namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
+import { loadAeonAesRuntime, namespaceFromAeonSource } from '../tools/query-web/runtime.mjs';
 
 const MUTATE_WORKBENCH_PHASES = new Set(['parse', 'lower', 'plan', 'policy', 'target', 'apply']);
 
@@ -28,6 +28,28 @@ async function hasAeonRuntime() {
 function testAeonRuntime(name, fn) {
   test(name, async (t) => {
     const runtime = await hasAeonRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
+    await fn(t);
+  });
+}
+
+let telexRuntimeProbe;
+
+async function hasTelexRuntime() {
+  if (telexRuntimeProbe !== undefined) return telexRuntimeProbe;
+  const result = await loadAeonAesRuntime();
+  telexRuntimeProbe = result.ok
+    ? { ok: true }
+    : { ok: false, message: result.message ?? 'Telex runtime unavailable' };
+  return telexRuntimeProbe;
+}
+
+function testTelexRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasTelexRuntime();
     if (!runtime.ok) {
       t.skip(runtime.message);
       return;
@@ -248,6 +270,152 @@ testAeonRuntime('mutate web runtime applies mutations to an isolated source tree
 
   const rendered = await namespaceFromAeonSource(result.source);
   assert.equal(rendered.ok, true, JSON.stringify(rendered.errors ?? []));
+});
+
+testTelexRuntime('mutate web runtime replaces Telex scalar events and preserves portable event order', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
+  const loaded = await loadAeonAesRuntime();
+  assert.equal(loaded.ok, true, loaded.message);
+  const before = loaded.module.parseTelex(source);
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({
+      op: 'replace',
+      target: '$.types.version',
+      datatype: 'csv["."]',
+      value: '0.12.0',
+    }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.sourceKind, 'telex');
+  assert.equal(result.targetProfile.id, 'telex');
+  const after = loaded.module.parseTelex(result.source);
+  assert.deepEqual(after.records.map((record) => record.path ?? record.header), before.records.map((record) => record.path ?? record.header));
+  const version = after.records.find((record) => record.path === '$.types.version');
+  assert.equal(version.kind, 'SeparatorLiteral');
+  assert.equal(version.datatype, 'csv');
+  assert.deepEqual(version.generics, []);
+  assert.deepEqual(version.clarifiers, [{ kind: 'StringLiteral', value: '.' }]);
+  assert.equal(version.value, '0.12.0');
+  assert.equal(result.result.operationResults[0].affectedBinding.datatype, 'csv');
+  assert.deepEqual(result.result.operationResults[0].affectedBinding.generics, []);
+  assert.deepEqual(result.result.operationResults[0].affectedBinding.clarifiers, [{ kind: 'StringLiteral', value: '.' }]);
+  assert.equal(loaded.module.validateTelex(after).valid, true);
+});
+
+testTelexRuntime('mutate web runtime retains a derived semantic type for untyped Telex scalars', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.label',
+    'kind=StringLiteral',
+    'value=old',
+    '',
+  ].join('\n');
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.label', value: 'new' }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.result.operationResults[0].affectedBinding.datatype, undefined);
+  assert.equal(result.result.operationResults[0].affectedBinding.semanticType, 'string');
+});
+
+testTelexRuntime('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
+  const digest = 'a'.repeat(64);
+  const source = [
+    'telex.aes=1',
+    'profile=aes.complete.v1',
+    '',
+    'path=$.a',
+    'kind=StringLiteral',
+    'datatype=string',
+    'identity=occurrence-a',
+    'value=old',
+    `origin=sha256:${digest}`,
+    'span=0:3',
+    '',
+    'path=$.a.@.x',
+    'kind=NumberLiteral',
+    'datatype=int',
+    'identity=attribute-x',
+    'value=1',
+    `origin=sha256:${digest}`,
+    'span=4:5',
+    '',
+  ].join('\n');
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.a', value: 'new' }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  const loaded = await loadAeonAesRuntime();
+  const records = loaded.module.parseTelex(result.source).records;
+  const binding = records.find((record) => record.path === '$.a');
+  const attribute = records.find((record) => record.path === '$.a.@.x');
+  assert.equal(binding.identity, 'occurrence-a');
+  assert.equal(binding.origin, undefined);
+  assert.equal(binding.span, undefined);
+  assert.equal(result.result.operationResults[0].affectedBinding.identity, 'occurrence-a');
+  assert.equal(result.result.operationResults[0].affectedBinding.origin, undefined);
+  assert.equal(result.result.operationResults[0].affectedBinding.span, undefined);
+  assert.equal(attribute.identity, 'attribute-x');
+  assert.equal(attribute.origin, `sha256:${digest}`);
+  assert.equal(attribute.span, '4:5');
+});
+
+testTelexRuntime('mutate web runtime rejects ambiguous Telex structural rewrites', async () => {
+  const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
+  const create = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({ op: 'create', parent: '$.types', name: 'newValue', value: 'x' }),
+  });
+  assert.equal(create.ok, false);
+  assert.equal(create.phase, 'target');
+  assert.equal(create.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_OPERATION');
+
+  const node = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.containers.nodeValue', value: 'x' }),
+  });
+  assert.equal(node.ok, false);
+  assert.equal(node.phase, 'target');
+  assert.equal(node.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+});
+
+testTelexRuntime('mutate web runtime rejects partial Telex before mutation planning', async () => {
+  const source = [
+    'telex.aes=1',
+    'profile=aes.partial.v1',
+    '',
+    'path=$.missing.child',
+    'kind=StringLiteral',
+    'value=value',
+    '',
+  ].join('\n');
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'plan',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.missing.child', value: 'new' }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'parse');
+  assert.equal(result.errors[0].code, 'SANSA_MUTATE_WORKBENCH_PARTIAL_AES_UNSUPPORTED');
 });
 
 testAeonRuntime('mutate web runtime applies instruction requests', async () => {

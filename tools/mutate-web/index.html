@@ -23,7 +23,11 @@
       <section class="workspace" aria-label="SANSA Mutate workspace">
         <section class="panel source-panel">
           <div class="panel-head">
-            <label for="sourceInput">AEON Source</label>
+            <label for="sourceInput">Source</label>
+            <select id="sourceKind" aria-label="Source format">
+              <option value="aeon" selected>AEON</option>
+              <option value="telex">Telex AES</option>
+            </select>
             <span id="sourceStatus">default aeon</span>
           </div>
           <div class="source-tabs" role="tablist" aria-label="Source views">
@@ -68,6 +72,7 @@
               <select id="targetFormat" aria-label="Target format">
                 <option value="aeon" selected>AEON</option>
                 <option value="json">JSON</option>
+                <option value="telex">Telex AES</option>
               </select>
             </label>
           </div>
