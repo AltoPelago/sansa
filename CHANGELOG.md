@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.10.1 - 2026-09-11
+
 ### Added
 
 - Added direct complete `telex.aes` input to the Query CLI and browser
@@ -19,11 +21,6 @@ versions may still include breaking changes when the SANSA specifications move.
   events discard stale origin/span coordinates; structural rewrites fail closed
   pending a portable path-rewrite contract. The Instruction CLI can select the
   same representability surface with `--target telex` or `--target telex.aes`.
-
-## 0.10.1 - 2026-09-05
-
-### Added
-
 - Preserved structural identity as opaque binding metadata throughout SANSA
   resolution without using identity to construct or compare addresses.
 
