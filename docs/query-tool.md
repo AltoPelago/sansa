@@ -1,13 +1,15 @@
 # SANSA Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against
-AEON source, portable Telex AES, or a host-neutral JSON namespace fixture:
+AEON source, portable Telex AES, reader-only Film AES, or a host-neutral JSON
+namespace fixture:
 
 ```bash
 npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
 npm run query -- --format json --query 'from $.inventory.items.* where any(.roles.* == "admin") select { sku = .sku name = .name }'
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.aeon
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.telex.aes
+npm run query -- --query 'from $.message select .' --fixture scalar.film.aes
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
 npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
@@ -33,6 +35,11 @@ adapter preserves record order, flat attribute spaces, structural occurrence
 identity, datatype components, and the explicit `NodeLiteral` → `NodeHead` →
 content hierarchy. Partial streams are rejected because this tool has no
 external namespace state with which to complete them.
+
+`.film.aes` fixtures are decoded from bytes by the same optional AES runtime
+and then use the identical portable-record adapter. The CLI accepts Film only
+as complete query input. It does not expose Film mutation, re-encoding, or a
+durable writer.
 
 AEON fixture support is optional so SANSA can remain a lower-level package. For
 published-package use, install `@altopelago/aeon-core` in the calling project or

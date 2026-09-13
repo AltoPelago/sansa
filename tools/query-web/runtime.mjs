@@ -279,6 +279,103 @@ export async function namespaceFromTelexSource(source) {
   }
 }
 
+/**
+ * Build a SANSA namespace from a completely validated Film v1 byte stream.
+ * Film and Telex share the same portable record adapter; only their physical
+ * reader differs. No Film mutation or writer surface is implied.
+ */
+export async function namespaceFromFilmSource(source) {
+  const loaded = await loadAeonAesRuntime();
+  if (!loaded.ok) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_FILM_RUNTIME_UNAVAILABLE',
+      message: loaded.message,
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'film',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  const aes = loaded.module;
+  if (typeof aes.decodeFilm !== 'function') {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_FILM_RUNTIME_UNAVAILABLE',
+      message: 'The loaded @altopelago/aeon-aes runtime does not expose a Film v1 reader.',
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'film',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+  let decoded;
+  try {
+    decoded = aes.decodeFilm(source);
+  } catch (error) {
+    const errors = [{
+      code: error?.code ?? 'FILM_DECODE_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+      ...(Number.isInteger(error?.offset) ? { offset: error.offset } : {}),
+      ...(Number.isInteger(error?.record) ? { record: error.record } : {}),
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'film',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  if (decoded.profile !== aes.COMPLETE_AES_PROFILE) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED',
+      message: `SANSA query navigation requires '${aes.COMPLETE_AES_PROFILE}' when no external namespace state is supplied.`,
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'film',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      namespace: buildNamespaceFromPortableRecords(decoded.records),
+      diagnostics: [],
+      film: {
+        version: aes.FILM_VERSION,
+        profile: decoded.profile,
+        profileExplicit: decoded.profileExplicit,
+        projection: decoded.projection,
+        projectionExplicit: decoded.projectionExplicit,
+        records: decoded.records,
+      },
+    };
+  } catch (error) {
+    const errors = [{
+      code: 'SANSA_QUERY_WORKBENCH_INVALID_PORTABLE_AES',
+      message: error instanceof Error ? error.message : String(error),
+    }];
+    return {
+      ok: false,
+      mode: 'evaluate',
+      sourceKind: 'film',
+      text: renderDiagnosticText(errors),
+      errors,
+    };
+  }
+}
+
 async function mountParamsLocalSpace(namespace, paramsSource) {
   if (String(paramsSource).trim().length === 0) {
     return { ok: true, namespace, diagnostics: [] };

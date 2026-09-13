@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { namespaceFromAeonSource, namespaceFromTelexSource } from '../tools/query-web/runtime.mjs';
+import {
+  namespaceFromAeonSource,
+  namespaceFromFilmSource,
+  namespaceFromTelexSource,
+} from '../tools/query-web/runtime.mjs';
 
 const toolPath = fileURLToPath(new URL('../scripts/query.mjs', import.meta.url));
 const defaultParams = JSON.stringify({
@@ -78,6 +82,27 @@ function testTelexRuntime(name, fn) {
   });
 }
 
+let filmRuntimeProbe;
+
+function testFilmRuntime(name, fn) {
+  test(name, async (t) => {
+    if (filmRuntimeProbe === undefined) {
+      const result = await namespaceFromFilmSource(Uint8Array.from(
+        '4f5f5fff010012000109242e6d6573736167650568656c6c6f'.match(/../gu) ?? [],
+        (pair) => Number.parseInt(pair, 16),
+      ));
+      filmRuntimeProbe = result.ok
+        ? { ok: true }
+        : { ok: false, message: result.errors?.[0]?.message ?? 'Film runtime unavailable' };
+    }
+    if (!filmRuntimeProbe.ok) {
+      t.skip(filmRuntimeProbe.message);
+      return;
+    }
+    await fn(t);
+  });
+}
+
 test('query tool help documents fixture kind support', () => {
   const result = runTool(['--help']);
 
@@ -85,7 +110,7 @@ test('query tool help documents fixture kind support', () => {
   assert.equal(result.stderr, '');
   assert.match(result.stdout, /Defaults to fixtures\/query-inventory\.json/);
   assert.match(result.stdout, /--fixture-kind <kind>/);
-  assert.match(result.stdout, /Force fixture kind: aeon, telex, or json/);
+  assert.match(result.stdout, /Force fixture kind: aeon, telex, film, or json/);
   assert.match(result.stdout, /--policy <policy>/);
   assert.match(result.stdout, /--value-semantics <profile>/);
   assert.match(result.stdout, /--disable-transform/);
@@ -448,6 +473,23 @@ testTelexRuntime('query tool reads inferred and explicit Telex fixtures', () => 
   assert.equal(inferred.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
   assert.equal(explicit.status, 0, explicit.stderr);
   assert.equal(explicit.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
+});
+
+testFilmRuntime('query tool reads inferred and explicit Film fixtures without a writer', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'sansa-film-reader-'));
+  const fixture = join(directory, 'scalar.film.aes');
+  writeFileSync(fixture, Uint8Array.from(
+    '4f5f5fff010012000109242e6d6573736167650568656c6c6f'.match(/../gu) ?? [],
+    (pair) => Number.parseInt(pair, 16),
+  ));
+  const args = ['--fixture', fixture, '--query', 'from $.message select .'];
+  const inferred = runTool(args);
+  const explicit = runTool([...args, '--fixture-kind', 'film']);
+
+  assert.equal(inferred.status, 0, inferred.stderr);
+  assert.equal(inferred.stdout.trim(), '$.message = "hello"');
+  assert.equal(explicit.status, 0, explicit.stderr);
+  assert.equal(explicit.stdout.trim(), '$.message = "hello"');
 });
 
 test('query tool mounts JSON params as a local address space', () => {
