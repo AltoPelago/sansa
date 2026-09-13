@@ -9,7 +9,6 @@ npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") sel
 npm run query -- --format json --query 'from $.inventory.items.* where any(.roles.* == "admin") select { sku = .sku name = .name }'
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.aeon
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.telex.aes
-npm run query -- --query 'from $.message select .' --fixture scalar.film.aes
 npm run query -- --query-file query.sansaq --fixture fixtures/query-inventory.json
 npm run query -- --policy validation --query 'from $.inventory.items.* where .qty >= 4 select .sku'
 npm run query -- --disable-transform --query 'from $.table.content.* select objectFrom($.table.header.*, .*)'
@@ -40,6 +39,13 @@ external namespace state with which to complete them.
 and then use the identical portable-record adapter. The CLI accepts Film only
 as complete query input. It does not expose Film mutation, re-encoding, or a
 durable writer.
+
+To create and query the minimal Film v1 scalar used by the test suite:
+
+```bash
+node --input-type=module -e "import { writeFileSync } from 'node:fs'; writeFileSync('scalar.film.aes', Buffer.from('4f5f5fff010012000109242e6d6573736167650568656c6c6f', 'hex'))"
+npm run query -- --query 'from $.message select .' --fixture scalar.film.aes
+```
 
 AEON fixture support is optional so SANSA can remain a lower-level package. For
 published-package use, install `@altopelago/aeon-core` in the calling project or
@@ -85,6 +91,9 @@ npm run query:web
 ```
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
+
+Film remains a byte-oriented CLI and direct runtime input in this release; the
+browser workbench does not convert Film bytes into its JSON request envelope.
 
 The same server also exposes the experimental SANSA Mutate Workbench at
 `http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon` or

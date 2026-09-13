@@ -41,11 +41,16 @@ export async function evaluateQueryForWorkbench({
   valueSemantics = '',
   budget = {},
 }) {
-  const namespaceResult = sourceKind === 'json'
-    ? namespaceFromJsonSource(source)
-    : sourceKind === 'telex'
-      ? await namespaceFromTelexSource(source)
-      : await namespaceFromAeonSource(source);
+  let namespaceResult;
+  if (sourceKind === 'json') {
+    namespaceResult = namespaceFromJsonSource(source);
+  } else if (sourceKind === 'telex') {
+    namespaceResult = await namespaceFromTelexSource(source);
+  } else if (sourceKind === 'film') {
+    namespaceResult = await namespaceFromFilmSource(source);
+  } else {
+    namespaceResult = await namespaceFromAeonSource(source);
+  }
 
   if (!namespaceResult.ok) {
     return namespaceResult;

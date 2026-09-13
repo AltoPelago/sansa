@@ -5,9 +5,19 @@ import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../too
 import {
   evaluateQueryForWorkbench,
   namespaceFromAeonSource,
+  namespaceFromFilmSource,
   namespaceFromTelexSource,
   parseQueryForWorkbench,
 } from '../tools/query-web/runtime.mjs';
+
+const FILM_SCALAR = Uint8Array.from(
+  '4f5f5fff010012000109242e6d6573736167650568656c6c6f'.match(/../gu) ?? [],
+  (pair) => Number.parseInt(pair, 16),
+);
+const FILM_PARTIAL_SCALAR = Uint8Array.from(
+  '4f5f5fff01010e6165732e7061727469616c2e763112000109242e6d6573736167650568656c6c6f'.match(/../gu) ?? [],
+  (pair) => Number.parseInt(pair, 16),
+);
 
 const defaultParamsSource = [
   'source:sansa = $.inventory.items.*',
@@ -61,6 +71,28 @@ async function hasTelexRuntime() {
 function testTelexRuntime(name, fn) {
   test(name, async (t) => {
     const runtime = await hasTelexRuntime();
+    if (!runtime.ok) {
+      t.skip(runtime.message);
+      return;
+    }
+    await fn(t);
+  });
+}
+
+let filmRuntimeProbe;
+
+async function hasFilmRuntime() {
+  if (filmRuntimeProbe !== undefined) return filmRuntimeProbe;
+  const result = await namespaceFromFilmSource(FILM_SCALAR);
+  filmRuntimeProbe = result.ok
+    ? { ok: true }
+    : { ok: false, message: result.errors?.[0]?.message ?? 'Film runtime unavailable' };
+  return filmRuntimeProbe;
+}
+
+function testFilmRuntime(name, fn) {
+  test(name, async (t) => {
+    const runtime = await hasFilmRuntime();
     if (!runtime.ok) {
       t.skip(runtime.message);
       return;
@@ -216,6 +248,27 @@ testTelexRuntime('portable namespace rejects partial streams without external st
     'value=value',
     '',
   ].join('\n'));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED');
+});
+
+testFilmRuntime('query web runtime dispatches Film bytes through the portable namespace', async () => {
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'film',
+    source: FILM_SCALAR,
+    query: 'from $.message select .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.sourceKind, 'film');
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.message = "hello"');
+  assert.equal(result.results[0].binding.representationKind, 'StringLiteral');
+});
+
+testFilmRuntime('portable namespace rejects partial Film streams without external state', async () => {
+  const result = await namespaceFromFilmSource(FILM_PARTIAL_SCALAR);
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED');
