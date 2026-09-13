@@ -1,7 +1,8 @@
 # SANSA Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against
-AEON source, portable Telex AES, or a host-neutral JSON namespace fixture:
+AEON source, portable Telex AES, reader-only Film AES, or a host-neutral JSON
+namespace fixture:
 
 ```bash
 npm run query -- --query 'from $.inventory.items.* where contains(.sku, "B") select .sku'
@@ -33,6 +34,18 @@ adapter preserves record order, flat attribute spaces, structural occurrence
 identity, datatype components, and the explicit `NodeLiteral` → `NodeHead` →
 content hierarchy. Partial streams are rejected because this tool has no
 external namespace state with which to complete them.
+
+`.film.aes` fixtures are decoded from bytes by the same optional AES runtime
+and then use the identical portable-record adapter. The CLI accepts Film only
+as complete query input. It does not expose Film mutation, re-encoding, or a
+durable writer.
+
+To create and query the minimal Film v1 scalar used by the test suite:
+
+```bash
+node --input-type=module -e "import { writeFileSync } from 'node:fs'; writeFileSync('scalar.film.aes', Buffer.from('4f5f5fff010012000109242e6d6573736167650568656c6c6f', 'hex'))"
+npm run query -- --query 'from $.message select .' --fixture scalar.film.aes
+```
 
 AEON fixture support is optional so SANSA can remain a lower-level package. For
 published-package use, install `@altopelago/aeon-core` in the calling project or
@@ -78,6 +91,9 @@ npm run query:web
 ```
 
 Then open `http://127.0.0.1:4173/tools/query-web/`.
+
+Film remains a byte-oriented CLI and direct runtime input in this release; the
+browser workbench does not convert Film bytes into its JSON request envelope.
 
 The same server also exposes the experimental SANSA Mutate Workbench at
 `http://127.0.0.1:4173/tools/mutate-web/`. The Mutate Workbench uses `.aeon` or
