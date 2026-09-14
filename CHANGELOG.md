@@ -7,6 +7,15 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.11.1 - 2026-09-14
+
+### Fixed
+
+- Fixed optional AEON Core and AES runtime discovery when the packages are
+  installed by the calling project with import-only package exports. This
+  restores published-package AEON, Telex, and Film query input without
+  requiring an explicit module-path environment override.
+
 ## 0.11.0 - 2026-09-14
 
 ### Added
