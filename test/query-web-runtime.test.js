@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../tools/query-web/examples.mjs';
 import {
@@ -9,6 +12,8 @@ import {
   namespaceFromTelexSource,
   parseQueryForWorkbench,
 } from '../tools/query-web/runtime.mjs';
+
+const runtimeModuleUrl = new URL('../tools/query-web/runtime.mjs', import.meta.url).href;
 
 const FILM_SCALAR = Uint8Array.from(
   '4f5f5fff010012000109242e6d6573736167650568656c6c6f'.match(/../gu) ?? [],
@@ -265,6 +270,79 @@ testFilmRuntime('query web runtime dispatches Film bytes through the portable na
   assert.equal(result.count, 1);
   assert.equal(result.text, '$.message = "hello"');
   assert.equal(result.results[0].binding.representationKind, 'StringLiteral');
+});
+
+test('optional AES runtime discovery supports an import-only package installed by the caller', () => {
+  const project = mkdtempSync(join(tmpdir(), 'sansa-import-only-runtime-'));
+  const packageRoot = join(project, 'node_modules', '@altopelago', 'aeon-aes');
+  mkdirSync(join(packageRoot, 'dist'), { recursive: true });
+  writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({
+    name: '@altopelago/aeon-aes',
+    type: 'module',
+    exports: {
+      '.': {
+        types: './dist/index.d.ts',
+        import: './dist/index.js',
+      },
+    },
+  }));
+  writeFileSync(
+    join(packageRoot, 'dist', 'index.js'),
+    'export const installedRuntimeMarker = "import-only";\n',
+  );
+
+  const probe = [
+    `const runtime = await import(${JSON.stringify(runtimeModuleUrl)});`,
+    'const loaded = await runtime.loadAeonAesRuntime();',
+    'if (!loaded.ok) { console.error(loaded.message); process.exit(1); }',
+    'console.log(loaded.module.installedRuntimeMarker);',
+  ].join('\n');
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', probe], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'import-only');
+});
+
+test('optional AEON Core discovery supports an import-only package installed by the caller', () => {
+  const project = mkdtempSync(join(tmpdir(), 'sansa-import-only-core-'));
+  const packageRoot = join(project, 'node_modules', '@altopelago', 'aeon-core');
+  mkdirSync(join(packageRoot, 'dist'), { recursive: true });
+  writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({
+    name: '@altopelago/aeon-core',
+    type: 'module',
+    exports: {
+      '.': {
+        types: './dist/index.d.ts',
+        import: './dist/index.js',
+      },
+    },
+  }));
+  writeFileSync(
+    join(packageRoot, 'dist', 'index.js'),
+    [
+      'export function compile() {',
+      '  return { errors: [{ code: "MOCK_CORE_LOADED", message: "loaded" }], events: [] };',
+      '}',
+      'export function formatPath() { return "$"; }',
+      '',
+    ].join('\n'),
+  );
+
+  const probe = [
+    `const runtime = await import(${JSON.stringify(runtimeModuleUrl)});`,
+    'const result = await runtime.namespaceFromAeonSource("probe = 1");',
+    'console.log(result.errors?.[0]?.code);',
+  ].join('\n');
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', probe], {
+    cwd: project,
+    encoding: 'utf8',
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'MOCK_CORE_LOADED');
 });
 
 testFilmRuntime('portable namespace rejects partial Film streams without external state', async () => {

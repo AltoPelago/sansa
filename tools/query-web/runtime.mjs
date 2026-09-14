@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve as resolvePath } from 'node:path';
+import { dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { evaluateQuery, parseAddress, parseQuery } from '../../src/index.js';
 
@@ -509,13 +509,12 @@ function aeonCoreCandidates() {
     });
   }
 
-  try {
+  const installed = resolvePackageImportFromCwd('@altopelago/aeon-core');
+  if (installed) {
     candidates.push({
       label: '@altopelago/aeon-core',
-      href: pathToFileURL(requireFromCwd.resolve('@altopelago/aeon-core')).href,
+      href: installed,
     });
-  } catch {
-    // Optional integration. JSON fixtures and pure Query parsing do not need AEON Core.
   }
 
   const devPath = fileURLToPath(devAeonCoreUrl);
@@ -538,13 +537,12 @@ function aeonAesCandidates() {
     });
   }
 
-  try {
+  const installed = resolvePackageImportFromCwd('@altopelago/aeon-aes');
+  if (installed) {
     candidates.push({
       label: '@altopelago/aeon-aes',
-      href: pathToFileURL(requireFromCwd.resolve('@altopelago/aeon-aes')).href,
+      href: installed,
     });
-  } catch {
-    // Optional integration. AEON and JSON sources do not need the AES codec.
   }
 
   const devPath = fileURLToPath(devAeonAesUrl);
@@ -556,6 +554,77 @@ function aeonAesCandidates() {
   }
 
   return candidates;
+}
+
+function resolvePackageImportFromCwd(packageName) {
+  try {
+    return pathToFileURL(requireFromCwd.resolve(packageName)).href;
+  } catch {
+    // Import-only packages have no `require` export. Resolve their ESM entry
+    // from the calling project's node_modules tree instead.
+  }
+
+  const packageParts = packageName.split('/');
+  let directory = resolvePath(process.cwd());
+  while (true) {
+    const packageRoot = resolvePath(directory, 'node_modules', ...packageParts);
+    const manifestPath = resolvePath(packageRoot, 'package.json');
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+        const target = packageImportTarget(manifest);
+        if (typeof target !== 'string' || !target.startsWith('./')) return undefined;
+        const entryPath = resolvePath(packageRoot, target);
+        const relativeEntry = relative(packageRoot, entryPath);
+        if (!relativeEntry
+          || relativeEntry === '..'
+          || relativeEntry.startsWith(`..${sep}`)
+          || isAbsolute(relativeEntry)
+          || !existsSync(entryPath)) {
+          return undefined;
+        }
+        return pathToFileURL(entryPath).href;
+      } catch {
+        return undefined;
+      }
+    }
+
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+}
+
+function packageImportTarget(manifest) {
+  if (Object.hasOwn(manifest ?? {}, 'exports')) {
+    let target = manifest.exports;
+    if (target && typeof target === 'object' && !Array.isArray(target)) {
+      const keys = Object.keys(target);
+      if (keys.some((key) => key.startsWith('.'))) target = target['.'];
+    }
+    return conditionalImportTarget(target);
+  }
+  if (typeof manifest?.module === 'string') return manifest.module;
+  if (typeof manifest?.main === 'string') return manifest.main;
+  return undefined;
+}
+
+function conditionalImportTarget(target) {
+  if (typeof target === 'string') return target;
+  if (Array.isArray(target)) {
+    for (const candidate of target) {
+      const resolved = conditionalImportTarget(candidate);
+      if (resolved) return resolved;
+    }
+    return undefined;
+  }
+  if (!target || typeof target !== 'object') return undefined;
+  for (const [condition, candidate] of Object.entries(target)) {
+    if (!['node', 'import', 'default'].includes(condition)) continue;
+    const resolved = conditionalImportTarget(candidate);
+    if (resolved) return resolved;
+  }
+  return undefined;
 }
 
 function moduleHref(specifier) {
