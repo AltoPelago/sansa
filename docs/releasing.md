@@ -42,4 +42,12 @@ must be released from tag `vX.Y.Z`.
 
 `version:set` updates `package.json` and `docs/capabilities.json` together.
 `version:check` is enforced by CI and the publish workflow; it also requires a
-matching dated changelog heading. Neither command commits, tags, or publishes.
+matching dated changelog heading. The setter accepts valid SemVer without a
+leading `v`, permits an exact idempotent rerun, and otherwise requires the new
+version to have higher SemVer precedence. Neither command commits, tags, or
+publishes.
+Updates use staged files, backups, and atomic renames. If a process is
+interrupted, both `version:set` and `version:check` fail closed until
+`npm run version:recover` either restores the original pair or finishes cleanup
+for a committed pair. Run recovery only after confirming no other version
+command is active.

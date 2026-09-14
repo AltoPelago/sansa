@@ -63,6 +63,7 @@
     "stress": "node scripts/stress-addresses.mjs",
     "version:set": "node scripts/version.mjs set",
     "version:check": "node scripts/version.mjs check",
+    "version:recover": "node scripts/version.mjs recover",
     "validate:cts-claims": "node scripts/validate-cts-claims.mjs",
     "test": "node --test test/*.test.js"
   },
