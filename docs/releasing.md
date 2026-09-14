@@ -28,10 +28,26 @@ must be released from tag `vX.Y.Z`.
 
 ## Release steps
 
-1. Update `package.json`, `docs/capabilities.json`, and `CHANGELOG.md`.
-2. Merge the release-prep PR into `main`.
-3. Confirm CI passes on `main`.
-4. Create tag `vX.Y.Z` from the checked `main` commit.
-5. Publish a GitHub Release for `vX.Y.Z`.
-6. Let `Publish npm` run from GitHub Actions.
-7. Confirm the npm package page shows the expected version and provenance.
+1. Run `npm run version:set -- X.Y.Z` to update machine-owned release metadata.
+2. Add the dated `X.Y.Z` release section and human-authored notes to
+   `CHANGELOG.md`.
+3. Run `npm run version:check`, the test suite, CTS, stress tests, and package
+   dry-run.
+4. Merge the release-prep PR into `main`.
+5. Confirm CI passes on `main`.
+6. Create tag `vX.Y.Z` from the checked `main` commit.
+7. Publish a GitHub Release for `vX.Y.Z`.
+8. Let `Publish npm` run from GitHub Actions.
+9. Confirm the npm package page shows the expected version and provenance.
+
+`version:set` updates `package.json` and `docs/capabilities.json` together.
+`version:check` is enforced by CI and the publish workflow; it also requires a
+matching dated changelog heading. The setter accepts valid SemVer without a
+leading `v`, permits an exact idempotent rerun, and otherwise requires the new
+version to have higher SemVer precedence. Neither command commits, tags, or
+publishes.
+Updates use staged files, backups, and atomic renames. If a process is
+interrupted, both `version:set` and `version:check` fail closed until
+`npm run version:recover` either restores the original pair or finishes cleanup
+for a committed pair. Run recovery only after confirming no other version
+command is active.
