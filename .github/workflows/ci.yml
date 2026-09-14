@@ -44,6 +44,9 @@ jobs:
       - name: Install
         run: npm install --package-lock=false --ignore-scripts --no-audit --fund=false
 
+      - name: Version consistency
+        run: npm run version:check
+
       - name: Unit tests
         run: npm test
 

@@ -41,6 +41,9 @@ jobs:
       - name: Validate release tag
         run: node -e 'const pkg = require("./package.json"); const expected = "v" + pkg.version; if (process.env.GITHUB_REF_NAME !== expected) { console.error("Release tag " + process.env.GITHUB_REF_NAME + " does not match package version " + expected); process.exit(1); }'
 
+      - name: Version consistency
+        run: npm run version:check
+
       - name: Unit tests
         run: npm test
 

@@ -1,6 +1,6 @@
 {
   "name": "@altopelago/sansa",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Semantic Address NameSpace Abstraction parser, resolver, and query toolkit.",
   "license": "MIT",
   "type": "module",
@@ -61,6 +61,8 @@
     "query:web": "node scripts/query-web.mjs",
     "mutate:web": "node scripts/query-web.mjs",
     "stress": "node scripts/stress-addresses.mjs",
+    "version:set": "node scripts/version.mjs set",
+    "version:check": "node scripts/version.mjs check",
     "validate:cts-claims": "node scripts/validate-cts-claims.mjs",
     "test": "node --test test/*.test.js"
   },

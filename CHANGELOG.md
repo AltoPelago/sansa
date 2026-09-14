@@ -7,6 +7,20 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.11.0 - 2026-09-14
+
+### Added
+
+- Added reader-only Film v1 input to the Query CLI and direct Query Workbench
+  runtime. Film records use the same portable AES namespace adapter as Telex,
+  without reconstructing AEON source or parser events.
+
+### Changed
+
+- Require complete Film streams when no external namespace state is supplied.
+  Film remains a byte-oriented query input and is not exposed through the
+  browser JSON request envelope, mutation, re-encoding, or durable writing.
+
 ## 0.10.1 - 2026-09-11
 
 ### Added
