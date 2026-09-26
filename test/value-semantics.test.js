@@ -34,6 +34,36 @@ test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
   assert.equal(container.value, true);
 });
 
+test('compares finite numeric lexemes without JavaScript number precision loss', () => {
+  const largeInteger = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'finiteNumber', value: '9007199254740993' },
+    right: { category: 'finiteNumber', value: '9007199254740992' },
+  });
+  assert.equal(largeInteger.ok, true);
+  assert.equal(largeInteger.relation, 'greater');
+
+  const longFraction = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'finiteNumber', value: '0.1000000000000000000000000000000001' },
+    right: { category: 'finiteNumber', value: '0.1' },
+  });
+  assert.equal(longFraction.ok, true);
+  assert.equal(longFraction.value, false);
+
+  const exponentEquivalent = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'finiteNumber', value: '-12.50' },
+    right: { category: 'finiteNumber', value: '-1.25e1' },
+  });
+  assert.equal(exponentEquivalent.ok, true);
+  assert.equal(exponentEquivalent.value, true);
+
+  const extremeExponent = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'finiteNumber', value: '1e999999999999999999999' },
+    right: { category: 'finiteNumber', value: '9e999999999999999999998' },
+  });
+  assert.equal(extremeExponent.ok, true);
+  assert.equal(extremeExponent.relation, 'greater');
+});
+
 test('rejects minimum-profile value comparisons that fail closed', () => {
   const nan = evaluateValueSemanticsOperation('equal', {
     left: { category: 'nan' },
@@ -209,6 +239,20 @@ test('evaluates lexical structured scalar value-family boundaries', () => {
   });
   assert.equal(radixDifferentMetadata.ok, true);
   assert.equal(radixDifferentMetadata.value, false);
+
+  const decimalRepresentation = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', semanticType: 'decimal', value: '19.99' },
+  });
+  assert.equal(decimalRepresentation.ok, true);
+  assert.equal(decimalRepresentation.value, false);
+
+  const decimalOrdering = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', semanticType: 'decimal', value: '20.00' },
+  });
+  assert.equal(decimalOrdering.ok, false);
+  assert.equal(decimalOrdering.reason, 'not_orderable');
 
   const encodingOrder = evaluateValueSemanticsOperation('compare', {
     left: { category: 'encoding', value: 'A' },

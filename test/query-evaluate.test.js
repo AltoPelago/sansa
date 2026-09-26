@@ -10,6 +10,7 @@ function binding({
   representationKind,
   scalarKind,
   nullReason,
+  numericLexeme,
   identity,
   value,
   children = [],
@@ -23,6 +24,7 @@ function binding({
     ...(representationKind === undefined ? {} : { representationKind }),
     ...(scalarKind === undefined ? {} : { scalarKind }),
     ...(nullReason === undefined ? {} : { nullReason }),
+    ...(numericLexeme === undefined ? {} : { numericLexeme }),
     ...(identity === undefined ? {} : { identity }),
     ...(value === undefined ? {} : { value }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
@@ -374,6 +376,8 @@ const root = binding({
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
         binding({ name: 'aliasNumber', address: '$.types.aliasNumber', semanticType: 'n', representationKind: 'number', value: 9 }),
+        binding({ name: 'largeA', address: '$.types.largeA', semanticType: 'number', representationKind: 'number', numericLexeme: '9007199254740992', value: '9007199254740992' }),
+        binding({ name: 'largeB', address: '$.types.largeB', semanticType: 'number', representationKind: 'number', numericLexeme: '9007199254740993', value: '9007199254740993' }),
         binding({ name: 'approved', address: '$.types.approved', semanticType: 'bool', representationKind: 'boolean', value: true }),
         binding({ name: 'note', address: '$.types.note', semanticType: 'trimtick', representationKind: 'string', value: 'hello trimtick' }),
         binding({ name: 'summary', address: '$.types.summary', semanticType: 'prose', representationKind: 'string', value: 'hello prose' }),
@@ -902,6 +906,38 @@ test('identifies both operand categories in cross-type comparison diagnostics', 
   assert.equal(result.errors[0].message, 'Cross-type comparison is not supported (string vs finiteNumber)');
   assert.equal(result.errors[0].phase, 'where');
   assert.equal(result.errors[0].candidateAddress, '$.inventory.items[1]');
+});
+
+test('uses lossless numeric lexemes for query literals, equality, and ordering', () => {
+  const equality = evaluateQuery([
+    'from $.types.*%number',
+    'where . == 9007199254740993',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.types.largeB']);
+
+  const ordering = evaluateQuery([
+    'from $.types.largeB',
+    'where . > $.types.largeA',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(ordering.ok, true, JSON.stringify(ordering.errors ?? []));
+  assert.deepEqual(ordering.results.map((entry) => entry.binding.address), ['$.types.largeB']);
+
+  const projectedLiteral = evaluateQuery([
+    'from $.types.largeB',
+    'select 9007199254740993',
+  ].join('\n'), namespace);
+  assert.equal(projectedLiteral.ok, true, JSON.stringify(projectedLiteral.errors ?? []));
+  assert.equal(projectedLiteral.results[0].value.value, '9007199254740993');
+
+  const stringFunction = evaluateQuery([
+    'from $.types.largeB',
+    'select contains(9007199254740993, "993")',
+  ].join('\n'), namespace);
+  assert.equal(stringFunction.ok, false);
+  assert.equal(stringFunction.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates any all and none cardinality predicates', () => {

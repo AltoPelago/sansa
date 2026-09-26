@@ -278,6 +278,8 @@ export interface SansaResolveBinding {
   readonly valueKind?: string;
   readonly literalKind?: string;
   readonly nullReason?: string;
+  /** Canonical finite AEON numeric text used for lossless comparison. */
+  readonly numericLexeme?: string;
   readonly value?: unknown;
   readonly scalar?: unknown;
   readonly origin?: string;
@@ -322,6 +324,8 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly representationKind?: (binding: TBinding) => string | undefined;
   readonly value?: (binding: TBinding) => unknown;
   readonly nullReason?: (binding: TBinding) => string | undefined;
+  /** Return canonical finite numeric text without host-number coercion. */
+  readonly numericLexeme?: (binding: TBinding) => string | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
   readonly bindingHandle?: (binding: TBinding) => unknown;

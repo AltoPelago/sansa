@@ -1406,6 +1406,9 @@ function renderScalarValue(binding) {
   if (kind === 'toggle') return String(value);
   if (kind === 'hex') return `#${value}`;
   if (kind === 'radix') return `%${value}`;
+  if (kind === 'number' || kind === 'NumberLiteral' || binding.numericLexeme !== undefined) {
+    return binding.numericLexeme ?? String(value);
+  }
   if (kind === 'encoding') return `&${value}`;
   if (kind === 'separator') return `^${value}`;
   if (['date', 'time', 'datetime', 'wtc'].includes(kind)) return String(value);

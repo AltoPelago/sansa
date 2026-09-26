@@ -13,9 +13,14 @@ versions may still include breaking changes when the SANSA specifications move.
   categories, such as `string vs finiteNumber`, while retaining the candidate
   address as structured diagnostic context.
 - Clarified that namespace addresses are current structural locators rather
-  than durable identities, finite-number evaluation uses JavaScript `number`
-  semantics, and SANSA is a bounded in-process evaluator rather than a
-  persistent database.
+  than durable identities and that SANSA is a bounded in-process evaluator
+  rather than a persistent database.
+- Finite-number equality and ordering now compare canonical numeric lexemes
+  exactly, including large integers, long fractions, and exponent forms.
+  Namespace adapters can expose `numericLexeme` independently of their host
+  materialization value, and projected query-number literals retain their
+  canonical text. Radix-family `decimal` values remain
+  representation-preserving and profile-defined for numeric interpretation.
 
 ### Fixed
 

@@ -152,6 +152,21 @@ testAeonRuntime('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+testAeonRuntime('query web runtime compares and projects AEON numbers losslessly', async () => {
+  const source = 'values:list<number> = [9007199254740992, 9007199254740993]';
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.values.* where . == 9007199254740993 select .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.values[1] = 9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].value, '9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].numericLexeme, '9007199254740993');
+});
+
 testTelexRuntime('query web runtime evaluates directly against Telex AES', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
@@ -166,6 +181,37 @@ testTelexRuntime('query web runtime evaluates directly against Telex AES', async
   assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
   assert.equal(result.results[0].binding.representationKind, 'ObjectNode');
   assert.equal(result.results[0].value.bindings[0].representationKind, 'StringLiteral');
+});
+
+testTelexRuntime('portable namespace compares and projects numeric lexemes losslessly', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.values',
+    'kind=ListNode',
+    '',
+    'path=$.values[0]',
+    'kind=NumberLiteral',
+    'datatype=number',
+    'value=9007199254740992',
+    '',
+    'path=$.values[1]',
+    'kind=NumberLiteral',
+    'datatype=number',
+    'value=9007199254740993',
+    '',
+  ].join('\n');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: 'from $.values.* where . == 9007199254740993 select .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.values[1] = 9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].value, '9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].numericLexeme, '9007199254740993');
 });
 
 testTelexRuntime('portable namespace applies exact, lower-first, and portable %kind matching', async () => {

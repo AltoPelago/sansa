@@ -14,6 +14,7 @@ const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const MAX_EXACT_NUMERIC_CHARACTERS = 65_536;
 const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
 const MUTATION_OPERATION_FIELDS = new Map([
   ['create', new Set(['op', 'parent', 'name', 'value', 'datatype', 'kind', 'provenance'])],
@@ -3528,7 +3529,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
       return {
         ok: true,
         value: scalarQueryValue(
-          expression.value,
+          expression.kind === 'number' ? expression.canonical : expression.value,
           queryLiteralMetadata(expression),
         ).value,
       };
@@ -3746,7 +3747,7 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     if (!evaluated.ok) return evaluated;
     const scalar = expectScalarQueryValue(evaluated.value, namespace);
     if (!scalar.ok) return scalar;
-    evaluatedArgs.push(scalar.value);
+    evaluatedArgs.push(scalar);
   }
 
   return evaluateOrdinaryFunction(expression.name, evaluatedArgs, options);
@@ -3823,6 +3824,12 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   if (!evaluated.ok) return evaluated;
   const scalar = expectScalarQueryValue(evaluated.value, namespace);
   if (!scalar.ok) return scalar;
+  if (scalar.metadata?.numericLexeme !== undefined) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'path' expects a string or SANSA address literal"),
+    };
+  }
 
   const activated = activateAddressLiteral(scalar.value, options.parse?.address);
   if (!activated.ok) return activated;
@@ -4213,10 +4220,11 @@ function evaluateResolveChildExpression(expression, currentBinding, namespace, o
   if (!keyScalar.ok) return keyScalar;
 
   let bindings;
-  if (typeof keyScalar.value === 'string') {
+  const numericPosition = queryScalarPosition(keyScalar);
+  if (numericPosition !== null) {
+    bindings = selectPosition(namespace, base.value.bindings[0], numericPosition);
+  } else if (isStringQueryScalar(keyScalar)) {
     bindings = selectMember(namespace, base.value.bindings[0], keyScalar.value);
-  } else if (Number.isInteger(keyScalar.value) && keyScalar.value >= 0) {
-    bindings = selectPosition(namespace, base.value.bindings[0], keyScalar.value);
   } else {
     return {
       ok: false,
@@ -4389,7 +4397,7 @@ function evaluateFieldsFromExpression(expression, currentBinding, namespace, opt
     if (!evaluated.ok) return evaluated;
     const scalar = expectScalarQueryValue(evaluated.value, namespace);
     if (!scalar.ok) return scalar;
-    if (typeof scalar.value !== 'string') {
+    if (!isStringQueryScalar(scalar)) {
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fieldsFrom' expects string field names"),
@@ -4426,7 +4434,7 @@ function objectFromBindingSets(keyBindings, valueBindings, namespace, functionNa
   for (let index = 0; index < keyBindings.length; index += 1) {
     const keyScalar = getBindingScalarValue(namespace, keyBindings[index]);
     if (!keyScalar.ok) return keyScalar;
-    if (typeof keyScalar.value !== 'string') {
+    if (!isStringQueryScalar(keyScalar)) {
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${functionName}' expects string key bindings`),
@@ -4500,7 +4508,7 @@ function evaluateSpecialValuePredicate(expression, currentBinding, namespace, op
       if (!reason.ok) return reason;
       const scalarReason = expectScalarQueryValue(reason.value, namespace);
       if (!scalarReason.ok) return scalarReason;
-      if (typeof scalarReason.value !== 'string') {
+      if (!isStringQueryScalar(scalarReason)) {
         return {
           ok: false,
           error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'isNullReason' expects a string reason"),
@@ -4614,6 +4622,8 @@ function scalarBoolean(value) {
 
 function queryLiteralMetadata(expression) {
   switch (expression.kind) {
+    case 'number':
+      return { kind: 'number', category: 'finiteNumber', numericLexeme: expression.canonical };
     case 'toggle':
       return { kind: 'toggle', category: 'toggle' };
     case 'hex':
@@ -4660,7 +4670,7 @@ function evaluateStringFunction(name, args, arity, operation) {
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects ${arity} argument${arity === 1 ? '' : 's'}`),
     };
   }
-  if (args.some((arg) => typeof arg !== 'string')) {
+  if (args.some((arg) => !isStringQueryScalar(arg))) {
     return {
       ok: false,
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects string arguments`),
@@ -4670,9 +4680,38 @@ function evaluateStringFunction(name, args, arity, operation) {
     ok: true,
     value: {
       type: 'scalar',
-      value: operation(args),
+      value: operation(args.map((arg) => arg.value)),
     },
   };
+}
+
+function isStringQueryScalar(scalar) {
+  return typeof scalar.value === 'string' && scalar.metadata?.numericLexeme === undefined;
+}
+
+function queryScalarPosition(scalar) {
+  const numericLexeme = scalar.metadata?.numericLexeme;
+  if (typeof numericLexeme === 'string') {
+    const parsed = parseExactFiniteNumber(numericLexeme);
+    if (parsed === null || parsed.sign < 0) return null;
+    if (parsed.sign === 0) return 0;
+
+    let integerDigits = parsed.digits;
+    if (parsed.scale < 0n) {
+      const fractionalWidth = -parsed.scale;
+      if (fractionalWidth > BigInt(integerDigits.length)) return null;
+      const split = integerDigits.length - Number(fractionalWidth);
+      if (!/^0*$/u.test(integerDigits.slice(split))) return null;
+      integerDigits = integerDigits.slice(0, split) || '0';
+    } else {
+      if (BigInt(integerDigits.length) + parsed.scale > 16n) return null;
+      integerDigits += '0'.repeat(Number(parsed.scale));
+    }
+
+    const value = Number(integerDigits);
+    return Number.isSafeInteger(value) ? value : null;
+  }
+  return Number.isSafeInteger(scalar.value) && scalar.value >= 0 ? scalar.value : null;
 }
 
 function evaluateExistenceExpression(expression, currentBinding, namespace, options) {
@@ -4822,7 +4861,7 @@ function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespa
     }
     const scalar = expectScalarQueryValue(evaluatedArgs[index], namespace);
     if (!scalar.ok) return scalar;
-    scalarArgs.push(scalar.value);
+    scalarArgs.push(scalar);
   }
 
   const values = [];
@@ -4830,7 +4869,7 @@ function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespa
     const bindingScalar = getBindingScalarValue(namespace, binding);
     if (!bindingScalar.ok) return bindingScalar;
     const args = scalarArgs.slice();
-    args[bindingSetArgs[0].index] = bindingScalar.value;
+    args[bindingSetArgs[0].index] = bindingScalar;
     const evaluated = evaluateOrdinaryFunction(expression.name, args);
     if (!evaluated.ok) return evaluated;
     if (evaluated.value.type !== 'scalar' || typeof evaluated.value.value !== 'boolean') {
@@ -5157,6 +5196,9 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor, profile
     return valueSemanticsDiagnostic('not_orderable', 'Boolean ordering is not part of the minimum profile');
   }
   if (!sameMinimumOrderingDomain(left, right)) {
+    if (left.category === right.category && left.category !== 'temporal') {
+      return valueSemanticsDiagnostic('not_orderable', 'Value category is not orderable in the minimum profile');
+    }
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
   }
   const comparison = compareMinimumOrdering(left, right, profile);
@@ -5173,8 +5215,10 @@ function valueDescriptorToScalarInfo(descriptor) {
   }
   switch (descriptor.category) {
     case 'finiteNumber': {
-      const value = Number(descriptor.value);
-      if (!Number.isFinite(value)) throw new Error('finiteNumber descriptor must contain a finite numeric value');
+      const value = String(descriptor.value);
+      if (parseExactFiniteNumber(value) === null) {
+        throw new Error('finiteNumber descriptor must contain a canonical finite numeric value');
+      }
       return { category: 'finiteNumber', value };
     }
     case 'positiveInfinity':
@@ -5251,6 +5295,9 @@ function scalarInfoToValueDescriptor(info) {
     return info.value === -Infinity
       ? { category: 'negativeInfinity' }
       : { category: 'positiveInfinity' };
+  }
+  if (info.numericLexeme !== undefined) {
+    return { category: 'finiteNumber', value: info.numericLexeme };
   }
   const semanticCategory = VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.category)
     ? info.category
@@ -5335,7 +5382,8 @@ function temporalSemanticType(info) {
 
 function compareMinimumEquality(operation, left, right, profile) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
-    return operation === 'equal' ? left.value === right.value : left.value !== right.value;
+    const equals = compareMinimumNumeric(left, right) === 0;
+    return operation === 'equal' ? equals : !equals;
   }
   const equals = (() => {
     if (left.category === 'string' && right.category === 'string') return profile.compareStrings(left.value, right.value) === 0;
@@ -5347,6 +5395,9 @@ function compareMinimumEquality(operation, left, right, profile) {
 }
 
 function compareMinimumOrdering(left, right, profile) {
+  if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
+    return compareMinimumNumeric(left, right);
+  }
   if (left.category === 'temporal' && right.category === 'temporal') {
     return profile.compareTemporal(left.value, right.value);
   }
@@ -5354,6 +5405,51 @@ function compareMinimumOrdering(left, right, profile) {
     return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
   }
   return comparePrimitiveOrderValues(left.value, right.value, profile);
+}
+
+function compareMinimumNumeric(left, right) {
+  if (left.category === right.category && left.category !== 'finiteNumber') return 0;
+  if (left.category === 'negativeInfinity' || right.category === 'positiveInfinity') return -1;
+  if (left.category === 'positiveInfinity' || right.category === 'negativeInfinity') return 1;
+  const comparison = compareExactFiniteNumbers(left.value, right.value);
+  if (comparison === null) throw new Error('Invalid finite numeric value reached comparison');
+  return comparison;
+}
+
+function compareExactFiniteNumbers(left, right) {
+  const leftValue = parseExactFiniteNumber(String(left));
+  const rightValue = parseExactFiniteNumber(String(right));
+  if (leftValue === null || rightValue === null) return null;
+  if (leftValue.sign !== rightValue.sign) return leftValue.sign < rightValue.sign ? -1 : 1;
+  if (leftValue.sign === 0) return 0;
+
+  const leftOrder = BigInt(leftValue.digits.length) + leftValue.scale;
+  const rightOrder = BigInt(rightValue.digits.length) + rightValue.scale;
+  let comparison;
+  if (leftOrder !== rightOrder) {
+    comparison = leftOrder < rightOrder ? -1 : 1;
+  } else {
+    const width = Math.max(leftValue.digits.length, rightValue.digits.length);
+    const leftDigits = leftValue.digits.padEnd(width, '0');
+    const rightDigits = rightValue.digits.padEnd(width, '0');
+    comparison = leftDigits === rightDigits ? 0 : leftDigits < rightDigits ? -1 : 1;
+  }
+  return leftValue.sign === -1 ? -comparison : comparison;
+}
+
+function parseExactFiniteNumber(value) {
+  if (value.length === 0 || value.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+  const match = /^([+-]?)(?:(0|[1-9]\d*)(?:\.(\d+))?|\.(\d+))(?:[eE]([+-]?\d+))?$/u.exec(value);
+  if (match === null) return null;
+  const integer = match[2] ?? '';
+  const fraction = match[3] ?? match[4] ?? '';
+  const digits = `${integer}${fraction}`.replace(/^0+/u, '');
+  if (digits.length === 0) return { sign: 0, digits: '0', scale: 0n };
+  return {
+    sign: match[1] === '-' ? -1 : 1,
+    digits,
+    scale: BigInt(match[5] ?? '0') - BigInt(fraction.length),
+  };
 }
 
 function normalizeValueSemanticsCategory(category) {
@@ -5457,6 +5553,7 @@ function queryScalarToInfo(scalar) {
       ...(metadata.semanticType === undefined ? {} : { semanticType: metadata.semanticType }),
       ...(metadata.containerKind === undefined ? {} : { containerKind: metadata.containerKind }),
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
+      ...(metadata.numericLexeme === undefined ? {} : { numericLexeme: metadata.numericLexeme }),
     };
   }
   return { value: scalar };
@@ -5665,11 +5762,12 @@ function getBindingScalarInfo(namespace, binding) {
   const kind = getBindingScalarKind(namespace, binding);
   const semanticType = getBindingSemanticType(namespace, binding);
   const nullReason = getBindingNullReason(namespace, binding);
+  const numericLexeme = getBindingNumericLexeme(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
@@ -5715,6 +5813,11 @@ function getBindingNullReason(namespace, binding) {
   return binding.nullReason;
 }
 
+function getBindingNumericLexeme(namespace, binding) {
+  if (typeof namespace.numericLexeme === 'function') return namespace.numericLexeme(binding);
+  return typeof binding.numericLexeme === 'string' ? binding.numericLexeme : undefined;
+}
+
 function getBindingNodeTag(namespace, binding) {
   if (typeof namespace.nodeTag === 'function') return namespace.nodeTag(binding);
   if (typeof namespace.tag === 'function') return namespace.tag(binding);
@@ -5743,6 +5846,7 @@ function scalarMetadataFromInfo(info) {
   if (info.kind !== undefined) metadata.kind = info.kind;
   if (info.semanticType !== undefined) metadata.semanticType = info.semanticType;
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
+  if (info.numericLexeme !== undefined) metadata.numericLexeme = info.numericLexeme;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 

@@ -296,6 +296,18 @@ evaluateValueSemanticsOperation("compare", {
 
 The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
+`finiteNumber` descriptor values may be canonical AEON numeric strings or host
+numbers. Canonical strings are compared exactly, including integer, fractional,
+and exponent forms, without conversion through a host floating-point type.
+Namespace adapters should expose canonical source text through
+`numericLexeme(binding)` or `binding.numericLexeme`; this lexeme takes
+precedence over a convenience host value during comparison.
+
+The radix family remains representation-preserving in the minimum profile.
+In particular, `decimal` is the AEON `radix[10]` alias, so numeric conversion
+or ordering for `%19.9900` requires an explicit trusted profile rather than an
+implicit finite-number coercion.
+
 The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, and `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
 Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless a future explicit profile defines a richer domain.
@@ -1205,10 +1217,14 @@ Query values:
 
 Bindings expose scalar values through `namespace.value(binding)`, `binding.value`, or `binding.scalar`.
 
-The built-in evaluator consumes JavaScript scalar values. Finite numeric
-comparison therefore uses JavaScript `number` semantics; a source adapter that
-retains an exact numeric lexeme should expose that lossless source record
-separately when applications need decimal or arbitrary-precision processing.
+The built-in evaluator compares finite numeric lexemes exactly. A namespace may
+still expose a JavaScript `number` as its convenience value, but should also
+expose `numericLexeme` so equality and ordering do not inherit host-number
+precision loss. Projection materialization remains the namespace adapter's
+policy: lossless adapters can expose canonical numeric strings, while adapters
+that deliberately expose native numbers should document that conversion.
+Numeric literals written directly in a query are projected as their canonical
+string lexeme so the evaluator does not round them before returning a result.
 Invalid comparisons identify the two evaluator categories (for example,
 `string vs finiteNumber`) and include `candidateAddress` when evaluation was
 attached to a candidate binding.
