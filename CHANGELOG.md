@@ -7,6 +7,12 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Fixed
+
+- Allowed namespace `parent` callbacks to return `null` as well as `undefined`
+  for root bindings, matching the nullable parent field on resolver bindings
+  and common tree-adapter conventions.
+
 ## 0.11.1 - 2026-09-14
 
 ### Fixed

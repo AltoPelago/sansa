@@ -311,7 +311,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly root: TBinding | (() => TBinding | undefined);
   readonly contextualRoot?: TBinding;
   readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
-  readonly parent?: (binding: TBinding) => TBinding | undefined;
+  readonly parent?: (binding: TBinding) => TBinding | null | undefined;
   readonly member?: (binding: TBinding, name: string) => TBinding | undefined;
   readonly position?: (binding: TBinding, index: number) => TBinding | undefined;
   readonly attributeSpace?: (binding: TBinding) => TBinding | undefined;
