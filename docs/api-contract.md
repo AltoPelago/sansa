@@ -308,9 +308,19 @@ In particular, `decimal` is the AEON `radix[10]` alias, so numeric conversion
 or ordering for `%19.9900` requires an explicit trusted profile rather than an
 implicit finite-number coercion.
 
-The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, and `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
+`createRadixNumericValueSemanticsProfile()` (profile id
+`aeon.value.radix.numeric.same-base.v1`, compact alias `radix-numeric`) enables
+exact numeric equality and ordering for radix-family values whose resolved
+bases match. A typed operand supplies the base for an untyped `%...` query
+literal, so a `decimal` binding can be compared with `%19.99`. If both operands
+declare different bases, comparison fails closed; cross-base rational
+comparison is not part of this profile. `compareExactRadixValues(left, right,
+base)` exposes the same base-2-through-base-64 comparator directly. Neither API
+converts through JavaScript `number`.
 
-Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison. Partial hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless a future explicit profile defines a richer domain.
+The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`, and `createRadixNumericValueSemanticsProfile(...)` adds exact same-base radix comparison. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
+
+Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison and `compareRadix` for explicitly enabled radix comparison. Partial string hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless an explicit profile defines a richer domain.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 

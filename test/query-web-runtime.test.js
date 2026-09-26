@@ -840,6 +840,20 @@ testAeonRuntime('query web runtime applies value semantics profiles to ordered f
   assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
 });
 
+testAeonRuntime('query web runtime applies exact same-base radix numeric semantics', async () => {
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'price:decimal = %19.9900',
+    query: 'from $.price where . == %19.99 select .',
+    valueSemantics: 'radix-numeric',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.price = %19.9900');
+  assert.equal(result.results[0].binding.radixBase, 10);
+});
+
 testAeonRuntime('query web runtime applies natural ASCII value semantics profiles', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const query = 'from $.parts.*\norder by .value asc\nselect .value';

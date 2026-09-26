@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  compareExactRadixValues,
   createFrenchValueSemanticsProfile,
   createNaturalAsciiValueSemanticsProfile,
+  createRadixNumericValueSemanticsProfile,
   evaluateValueSemanticsOperation,
 } from '../src/index.js';
 
@@ -62,6 +64,45 @@ test('compares finite numeric lexemes without JavaScript number precision loss',
   });
   assert.equal(extremeExponent.ok, true);
   assert.equal(extremeExponent.relation, 'greater');
+});
+
+test('compares exact same-base radix values without host-number conversion', () => {
+  assert.equal(compareExactRadixValues('001.100', '1.1', 2), 0);
+  assert.equal(compareExactRadixValues('-A.8', '-A.7', 16), -1);
+  assert.equal(compareExactRadixValues('!', '&', 64), 1);
+  assert.equal(compareExactRadixValues('2', '1', 2), null);
+  assert.equal(compareExactRadixValues('1e3', '1', 10), null);
+});
+
+test('applies explicit same-base radix numeric semantics', () => {
+  const profile = createRadixNumericValueSemanticsProfile();
+  const equal = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', value: '19.99' },
+  }, { valueSemantics: profile });
+  assert.equal(equal.ok, true);
+  assert.equal(equal.value, true);
+
+  const ordering = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', semanticType: 'radix[2]', value: '10.01' },
+    right: { category: 'radix', radixBase: 2, value: '10.1' },
+  }, { valueSemantics: 'radix-numeric' });
+  assert.equal(ordering.ok, true);
+  assert.equal(ordering.relation, 'less');
+
+  const crossBase = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', radixBase: 2, value: '10' },
+    right: { category: 'radix', radixBase: 10, value: '2' },
+  }, { valueSemantics: profile });
+  assert.equal(crossBase.ok, false);
+  assert.equal(crossBase.reason, 'mixed_radix_bases');
+
+  const unknownBase = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', value: '10' },
+    right: { category: 'radix', value: '10' },
+  }, { valueSemantics: profile });
+  assert.equal(unknownBase.ok, false);
+  assert.equal(unknownBase.reason, 'radix_base_required');
 });
 
 test('rejects minimum-profile value comparisons that fail closed', () => {

@@ -11,6 +11,7 @@ function binding({
   scalarKind,
   nullReason,
   numericLexeme,
+  radixBase,
   identity,
   value,
   children = [],
@@ -25,6 +26,7 @@ function binding({
     ...(scalarKind === undefined ? {} : { scalarKind }),
     ...(nullReason === undefined ? {} : { nullReason }),
     ...(numericLexeme === undefined ? {} : { numericLexeme }),
+    ...(radixBase === undefined ? {} : { radixBase }),
     ...(identity === undefined ? {} : { identity }),
     ...(value === undefined ? {} : { value }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
@@ -370,6 +372,7 @@ const root = binding({
         binding({ name: 'colorCopy', address: '$.types.colorCopy', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
         binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
         binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
+        binding({ name: 'price', address: '$.types.price', semanticType: 'decimal', representationKind: 'radix', scalarKind: 'radix', radixBase: 10, value: '19.9900' }),
         binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
         binding({ name: 'version', address: '$.types.version', semanticType: 'sep["."]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
@@ -938,6 +941,32 @@ test('uses lossless numeric lexemes for query literals, equality, and ordering',
   ].join('\n'), namespace);
   assert.equal(stringFunction.ok, false);
   assert.equal(stringFunction.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
+test('uses explicit same-base radix numeric semantics without changing the default', () => {
+  const defaultEquality = evaluateQuery([
+    'from $.types.price',
+    'where . == %19.99',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(defaultEquality.ok, true, JSON.stringify(defaultEquality.errors ?? []));
+  assert.equal(defaultEquality.results.length, 0);
+
+  const numericEquality = evaluateQuery([
+    'from $.types.price',
+    'where . == %19.99',
+    'select .',
+  ].join('\n'), namespace, { valueSemantics: 'radix-numeric' });
+  assert.equal(numericEquality.ok, true, JSON.stringify(numericEquality.errors ?? []));
+  assert.deepEqual(numericEquality.results.map((entry) => entry.binding.address), ['$.types.price']);
+
+  const numericOrdering = evaluateQuery([
+    'from $.types.price',
+    'where . < %20',
+    'select .',
+  ].join('\n'), namespace, { valueSemantics: 'aeon.value.radix.numeric.same-base.v1' });
+  assert.equal(numericOrdering.ok, true, JSON.stringify(numericOrdering.errors ?? []));
+  assert.deepEqual(numericOrdering.results.map((entry) => entry.binding.address), ['$.types.price']);
 });
 
 test('evaluates any all and none cardinality predicates', () => {

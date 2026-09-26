@@ -14,6 +14,7 @@ const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const RADIX_NUMERIC_SAME_BASE_PROFILE_ID = 'aeon.value.radix.numeric.same-base.v1';
 const MAX_EXACT_NUMERIC_CHARACTERS = 65_536;
 const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
 const MUTATION_OPERATION_FIELDS = new Map([
@@ -311,6 +312,7 @@ export function createIntlValueSemanticsProfile(options = {}) {
     caseMapping: 'intl-locale',
     compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
     compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
+    ...(typeof options.compareRadix === 'function' ? { compareRadix: options.compareRadix } : {}),
     lowerString: (value) => value.toLocaleLowerCase(locale),
     upperString: (value) => value.toLocaleUpperCase(locale),
   });
@@ -336,6 +338,23 @@ export function createNaturalAsciiValueSemanticsProfile(options = {}) {
     lowerString: (value) => value.toLowerCase(),
     upperString: (value) => value.toUpperCase(),
   });
+}
+
+export function createRadixNumericValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    ...aeonValueSemanticsDefaultProfile,
+    id: options.id ?? RADIX_NUMERIC_SAME_BASE_PROFILE_ID,
+    radixComparison: 'same-base-exact',
+    compareRadix: compareExactRadixSemanticValues,
+  });
+}
+
+/** Compare two exact radix payloads in the same declared base. */
+export function compareExactRadixValues(left, right, base) {
+  const leftValue = parseExactRadixValue(String(left), base);
+  const rightValue = parseExactRadixValue(String(right), base);
+  if (leftValue === null || rightValue === null) return null;
+  return compareParsedRadixValues(leftValue, rightValue);
 }
 
 export function evaluateQuery(input, namespace, options = {}) {
@@ -5020,6 +5039,9 @@ function getValueSemanticsProfile(valueSemantics) {
   if (valueSemantics === NATURAL_ASCII_STRING_PROFILE_ID || valueSemantics === 'natural-ascii') {
     return createNaturalAsciiValueSemanticsProfile();
   }
+  if (valueSemantics === RADIX_NUMERIC_SAME_BASE_PROFILE_ID || valueSemantics === 'radix-numeric') {
+    return createRadixNumericValueSemanticsProfile();
+  }
   if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
     return createFrenchValueSemanticsProfile({ locale: valueSemantics });
   }
@@ -5031,6 +5053,7 @@ function getValueSemanticsProfile(valueSemantics) {
   const hasLowerString = typeof valueSemantics.lowerString === 'function';
   const hasUpperString = typeof valueSemantics.upperString === 'function';
   const hasCompareTemporal = typeof valueSemantics.compareTemporal === 'function';
+  const hasCompareRadix = typeof valueSemantics.compareRadix === 'function';
   if (hasCompareStrings && hasLowerString && hasUpperString) {
     return {
       ...aeonValueSemanticsDefaultProfile,
@@ -5039,16 +5062,24 @@ function getValueSemanticsProfile(valueSemantics) {
       compareTemporal: typeof valueSemantics.compareTemporal === 'function'
         ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
         : aeonValueSemanticsDefaultProfile.compareTemporal,
+      ...(hasCompareRadix ? {
+        compareRadix: (left, right) => normalizeOptionalComparison(valueSemantics.compareRadix(left, right)),
+      } : {}),
     };
   }
   if (hasCompareStrings || hasLowerString || hasUpperString) {
     throw new Error('Custom value-semantics profiles must define compareStrings, lowerString, and upperString together.');
   }
-  if (hasCompareTemporal) {
+  if (hasCompareTemporal || hasCompareRadix) {
     return {
       ...aeonValueSemanticsDefaultProfile,
       ...valueSemantics,
-      compareTemporal: (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right)),
+      compareTemporal: hasCompareTemporal
+        ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
+        : aeonValueSemanticsDefaultProfile.compareTemporal,
+      ...(hasCompareRadix ? {
+        compareRadix: (left, right) => normalizeOptionalComparison(valueSemantics.compareRadix(left, right)),
+      } : {}),
     };
   }
   if (
@@ -5063,6 +5094,10 @@ function normalizeComparison(value) {
   if (value < 0) return -1;
   if (value > 0) return 1;
   return 0;
+}
+
+function normalizeOptionalComparison(value) {
+  return value === null || value === undefined ? null : normalizeComparison(value);
 }
 
 function compareStringsByUnicodeScalarValue(left, right) {
@@ -5172,6 +5207,12 @@ function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescript
   if (left.category === 'missing' || right.category === 'missing' || left.category === 'bindingSet' || right.category === 'bindingSet') {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Evaluation state or non-scalar value is not equality-comparable');
   }
+  if (left.category === 'radix' && right.category === 'radix' && typeof profile.compareRadix === 'function') {
+    const comparison = compareRadixWithProfile(left, right, profile);
+    if (!comparison.ok) return comparison.diagnostic;
+    const value = comparison.value === 0;
+    return { ok: true, outcome: 'value', value: operation === 'equal' ? value : !value };
+  }
   if (!sameMinimumEqualityDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
   }
@@ -5194,6 +5235,15 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor, profile
   }
   if (typeof left.value === 'boolean' && typeof right.value === 'boolean') {
     return valueSemanticsDiagnostic('not_orderable', 'Boolean ordering is not part of the minimum profile');
+  }
+  if (left.category === 'radix' && right.category === 'radix' && typeof profile.compareRadix === 'function') {
+    const comparison = compareRadixWithProfile(left, right, profile);
+    if (!comparison.ok) return comparison.diagnostic;
+    return {
+      ok: true,
+      outcome: 'value',
+      relation: comparison.value < 0 ? 'less' : comparison.value > 0 ? 'greater' : 'equal',
+    };
   }
   if (!sameMinimumOrderingDomain(left, right)) {
     if (left.category === right.category && left.category !== 'temporal') {
@@ -5241,6 +5291,7 @@ function valueDescriptorToScalarInfo(descriptor) {
         value: {
           payload: String(descriptor.value ?? ''),
           semanticType: descriptor.semanticType ?? 'radix',
+          radixBase: normalizeRadixBase(descriptor.radixBase ?? radixBaseFromSemanticType(descriptor.semanticType)),
         },
       };
     case 'encoding':
@@ -5310,6 +5361,7 @@ function scalarInfoToValueDescriptor(info) {
       category,
       value: info.value,
       ...(info.semanticType === undefined ? {} : { semanticType: info.semanticType }),
+      ...(info.radixBase === undefined ? {} : { radixBase: info.radixBase }),
       ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
     };
   }
@@ -5452,6 +5504,159 @@ function parseExactFiniteNumber(value) {
   };
 }
 
+function compareRadixWithProfile(left, right, profile) {
+  const leftBase = left.value.radixBase;
+  const rightBase = right.value.radixBase;
+  const base = leftBase ?? rightBase;
+  if (base === undefined) {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'radix_base_required',
+        'Radix numeric comparison requires at least one operand with a resolved base',
+      ),
+    };
+  }
+  if (leftBase !== undefined && rightBase !== undefined && leftBase !== rightBase) {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'mixed_radix_bases',
+        `Radix numeric comparison requires the same base (${leftBase} vs ${rightBase})`,
+      ),
+    };
+  }
+
+  const value = profile.compareRadix(
+    { payload: left.value.payload, base, semanticType: left.value.semanticType },
+    { payload: right.value.payload, base, semanticType: right.value.semanticType },
+  );
+  if (value === null) {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'invalid_radix_value',
+        `Radix payload is invalid for base ${base}`,
+      ),
+    };
+  }
+  return { ok: true, value: normalizeComparison(value) };
+}
+
+function compareExactRadixSemanticValues(left, right) {
+  if (left.base !== right.base) return null;
+  return compareExactRadixValues(left.payload, right.payload, left.base);
+}
+
+function parseExactRadixValue(value, base) {
+  if (!Number.isInteger(base) || base < 2 || base > 64) return null;
+  if (value.length === 0 || value.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+
+  let index = 0;
+  let sign = 1;
+  if (value[index] === '+' || value[index] === '-') {
+    sign = value[index] === '-' ? -1 : 1;
+    index += 1;
+  }
+  if (index >= value.length) return null;
+
+  const integerDigits = [];
+  const fractionalDigits = [];
+  let target = integerDigits;
+  let sawPoint = false;
+  let sawDigit = false;
+  for (; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '.') {
+      if (sawPoint || index === value.length - 1) return null;
+      sawPoint = true;
+      target = fractionalDigits;
+      continue;
+    }
+    if (character === '_') {
+      const previous = value[index - 1];
+      const next = value[index + 1];
+      if (radixDigitValue(previous) === null || radixDigitValue(next) === null) return null;
+      continue;
+    }
+    const digit = radixDigitValue(character);
+    if (digit === null || digit >= base) return null;
+    target.push(digit);
+    sawDigit = true;
+  }
+  if (!sawDigit || fractionalDigits.length === 0 && sawPoint) return null;
+
+  let leadingZeroes = 0;
+  while (leadingZeroes < integerDigits.length && integerDigits[leadingZeroes] === 0) leadingZeroes += 1;
+  if (leadingZeroes > 0) integerDigits.splice(0, leadingZeroes);
+  while (fractionalDigits.length > 0 && fractionalDigits.at(-1) === 0) fractionalDigits.pop();
+  if (integerDigits.length === 0 && fractionalDigits.length === 0) sign = 0;
+  return { sign, integerDigits, fractionalDigits };
+}
+
+function compareParsedRadixValues(left, right) {
+  if (left.sign !== right.sign) return left.sign < right.sign ? -1 : 1;
+  if (left.sign === 0) return 0;
+
+  let comparison = 0;
+  if (left.integerDigits.length !== right.integerDigits.length) {
+    comparison = left.integerDigits.length < right.integerDigits.length ? -1 : 1;
+  } else {
+    comparison = compareRadixDigitArrays(left.integerDigits, right.integerDigits);
+    if (comparison === 0) {
+      const width = Math.max(left.fractionalDigits.length, right.fractionalDigits.length);
+      for (let index = 0; index < width; index += 1) {
+        const leftDigit = left.fractionalDigits[index] ?? 0;
+        const rightDigit = right.fractionalDigits[index] ?? 0;
+        if (leftDigit !== rightDigit) {
+          comparison = leftDigit < rightDigit ? -1 : 1;
+          break;
+        }
+      }
+    }
+  }
+  return left.sign === -1 ? -comparison : comparison;
+}
+
+function compareRadixDigitArrays(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] < right[index]) return -1;
+    if (left[index] > right[index]) return 1;
+  }
+  return 0;
+}
+
+function radixDigitValue(character) {
+  if (typeof character !== 'string') return null;
+  const codePoint = character.codePointAt(0);
+  if (codePoint >= 48 && codePoint <= 57) return codePoint - 48;
+  if (codePoint >= 65 && codePoint <= 90) return codePoint - 55;
+  if (codePoint >= 97 && codePoint <= 122) return codePoint - 61;
+  if (character === '&') return 62;
+  if (character === '!') return 63;
+  return null;
+}
+
+function normalizeRadixBase(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!Number.isInteger(value) || value < 2 || value > 64) {
+    throw new Error('radixBase must be an integer from 2 through 64');
+  }
+  return value;
+}
+
+function radixBaseFromSemanticType(semanticType) {
+  if (typeof semanticType !== 'string') return undefined;
+  const normalized = semanticType.trim().toLowerCase();
+  if (normalized === 'decimal') return 10;
+  const alias = /^radix(2|6|8|12)$/u.exec(normalized);
+  if (alias !== null) return Number(alias[1]);
+  const clarified = /^radix\[(\d+)\]$/u.exec(normalized);
+  if (clarified === null) return undefined;
+  const base = Number(clarified[1]);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
+}
+
 function normalizeValueSemanticsCategory(category) {
   if (category === 'sansa') return 'sansaAddress';
   if (category === 'cloneReference' || category === 'pointerReference') return 'referenceForm';
@@ -5554,6 +5759,7 @@ function queryScalarToInfo(scalar) {
       ...(metadata.containerKind === undefined ? {} : { containerKind: metadata.containerKind }),
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
       ...(metadata.numericLexeme === undefined ? {} : { numericLexeme: metadata.numericLexeme }),
+      ...(metadata.radixBase === undefined ? {} : { radixBase: metadata.radixBase }),
     };
   }
   return { value: scalar };
@@ -5568,6 +5774,9 @@ function queryComparisonMessage(reason, operator, leftDescriptor, rightDescripto
   }
   if (reason === 'not_equality_comparable') return 'NaN, null, and absence values are not equality-comparable in this evaluator slice';
   if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
+  if (reason === 'radix_base_required') return 'Radix numeric comparison requires a resolved base from at least one operand';
+  if (reason === 'mixed_radix_bases') return 'Cross-base radix comparison is not enabled by this value-semantics profile';
+  if (reason === 'invalid_radix_value') return 'Radix payload is invalid for its resolved base';
   return 'Invalid scalar comparison';
 }
 
@@ -5763,11 +5972,12 @@ function getBindingScalarInfo(namespace, binding) {
   const semanticType = getBindingSemanticType(namespace, binding);
   const nullReason = getBindingNullReason(namespace, binding);
   const numericLexeme = getBindingNumericLexeme(namespace, binding);
+  const radixBase = getBindingRadixBase(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme, radixBase };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
@@ -5818,6 +6028,12 @@ function getBindingNumericLexeme(namespace, binding) {
   return typeof binding.numericLexeme === 'string' ? binding.numericLexeme : undefined;
 }
 
+function getBindingRadixBase(namespace, binding) {
+  if (typeof namespace.radixBase === 'function') return namespace.radixBase(binding);
+  if (Number.isInteger(binding.radixBase)) return binding.radixBase;
+  return radixBaseFromSemanticType(getBindingSemanticType(namespace, binding));
+}
+
 function getBindingNodeTag(namespace, binding) {
   if (typeof namespace.nodeTag === 'function') return namespace.nodeTag(binding);
   if (typeof namespace.tag === 'function') return namespace.tag(binding);
@@ -5847,6 +6063,7 @@ function scalarMetadataFromInfo(info) {
   if (info.semanticType !== undefined) metadata.semanticType = info.semanticType;
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
   if (info.numericLexeme !== undefined) metadata.numericLexeme = info.numericLexeme;
+  if (info.radixBase !== undefined) metadata.radixBase = info.radixBase;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 

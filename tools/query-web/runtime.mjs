@@ -710,6 +710,8 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (nullReason !== undefined) binding.nullReason = nullReason;
     const numericLexeme = numericLexemeFromAeonValue(event.value);
     if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
+    const radixBase = radixBaseFromAeonValue(event.value, binding.semanticType);
+    if (radixBase !== undefined) binding.radixBase = radixBase;
 
     const scalar = scalarFromAeonValue(event.value);
     if (scalar.ok) binding.value = scalar.value;
@@ -765,6 +767,8 @@ function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
     if (nullReason !== undefined) binding.nullReason = nullReason;
     const numericLexeme = numericLexemeFromAeonValue(entry.value);
     if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
+    const radixBase = radixBaseFromAeonValue(entry.value, binding.semanticType);
+    if (radixBase !== undefined) binding.radixBase = radixBase;
     const scalar = scalarFromAeonValue(entry.value);
     if (scalar.ok) binding.value = scalar.value;
     if (entry.annotations?.size) {
@@ -884,6 +888,8 @@ function portableBinding(record, finalSelector) {
   if (record.kind === 'NumberLiteral' && typeof record.value === 'string') {
     binding.numericLexeme = record.value;
   }
+  const radixBase = radixBaseFromPortableRecord(record);
+  if (radixBase !== undefined) binding.radixBase = radixBase;
   const scalar = scalarFromPortableRecord(record);
   if (scalar.ok) binding.value = scalar.value;
   if (record.kind === 'NullLiteral') binding.nullReason = record.value;
@@ -1151,6 +1157,34 @@ function numericLexemeFromAeonValue(value) {
   return value.type === 'NumberLiteral' ? value.value : undefined;
 }
 
+function radixBaseFromAeonValue(value, semanticType) {
+  if (value.type === 'TypedValue') return radixBaseFromAeonValue(value.value, semanticType ?? value.datatype);
+  return value.type === 'RadixLiteral' ? radixBaseFromSemanticType(semanticType) : undefined;
+}
+
+function radixBaseFromPortableRecord(record) {
+  if (record.kind !== 'RadixLiteral') return undefined;
+  const fromType = radixBaseFromSemanticType(record.datatype);
+  if (fromType !== undefined) return fromType;
+  if (record.datatype !== 'radix' || !Array.isArray(record.clarifiers) || record.clarifiers.length !== 1) return undefined;
+  const clarifier = record.clarifiers[0];
+  if (clarifier?.kind !== 'NumberLiteral') return undefined;
+  const base = Number(clarifier.value);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
+}
+
+function radixBaseFromSemanticType(semanticType) {
+  if (typeof semanticType !== 'string') return undefined;
+  const normalized = semanticType.trim().toLowerCase();
+  if (normalized === 'decimal') return 10;
+  const alias = /^radix(2|6|8|12)$/u.exec(normalized);
+  if (alias !== null) return Number(alias[1]);
+  const clarified = /^radix\[(\d+)\]$/u.exec(normalized);
+  if (clarified === null) return undefined;
+  const base = Number(clarified[1]);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
+}
+
 function scalarKindFromValue(value, semanticType) {
   switch (value.type) {
     case 'TypedValue':
@@ -1328,6 +1362,7 @@ function scalarMetadataFromBinding(binding) {
   if (typeof kind === 'string') metadata.kind = lowerFirst(kind);
   if (binding.nullReason !== undefined) metadata.nullReason = binding.nullReason;
   if (binding.numericLexeme !== undefined) metadata.numericLexeme = binding.numericLexeme;
+  if (binding.radixBase !== undefined) metadata.radixBase = binding.radixBase;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
@@ -1420,6 +1455,7 @@ function summarizeBinding(binding) {
     ...(binding.scalarKind === undefined ? {} : { scalarKind: binding.scalarKind }),
     ...(binding.nullReason === undefined ? {} : { nullReason: binding.nullReason }),
     ...(binding.numericLexeme === undefined ? {} : { numericLexeme: binding.numericLexeme }),
+    ...(binding.radixBase === undefined ? {} : { radixBase: binding.radixBase }),
     ...(scalar.ok ? { value: sanitizeJsonValue(scalar.value) } : {}),
   };
 }

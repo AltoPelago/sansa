@@ -199,6 +199,12 @@ number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
 compares as a separator payload when the host exposes those representation
 families. `hex` remains distinct from radix, including `radix[16]`; no numeric
 or byte-level interpretation is implied without an explicit profile.
+Use `--value-semantics radix-numeric` (full id
+`aeon.value.radix.numeric.same-base.v1`) to enable exact numeric equality and
+ordering for radix-family operands with the same resolved base. The typed
+operand may supply the base for an untyped `%...` query literal. The profile
+does not enable cross-base comparison, and the default profile continues to
+preserve radix representation identity.
 Semantic filters match the base datatype label of generic claims, so
 `#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
 `nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,

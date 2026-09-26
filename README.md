@@ -116,8 +116,9 @@ its current boundary is documented in
 
 Both the CLI and browser workbench can select an explicit query value-semantics
 profile, such as the default codepoint profile, the Natural ASCII numeric-region
-profile, or the French locale profile, to test comparison, ordering, and
-case-mapping behavior under different consumer contexts.
+profile, the French locale profile, or the explicit same-base `radix-numeric`
+profile, to test comparison, ordering, and case-mapping behavior under
+different consumer contexts.
 
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).

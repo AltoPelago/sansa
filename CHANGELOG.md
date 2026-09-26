@@ -21,6 +21,11 @@ versions may still include breaking changes when the SANSA specifications move.
   materialization value, and projected query-number literals retain their
   canonical text. Radix-family `decimal` values remain
   representation-preserving and profile-defined for numeric interpretation.
+- Added the explicit `aeon.value.radix.numeric.same-base.v1` (`radix-numeric`)
+  profile and `compareExactRadixValues(...)` for exact base-2-through-base-64
+  equality and ordering without host-number conversion. Default radix
+  comparison remains representation-preserving, and cross-base comparison
+  fails closed.
 
 ### Fixed
 
