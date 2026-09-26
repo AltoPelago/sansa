@@ -890,6 +890,20 @@ test('rejects non-boolean where expressions', () => {
   assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
 });
 
+test('identifies both operand categories in cross-type comparison diagnostics', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[1]',
+    'where .id == 4',
+    'select .',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+  assert.equal(result.errors[0].message, 'Cross-type comparison is not supported (string vs finiteNumber)');
+  assert.equal(result.errors[0].phase, 'where');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[1]');
+});
+
 test('evaluates any all and none cardinality predicates', () => {
   const anyAdmin = evaluateQuery([
     'from $.inventory.items.*',

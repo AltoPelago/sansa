@@ -5429,7 +5429,10 @@ function compareQueryScalars(operator, left, right, options = {}) {
   if (!evaluated.ok) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', queryComparisonMessage(evaluated.reason, operator)),
+      error: queryEvaluateError(
+        'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+        queryComparisonMessage(evaluated.reason, operator, leftDescriptor, rightDescriptor),
+      ),
     };
   }
   const value = (() => {
@@ -5459,8 +5462,13 @@ function queryScalarToInfo(scalar) {
   return { value: scalar };
 }
 
-function queryComparisonMessage(reason, operator) {
-  if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
+function queryComparisonMessage(reason, operator, leftDescriptor, rightDescriptor) {
+  if (reason === 'mixed_categories') {
+    const categories = leftDescriptor?.category && rightDescriptor?.category
+      ? ` (${leftDescriptor.category} vs ${rightDescriptor.category})`
+      : '';
+    return `Cross-type comparison is not supported${categories}`;
+  }
   if (reason === 'not_equality_comparable') return 'NaN, null, and absence values are not equality-comparable in this evaluator slice';
   if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
   return 'Invalid scalar comparison';

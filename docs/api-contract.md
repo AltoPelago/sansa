@@ -1184,6 +1184,13 @@ Query results:
 
 `address` is a backwards-compatible alias for `candidateAddress`. `candidateAddress` is optional and records the canonical source address of the candidate binding when the namespace exposes one. It is the address selected by `from`, after `where`, ordering, and slicing.
 
+An address is a locator in the namespace's current structure, not a durable
+identity. Positional addresses can change when ordered containers are edited.
+When a host supplies `binding.identity`, SANSA treats it as opaque structural
+occurrence metadata; it does not substitute identity for addressing. Mutation
+adapters can use identity and observed-state preconditions to reject stale
+targets.
+
 `valueAddress` is present only when projection preserves one existing selected binding identity. For example, `from $.items.* select .sku` can carry `candidateAddress = $.items[0]` and `valueAddress = $.items[0].sku`. If the selected value is a multi-binding Binding Set, each binding retains its own address inside the value instead of collapsing to one `valueAddress`.
 
 `kind` is `binding` when the selected value is a Binding Set that preserves existing namespace binding identity. `valueAddress` is still present only for the single-binding case. `kind` is `derived` for constructed objects and scalar function results. Derived values do not become addressable namespace bindings.
@@ -1198,7 +1205,20 @@ Query values:
 
 Bindings expose scalar values through `namespace.value(binding)`, `binding.value`, or `binding.scalar`.
 
+The built-in evaluator consumes JavaScript scalar values. Finite numeric
+comparison therefore uses JavaScript `number` semantics; a source adapter that
+retains an exact numeric lexeme should expose that lossless source record
+separately when applications need decimal or arbitrary-precision processing.
+Invalid comparisons identify the two evaluator categories (for example,
+`string vs finiteNumber`) and include `candidateAddress` when evaluation was
+attached to a candidate binding.
+
 The evaluator does not execute host-supplied functions. Function support is limited to the built-ins listed above.
+
+SANSA query evaluation is bounded, deterministic, in-process evaluation over a
+host-supplied namespace. It is not a persistent database: the package does not
+provide storage, indexes, transactions, or a cost-based query optimizer. Hosts
+remain responsible for namespace lifecycle, authorization, and durable writes.
 
 ## Qualifier Model
 

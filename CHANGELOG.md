@@ -7,6 +7,16 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Changed
+
+- Cross-type query comparison diagnostics now identify both evaluator
+  categories, such as `string vs finiteNumber`, while retaining the candidate
+  address as structured diagnostic context.
+- Clarified that namespace addresses are current structural locators rather
+  than durable identities, finite-number evaluation uses JavaScript `number`
+  semantics, and SANSA is a bounded in-process evaluator rather than a
+  persistent database.
+
 ### Fixed
 
 - Allowed namespace `parent` callbacks to return `null` as well as `undefined`
