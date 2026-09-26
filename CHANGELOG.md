@@ -25,7 +25,9 @@ versions may still include breaking changes when the SANSA specifications move.
   profile and `compareExactRadixValues(...)` for exact base-2-through-base-64
   equality and ordering without host-number conversion. Default radix
   comparison remains representation-preserving, and cross-base comparison
-  fails closed.
+  fails closed. The value-semantics runner now targets the 0.2 development CTS
+  manifest, and the query workbench includes a `decimal` equality example that
+  demonstrates the opt-in behavior.
 
 ### Fixed
 

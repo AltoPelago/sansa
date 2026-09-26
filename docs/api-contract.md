@@ -17,6 +17,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane is core conformance and skips experimental extension cases. The experimental lane includes those cases for implementations that advertise matching extensions.
+The value-semantics runner defaults to the mutable `value-semantics-cts-v1-snapshot-0.2` development target. It includes the minimum consumer suite plus conformance vectors for `aeon.value.radix.numeric.same-base.v1`; older manifests remain selectable with `--cts <manifest>`.
 The Instruction and Mutate CTS lanes are experimental and are not included in
 `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage.
 The Mutate lane covers structured planning, apply, target-surface checks, and

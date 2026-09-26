@@ -459,6 +459,21 @@ export const queryExampleGroups = [
           includes: '$.parts[1].value = "part-2"',
         },
       },
+      {
+        name: 'profileRadixNumericEquality',
+        label: 'Radix numeric equality',
+        valueSemantics: 'aeon.value.radix.numeric.same-base.v1',
+        query: lines(
+          'from $.prices.display',
+          'where . == %19.99',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.prices.display = %19.9900',
+        },
+      },
     ],
   },
   {

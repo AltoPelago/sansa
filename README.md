@@ -56,6 +56,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane runs core conformance and skips experimental extension cases. `cts:query:experimental` includes experimental extension coverage.
+The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base radix numeric profile. Pass `--cts <manifest>` to run an older compatibility target explicitly.
 The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy plan-filter cases.
 
 ## Query Tool

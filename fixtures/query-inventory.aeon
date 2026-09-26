@@ -4,6 +4,10 @@ target:number = 7
 targetClone:number = ~target
 targetPointer:number = ~>target
 
+prices:object = {
+  display:decimal = %19.9900
+}
+
 types:object = {
   color:hex = #ff00aa
   colorCopy:hex = #ff00aa

@@ -10,7 +10,14 @@
       "surface": "value-semantics",
       "snapshot_id": "value-semantics-cts-v1-snapshot-0.1",
       "status": "claimed",
-      "command": "npm run cts:value-semantics"
+      "command": "npm run cts:value-semantics -- --cts ../../aeonite-org/aeonite-cts/cts/value-semantics/v1/value-semantics-cts.v1.json"
+    },
+    {
+      "surface": "value-semantics-radix-numeric",
+      "snapshot_id": "value-semantics-cts-v1-snapshot-0.2",
+      "status": "experimental",
+      "command": "npm run cts:value-semantics",
+      "notes": "The default command targets the mutable proposal-stage development manifest."
     },
     {
       "surface": "sansa-address-parser",
