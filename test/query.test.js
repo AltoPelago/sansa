@@ -290,6 +290,16 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
 });
 
+test('explains that projection colons are reserved for datatype annotations', () => {
+  const result = parseQueryExpression('{ sku: .sku }');
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_INVALID_PROJECTION');
+  assert.equal(
+    result.errors[0].message,
+    "Projection fields use AEON assignment syntax ('name = expression'); ':' is reserved for datatype annotations",
+  );
+});
+
 test('query CTS cases match parser behavior', () => {
   const suite = JSON.parse(readFileSync(
     resolve(ctsRoot, 'sansa', 'v1', 'suites', '04-query-parser.json'),

@@ -927,6 +927,9 @@ Recognized expression syntax:
 - function-call shape: `contains(.name, "x")`
 - projection shape: `{ name = .name status = .status }`
 
+Projection fields use AEON assignment syntax. `:` is reserved for AEON
+datatype annotations and is not accepted as a JSON-style field separator.
+
 Operator precedence:
 
 ```text

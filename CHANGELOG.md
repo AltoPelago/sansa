@@ -12,6 +12,9 @@ versions may still include breaking changes when the SANSA specifications move.
 - Allowed namespace `parent` callbacks to return `null` as well as `undefined`
   for root bindings, matching the nullable parent field on resolver bindings
   and common tree-adapter conventions.
+- Added a targeted projection diagnostic explaining that fields use AEON
+  `name = expression` syntax and that `:` remains reserved for datatype
+  annotations.
 
 ## 0.11.1 - 2026-09-14
 

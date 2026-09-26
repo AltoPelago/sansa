@@ -8342,6 +8342,13 @@ function splitProjectionFields(source) {
     while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
     const name = source.slice(nameStart, cursor);
     while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (source[cursor] === ':') {
+      throw new SansaParseError(
+        "Projection fields use AEON assignment syntax ('name = expression'); ':' is reserved for datatype annotations",
+        cursor,
+        'SANSA_QUERY_INVALID_PROJECTION',
+      );
+    }
     if (source[cursor] !== '=') {
       throw new SansaParseError("Expected '=' after projection field name", cursor, 'SANSA_QUERY_INVALID_PROJECTION');
     }
