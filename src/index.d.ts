@@ -282,6 +282,8 @@ export interface SansaResolveBinding {
   readonly numericLexeme?: string;
   /** Resolved base for an AEON radix-family value. */
   readonly radixBase?: number;
+  /** Count of represented fractional radix digits, excluding visual separators. */
+  readonly radixScale?: number;
   readonly value?: unknown;
   readonly scalar?: unknown;
   readonly origin?: string;
@@ -330,6 +332,8 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly numericLexeme?: (binding: TBinding) => string | undefined;
   /** Return the resolved base for a radix-family binding. */
   readonly radixBase?: (binding: TBinding) => number | undefined;
+  /** Return the represented fractional radix digit count. */
+  readonly radixScale?: (binding: TBinding) => number | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
   readonly bindingHandle?: (binding: TBinding) => unknown;
@@ -920,7 +924,7 @@ export interface SansaQueryObjectValue {
   readonly value: Record<string, unknown>;
 }
 
-export type AeonValueSemanticsOperation = 'equal' | 'notEqual' | 'compare' | 'isValue';
+export type AeonValueSemanticsOperation = 'equal' | 'notEqual' | 'compare' | 'isValue' | 'radixScale';
 
 export type AeonValueSemanticsCategory =
   | 'finiteNumber'
@@ -994,6 +998,7 @@ export interface AeonValueSemanticsValueDescriptor {
   readonly reason?: string;
   readonly semanticType?: string;
   readonly radixBase?: number;
+  readonly radixScale?: number;
   readonly containerKind?: string;
   readonly count?: number;
 }
@@ -1019,7 +1024,7 @@ export type AeonValueSemanticsResult =
   | {
       readonly ok: true;
       readonly outcome: 'value';
-      readonly value?: boolean;
+      readonly value?: boolean | number;
       readonly relation?: 'less' | 'equal' | 'greater';
     }
   | {
@@ -1048,7 +1053,18 @@ export function createNaturalAsciiValueSemanticsProfile(options?: Omit<AeonValue
 export function createRadixNumericValueSemanticsProfile(
   options?: { readonly id?: string },
 ): AeonValueSemanticsProfile;
+export function createCrossBaseRadixNumericValueSemanticsProfile(
+  options?: { readonly id?: string },
+): AeonValueSemanticsProfile;
 export function compareExactRadixValues(left: string, right: string, base: number): -1 | 0 | 1 | null;
+export function compareExactCrossBaseRadixValues(
+  left: string,
+  leftBase: number,
+  right: string,
+  rightBase: number,
+): -1 | 0 | 1 | null;
+/** Return represented fractional radix digits, excluding `_`, or `null` for an invalid payload. */
+export function radixScaleOf(value: string, base?: number): number | null;
 
 export interface SansaAddress {
   readonly type: 'SansaAddress';

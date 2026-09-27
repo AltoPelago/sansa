@@ -6,6 +6,8 @@ targetPointer:number = ~>target
 
 prices:object = {
   display:decimal = %19.9900
+  binaryTwo:radix[2] = %10
+  decimalTwo:decimal = %2
 }
 
 types:object = {

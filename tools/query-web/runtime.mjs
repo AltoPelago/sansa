@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { evaluateQuery, parseAddress, parseQuery } from '../../src/index.js';
+import { evaluateQuery, parseAddress, parseQuery, radixScaleOf } from '../../src/index.js';
 
 const devAeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
 const devAeonAesUrl = new URL('../../../aeon/implementations/typescript/packages/aes/dist/index.js', import.meta.url);
@@ -712,6 +712,8 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
     const radixBase = radixBaseFromAeonValue(event.value, binding.semanticType);
     if (radixBase !== undefined) binding.radixBase = radixBase;
+    const radixScale = radixScaleFromAeonValue(event.value, radixBase);
+    if (radixScale !== undefined) binding.radixScale = radixScale;
 
     const scalar = scalarFromAeonValue(event.value);
     if (scalar.ok) binding.value = scalar.value;
@@ -769,6 +771,8 @@ function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
     if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
     const radixBase = radixBaseFromAeonValue(entry.value, binding.semanticType);
     if (radixBase !== undefined) binding.radixBase = radixBase;
+    const radixScale = radixScaleFromAeonValue(entry.value, radixBase);
+    if (radixScale !== undefined) binding.radixScale = radixScale;
     const scalar = scalarFromAeonValue(entry.value);
     if (scalar.ok) binding.value = scalar.value;
     if (entry.annotations?.size) {
@@ -890,6 +894,10 @@ function portableBinding(record, finalSelector) {
   }
   const radixBase = radixBaseFromPortableRecord(record);
   if (radixBase !== undefined) binding.radixBase = radixBase;
+  if (record.kind === 'RadixLiteral' && typeof record.value === 'string') {
+    const radixScale = radixScaleOf(record.value, radixBase);
+    if (radixScale !== null) binding.radixScale = radixScale;
+  }
   const scalar = scalarFromPortableRecord(record);
   if (scalar.ok) binding.value = scalar.value;
   if (record.kind === 'NullLiteral') binding.nullReason = record.value;
@@ -1162,6 +1170,12 @@ function radixBaseFromAeonValue(value, semanticType) {
   return value.type === 'RadixLiteral' ? radixBaseFromSemanticType(semanticType) : undefined;
 }
 
+function radixScaleFromAeonValue(value, radixBase) {
+  if (value.type === 'TypedValue') return radixScaleFromAeonValue(value.value, radixBase);
+  if (value.type !== 'RadixLiteral') return undefined;
+  return radixScaleOf(value.value, radixBase) ?? undefined;
+}
+
 function radixBaseFromPortableRecord(record) {
   if (record.kind !== 'RadixLiteral') return undefined;
   const fromType = radixBaseFromSemanticType(record.datatype);
@@ -1363,6 +1377,7 @@ function scalarMetadataFromBinding(binding) {
   if (binding.nullReason !== undefined) metadata.nullReason = binding.nullReason;
   if (binding.numericLexeme !== undefined) metadata.numericLexeme = binding.numericLexeme;
   if (binding.radixBase !== undefined) metadata.radixBase = binding.radixBase;
+  if (binding.radixScale !== undefined) metadata.radixScale = binding.radixScale;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
@@ -1456,6 +1471,7 @@ function summarizeBinding(binding) {
     ...(binding.nullReason === undefined ? {} : { nullReason: binding.nullReason }),
     ...(binding.numericLexeme === undefined ? {} : { numericLexeme: binding.numericLexeme }),
     ...(binding.radixBase === undefined ? {} : { radixBase: binding.radixBase }),
+    ...(binding.radixScale === undefined ? {} : { radixScale: binding.radixScale }),
     ...(scalar.ok ? { value: sanitizeJsonValue(scalar.value) } : {}),
   };
 }

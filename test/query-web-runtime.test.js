@@ -1295,6 +1295,16 @@ test('query web example catalog is grouped and uniquely keyed', () => {
   assert.deepEqual(Object.keys(queryExamples), names);
 });
 
+test('query web profile picker exposes every catalogued value-semantics profile', () => {
+  const html = readFileSync(new URL('../tools/query-web/index.html', import.meta.url), 'utf8');
+  const profiles = new Set(queryExampleGroups.flatMap((group) => group.examples)
+    .map((example) => example.valueSemantics)
+    .filter(Boolean));
+  for (const profile of profiles) {
+    assert.match(html, new RegExp(`value="${escapeRegExp(profile)}"`), profile);
+  }
+});
+
 testAeonRuntime('query web runtime exercises workbench examples', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const cases = queryExampleGroups.flatMap((group) => group.examples)

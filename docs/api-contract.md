@@ -17,7 +17,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane is core conformance and skips experimental extension cases. The experimental lane includes those cases for implementations that advertise matching extensions.
-The value-semantics runner defaults to the mutable `value-semantics-cts-v1-snapshot-0.2` development target. It includes the minimum consumer suite plus conformance vectors for `aeon.value.radix.numeric.same-base.v1`; older manifests remain selectable with `--cts <manifest>`.
+The value-semantics runner defaults to the mutable `value-semantics-cts-v1-snapshot-0.2` development target. It includes the minimum consumer suite plus conformance vectors for `aeon.value.radix.numeric.same-base.v1` and `aeon.value.radix.numeric.cross-base.v1`; older manifests remain selectable with `--cts <manifest>`.
 The Instruction and Mutate CTS lanes are experimental and are not included in
 `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage.
 The Mutate lane covers structured planning, apply, target-surface checks, and
@@ -319,7 +319,26 @@ comparison is not part of this profile. `compareExactRadixValues(left, right,
 base)` exposes the same base-2-through-base-64 comparator directly. Neither API
 converts through JavaScript `number`.
 
-The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`, and `createRadixNumericValueSemanticsProfile(...)` adds exact same-base radix comparison. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
+`createCrossBaseRadixNumericValueSemanticsProfile()` (profile id
+`aeon.value.radix.numeric.cross-base.v1`, compact alias
+`radix-numeric-cross-base`) additionally compares operands with independently
+resolved bases. It represents each finite radix value as an exact integer over
+an exact power-of-base denominator and cross-multiplies those values without
+rounding. `compareExactCrossBaseRadixValues(left, leftBase, right, rightBase)`
+exposes that comparator directly. The same-base profile continues to reject
+mixed bases.
+
+`radixScaleOf(payload, base?)` returns the represented count of fractional
+radix digits, excluding visual `_` separators. The profile-independent
+`radixScale` value-semantics operation and `radixScale(value)` query function
+expose the same representation metadata. Thus `%19.9900` has scale 4 and
+`%19.99` has scale 2 even though an applicable numeric radix profile compares
+their mathematical values as equal. Namespace adapters may expose a cached
+`radixScale` property or callback; SANSA otherwise derives it from a radix
+binding's preserved payload. Scale counts digits in each value's own base and
+does not itself define cross-base quantum, rounding, or schema policy.
+
+The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`, `createRadixNumericValueSemanticsProfile(...)` adds exact same-base radix comparison, and `createCrossBaseRadixNumericValueSemanticsProfile(...)` adds exact rational comparison across bases. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
 Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison and `compareRadix` for explicitly enabled radix comparison. Partial string hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless an explicit profile defines a richer domain.
 
@@ -1087,7 +1106,7 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 | multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
 | unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
 
-The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. `radixScale(value)` accepts one radix-family scalar and returns its represented fractional digit count without normalizing trailing zeroes. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 

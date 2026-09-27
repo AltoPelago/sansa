@@ -56,7 +56,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane runs core conformance and skips experimental extension cases. `cts:query:experimental` includes experimental extension coverage.
-The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base radix numeric profile. Pass `--cts <manifest>` to run an older compatibility target explicitly.
+The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base and cross-base radix numeric profiles. Pass `--cts <manifest>` to run an older compatibility target explicitly.
 The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy plan-filter cases.
 
 ## Query Tool
@@ -117,9 +117,13 @@ its current boundary is documented in
 
 Both the CLI and browser workbench can select an explicit query value-semantics
 profile, such as the default codepoint profile, the Natural ASCII numeric-region
-profile, the French locale profile, or the explicit same-base `radix-numeric`
-profile, to test comparison, ordering, and case-mapping behavior under
-different consumer contexts.
+profile, the French locale profile, the explicit same-base `radix-numeric`
+profile, or the exact `radix-numeric-cross-base` profile, to test comparison,
+ordering, and case-mapping behavior under different consumer contexts.
+Radix representation scale is independently available through
+`radixScale(value)` in queries and `radixScaleOf(payload, base?)` in the API;
+for example, `%19.9900` has scale 4 even when a numeric profile treats it as
+equal to `%19.99`.
 
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).

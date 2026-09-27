@@ -15,6 +15,7 @@ const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
 const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
 const RADIX_NUMERIC_SAME_BASE_PROFILE_ID = 'aeon.value.radix.numeric.same-base.v1';
+const RADIX_NUMERIC_CROSS_BASE_PROFILE_ID = 'aeon.value.radix.numeric.cross-base.v1';
 const MAX_EXACT_NUMERIC_CHARACTERS = 65_536;
 const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
 const MUTATION_OPERATION_FIELDS = new Map([
@@ -349,12 +350,62 @@ export function createRadixNumericValueSemanticsProfile(options = {}) {
   });
 }
 
+export function createCrossBaseRadixNumericValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    ...aeonValueSemanticsDefaultProfile,
+    id: options.id ?? RADIX_NUMERIC_CROSS_BASE_PROFILE_ID,
+    radixComparison: 'cross-base-exact',
+    compareRadix: compareExactCrossBaseRadixSemanticValues,
+  });
+}
+
 /** Compare two exact radix payloads in the same declared base. */
 export function compareExactRadixValues(left, right, base) {
   const leftValue = parseExactRadixValue(String(left), base);
   const rightValue = parseExactRadixValue(String(right), base);
   if (leftValue === null || rightValue === null) return null;
   return compareParsedRadixValues(leftValue, rightValue);
+}
+
+/** Compare two exact radix payloads with independently declared bases. */
+export function compareExactCrossBaseRadixValues(left, leftBase, right, rightBase) {
+  const leftValue = parseExactRadixValue(String(left), leftBase);
+  const rightValue = parseExactRadixValue(String(right), rightBase);
+  if (leftValue === null || rightValue === null) return null;
+  if (leftBase === rightBase) return compareParsedRadixValues(leftValue, rightValue);
+  return compareParsedCrossBaseRadixValues(leftValue, leftBase, rightValue, rightBase);
+}
+
+/** Return the number of represented fractional radix digits, excluding visual separators. */
+export function radixScaleOf(value, base) {
+  const payload = String(value);
+  if (payload.length === 0 || payload.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+  if (base !== undefined && (!Number.isInteger(base) || base < 2 || base > 64)) return null;
+
+  let index = payload[0] === '+' || payload[0] === '-' ? 1 : 0;
+  if (index === payload.length) return null;
+  let sawDigit = false;
+  let sawPoint = false;
+  let scale = 0;
+  for (; index < payload.length; index += 1) {
+    const character = payload[index];
+    if (character === '.') {
+      if (sawPoint) return null;
+      sawPoint = true;
+      continue;
+    }
+    if (character === '_') {
+      const previous = payload[index - 1];
+      const next = payload[index + 1];
+      if (radixDigitValue(previous) === null || radixDigitValue(next) === null) return null;
+      continue;
+    }
+    const digit = radixDigitValue(character);
+    if (digit === null || base !== undefined && digit >= base) return null;
+    sawDigit = true;
+    if (sawPoint) scale += 1;
+  }
+  return !sawDigit || sawPoint && scale === 0 ? null : scale;
 }
 
 export function evaluateQuery(input, namespace, options = {}) {
@@ -3799,7 +3850,7 @@ function isExtensionEnabled(extensionId, options) {
 }
 
 function isOrdinaryFunctionName(name) {
-  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat'].includes(name);
+  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat', 'radixScale'].includes(name);
 }
 
 function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
@@ -3823,12 +3874,39 @@ function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
         };
       }
       return evaluateStringFunction(name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
+    case 'radixScale':
+      return evaluateRadixScaleFunction(evaluatedArgs);
     default:
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateRadixScaleFunction(args) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' expects 1 argument"),
+    };
+  }
+  const info = queryScalarToInfo(args[0]);
+  const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+  if (category !== 'radix') {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' expects a radix value"),
+    };
+  }
+  const scale = radixScaleOf(info.value, info.radixBase);
+  if (scale === null || info.radixScale !== undefined && info.radixScale !== scale) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' received an invalid radix value"),
+    };
+  }
+  return scalarQueryValue(scale, { kind: 'number', category: 'finiteNumber', numericLexeme: String(scale) });
 }
 
 function evaluatePathExpression(expression, currentBinding, namespace, options) {
@@ -5042,6 +5120,9 @@ function getValueSemanticsProfile(valueSemantics) {
   if (valueSemantics === RADIX_NUMERIC_SAME_BASE_PROFILE_ID || valueSemantics === 'radix-numeric') {
     return createRadixNumericValueSemanticsProfile();
   }
+  if (valueSemantics === RADIX_NUMERIC_CROSS_BASE_PROFILE_ID || valueSemantics === 'radix-numeric-cross-base') {
+    return createCrossBaseRadixNumericValueSemanticsProfile();
+  }
   if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
     return createFrenchValueSemanticsProfile({ locale: valueSemantics });
   }
@@ -5174,6 +5255,7 @@ function codePointWidth(codePoint) {
 
 export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
+    if (operation === 'radixScale') return evaluateValueSemanticsRadixScale(input.value);
     const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
@@ -5196,6 +5278,18 @@ export function evaluateValueSemanticsOperation(operation, input = {}, options =
   } catch (error) {
     return valueSemanticsDiagnostic('invalid_value_descriptor', error.message);
   }
+}
+
+function evaluateValueSemanticsRadixScale(descriptor) {
+  const info = valueDescriptorToScalarInfo(descriptor);
+  if (info.category !== 'radix') {
+    return valueSemanticsDiagnostic('radix_required', 'Radix scale is defined only for radix-family values');
+  }
+  const scale = radixScaleOf(info.value.payload, info.value.radixBase);
+  if (scale === null || scale === undefined) {
+    return valueSemanticsDiagnostic('invalid_radix_value', 'Radix payload is invalid for its resolved base');
+  }
+  return { ok: true, outcome: 'value', value: scale };
 }
 
 function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor, profile) {
@@ -5362,6 +5456,7 @@ function scalarInfoToValueDescriptor(info) {
       value: info.value,
       ...(info.semanticType === undefined ? {} : { semanticType: info.semanticType }),
       ...(info.radixBase === undefined ? {} : { radixBase: info.radixBase }),
+      ...(info.radixScale === undefined ? {} : { radixScale: info.radixScale }),
       ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
     };
   }
@@ -5507,8 +5602,9 @@ function parseExactFiniteNumber(value) {
 function compareRadixWithProfile(left, right, profile) {
   const leftBase = left.value.radixBase;
   const rightBase = right.value.radixBase;
-  const base = leftBase ?? rightBase;
-  if (base === undefined) {
+  const resolvedLeftBase = leftBase ?? rightBase;
+  const resolvedRightBase = rightBase ?? leftBase;
+  if (resolvedLeftBase === undefined || resolvedRightBase === undefined) {
     return {
       ok: false,
       diagnostic: valueSemanticsDiagnostic(
@@ -5517,7 +5613,7 @@ function compareRadixWithProfile(left, right, profile) {
       ),
     };
   }
-  if (leftBase !== undefined && rightBase !== undefined && leftBase !== rightBase) {
+  if (resolvedLeftBase !== resolvedRightBase && profile.radixComparison !== 'cross-base-exact') {
     return {
       ok: false,
       diagnostic: valueSemanticsDiagnostic(
@@ -5528,15 +5624,15 @@ function compareRadixWithProfile(left, right, profile) {
   }
 
   const value = profile.compareRadix(
-    { payload: left.value.payload, base, semanticType: left.value.semanticType },
-    { payload: right.value.payload, base, semanticType: right.value.semanticType },
+    { payload: left.value.payload, base: resolvedLeftBase, semanticType: left.value.semanticType },
+    { payload: right.value.payload, base: resolvedRightBase, semanticType: right.value.semanticType },
   );
   if (value === null) {
     return {
       ok: false,
       diagnostic: valueSemanticsDiagnostic(
         'invalid_radix_value',
-        `Radix payload is invalid for base ${base}`,
+        `Radix payload is invalid for base ${resolvedLeftBase} or ${resolvedRightBase}`,
       ),
     };
   }
@@ -5546,6 +5642,10 @@ function compareRadixWithProfile(left, right, profile) {
 function compareExactRadixSemanticValues(left, right) {
   if (left.base !== right.base) return null;
   return compareExactRadixValues(left.payload, right.payload, left.base);
+}
+
+function compareExactCrossBaseRadixSemanticValues(left, right) {
+  return compareExactCrossBaseRadixValues(left.payload, left.base, right.payload, right.base);
 }
 
 function parseExactRadixValue(value, base) {
@@ -5616,6 +5716,49 @@ function compareParsedRadixValues(left, right) {
     }
   }
   return left.sign === -1 ? -comparison : comparison;
+}
+
+function compareParsedCrossBaseRadixValues(left, leftBase, right, rightBase) {
+  if (left.sign !== right.sign) return left.sign < right.sign ? -1 : 1;
+  if (left.sign === 0) return 0;
+
+  const leftNumerator = radixDigitsToBigInt(
+    [...left.integerDigits, ...left.fractionalDigits],
+    leftBase,
+  );
+  const rightNumerator = radixDigitsToBigInt(
+    [...right.integerDigits, ...right.fractionalDigits],
+    rightBase,
+  );
+  const leftDenominator = BigInt(leftBase) ** BigInt(left.fractionalDigits.length);
+  const rightDenominator = BigInt(rightBase) ** BigInt(right.fractionalDigits.length);
+  const leftScaled = leftNumerator * rightDenominator;
+  const rightScaled = rightNumerator * leftDenominator;
+  const comparison = leftScaled < rightScaled ? -1 : leftScaled > rightScaled ? 1 : 0;
+  return left.sign === -1 ? -comparison : comparison;
+}
+
+function radixDigitsToBigInt(digits, base) {
+  if (digits.length === 0) return 0n;
+  let chunkSize = 1;
+  let fullChunkMultiplier = base;
+  while (fullChunkMultiplier <= Math.floor(Number.MAX_SAFE_INTEGER / base)) {
+    fullChunkMultiplier *= base;
+    chunkSize += 1;
+  }
+
+  let result = 0n;
+  for (let offset = 0; offset < digits.length; offset += chunkSize) {
+    const length = Math.min(chunkSize, digits.length - offset);
+    let chunkValue = 0;
+    let multiplier = 1;
+    for (let index = 0; index < length; index += 1) {
+      chunkValue = chunkValue * base + digits[offset + index];
+      multiplier *= base;
+    }
+    result = result * BigInt(multiplier) + BigInt(chunkValue);
+  }
+  return result;
 }
 
 function compareRadixDigitArrays(left, right) {
@@ -5760,6 +5903,7 @@ function queryScalarToInfo(scalar) {
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
       ...(metadata.numericLexeme === undefined ? {} : { numericLexeme: metadata.numericLexeme }),
       ...(metadata.radixBase === undefined ? {} : { radixBase: metadata.radixBase }),
+      ...(metadata.radixScale === undefined ? {} : { radixScale: metadata.radixScale }),
     };
   }
   return { value: scalar };
@@ -5973,11 +6117,12 @@ function getBindingScalarInfo(namespace, binding) {
   const nullReason = getBindingNullReason(namespace, binding);
   const numericLexeme = getBindingNumericLexeme(namespace, binding);
   const radixBase = getBindingRadixBase(namespace, binding);
+  const radixScale = getBindingRadixScale(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme, radixBase };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
@@ -6034,6 +6179,18 @@ function getBindingRadixBase(namespace, binding) {
   return radixBaseFromSemanticType(getBindingSemanticType(namespace, binding));
 }
 
+function getBindingRadixScale(namespace, binding) {
+  if (typeof namespace.radixScale === 'function') return namespace.radixScale(binding);
+  if (Number.isInteger(binding.radixScale) && binding.radixScale >= 0) return binding.radixScale;
+  const kind = getBindingScalarKind(namespace, binding);
+  if (kind !== 'radix') return undefined;
+  const value = typeof namespace.value === 'function'
+    ? namespace.value(binding)
+    : Object.hasOwn(binding, 'value') ? binding.value : binding.scalar;
+  if (typeof value !== 'string') return undefined;
+  return radixScaleOf(value, getBindingRadixBase(namespace, binding)) ?? undefined;
+}
+
 function getBindingNodeTag(namespace, binding) {
   if (typeof namespace.nodeTag === 'function') return namespace.nodeTag(binding);
   if (typeof namespace.tag === 'function') return namespace.tag(binding);
@@ -6064,6 +6221,7 @@ function scalarMetadataFromInfo(info) {
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
   if (info.numericLexeme !== undefined) metadata.numericLexeme = info.numericLexeme;
   if (info.radixBase !== undefined) metadata.radixBase = info.radixBase;
+  if (info.radixScale !== undefined) metadata.radixScale = info.radixScale;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 

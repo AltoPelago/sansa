@@ -28,6 +28,18 @@ versions may still include breaking changes when the SANSA specifications move.
   fails closed. The value-semantics runner now targets the 0.2 development CTS
   manifest, and the query workbench includes a `decimal` equality example that
   demonstrates the opt-in behavior.
+- Added `aeon.value.radix.numeric.cross-base.v1`
+  (`radix-numeric-cross-base`),
+  `createCrossBaseRadixNumericValueSemanticsProfile(...)`, and
+  `compareExactCrossBaseRadixValues(...)` for exact rational equality and
+  ordering across independently resolved bases. The same-base profile remains
+  fail-closed for mixed bases. Both radix profiles are now selectable in the
+  query workbench instead of being available only through example metadata or
+  programmatic options.
+- Added profile-independent radix fractional scale through `radixScaleOf(...)`,
+  the `radixScale` value-semantics operation and query function, and optional
+  namespace `radixScale` metadata. Trailing zeroes remain significant to scale
+  without changing either representation equality or numeric-profile equality.
 
 ### Fixed
 

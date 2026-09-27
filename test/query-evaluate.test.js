@@ -969,6 +969,26 @@ test('uses explicit same-base radix numeric semantics without changing the defau
   assert.deepEqual(numericOrdering.results.map((entry) => entry.binding.address), ['$.types.price']);
 });
 
+test('queries radix fractional scale as representation metadata', () => {
+  const bindingScale = evaluateQuery([
+    'from $.types.price',
+    'select { value = . scale = radixScale(.) }',
+  ].join('\n'), namespace);
+  assert.equal(bindingScale.ok, true, JSON.stringify(bindingScale.errors ?? []));
+  assert.deepEqual(bindingScale.results[0].value.value, { value: '19.9900', scale: 4 });
+
+  const literalScale = evaluateQuery([
+    'from $.types.price',
+    'select { padded = radixScale(%19.9900) compact = radixScale(%19.99) }',
+  ].join('\n'), namespace);
+  assert.equal(literalScale.ok, true, JSON.stringify(literalScale.errors ?? []));
+  assert.deepEqual(literalScale.results[0].value.value, { padded: 4, compact: 2 });
+
+  const wrongFamily = evaluateQuery('from $.types.price select radixScale("19.9900")', namespace);
+  assert.equal(wrongFamily.ok, false);
+  assert.equal(wrongFamily.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
 test('evaluates any all and none cardinality predicates', () => {
   const anyAdmin = evaluateQuery([
     'from $.inventory.items.*',

@@ -474,6 +474,34 @@ export const queryExampleGroups = [
           includes: '$.prices.display = %19.9900',
         },
       },
+      {
+        name: 'profileCrossBaseRadixEquality',
+        label: 'Cross-base radix equality',
+        valueSemantics: 'aeon.value.radix.numeric.cross-base.v1',
+        query: lines(
+          'from $.prices.binaryTwo',
+          'where . == $.prices.decimalTwo',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.prices.binaryTwo = %10',
+        },
+      },
+      {
+        name: 'radixFractionalScale',
+        label: 'Radix fractional scale',
+        query: lines(
+          'from $.prices.display',
+          'select { value = . scale = radixScale(.) }',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '"scale":4',
+        },
+      },
     ],
   },
   {

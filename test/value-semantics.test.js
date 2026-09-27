@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  compareExactCrossBaseRadixValues,
   compareExactRadixValues,
+  createCrossBaseRadixNumericValueSemanticsProfile,
   createFrenchValueSemanticsProfile,
   createNaturalAsciiValueSemanticsProfile,
   createRadixNumericValueSemanticsProfile,
   evaluateValueSemanticsOperation,
+  radixScaleOf,
 } from '../src/index.js';
 
 test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
@@ -74,6 +77,26 @@ test('compares exact same-base radix values without host-number conversion', () 
   assert.equal(compareExactRadixValues('1e3', '1', 10), null);
 });
 
+test('reports radix fractional scale without normalizing representation', () => {
+  assert.equal(radixScaleOf('19.9900', 10), 4);
+  assert.equal(radixScaleOf('19.99', 10), 2);
+  assert.equal(radixScaleOf('101', 2), 0);
+  assert.equal(radixScaleOf('-.0_0', 2), 2);
+  assert.equal(radixScaleOf('A.0', 10), null);
+  assert.equal(radixScaleOf('1.', 10), null);
+
+  const scale = evaluateValueSemanticsOperation('radixScale', {
+    value: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+  });
+  assert.deepEqual(scale, { ok: true, outcome: 'value', value: 4 });
+
+  const nonRadix = evaluateValueSemanticsOperation('radixScale', {
+    value: { category: 'finiteNumber', value: '19.9900' },
+  });
+  assert.equal(nonRadix.ok, false);
+  assert.equal(nonRadix.reason, 'radix_required');
+});
+
 test('applies explicit same-base radix numeric semantics', () => {
   const profile = createRadixNumericValueSemanticsProfile();
   const equal = evaluateValueSemanticsOperation('equal', {
@@ -103,6 +126,37 @@ test('applies explicit same-base radix numeric semantics', () => {
   }, { valueSemantics: profile });
   assert.equal(unknownBase.ok, false);
   assert.equal(unknownBase.reason, 'radix_base_required');
+});
+
+test('compares cross-base radix values exactly under an explicit profile', () => {
+  assert.equal(compareExactCrossBaseRadixValues('10', 2, '2', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('.1', 2, '.5', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('.1', 3, '.333', 10), 1);
+  assert.equal(compareExactCrossBaseRadixValues('-A', 16, '-9', 10), -1);
+  assert.equal(compareExactCrossBaseRadixValues('a', 37, '36', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('2', 2, '2', 10), null);
+
+  const profile = createCrossBaseRadixNumericValueSemanticsProfile();
+  const equal = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'radix[2]', value: '10' },
+    right: { category: 'radix', semanticType: 'decimal', value: '2.0' },
+  }, { valueSemantics: profile });
+  assert.equal(equal.ok, true);
+  assert.equal(equal.value, true);
+
+  const ordered = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', radixBase: 3, value: '.1' },
+    right: { category: 'radix', radixBase: 10, value: '.333' },
+  }, { valueSemantics: 'radix-numeric-cross-base' });
+  assert.equal(ordered.ok, true);
+  assert.equal(ordered.relation, 'greater');
+
+  const sameBaseStillRejects = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', radixBase: 2, value: '10' },
+    right: { category: 'radix', radixBase: 10, value: '2' },
+  }, { valueSemantics: 'radix-numeric' });
+  assert.equal(sameBaseStillRejects.ok, false);
+  assert.equal(sameBaseStillRejects.reason, 'mixed_radix_bases');
 });
 
 test('rejects minimum-profile value comparisons that fail closed', () => {

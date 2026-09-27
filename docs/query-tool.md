@@ -205,6 +205,11 @@ ordering for radix-family operands with the same resolved base. The typed
 operand may supply the base for an untyped `%...` query literal. The profile
 does not enable cross-base comparison, and the default profile continues to
 preserve radix representation identity.
+Use `--value-semantics radix-numeric-cross-base` (full id
+`aeon.value.radix.numeric.cross-base.v1`) when both radix operands declare
+different bases and exact mathematical comparison is intended. The profile
+uses exact rational comparison, so base-2 `%.1` equals base-10 `%.5`, while
+base-3 `%.1` is greater than the finite decimal approximation `%.333`.
 Semantic filters match the base datatype label of generic claims, so
 `#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
 `nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,
@@ -249,6 +254,12 @@ built-ins are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and
 `concat`. Function-name matching is case-sensitive. They fail on missing
 bindings, multiple bindings, explicit null, numeric specials, and other
 non-string values unless a specific function contract says otherwise.
+
+`radixScale(value)` is the non-string built-in for radix representation
+metadata. It returns the number of fractional radix digits excluding `_`
+separators, so `radixScale(%19.9900)` is `4` while
+`radixScale(%19.99)` is `2`. It does not select a numeric comparison profile
+or change equality.
 
 String comparison and `order by` use deterministic Unicode scalar-value
 ordering by default. They do not use host locale or process locale collation
