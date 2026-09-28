@@ -183,7 +183,12 @@ example `#ff00aa`, `%ff00aa`,
 `2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
 `2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
 through the active temporal value-semantics profile; the default profile uses
-canonical payload order for `date`, `time`, `datetime`, and `wtc` families. It rejects mixed-type
+canonical payload order for presentation and does not claim chronological
+ordering. `compareTemporalClaims(left, right)` and the `temporalRelation`
+operation expose conservative completion-set relations: `equal`, `before`,
+`after`, `contains`, `containedBy`, `overlaps`, or `incomparable`. They do not
+resolve named zones, local context, non-UTC timescales, unknown `-00:00`
+offsets, or leap-second chronology. The evaluator rejects mixed-type
 comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
 temporal comparison, Boolean ordering, container ordering, explicit null
 comparison, and NaN comparison.

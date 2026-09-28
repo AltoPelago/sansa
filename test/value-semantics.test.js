@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   compareExactCrossBaseRadixValues,
   compareExactRadixValues,
+  compareTemporalClaims,
   createCrossBaseRadixNumericValueSemanticsProfile,
   createFrenchValueSemanticsProfile,
   createNaturalAsciiValueSemanticsProfile,
@@ -290,6 +291,36 @@ test('evaluates same-family temporal value semantics', () => {
   });
   assert.equal(temporalOnlyProfile.ok, true);
   assert.equal(temporalOnlyProfile.relation, 'less');
+});
+
+test('relates temporal claims as completion sets without inventing missing context', () => {
+  const temporal = (semanticType, payload) => ({ semanticType, payload });
+
+  assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '10:30Z')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30Z'), temporal('time', '10:Z')), 'containedBy');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30:00.34Z'), temporal('time', '10:30:00.340Z')), 'equal');
+  assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '11:Z')), 'before');
+  assert.equal(compareTemporalClaims(temporal('time', '11:Z'), temporal('time', '10:Z')), 'after');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30Z'), temporal('datetime', '2023-03-01T10:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30-00:00'), temporal('time', '10:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30+01:00'), temporal('time', '09:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('datetime', '2027-01-31T10:30+01:00'), temporal('datetime', '2027-01-31T09:30Z')), 'equal');
+  assert.equal(compareTemporalClaims(temporal('datetime', '2027-01-31T10Z'), temporal('datetime', '2027-01-31T10+00:30')), 'overlaps');
+  assert.equal(compareTemporalClaims(temporal('time', '23:59:60Z'), temporal('time', '00:00:00Z')), 'incomparable');
+  assert.equal(
+    compareTemporalClaims(
+      temporal('wtc', '2027-01-31T23:59:59&Australia/Melbourne'),
+      temporal('wtc', '2027-01-31T23:59:59&Europe/Brussels'),
+    ),
+    'incomparable',
+  );
+
+  const operation = evaluateValueSemanticsOperation('temporalRelation', {
+    left: { category: 'temporal', semanticType: 'time', value: '10:Z' },
+    right: { category: 'temporal', semanticType: 'time', value: '10:30Z' },
+  });
+  assert.equal(operation.ok, true);
+  assert.equal(operation.relation, 'contains');
 });
 
 test('evaluates lexical structured scalar value-family boundaries', () => {

@@ -192,6 +192,11 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(time.value, '09:30:00Z');
   assert.equal(renderQueryExpression(time), '09:30:00Z');
 
+  const fractionalLeapSecond = parseExpressionOk('23:59:60.3400Z');
+  assert.equal(fractionalLeapSecond.kind, 'time');
+  assert.equal(fractionalLeapSecond.value, '23:59:60.3400Z');
+  assert.equal(renderQueryExpression(fractionalLeapSecond), '23:59:60.3400Z');
+
   const reducedTime = parseExpressionOk('09:');
   assert.equal(reducedTime.type, 'literalExpression');
   assert.equal(reducedTime.kind, 'time');
@@ -284,7 +289,9 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
-  parseExpressionBad('23:59:60', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:61', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:59.', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('0000-01-01', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');

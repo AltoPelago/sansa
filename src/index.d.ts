@@ -924,7 +924,13 @@ export interface SansaQueryObjectValue {
   readonly value: Record<string, unknown>;
 }
 
-export type AeonValueSemanticsOperation = 'equal' | 'notEqual' | 'compare' | 'isValue' | 'radixScale';
+export type AeonValueSemanticsOperation =
+  | 'equal'
+  | 'notEqual'
+  | 'compare'
+  | 'isValue'
+  | 'radixScale'
+  | 'temporalRelation';
 
 export type AeonValueSemanticsCategory =
   | 'finiteNumber'
@@ -966,6 +972,15 @@ export interface AeonTemporalSemanticValue {
   readonly payload: string;
   readonly semanticType?: string;
 }
+
+export type AeonTemporalClaimRelation =
+  | 'equal'
+  | 'before'
+  | 'after'
+  | 'contains'
+  | 'containedBy'
+  | 'overlaps'
+  | 'incomparable';
 
 export interface AeonRadixSemanticValue {
   readonly payload: string;
@@ -1025,7 +1040,7 @@ export type AeonValueSemanticsResult =
       readonly ok: true;
       readonly outcome: 'value';
       readonly value?: boolean | number;
-      readonly relation?: 'less' | 'equal' | 'greater';
+      readonly relation?: 'less' | 'equal' | 'greater' | AeonTemporalClaimRelation;
     }
   | {
       readonly ok: false;
@@ -1063,6 +1078,10 @@ export function compareExactCrossBaseRadixValues(
   right: string,
   rightBase: number,
 ): -1 | 0 | 1 | null;
+export function compareTemporalClaims(
+  left: AeonTemporalSemanticValue,
+  right: AeonTemporalSemanticValue,
+): AeonTemporalClaimRelation;
 /** Return represented fractional radix digits, excluding `_`, or `null` for an invalid payload. */
 export function radixScaleOf(value: string, base?: number): number | null;
 

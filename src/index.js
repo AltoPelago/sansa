@@ -13,7 +13,7 @@ const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
-const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const TEMPORAL_CANONICAL_PROFILE_ID = 'aeon.value.temporal.canonical.v1';
 const RADIX_NUMERIC_SAME_BASE_PROFILE_ID = 'aeon.value.radix.numeric.same-base.v1';
 const RADIX_NUMERIC_CROSS_BASE_PROFILE_ID = 'aeon.value.radix.numeric.cross-base.v1';
 const MAX_EXACT_NUMERIC_CHARACTERS = 65_536;
@@ -288,7 +288,7 @@ export function validateMutationPlanTarget(plan, targetSurface = 'aeon') {
 export const aeonValueSemanticsDefaultProfile = Object.freeze({
   id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
   stringOrder: CODEPOINT_STRING_PROFILE_ID,
-  temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+  temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
   caseMapping: 'unicode-default',
   compareStrings: compareStringsByUnicodeScalarValue,
   compareTemporal: compareTemporalByCanonicalValue,
@@ -309,7 +309,7 @@ export function createIntlValueSemanticsProfile(options = {}) {
     id: options.id ?? `aeon.value.string.intl.${Array.isArray(locale) ? locale.join('-') : locale}.v1`,
     locale,
     stringOrder: 'intl-collator',
-    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
     caseMapping: 'intl-locale',
     compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
     compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
@@ -331,7 +331,7 @@ export function createNaturalAsciiValueSemanticsProfile(options = {}) {
   return Object.freeze({
     id: NATURAL_ASCII_STRING_PROFILE_ID,
     stringOrder: NATURAL_ASCII_STRING_PROFILE_ID,
-    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
     caseMapping: 'unicode-default',
     ...options,
     compareStrings: compareStringsByNaturalAsciiOrder,
@@ -5245,6 +5245,171 @@ function compareTemporalByCanonicalValue(left, right) {
   return compareStringsByUnicodeScalarValue(String(left.payload ?? ''), String(right.payload ?? ''));
 }
 
+/**
+ * Compare two temporal claims as completion sets without resolving external
+ * timezone, leap-second, calendar, or clock authorities.
+ *
+ * @returns {'equal'|'before'|'after'|'contains'|'containedBy'|'overlaps'|'incomparable'}
+ */
+export function compareTemporalClaims(left, right) {
+  const leftClaim = parseTemporalCompletionSet(left);
+  const rightClaim = parseTemporalCompletionSet(right);
+  if (leftClaim === null || rightClaim === null || leftClaim.domain !== rightClaim.domain) {
+    return 'incomparable';
+  }
+
+  // UTC leap-second chronology requires a leap table. Preserve exact identity,
+  // but do not manufacture an ordering around second 60 without that authority.
+  if (leftClaim.leapSecond || rightClaim.leapSecond) {
+    return leftClaim.leapSecond
+      && rightClaim.leapSecond
+      && compareTemporalDecimal(leftClaim.start, rightClaim.start) === 0
+      ? 'equal'
+      : 'incomparable';
+  }
+
+  const startOrder = compareTemporalDecimal(leftClaim.start, rightClaim.start);
+  if (leftClaim.point && rightClaim.point) {
+    return startOrder < 0 ? 'before' : startOrder > 0 ? 'after' : 'equal';
+  }
+  if (leftClaim.point) {
+    if (startOrder < 0) return 'before';
+    if (compareTemporalDecimal(leftClaim.start, rightClaim.end) >= 0) return 'after';
+    return 'containedBy';
+  }
+  if (rightClaim.point) {
+    if (compareTemporalDecimal(leftClaim.end, rightClaim.start) <= 0) return 'before';
+    if (startOrder > 0) return 'after';
+    return 'contains';
+  }
+
+  const endOrder = compareTemporalDecimal(leftClaim.end, rightClaim.end);
+  if (startOrder === 0 && endOrder === 0) return 'equal';
+  if (compareTemporalDecimal(leftClaim.end, rightClaim.start) <= 0) return 'before';
+  if (compareTemporalDecimal(rightClaim.end, leftClaim.start) <= 0) return 'after';
+  if (startOrder <= 0 && endOrder >= 0) return 'contains';
+  if (startOrder >= 0 && endOrder <= 0) return 'containedBy';
+  return 'overlaps';
+}
+
+function parseTemporalCompletionSet(input) {
+  const semanticType = String(input?.semanticType ?? 'temporal');
+  const payload = String(input?.payload ?? input?.value ?? '');
+  if (semanticType === 'date') {
+    const date = parseTemporalDate(payload);
+    if (date === null) return null;
+    const start = temporalInteger(dateOrdinal(date.year, date.month, date.day) * 86_400n);
+    return { domain: 'date', start, end: addTemporalInteger(start, 86_400n), point: false, leapSecond: false };
+  }
+  if (!['time', 'datetime', 'wtc'].includes(semanticType)) return null;
+
+  let base = payload;
+  let context = null;
+  if (semanticType === 'wtc') {
+    const ampersand = payload.indexOf('&');
+    if (ampersand === -1) return null;
+    base = payload.slice(0, ampersand);
+    context = payload.slice(ampersand + 1);
+    if (context.length === 0) return null;
+  }
+
+  let date = null;
+  let clockText = base;
+  if (semanticType !== 'time') {
+    const marker = base.indexOf('T');
+    if (marker === -1) return null;
+    date = parseTemporalDate(base.slice(0, marker));
+    if (date === null) return null;
+    clockText = base.slice(marker + 1);
+  }
+  const clock = parseTemporalClock(clockText, semanticType === 'time');
+  if (clock === null) return null;
+  const domain = temporalCompletionDomain(semanticType, clock.anchor, context);
+  if (domain === null) return null;
+
+  let wholeSeconds = BigInt(clock.hour * 3_600 + (clock.minute ?? 0) * 60 + (clock.second ?? 0));
+  if (date !== null) wholeSeconds += dateOrdinal(date.year, date.month, date.day) * 86_400n;
+  if (clock.anchor === 'Z') {
+    // already UTC-relative
+  } else if (clock.anchor !== null && clock.anchor !== '-00:00') {
+    const sign = clock.anchor[0] === '-' ? -1n : 1n;
+    const offset = BigInt(Number(clock.anchor.slice(1, 3)) * 3_600 + Number(clock.anchor.slice(4, 6)) * 60);
+    wholeSeconds -= sign * offset;
+  }
+
+  const start = clock.fraction === null
+    ? temporalInteger(wholeSeconds)
+    : { coefficient: wholeSeconds * (10n ** BigInt(clock.fraction.length)) + BigInt(clock.fraction), scale: clock.fraction.length };
+  if (clock.second !== null) {
+    return { domain, start, end: start, point: true, leapSecond: clock.second === 60 };
+  }
+  const width = clock.minute === null ? 3_600n : 60n;
+  return { domain, start, end: addTemporalInteger(start, width), point: false, leapSecond: false };
+}
+
+function temporalCompletionDomain(semanticType, anchor, context) {
+  const scope = semanticType === 'time' ? 'time' : 'datetime';
+  const recognizedTimescales = new Set(['UTC', 'TAI', 'UT1', 'TT', 'GPS']);
+  if (context !== null && recognizedTimescales.has(context) && anchor !== null) {
+    if (context !== 'UTC') return null;
+  }
+  if (scope === 'time' && anchor !== null && anchor !== '-00:00') {
+    return anchor === 'Z' || anchor === '+00:00' ? 'instant:time:UTC' : `offset-time:${anchor}`;
+  }
+  if (anchor === 'Z' || (anchor !== null && anchor !== '-00:00')) return 'instant:datetime';
+  if (anchor === '-00:00') return `unknown-offset:${scope}:${context ?? ''}`;
+  if (context === 'local') return `resolver-local:${scope}`;
+  if (context !== null && recognizedTimescales.has(context)) return `timescale:${context}:${scope}`;
+  if (context !== null) return `context:${context}:${scope}`;
+  return `civil:${scope}`;
+}
+
+function parseTemporalDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match === null || !isValidDateParts(match[1], match[2], match[3])) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+function parseTemporalClock(value, requireColon) {
+  const pattern = requireColon
+    ? /^(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/
+    : /^(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/;
+  const match = pattern.exec(value);
+  if (match === null) return null;
+  const hour = Number(match[1]);
+  const minute = match[2] === undefined ? null : Number(match[2]);
+  const second = match[3] === undefined ? null : Number(match[3]);
+  const anchor = match[5] ?? null;
+  if (hour > 23 || (minute !== null && minute > 59) || (second !== null && second > 60)) return null;
+  if (anchor !== null && anchor !== 'Z') {
+    if (Number(anchor.slice(1, 3)) > 23 || Number(anchor.slice(4, 6)) > 59) return null;
+  }
+  return { hour, minute, second, fraction: match[4] ?? null, anchor };
+}
+
+function dateOrdinal(year, month, day) {
+  const priorYear = BigInt(year - 1);
+  const daysBeforeYear = priorYear * 365n + priorYear / 4n - priorYear / 100n + priorYear / 400n;
+  const monthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  const leapAdjustment = month > 2 && isLeapYear(year) ? 1 : 0;
+  return daysBeforeYear + BigInt(monthDays[month - 1] + leapAdjustment + day - 1);
+}
+
+function temporalInteger(value) {
+  return { coefficient: value, scale: 0 };
+}
+
+function addTemporalInteger(value, integer) {
+  return { coefficient: value.coefficient + integer * (10n ** BigInt(value.scale)), scale: value.scale };
+}
+
+function compareTemporalDecimal(left, right) {
+  const scale = Math.max(left.scale, right.scale);
+  const leftCoefficient = left.coefficient * (10n ** BigInt(scale - left.scale));
+  const rightCoefficient = right.coefficient * (10n ** BigInt(scale - right.scale));
+  return leftCoefficient < rightCoefficient ? -1 : leftCoefficient > rightCoefficient ? 1 : 0;
+}
+
 function isAsciiDigitCodePoint(codePoint) {
   return codePoint >= 0x30 && codePoint <= 0x39;
 }
@@ -5256,6 +5421,13 @@ function codePointWidth(codePoint) {
 export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
     if (operation === 'radixScale') return evaluateValueSemanticsRadixScale(input.value);
+    if (operation === 'temporalRelation') {
+      return {
+        ok: true,
+        outcome: 'value',
+        relation: compareTemporalClaims(input.left, input.right),
+      };
+    }
     const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
@@ -7907,7 +8079,7 @@ class QueryExpressionParser {
   startsTemporalLiteral() {
     const rest = this.input.slice(this.index);
     return /^\d{4}-\d{2}-\d{2}(?:T|(?=$|[\s,)}\]]))/.test(rest)
-      || /^\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?(?=$|[\s,)}\]])/.test(rest);
+      || /^\d{2}:/.test(rest);
   }
 
   readSimpleLiteralPayload() {
@@ -8686,9 +8858,9 @@ function isQueryCurrentPositionalShorthand(source) {
 
 function isQueryTemporalLiteral(source, kind) {
   const date = String.raw`(\d{4})-(\d{2})-(\d{2})`;
-  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const zone = String.raw`[A-Za-z0-9_+\-]+(?:/[A-Za-z0-9_+\-]+)*`;
+  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const zone = String.raw`[A-Za-z0-9_+.\-]+(?:/[A-Za-z0-9_+.\-]+)*`;
   if (kind === 'date') {
     const match = new RegExp(`^${date}$`).exec(source);
     return Boolean(match) && isValidDateParts(match[1], match[2], match[3]);
@@ -8716,7 +8888,7 @@ function isValidDateParts(yearText, monthText, dayText) {
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
-  if (month < 1 || month > 12) return false;
+  if (year < 1 || month < 1 || month > 12) return false;
   const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return day >= 1 && day <= days[month - 1];
 }
@@ -8729,11 +8901,11 @@ function isValidTimeMatch(match, offset = 1) {
   const hour = Number(match[offset]);
   const minute = match[offset + 1] === undefined ? null : Number(match[offset + 1]);
   const second = match[offset + 2] === undefined ? null : Number(match[offset + 2]);
-  const zoneHour = match[offset + 4] === undefined ? null : Number(match[offset + 4]);
-  const zoneMinute = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  const zoneHour = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  const zoneMinute = match[offset + 6] === undefined ? null : Number(match[offset + 6]);
   if (hour < 0 || hour > 23) return false;
   if (minute !== null && (minute < 0 || minute > 59)) return false;
-  if (second !== null && (second < 0 || second > 59)) return false;
+  if (second !== null && (second < 0 || second > 60)) return false;
   if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
   if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
   return true;

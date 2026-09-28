@@ -295,7 +295,12 @@ evaluateValueSemanticsOperation("compare", {
 })
 ```
 
-The supported operations are `equal`, `notEqual`, `compare`, and `isValue`. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+The supported operations are `equal`, `notEqual`, `compare`, `isValue`,
+`radixScale`, and `temporalRelation`. `temporalRelation` returns `equal`,
+`before`, `after`, `contains`, `containedBy`, `overlaps`, or `incomparable` for
+two temporal claims. It treats reduced precision as a completion set and fails
+closed where chronology requires an external timezone, timescale, local-clock,
+or leap-second authority. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
 `finiteNumber` descriptor values may be canonical AEON numeric strings or host
 numbers. Canonical strings are compared exactly, including integer, fractional,
