@@ -193,6 +193,17 @@ comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
 temporal comparison, Boolean ordering, container ordering, explicit null
 comparison, and NaN comparison.
 
+Queries can request the same completion-set relation with
+`temporalRelation(left, right)`. Both arguments must resolve to one temporal
+scalar or be temporal literals. The function returns one of the relation names
+above as a string, so it can be projected or used in a predicate:
+
+```text
+from $.schedule
+where temporalRelation(.window, 10:30Z) == "contains"
+select { window = .window relation = temporalRelation(.window, 10:30Z) }
+```
+
 Numeric datatype labels such as `int32`, `uint64`, and `float64` remain visible
 to semantic filters. When the host exposes their payload as a finite numeric
 value, comparison uses the shared numeric value semantics; range, width,
@@ -265,6 +276,9 @@ metadata. It returns the number of fractional radix digits excluding `_`
 separators, so `radixScale(%19.9900)` is `4` while
 `radixScale(%19.99)` is `2`. It does not select a numeric comparison profile
 or change equality.
+
+`temporalRelation(left, right)` is the non-string built-in for conservative
+completion-set relations between two temporal values.
 
 String comparison and `order by` use deterministic Unicode scalar-value
 ordering by default. They do not use host locale or process locale collation

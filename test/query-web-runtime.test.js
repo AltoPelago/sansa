@@ -523,6 +523,19 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(timeLiteralComparison.ok, true, JSON.stringify(timeLiteralComparison.errors ?? []));
   assert.equal(timeLiteralComparison.text, '$.types.window = 09:30:00Z');
 
+  const temporalRelationProjection = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: [
+      'types:object = {',
+      '  window:time = 09:Z',
+      '  point:time = 09:30Z',
+      '}',
+    ].join('\n'),
+    query: 'from $.types\nselect { relation = temporalRelation(.window, .point) }',
+  });
+  assert.equal(temporalRelationProjection.ok, true, JSON.stringify(temporalRelationProjection.errors ?? []));
+  assert.equal(temporalRelationProjection.text, '$.types = {"relation":"contains"}');
+
   const datetimeLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,

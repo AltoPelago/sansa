@@ -3680,11 +3680,47 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
     return evaluateMembershipExpression(left.value, right.value, namespace, options);
   }
 
+  const nativeStructuralEquality = evaluateNativeStructuralEquality(
+    expression.operator,
+    left.value,
+    right.value,
+    namespace,
+    options,
+  );
+  if (nativeStructuralEquality !== undefined) return nativeStructuralEquality;
+
   const leftScalar = expectComparableQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
   const rightScalar = expectComparableQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
   return compareQueryScalars(expression.operator, leftScalar, rightScalar, options);
+}
+
+function evaluateNativeStructuralEquality(operator, left, right, namespace, options) {
+  if (!['==', '!='].includes(operator) || typeof namespace.structurallyEqual !== 'function') {
+    return undefined;
+  }
+  if (left.type !== 'bindingSet' || right.type !== 'bindingSet') return undefined;
+  if (left.bindings.length !== 1 || right.bindings.length !== 1) return undefined;
+
+  const leftBinding = left.bindings[0];
+  const rightBinding = right.bindings[0];
+  const leftKind = containerKindFromBinding(namespace, leftBinding);
+  const rightKind = containerKindFromBinding(namespace, rightBinding);
+  if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind) return undefined;
+
+  const equal = namespace.structurallyEqual(leftBinding, rightBinding, {
+    operator,
+    valueSemantics: options.valueSemantics,
+  });
+  if (typeof equal !== 'boolean') return undefined;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: operator === '==' ? equal : !equal,
+    },
+  };
 }
 
 function evaluateMembershipExpression(leftValue, rightValue, namespace, options) {
@@ -3850,7 +3886,7 @@ function isExtensionEnabled(extensionId, options) {
 }
 
 function isOrdinaryFunctionName(name) {
-  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat', 'radixScale'].includes(name);
+  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat', 'radixScale', 'temporalRelation'].includes(name);
 }
 
 function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
@@ -3876,12 +3912,45 @@ function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
       return evaluateStringFunction(name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
     case 'radixScale':
       return evaluateRadixScaleFunction(evaluatedArgs);
+    case 'temporalRelation':
+      return evaluateTemporalRelationFunction(evaluatedArgs);
     default:
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateTemporalRelationFunction(args) {
+  if (args.length !== 2) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'temporalRelation' expects 2 arguments"),
+    };
+  }
+
+  const claims = args.map((argument) => {
+    const info = queryScalarToInfo(argument);
+    const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+    if (category !== 'temporal' || typeof info.value !== 'string') return null;
+    return {
+      payload: info.value,
+      semanticType: temporalSemanticType(info),
+    };
+  });
+
+  if (claims.some((claim) => claim === null)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'temporalRelation' expects temporal arguments"),
+    };
+  }
+
+  return scalarQueryValue(compareTemporalClaims(claims[0], claims[1]), {
+    kind: 'string',
+    category: 'string',
+  });
 }
 
 function evaluateRadixScaleFunction(args) {

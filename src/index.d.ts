@@ -336,10 +336,25 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly radixScale?: (binding: TBinding) => number | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
+  /**
+   * Optionally compare two same-kind container bindings without materializing them.
+   * The result must implement the active value-semantics profile. Return
+   * undefined to decline and use SANSA's generic structural comparison.
+   */
+  readonly structurallyEqual?: (
+    left: TBinding,
+    right: TBinding,
+    context: SansaStructuralEqualityContext,
+  ) => boolean | undefined;
   readonly bindingHandle?: (binding: TBinding) => unknown;
   readonly observedState?: (binding: TBinding) => unknown;
   readonly namespaceState?: (() => unknown) | unknown;
   readonly mutate?: SansaMutationAdapter<TBinding>;
+}
+
+export interface SansaStructuralEqualityContext {
+  readonly operator: '==' | '!=';
+  readonly valueSemantics: AeonValueSemanticsProfile;
 }
 
 export interface SansaGraphRelationshipDeclaration {

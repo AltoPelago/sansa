@@ -1496,6 +1496,36 @@ test('follows the comparison policy matrix', () => {
   assert.equal(wtcLiteralComparison.ok, true, JSON.stringify(wtcLiteralComparison.errors ?? []));
   assert.deepEqual(wtcLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
 
+  const temporalRelationProjection = evaluateQuery([
+    'from $.types',
+    'select { relation = temporalRelation(.window, 09:30Z) }',
+  ].join('\n'), namespace);
+  assert.equal(temporalRelationProjection.ok, true, JSON.stringify(temporalRelationProjection.errors ?? []));
+  assert.deepEqual(temporalRelationProjection.results[0].value.value, { relation: 'containedBy' });
+
+  const temporalRelationPredicate = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(.window, 09:30:00Z) == "equal"',
+    'select .window',
+  ].join('\n'), namespace);
+  assert.equal(temporalRelationPredicate.ok, true, JSON.stringify(temporalRelationPredicate.errors ?? []));
+  assert.deepEqual(temporalRelationPredicate.results.map((entry) => entry.binding.address), ['$.types']);
+
+  const crossFamilyTemporalRelation = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(.window, .released) == "incomparable"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(crossFamilyTemporalRelation.ok, true, JSON.stringify(crossFamilyTemporalRelation.errors ?? []));
+  assert.equal(crossFamilyTemporalRelation.results.length, 1);
+
+  const nonTemporalRelation = evaluateQuery([
+    'from $.types',
+    'select temporalRelation(.window, .count)',
+  ].join('\n'), namespace);
+  assert.equal(nonTemporalRelation.ok, false);
+  assert.equal(nonTemporalRelation.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
   const temporalCrossFamilyComparison = evaluateQuery([
     'from $.types.stamp',
     'where . > $.types.released',
@@ -1766,6 +1796,93 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(booleanOrdering.ok, false);
   assert.equal(booleanOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
+test('uses an optional native structural-equality hook for same-kind container bindings', () => {
+  const nodeA = { name: 'nodeA', address: '$.nodeA', representationKind: 'node', nativeKey: 'same' };
+  const nodeB = { name: 'nodeB', address: '$.nodeB', representationKind: 'node', nativeKey: 'same' };
+  const nodeC = { name: 'nodeC', address: '$.nodeC', representationKind: 'node', nativeKey: 'different' };
+  const scalar = { name: 'scalar', address: '$.scalar', representationKind: 'number', value: 1 };
+  const nativeRoot = {
+    address: '$',
+    representationKind: 'object',
+    children: [nodeA, nodeB, nodeC, scalar],
+  };
+  const nativeCalls = [];
+  const nativeNamespace = {
+    root: nativeRoot,
+    children: (entry) => {
+      if (entry !== nativeRoot) throw new Error('native structural equality should avoid materialization');
+      return entry.children;
+    },
+    structurallyEqual: (left, right, context) => {
+      nativeCalls.push([left.address, right.address, context.operator, context.valueSemantics.id]);
+      return left.nativeKey === right.nativeKey;
+    },
+  };
+
+  const equal = evaluateQuery([
+    'from $',
+    'where $.nodeA == $.nodeB',
+    'select $.nodeA',
+  ].join('\n'), nativeNamespace);
+  assert.equal(equal.ok, true, JSON.stringify(equal.errors ?? []));
+  assert.equal(equal.results.length, 1);
+
+  const notEqual = evaluateQuery([
+    'from $',
+    'where $.nodeA != $.nodeC',
+    'select $.nodeC',
+  ].join('\n'), nativeNamespace);
+  assert.equal(notEqual.ok, true, JSON.stringify(notEqual.errors ?? []));
+  assert.equal(notEqual.results.length, 1);
+
+  const scalarComparison = evaluateQuery([
+    'from $',
+    'where $.scalar == 1',
+    'select $.scalar',
+  ].join('\n'), nativeNamespace);
+  assert.equal(scalarComparison.ok, true, JSON.stringify(scalarComparison.errors ?? []));
+  assert.equal(scalarComparison.results.length, 1);
+  assert.deepEqual(nativeCalls, [
+    ['$.nodeA', '$.nodeB', '==', 'aeon.value.default.v1'],
+    ['$.nodeA', '$.nodeC', '!=', 'aeon.value.default.v1'],
+  ]);
+
+  let declinedCalls = 0;
+  const fallbackNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'left',
+          address: '$.left',
+          representationKind: 'list',
+          children: [{ index: 0, address: '$.left[0]', representationKind: 'string', value: 'value' }],
+        },
+        {
+          name: 'right',
+          address: '$.right',
+          representationKind: 'list',
+          children: [{ index: 0, address: '$.right[0]', representationKind: 'string', value: 'value' }],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+    structurallyEqual: () => {
+      declinedCalls += 1;
+      return undefined;
+    },
+  };
+  const declined = evaluateQuery([
+    'from $',
+    'where $.left == $.right',
+    'select $.left',
+  ].join('\n'), fallbackNamespace);
+  assert.equal(declined.ok, true, JSON.stringify(declined.errors ?? []));
+  assert.equal(declined.results.length, 1);
+  assert.equal(declinedCalls, 1);
 });
 
 test('uses semantic filters as comparison guards', () => {
