@@ -9,6 +9,11 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Changed
 
+- Added year- and month-granularity AEON date literals (`YYYY-` and `YYYY-MM`)
+  to Query parsing and temporal completion-set comparison. Calendar years and
+  months now contain compatible finer-grained dates through
+  `temporalRelation(...)` and `compareTemporalClaims(...)`.
+
 - Cross-type query comparison diagnostics now identify both evaluator
   categories, such as `string vs finiteNumber`, while retaining the candidate
   address as structured diagnostic context.

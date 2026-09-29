@@ -1067,7 +1067,7 @@ isInfinity(.limit) == true when the scalar is positive or negative infinity
 
 Query source can express selected AEON scalar literal families directly:
 `#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
-temporal-looking literals such as `2026-07-25`, `09:30:00Z`,
+temporal-looking literals such as `2026-`, `2026-07`, `2026-07-25`, `09:30:00Z`,
 `2026-07-25T09:30:00Z`, and `2026-07-25T09:30:00Z&Australia/Melbourne`. These
 literals preserve their family metadata for comparison. Same-family temporal
 literals compare through the active temporal profile; the default profile uses
@@ -1112,7 +1112,7 @@ Ordinary value-producing functions evaluate their arguments before invocation. R
 | multiple bindings | `SANSA_QUERY_EVALUATE_CARDINALITY` |
 | unsupported scalar type | `SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL` |
 
-The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. `radixScale(value)` accepts one radix-family scalar and returns its represented fractional digit count without normalizing trailing zeroes. `temporalRelation(left, right)` accepts two single temporal scalars and returns `equal`, `before`, `after`, `contains`, `containedBy`, `overlaps`, or `incomparable` using the completion-set semantics of the shared temporal relation operation. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
+The current built-in string functions are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and `concat`. Function-name matching is case-sensitive. They require string arguments and reject explicit null, NaN, infinity, Boolean, number, object, and Binding Set arguments unless a future function contract explicitly accepts one of those forms. `radixScale(value)` accepts one radix-family scalar and returns its represented fractional digit count without normalizing trailing zeroes. `temporalRelation(left, right)` accepts two single temporal scalars and returns `equal`, `before`, `after`, `contains`, `containedBy`, `overlaps`, or `incomparable` using the completion-set semantics of the shared temporal relation operation. Year (`2026-`), month (`2026-07`), and day (`2026-07-25`) dates denote their complete calendar extents, so coarser dates can contain finer dates. Value predicates such as `isValue(...)`, `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` define their own argument contracts.
 
 `path(value)` is a function-like structural operator. Its operand is consumed in scalar context and must be a structured SANSA Address Literal value. The initial representation is an object such as `{ type: "SansaAddressLiteral", address: "?.sku" }` or `{ type: "SansaAddressLiteral", address: parsedAddress }`. Plain strings are rejected and are not parsed as address syntax. In expression positions such as `select`, `where`, and `order by`, the activated address resolves in the current candidate context and returns a Binding Set. In `from path(...)`, the activated address supplies the source Binding Set for the query.
 

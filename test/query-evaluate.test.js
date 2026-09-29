@@ -1503,6 +1503,14 @@ test('follows the comparison policy matrix', () => {
   assert.equal(temporalRelationProjection.ok, true, JSON.stringify(temporalRelationProjection.errors ?? []));
   assert.deepEqual(temporalRelationProjection.results[0].value.value, { relation: 'containedBy' });
 
+  const reducedDateRelation = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(2024-, 2024-02) == "contains"',
+    'select { relation = temporalRelation(2024-02, 2024-02-29) }',
+  ].join('\n'), namespace);
+  assert.equal(reducedDateRelation.ok, true, JSON.stringify(reducedDateRelation.errors ?? []));
+  assert.deepEqual(reducedDateRelation.results[0].value.value, { relation: 'contains' });
+
   const temporalRelationPredicate = evaluateQuery([
     'from $.types',
     'where temporalRelation(.window, 09:30:00Z) == "equal"',

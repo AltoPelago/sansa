@@ -203,6 +203,18 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(reducedTime.value, '09:');
   assert.equal(renderQueryExpression(reducedTime), '09:');
 
+  const reducedYear = parseExpressionOk('2024-');
+  assert.equal(reducedYear.type, 'literalExpression');
+  assert.equal(reducedYear.kind, 'date');
+  assert.equal(reducedYear.value, '2024-');
+  assert.equal(renderQueryExpression(reducedYear), '2024-');
+
+  const reducedMonth = parseExpressionOk('2024-02');
+  assert.equal(reducedMonth.type, 'literalExpression');
+  assert.equal(reducedMonth.kind, 'date');
+  assert.equal(reducedMonth.value, '2024-02');
+  assert.equal(renderQueryExpression(reducedMonth), '2024-02');
+
   const datetime = parseExpressionOk('2026-07-25T09:30:00Z');
   assert.equal(datetime.type, 'literalExpression');
   assert.equal(datetime.kind, 'datetime');

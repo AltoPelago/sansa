@@ -136,7 +136,9 @@ for example, `%19.9900` has scale 4 even when a numeric profile treats it as
 equal to `%19.99`.
 Conservative temporal completion-set relations are available through
 `temporalRelation(left, right)` in queries and `compareTemporalClaims(left,
-right)` in the API.
+right)` in the API. Date literals may use year (`2026-`), month (`2026-07`),
+or day (`2026-07-25`) granularity; coarser forms contain compatible finer
+forms under those completion-set semantics.
 
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).

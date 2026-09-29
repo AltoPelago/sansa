@@ -297,6 +297,11 @@ test('relates temporal claims as completion sets without inventing missing conte
   const temporal = (semanticType, payload) => ({ semanticType, payload });
 
   assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '10:30Z')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-'), temporal('date', '2024-02')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02'), temporal('date', '2024-02-29')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02-29'), temporal('date', '2024-02')), 'containedBy');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02'), temporal('date', '2024-03')), 'before');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-03'), temporal('date', '2024-02')), 'after');
   assert.equal(compareTemporalClaims(temporal('time', '10:30Z'), temporal('time', '10:Z')), 'containedBy');
   assert.equal(compareTemporalClaims(temporal('time', '10:30:00.34Z'), temporal('time', '10:30:00.340Z')), 'equal');
   assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '11:Z')), 'before');

@@ -5367,8 +5367,21 @@ function parseTemporalCompletionSet(input) {
   if (semanticType === 'date') {
     const date = parseTemporalDate(payload);
     if (date === null) return null;
-    const start = temporalInteger(dateOrdinal(date.year, date.month, date.day) * 86_400n);
-    return { domain: 'date', start, end: addTemporalInteger(start, 86_400n), point: false, leapSecond: false };
+    const startMonth = date.month ?? 1;
+    const startDay = date.day ?? 1;
+    const start = temporalInteger(dateOrdinal(date.year, startMonth, startDay) * 86_400n);
+    let endOrdinal;
+    if (date.month === null) {
+      endOrdinal = dateOrdinal(date.year + 1, 1, 1);
+    } else if (date.day === null) {
+      endOrdinal = date.month === 12
+        ? dateOrdinal(date.year + 1, 1, 1)
+        : dateOrdinal(date.year, date.month + 1, 1);
+    } else {
+      endOrdinal = dateOrdinal(date.year, date.month, date.day) + 1n;
+    }
+    const end = temporalInteger(endOrdinal * 86_400n);
+    return { domain: 'date', start, end, point: false, leapSecond: false };
   }
   if (!['time', 'datetime', 'wtc'].includes(semanticType)) return null;
 
@@ -5434,9 +5447,22 @@ function temporalCompletionDomain(semanticType, anchor, context) {
 }
 
 function parseTemporalDate(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null || !isValidDateParts(match[1], match[2], match[3])) return null;
-  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  const yearOnly = /^(\d{4})-$/.exec(value);
+  if (yearOnly !== null) {
+    const year = Number(yearOnly[1]);
+    return year >= 1 && year <= 9999 ? { year, month: null, day: null } : null;
+  }
+  const yearMonth = /^(\d{4})-(\d{2})$/.exec(value);
+  if (yearMonth !== null) {
+    const year = Number(yearMonth[1]);
+    const month = Number(yearMonth[2]);
+    return year >= 1 && year <= 9999 && month >= 1 && month <= 12
+      ? { year, month, day: null }
+      : null;
+  }
+  const fullDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (fullDate === null || !isValidDateParts(fullDate[1], fullDate[2], fullDate[3])) return null;
+  return { year: Number(fullDate[1]), month: Number(fullDate[2]), day: Number(fullDate[3]) };
 }
 
 function parseTemporalClock(value, requireColon) {
@@ -8147,7 +8173,7 @@ class QueryExpressionParser {
 
   startsTemporalLiteral() {
     const rest = this.input.slice(this.index);
-    return /^\d{4}-\d{2}-\d{2}(?:T|(?=$|[\s,)}\]]))/.test(rest)
+    return /^\d{4}-(?=$|[\s,)}\]]|\d|T)/.test(rest)
       || /^\d{2}:/.test(rest);
   }
 
@@ -8931,8 +8957,7 @@ function isQueryTemporalLiteral(source, kind) {
   const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
   const zone = String.raw`[A-Za-z0-9_+.\-]+(?:/[A-Za-z0-9_+.\-]+)*`;
   if (kind === 'date') {
-    const match = new RegExp(`^${date}$`).exec(source);
-    return Boolean(match) && isValidDateParts(match[1], match[2], match[3]);
+    return parseTemporalDate(source) !== null;
   }
   if (kind === 'time') {
     const match = new RegExp(`^${time}$`).exec(source);

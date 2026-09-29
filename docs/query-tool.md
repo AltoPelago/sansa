@@ -180,7 +180,7 @@ same-kind structural container equality, and infinity as a numeric bound.
 Query source can express the same AEON scalar literal families directly, for
 example `#ff00aa`, `%ff00aa`,
 `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
-`2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
+`2026-`, `2026-07`, `2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
 `2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
 through the active temporal value-semantics profile; the default profile uses
 canonical payload order for presentation and does not claim chronological
@@ -203,6 +203,10 @@ from $.schedule
 where temporalRelation(.window, 10:30Z) == "contains"
 select { window = .window relation = temporalRelation(.window, 10:30Z) }
 ```
+
+Reduced-granularity dates use the same completion-set rules. For example,
+`temporalRelation(2026-, 2026-07)` and
+`temporalRelation(2026-07, 2026-07-25)` are both `contains`.
 
 Numeric datatype labels such as `int32`, `uint64`, and `float64` remain visible
 to semantic filters. When the host exposes their payload as a finite numeric
