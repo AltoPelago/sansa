@@ -183,6 +183,27 @@ testTelexRuntime('query web runtime evaluates directly against Telex AES', async
   assert.equal(result.results[0].value.bindings[0].representationKind, 'StringLiteral');
 });
 
+testTelexRuntime('query web runtime preserves symbolic Telex scalars', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.stage',
+    'kind=SymbolicLiteral',
+    'datatype=symbol',
+    'value=in review|blocked',
+    '',
+  ].join('\n');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: String.raw`from $.stage%symbol where . == |in review\|blocked| select .`,
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, String.raw`$.stage = |in review\|blocked|`);
+});
+
 testTelexRuntime('portable namespace compares and projects numeric lexemes losslessly', async () => {
   const source = [
     'telex.aes=1',
@@ -490,6 +511,40 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(separatorLiteralEquality.ok, true, JSON.stringify(separatorLiteralEquality.errors ?? []));
   assert.equal(separatorLiteralEquality.text, '$.types.version = ^0.11.0');
+
+  const symbolLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: String.raw`from $.types.*#symbol%symbol
+where . == |in review\|blocked|
+select .`,
+  });
+  assert.equal(symbolLiteralEquality.ok, true, JSON.stringify(symbolLiteralEquality.errors ?? []));
+  assert.equal(symbolLiteralEquality.text, String.raw`$.types.stage = |in review\|blocked|`);
+
+  const symbolStringComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.stage\nwhere . == "in review|blocked"\nselect .',
+  });
+  assert.equal(symbolStringComparison.ok, false);
+  assert.equal(symbolStringComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const customSymbolRepresentation = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'stage:workflowStage = |approved|',
+    query: 'from $.stage%symbol\nwhere . == |approved|\nselect .',
+  });
+  assert.equal(customSymbolRepresentation.ok, true, JSON.stringify(customSymbolRepresentation.errors ?? []));
+  assert.equal(customSymbolRepresentation.text, '$.stage = |approved|');
+
+  const customSymbolSemanticFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'stage:workflowStage = |approved|',
+    query: 'from $.stage#symbol\nselect .',
+  });
+  assert.equal(customSymbolSemanticFilter.ok, true, JSON.stringify(customSymbolSemanticFilter.errors ?? []));
+  assert.equal(customSymbolSemanticFilter.count, 0);
 
   const hexRadixComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',

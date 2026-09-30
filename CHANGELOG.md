@@ -9,6 +9,11 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Changed
 
+- Added AEON symbolic literals to Query, Instruction, mutation target
+  validation, and the AEON/Telex workbench adapters. Pipe-delimited source
+  such as `|approved|` and `|in review\|blocked|` preserves a distinct
+  `symbol` value family, compares by exact decoded payload, does not coerce to
+  strings, and has no intrinsic ordering.
 - Added year- and month-granularity AEON date literals (`YYYY-` and `YYYY-MM`)
   to Query parsing and temporal completion-set comparison. Calendar years and
   months now contain compatible finer-grained dates through

@@ -918,6 +918,7 @@ function portableSemanticType(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'sep';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansa';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -938,6 +939,7 @@ function portableScalarKind(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'separator';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansaAddress';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -964,6 +966,7 @@ function portableRepresentationAlias(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'separator';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansa';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -986,6 +989,7 @@ function scalarFromPortableRecord(record) {
     case 'RadixLiteral':
     case 'EncodingLiteral':
     case 'SeparatorLiteral':
+    case 'SymbolicLiteral':
     case 'DateLiteral':
     case 'TimeLiteral':
     case 'DateTimeLiteral':
@@ -1054,6 +1058,8 @@ function semanticTypeFromValue(value) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'sep';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'DateLiteral':
       return 'date';
     case 'TimeLiteral':
@@ -1094,6 +1100,8 @@ function representationKindFromValue(value, semanticType) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'separator';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'SansaAddressLiteral':
       return 'sansa';
     case 'NumberLiteral':
@@ -1129,6 +1137,7 @@ function scalarFromAeonValue(value) {
     case 'RadixLiteral':
     case 'EncodingLiteral':
     case 'SeparatorLiteral':
+    case 'SymbolicLiteral':
       return { ok: true, value: value.value };
     case 'SansaAddressLiteral':
       return {
@@ -1219,6 +1228,8 @@ function scalarKindFromValue(value, semanticType) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'separator';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'SansaAddressLiteral':
       return 'sansaAddress';
     case 'NumberLiteral':
@@ -1349,6 +1360,7 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (metadata?.kind === 'number') return metadata.numericLexeme ?? String(value);
   if (metadata?.kind === 'encoding') return `&${value}`;
   if (metadata?.kind === 'separator') return `^${value}`;
+  if (metadata?.kind === 'symbol') return renderSymbolLiteral(value);
   if (['date', 'time', 'datetime', 'wtc'].includes(metadata?.kind)) return String(value);
   if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
@@ -1383,6 +1395,18 @@ function scalarMetadataFromBinding(binding) {
 
 function lowerFirst(value) {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function renderSymbolLiteral(value) {
+  const text = String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\f/g, '\\f');
+  return `|${text}|`;
 }
 
 function renderQueryValueInspectLines(value) {

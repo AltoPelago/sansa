@@ -17,6 +17,7 @@ types:object = {
   octal:radix8 = %70
   payload:encoding = &QmFzZTY0IQ==
   version:sep["."] = ^0.11.0
+  stage:symbol = |in review\|blocked|
   released:date = 2026-07-25
   window:time = 09:30:00Z
   stamp:datetime = 2026-07-25T09:30:00Z

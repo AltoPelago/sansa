@@ -138,6 +138,7 @@ reference forms, and a conservative container-literal slice:
 :list<string>, ["adapter", "driver"]
 :tuple, ("sku", 7)
 :node, <badge("new", 3)>
+:symbol, |in review\|blocked|
 ```
 
 Container literal members must recursively be instruction values. This keeps
@@ -300,7 +301,7 @@ The supported operations are `equal`, `notEqual`, `compare`, `isValue`,
 `before`, `after`, `contains`, `containedBy`, `overlaps`, or `incomparable` for
 two temporal claims. It treats reduced precision as a completion set and fails
 closed where chronology requires an external timezone, timescale, local-clock,
-or leap-second authority. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
+or leap-second authority. The supported minimum-profile categories are `finiteNumber`, `positiveInfinity`, `negativeInfinity`, `nan`, `string`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`, `symbol`, `sansaAddress`, `referenceForm`, `temporal`, `lexicalStructuredScalar`, `explicitNull`, `explicitAbsence`, `missing`, `container`, and `bindingSet`.
 
 `finiteNumber` descriptor values may be canonical AEON numeric strings or host
 numbers. Canonical strings are compared exactly, including integer, fractional,
@@ -345,7 +346,7 @@ does not itself define cross-base quantum, rounding, or schema policy.
 
 The default exported profile, `aeonValueSemanticsDefaultProfile`, uses Unicode scalar-value string order and deterministic default Unicode case mapping. It does not perform natural numeric-region ordering: `part-10` sorts before `part-2` under the default profile. `createIntlValueSemanticsProfile(...)` creates an explicit Intl-backed string profile, `createFrenchValueSemanticsProfile(...)` is a convenience profile for French collation and case mapping, `createNaturalAsciiValueSemanticsProfile(...)` is an exploratory deterministic numeric-region profile where `part-2` sorts before `part-10`, `createRadixNumericValueSemanticsProfile(...)` adds exact same-base radix comparison, and `createCrossBaseRadixNumericValueSemanticsProfile(...)` adds exact rational comparison across bases. Query evaluation accepts the same profile surface through `evaluateQuery(..., { valueSemantics })`.
 
-Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison and `compareRadix` for explicitly enabled radix comparison. Partial string hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless an explicit profile defines a richer domain.
+Custom profile objects must provide a complete string contract: `compareStrings`, `lowerString`, and `upperString` together. They may also provide `compareTemporal` for temporal comparison and `compareRadix` for explicitly enabled radix comparison. Partial string hook objects are rejected rather than merged with defaults, because mixed collation, normalization, and case-mapping rules would create an implicit profile that is not portable. The minimum profile does not apply custom string collation to `hex`, `radix`, `encoding`, `separator`, `symbol`, or `sansaAddress` as domain semantics; those families keep their deterministic payload or address-expression behavior unless an explicit profile defines a richer domain.
 
 `resolveAddress` accepts either an address string or a parsed `SansaAddress` and returns:
 
@@ -428,7 +429,7 @@ may also carry `provenance`, which is preserved on the planned operation.
 Provenance is inert metadata; it is not interpreted as SANSA source,
 authorization policy, validation policy, or mutation rewrite behavior.
 
-`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own semantic compatibility checks.
+`create`, `replace`, and `insert` requests may include optional `datatype` and `kind` strings. `datatype` preserves semantic type intent, such as `sansa`, `list<string>`, or a custom type like `brandColor`. `kind` preserves representation or literal-family intent, such as `hex`, `separator`, `symbol`, `object`, `list`, `tuple`, or `node`. The planner validates only that provided hints are non-empty strings and preserves them on the planned operation. It does not decide whether the value is legal for that datatype or kind; schema, host adapters, or higher-level profiles own semantic compatibility checks.
 
 Structured Mutate requests intentionally preserve `datatype` and `kind`
 separately until target-surface validation. This differs from SANSA
@@ -456,7 +457,12 @@ If mutation targets parse successfully but produce SANSA portability warnings, s
 
 Mutation plans are current-process execution artifacts, not portable serialized plan documents. A plan retains live binding objects supplied by the resolver, along with local adapter artifacts such as `bindingHandle` and `observedState`. These fields are for same-process continuity checks and diagnostics. Do not `JSON.stringify` a plan and replay it later or in another implementation; cloned or serialized plans cannot prove live binding continuity and should fail apply-time stale-target checks. A portable mutation-plan serialization format may be defined by a later profile.
 
-For scalar values, the workbench adapter treats `kind` as the AEON literal family when one is provided. Known scalar families include `string`, `number`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`/`sep`, `sansa`, `date`, `time`, `datetime`, `wtc`, `null`, `nan`, `infinity`, `cloneReference`, and `pointerReference`. JSON payloads omit AEON sigils: `kind: "hex"` with `"ff00aa"` renders `#ff00aa`; `kind: "sep"` with `"0.11.0"` renders `^0.11.0`; `kind: "null"` with `"notApplicable"` renders `!notApplicable`; and `kind: "cloneReference"` with `"target"` renders `~target`. The adapter rejects payloads that cannot be rendered as the requested known AEON literal family. Unknown custom `kind` values remain adapter-visible metadata and are not interpreted by the core planner.
+For scalar values, the workbench adapter treats `kind` as the AEON literal family when one is provided. Known scalar families include `string`, `number`, `boolean`, `toggle`, `hex`, `radix`, `encoding`, `separator`/`sep`, `symbol`, `sansa`, `date`, `time`, `datetime`, `wtc`, `null`, `nan`, `infinity`, `cloneReference`, and `pointerReference`. JSON payloads omit AEON sigils: `kind: "hex"` with `"ff00aa"` renders `#ff00aa`; `kind: "sep"` with `"0.11.0"` renders `^0.11.0`; `kind: "symbol"` with `"in review|blocked"` renders `|in review\|blocked|`; `kind: "null"` with `"notApplicable"` renders `!notApplicable`; and `kind: "cloneReference"` with `"target"` renders `~target`. Symbol payloads must be non-empty. The adapter rejects payloads that cannot be rendered as the requested known AEON literal family. Unknown custom `kind` values remain adapter-visible metadata and are not interpreted by the core planner.
+
+The AEON target accepts custom semantic datatypes over symbol representation,
+such as `datatype: "workflowStage", kind: "symbol"`. The reserved `symbol`
+datatype follows the GP profile's no-clarifier rule, so bracket metadata such as
+`symbol["workflow"]` is rejected rather than treated like separator metadata.
 
 Experimental Mutate budgets are optional and fail closed:
 
@@ -736,7 +742,10 @@ planning failure.
 JSON target mode accepts ordinary JSON-compatible object/list/string/number/
 boolean/null values, but rejects AEON-only representational features such as
 attribute-space mutations, `sansa` datatype hints, parameterized datatypes,
-tuples, nodes, references, NaN, and Infinity.
+tuples, nodes, references, symbols, NaN, and Infinity. In particular, the
+strict SANSA target surface does not silently materialize a symbol as a JSON
+string; a consumer that deliberately chooses AEON's separate lossy JSON mode
+owns that conversion and its warning metadata.
 
 Telex target mode is deliberately narrower in this release. It accepts only an
 exact `replace` of an existing portable scalar event with a representable
@@ -1059,17 +1068,19 @@ isNaN(.metric) == true when the scalar is explicit NaN
 isInfinity(.limit) == true when the scalar is positive or negative infinity
 ```
 
-`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, toggles, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
+`isValue(...)` is a missing-aware concrete-value guard. It returns true when its operand evaluates to one concrete value, including finite numbers, infinities, strings, Booleans, toggles, symbols, lexical structured scalars, SANSA address literals, legal reference forms, and containers. It may inspect scalar expressions directly or consume a Binding Set produced by resolution or `path(...)`. It returns false for zero bindings, explicit null, explicit absence values, and NaN. More than one binding remains a cardinality error.
 
 `isNull(...)`, `isNullReason(...)`, `isNaN(...)`, and `isInfinity(...)` consume their first operand in single-binding scalar context. A missing operand therefore fails unless the query guards it with `exists(...)` or another missing-aware operator.
 
 `NaN` is not comparable. Scalar comparison and ordering over `NaN` fail with `SANSA_QUERY_EVALUATE_INVALID_COMPARISON`; use `isNaN(...)` for explicit tests. Infinity values remain numeric bounds and may participate in same-type numeric comparisons and ordering.
 
 Query source can express selected AEON scalar literal families directly:
-`#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and
+`#ff00aa`, `%ff00aa`, `&QmFzZTY0IQ==`, `^0.11.0`, `|approved|`, `!notSet`, and
 temporal-looking literals such as `2026-`, `2026-07`, `2026-07-25`, `09:30:00Z`,
 `2026-07-25T09:30:00Z`, and `2026-07-25T09:30:00Z&Australia/Melbourne`. These
-literals preserve their family metadata for comparison. Same-family temporal
+literals preserve their family metadata for comparison. Symbol literals use
+string-style escapes plus `\|` for an embedded pipe, reject empty payloads and
+raw newlines, and remain distinct from strings. Same-family temporal
 literals compare through the active temporal profile; the default profile uses
 canonical payload order.
 Explicit null literals are tested through null predicates rather than equality.
@@ -1090,6 +1101,7 @@ Current comparison policy:
 | hex and radix | error | error | no implicit numeric or base-16 coercion |
 | encoding and encoding | allowed | allowed | naïve payload order over preserved encoded payload characters |
 | separator and separator | allowed | allowed | naïve whole-payload order; no splitting on datatype clarifiers |
+| symbol and symbol | allowed | error | exact decoded payload identity; no implicit string coercion or ordering |
 | SANSA address and SANSA address | allowed | allowed | canonical address-expression identity and naïve address-expression order |
 | temporal and temporal | allowed within same family | allowed within same family | default profile uses canonical temporal payload order; cross-family comparison fails without explicit compatibility |
 | reference form and reference form | allowed | error | reference-kind and canonical target-path identity; no implicit follow |
@@ -1370,6 +1382,7 @@ Canonical rendering:
 - `SANSA_QUERY_UNEXPECTED_EXPRESSION_TOKEN`
 - `SANSA_QUERY_UNTERMINATED_EXPRESSION`
 - `SANSA_QUERY_INVALID_NUMBER_LITERAL`
+- `SANSA_QUERY_INVALID_SYMBOL_LITERAL`
 - `SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION`
 - `SANSA_QUERY_INVALID_FUNCTION_CALL`
 - `SANSA_QUERY_INVALID_PROJECTION`

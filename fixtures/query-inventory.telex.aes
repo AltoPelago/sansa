@@ -59,6 +59,11 @@ kind=SeparatorLiteral
 datatype=sep["."]
 value=0.11.0
 
+path=$.types.stage
+kind=SymbolicLiteral
+datatype=symbol
+value=in review|blocked
+
 path=$.types.released
 kind=DateLiteral
 datatype=date

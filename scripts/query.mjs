@@ -481,6 +481,7 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (metadata?.kind === 'radix') return `%${value}`;
   if (metadata?.kind === 'encoding') return `&${value}`;
   if (metadata?.kind === 'separator') return `^${value}`;
+  if (metadata?.kind === 'symbol') return renderSymbolLiteral(value);
   if (['date', 'time', 'datetime', 'wtc'].includes(metadata?.kind)) return String(value);
   if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
@@ -509,6 +510,18 @@ function scalarMetadataFromBinding(binding) {
 
 function lowerFirst(value) {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function renderSymbolLiteral(value) {
+  const text = String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\f/g, '\\f');
+  return `|${text}|`;
 }
 
 function summarizeQueryValue(value) {

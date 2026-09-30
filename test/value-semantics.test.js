@@ -399,6 +399,27 @@ test('evaluates lexical structured scalar value-family boundaries', () => {
   assert.equal(separatorOrder.ok, true);
   assert.equal(separatorOrder.relation, 'less');
 
+  const symbolIdentity = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'symbol', value: 'approved' },
+  });
+  assert.equal(symbolIdentity.ok, true);
+  assert.equal(symbolIdentity.value, true);
+
+  const symbolString = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'string', value: 'approved' },
+  });
+  assert.equal(symbolString.ok, false);
+  assert.equal(symbolString.reason, 'mixed_categories');
+
+  const symbolOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'symbol', value: 'pending' },
+  });
+  assert.equal(symbolOrder.ok, false);
+  assert.equal(symbolOrder.reason, 'not_orderable');
+
   const sansaIdentity = evaluateValueSemanticsOperation('equal', {
     left: { category: 'sansaAddress', value: '$.inventory.items.*.sku' },
     right: { category: 'sansaAddress', value: '$.inventory.items.*.sku' },

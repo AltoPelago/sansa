@@ -541,6 +541,29 @@ test('validates mutation plans against built-in target surfaces', () => {
   const aeonQuotedSeparatorPayloadResult = validateMutationPlanTarget(aeonQuotedSeparatorPayload, 'aeon');
   assert.equal(aeonQuotedSeparatorPayloadResult.ok, true, JSON.stringify(aeonQuotedSeparatorPayloadResult.errors ?? []));
 
+  const aeonSymbol = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'stage',
+    datatype: 'symbol',
+    kind: 'symbol',
+    value: 'in review',
+  }, namespace);
+  const aeonSymbolResult = validateMutationPlanTarget(aeonSymbol, 'aeon');
+  assert.equal(aeonSymbolResult.ok, true, JSON.stringify(aeonSymbolResult.errors ?? []));
+
+  const aeonEmptySymbol = planOk({
+    op: 'create',
+    parent: '$.inventory',
+    name: 'emptyStage',
+    datatype: 'symbol',
+    kind: 'symbol',
+    value: '',
+  }, namespace);
+  const aeonEmptySymbolResult = validateMutationPlanTarget(aeonEmptySymbol, 'aeon');
+  assert.equal(aeonEmptySymbolResult.ok, false);
+  assert.equal(aeonEmptySymbolResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+
   const aeonInvalidSeparatorPayload = planOk({
     op: 'create',
     parent: '$.inventory',

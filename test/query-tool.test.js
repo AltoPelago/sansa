@@ -459,6 +459,20 @@ testAeonRuntime('query tool honors explicit AEON fixture kind', () => {
   assert.equal(result.stdout.trim(), '$.inventory.items[0].sku = "A-100"');
 });
 
+testAeonRuntime('query tool renders symbolic AEON values without string coercion', () => {
+  const result = runTool([
+    '--fixture',
+    'fixtures/query-inventory.aeon',
+    '--fixture-kind',
+    'aeon',
+    '--query',
+    String.raw`from $.types.stage%symbol where . == |in review\|blocked| select .`,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), String.raw`$.types.stage = |in review\|blocked|`);
+});
+
 testTelexRuntime('query tool reads inferred and explicit Telex fixtures', () => {
   const args = [
     '--fixture',

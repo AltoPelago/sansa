@@ -174,6 +174,17 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(separator.value, '0.11.0');
   assert.equal(renderQueryExpression(separator), '^0.11.0');
 
+  const symbol = parseExpressionOk('|approved|');
+  assert.equal(symbol.type, 'literalExpression');
+  assert.equal(symbol.kind, 'symbol');
+  assert.equal(symbol.value, 'approved');
+  assert.equal(renderQueryExpression(symbol), '|approved|');
+
+  const escapedSymbol = parseExpressionOk(String.raw`|wait\|ready "as-is"|`);
+  assert.equal(escapedSymbol.kind, 'symbol');
+  assert.equal(escapedSymbol.value, 'wait|ready "as-is"');
+  assert.equal(renderQueryExpression(escapedSymbol), String.raw`|wait\|ready "as-is"|`);
+
   const quotedSeparator = parseExpressionOk('^"hello world"|"this, [is] fine"');
   assert.equal(quotedSeparator.type, 'literalExpression');
   assert.equal(quotedSeparator.kind, 'separator');
@@ -297,6 +308,9 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
   parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
   parseExpressionBad('^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
+  parseExpressionBad('||', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
+  parseExpressionBad('|unterminated', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
+  parseExpressionBad('|line\nbreak|', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
   parseExpressionBad('^"unterminated', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
   parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
@@ -307,6 +321,19 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+});
+
+test('preserves comment markers, commas, and clause words inside symbol literals', () => {
+  const query = parseOk([
+    'from $.types.stage',
+    'where . == |approved // not a comment, select remains content|',
+    'select fallback(|first, value|, |second|)',
+  ].join('\n'));
+
+  assert.equal(query.where.ast.right.kind, 'symbol');
+  assert.equal(query.where.ast.right.value, 'approved // not a comment, select remains content');
+  assert.equal(query.select.ast.arguments[0].kind, 'symbol');
+  assert.equal(query.select.ast.arguments[0].value, 'first, value');
 });
 
 test('explains that projection colons are reserved for datatype annotations', () => {

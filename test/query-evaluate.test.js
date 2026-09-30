@@ -375,6 +375,7 @@ const root = binding({
         binding({ name: 'price', address: '$.types.price', semanticType: 'decimal', representationKind: 'radix', scalarKind: 'radix', radixBase: 10, value: '19.9900' }),
         binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
         binding({ name: 'version', address: '$.types.version', semanticType: 'sep["."]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
+        binding({ name: 'stage', address: '$.types.stage', semanticType: 'symbol', representationKind: 'symbol', scalarKind: 'symbol', value: 'approved' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
@@ -887,6 +888,32 @@ test('does not apply custom string profiles as separator domain semantics', () =
     '$.types.version',
     '$.types.semver',
   ]);
+});
+
+test('compares symbols exactly without string coercion or intrinsic ordering', () => {
+  const equality = evaluateQuery([
+    'from $.types.*#symbol%symbol',
+    'where . == |approved|',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.types.stage']);
+
+  const stringComparison = evaluateQuery([
+    'from $.types.stage',
+    'where . == "approved"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(stringComparison.ok, false);
+  assert.equal(stringComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const ordering = evaluateQuery([
+    'from $.types.stage',
+    'where . < |pending|',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(ordering.ok, false);
+  assert.equal(ordering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
 test('rejects non-boolean where expressions', () => {

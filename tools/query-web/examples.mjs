@@ -378,7 +378,7 @@ export const queryExampleGroups = [
         ),
         expected: {
           ok: true,
-          count: 22,
+          count: 23,
           includes: '$.types.selector = $.inventory.items.*.sku',
         },
       },

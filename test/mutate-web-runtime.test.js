@@ -327,6 +327,30 @@ testTelexRuntime('mutate web runtime retains a derived semantic type for untyped
   assert.equal(result.result.operationResults[0].affectedBinding.semanticType, 'string');
 });
 
+testTelexRuntime('mutate web runtime replaces symbolic Telex scalars without string coercion', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.stage',
+    'kind=SymbolicLiteral',
+    'datatype=symbol',
+    'value=pending',
+    '',
+  ].join('\n');
+  const result = await runMutationForWorkbench({
+    sourceKind: 'telex',
+    source,
+    mode: 'apply',
+    requestSource: JSON.stringify({ op: 'replace', target: '$.stage', kind: 'symbol', value: 'approved' }),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.result.operationResults[0].affectedBinding.semanticType, 'symbol');
+  assert.equal(result.result.operationResults[0].affectedBinding.scalarKind, 'symbol');
+  assert.match(result.source, /kind=SymbolicLiteral/);
+  assert.match(result.source, /value=approved/);
+});
+
 testTelexRuntime('mutate web runtime retains identity and attributes but clears stale source coordinates', async () => {
   const digest = 'a'.repeat(64);
   const source = [
@@ -753,6 +777,7 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
         { op: 'create', parent: '$.types', name: 'maskCopy', datatype: 'radix[16]', value: 'ff00aa' },
         { op: 'create', parent: '$.types', name: 'encoded', datatype: 'encoding', value: 'QmFzZTY0IQ==' },
         { op: 'create', parent: '$.types', name: 'versionCopy', datatype: 'version', kind: 'sep', value: '0.11.0' },
+        { op: 'create', parent: '$.types', name: 'stageCopy', datatype: 'symbol', kind: 'symbol', value: 'in review|blocked' },
         { op: 'create', parent: '$.types', name: 'selectorCopy', datatype: 'sansa', value: '$.inventory.items.*' },
         { op: 'create', parent: '$.types', name: 'releaseCopy', datatype: 'date', value: '2026-07-26' },
         { op: 'create', parent: '$.types', name: 'consentCopy', datatype: 'toggle', value: 'yes' },
@@ -780,6 +805,10 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
   assert.equal(bindingsByAddress.get('$.types.ceilingCopy').value, '-Infinity');
   assert.equal(bindingsByAddress.get('$.cloneCopy').representationKind, 'cloneReference');
   assert.equal(bindingsByAddress.get('$.cloneCopy').scalarKind, 'referenceForm');
+  assert.equal(bindingsByAddress.get('$.types.stageCopy').semanticType, 'symbol');
+  assert.equal(bindingsByAddress.get('$.types.stageCopy').representationKind, 'symbol');
+  assert.equal(bindingsByAddress.get('$.types.stageCopy').scalarKind, 'symbol');
+  assert.equal(bindingsByAddress.get('$.types.stageCopy').value, 'in review|blocked');
   assert.deepEqual(bindingsByAddress.get('$.cloneCopy').value, {
     type: 'CloneReference',
     canonical: '~target',
@@ -788,6 +817,7 @@ testAeonRuntime('mutate web runtime materializes typed scalar literal families',
   assert.match(result.source, /maskCopy:radix\[16\] = %ff00aa/);
   assert.match(result.source, /encoded:encoding = &QmFzZTY0IQ==/);
   assert.match(result.source, /versionCopy:version = \^0\.11\.0/);
+  assert.match(result.source, /stageCopy:symbol = \|in review\\\|blocked\|/);
   assert.match(result.source, /selectorCopy:sansa = \$\.inventory\.items\.\*/);
   assert.match(result.source, /releaseCopy:date = 2026-07-26/);
   assert.match(result.source, /noteCopy:trimtick = >`path\\{3}`tick`/);

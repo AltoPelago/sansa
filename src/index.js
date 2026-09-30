@@ -31,6 +31,7 @@ const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'radix',
   'encoding',
   'separator',
+  'symbol',
   'sansa',
   'sansaAddress',
   'cloneReference',
@@ -1810,6 +1811,7 @@ const TELEX_SCALAR_KINDS = new Set([
   'RadixLiteral',
   'EncodingLiteral',
   'SeparatorLiteral',
+  'SymbolicLiteral',
   'SansaAddressLiteral',
   'DateLiteral',
   'TimeLiteral',
@@ -1825,6 +1827,7 @@ const TELEX_KIND_ALIASES = new Map([
   ['hex', 'HexLiteral'], ['radix', 'RadixLiteral'], ['encoding', 'EncodingLiteral'],
   ['base64', 'EncodingLiteral'], ['embed', 'EncodingLiteral'], ['inline', 'EncodingLiteral'],
   ['separator', 'SeparatorLiteral'], ['sep', 'SeparatorLiteral'], ['csv', 'SeparatorLiteral'],
+  ['symbol', 'SymbolicLiteral'], ['symbolicliteral', 'SymbolicLiteral'],
   ['sansa', 'SansaAddressLiteral'], ['sansaaddress', 'SansaAddressLiteral'],
   ['date', 'DateLiteral'], ['time', 'TimeLiteral'], ['datetime', 'DateTimeLiteral'], ['wtc', 'WTCDateTimeLiteral'],
 ]);
@@ -2104,6 +2107,10 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
       return typeof value === 'string'
         ? { ok: true }
         : invalidAeonTargetValue('String literals must use string payloads', path, operationIndex);
+    case 'symbol':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('Symbol literals must use non-empty string payloads', path, operationIndex);
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
         ? { ok: true }
@@ -2346,6 +2353,7 @@ function isReservedAeonDatatypeBase(base) {
     'sep',
     'separator',
     'kadot',
+    'symbol',
     'sansa',
     'object',
     'obj',
@@ -2559,6 +2567,7 @@ function representationKindFromMutationName(name, { allowUnknown = false } = {})
   if (base === 'infinity') return 'infinity';
   if (base === 'null') return 'null';
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
+  if (base === 'symbol' || lowered === 'symbolicliteral') return 'symbol';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
   if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;
@@ -4800,6 +4809,8 @@ function queryLiteralMetadata(expression) {
       return { kind: 'encoding', category: 'encoding' };
     case 'separator':
       return { kind: 'separator', category: 'separator' };
+    case 'symbol':
+      return { kind: 'symbol', category: 'symbol' };
     case 'date':
     case 'time':
     case 'datetime':
@@ -5659,6 +5670,8 @@ function valueDescriptorToScalarInfo(descriptor) {
       return { category: 'encoding', value: String(descriptor.value ?? '') };
     case 'separator':
       return { category: 'separator', value: String(descriptor.value ?? '') };
+    case 'symbol':
+      return { category: 'symbol', value: String(descriptor.value ?? '') };
     case 'sansaAddress':
       return { category: 'sansaAddress', value: sansaAddressSemanticValue(descriptor.value) };
     case 'referenceForm':
@@ -5767,6 +5780,7 @@ function sameMinimumEqualityDomain(left, right) {
     'radix',
     'encoding',
     'separator',
+    'symbol',
     'sansaAddress',
     'referenceForm',
   ].includes(left.category);
@@ -6420,6 +6434,7 @@ function getBindingScalarKind(namespace, binding) {
   if (actual === 'NullLiteral') return 'null';
   if (actual === 'NaNLiteral') return 'nan';
   if (actual === 'InfinityLiteral') return 'infinity';
+  if (actual === 'SymbolicLiteral') return 'symbol';
   return typeof actual === 'string' ? lowerFirst(actual) : undefined;
 }
 
@@ -7893,6 +7908,7 @@ class QueryExpressionParser {
     const char = this.peek();
     if (!char) this.fail('Expected SANSA query expression', 'SANSA_QUERY_EXPECTED_EXPRESSION');
     if (char === '"') return this.parseString();
+    if (char === '|') return this.parseSymbol();
     if (char === '#') return this.parseHex();
     if (char === '%') return this.parseRadix();
     if (char === '&') return this.parseEncoding();
@@ -7973,6 +7989,39 @@ class QueryExpressionParser {
       value,
       canonical: quotePayload(value),
     };
+  }
+
+  parseSymbol() {
+    const start = this.index;
+    this.index += 1;
+    let value = '';
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (char === '|') {
+        this.index += 1;
+        if (value.length === 0) {
+          this.fail('Symbol literals must not be empty', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', start);
+        }
+        return {
+          type: 'literalExpression',
+          kind: 'symbol',
+          value,
+          canonical: symbolPayload(value),
+        };
+      }
+      if (char === '\n' || char === '\r') {
+        this.fail('Symbol literals must not contain raw newlines', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', this.index);
+      }
+      if (char === '\\') {
+        const escape = readSymbolPayloadEscape(this.input, this.index);
+        value += escape.value;
+        this.index = escape.end;
+        continue;
+      }
+      value += char;
+      this.index += 1;
+    }
+    this.fail('Unterminated symbol literal', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', start);
   }
 
   parseNumber() {
@@ -8280,7 +8329,7 @@ class QueryExpressionParser {
         }
         continue;
       }
-      if (char === '"') {
+      if (char === '"' || isSymbolLiteralStart(this.input, this.index)) {
         quote = char;
         this.index += 1;
         continue;
@@ -8391,7 +8440,7 @@ function stripQueryComments(input) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(input, index)) {
       quote = char;
       output += char;
       continue;
@@ -8513,7 +8562,7 @@ function scanInstructionClauses(source) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8614,7 +8663,7 @@ function findTopLevelInstructionKeyword(source, keyword, start = 0) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8654,7 +8703,7 @@ function readInstructionToken(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, cursor)) {
       quote = char;
       continue;
     }
@@ -8713,7 +8762,7 @@ function unwrapInstructionDelimitedLiteral(source, open, close, offset) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8764,7 +8813,7 @@ function splitTopLevelInstructionValueList(source, offset) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8835,7 +8884,7 @@ function scanQueryClauses(source) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8929,7 +8978,7 @@ function normalizeQueryExpression(source) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       if (pendingSpace && output.length > 0) output += ' ';
       pendingSpace = false;
       quote = char;
@@ -9062,7 +9111,7 @@ function splitTopLevelQueryList(source) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -9200,7 +9249,7 @@ function findNextProjectionField(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -9243,7 +9292,7 @@ function findNextInstructionObjectField(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -9279,6 +9328,13 @@ function isComparisonStart(char) {
   return char === '=' || char === '!' || char === '<' || char === '>';
 }
 
+function isSymbolLiteralStart(source, index) {
+  if (source[index] !== '|') return false;
+  if (index === 0 || isLayout(source[index - 1])) return true;
+  if ('([{,=<>!'.includes(source[index - 1])) return true;
+  return /(?:^|[^A-Za-z0-9_])(?:and|or|not|in)$/u.test(source.slice(0, index));
+}
+
 function readQuotedPayloadEscape(source, start) {
   const escape = source[start + 1];
   if (!escape) throw new SansaParseError('Unterminated escape sequence', start, 'SANSA_UNTERMINATED_ESCAPE');
@@ -9297,6 +9353,11 @@ function readQuotedPayloadEscape(source, start) {
     default:
       throw new SansaParseError(`Invalid escape sequence \\${escape}`, start, 'SANSA_INVALID_ESCAPE');
   }
+}
+
+function readSymbolPayloadEscape(source, start) {
+  if (source[start + 1] === '|') return { value: '|', end: start + 2 };
+  return readQuotedPayloadEscape(source, start);
 }
 
 function readUnicodePayloadEscape(source, start) {
@@ -9413,5 +9474,39 @@ function quotePayload(value) {
     }
   }
   output += '"';
+  return output;
+}
+
+function symbolPayload(value) {
+  let output = '|';
+  for (const char of value) {
+    switch (char) {
+      case '\\':
+        output += '\\\\';
+        break;
+      case '|':
+        output += '\\|';
+        break;
+      case '\n':
+        output += '\\n';
+        break;
+      case '\r':
+        output += '\\r';
+        break;
+      case '\t':
+        output += '\\t';
+        break;
+      case '\b':
+        output += '\\b';
+        break;
+      case '\f':
+        output += '\\f';
+        break;
+      default:
+        output += char;
+        break;
+    }
+  }
+  output += '|';
   return output;
 }
