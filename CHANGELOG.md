@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.12.0 - 2026-10-01
+
 ### Changed
 
 - Added AEON symbolic literals to Query, Instruction, mutation target
@@ -18,7 +20,11 @@ versions may still include breaking changes when the SANSA specifications move.
   to Query parsing and temporal completion-set comparison. Calendar years and
   months now contain compatible finer-grained dates through
   `temporalRelation(...)` and `compareTemporalClaims(...)`.
-
+- Added conservative temporal completion-set relations through the exported
+  `compareTemporalClaims(...)` helper, the public `temporalRelation`
+  value-semantics operation, and the SANSA.Query `temporalRelation(...)`
+  function. Relations distinguish equality, ordering, containment, overlap,
+  and claims that cannot be compared without inventing missing context.
 - Cross-type query comparison diagnostics now identify both evaluator
   categories, such as `string vs finiteNumber`, while retaining the candidate
   address as structured diagnostic context.
@@ -59,6 +65,18 @@ versions may still include breaking changes when the SANSA specifications move.
 - Added a targeted projection diagnostic explaining that fields use AEON
   `name = expression` syntax and that `:` remains reserved for datatype
   annotations.
+- Limited native structural-equality dispatch to bindings with an explicit
+  container representation, so adapters that expose empty child lists on
+  scalars do not route scalar comparisons through the container hook.
+- Preserved scalar value-family descriptors while materializing containers for
+  generic structural equality, preventing symbol-valued children from
+  comparing equal to string-valued children with the same payload.
+- Rejected symbols and other lexical scalar families from string-only query
+  functions, member keys, transform keys, field names, and null reasons.
+- Required temporal descriptors for the public `temporalRelation` operation
+  instead of accepting arbitrary descriptor payloads.
+- Rendered exact AEON number bindings as numeric lexemes in the query CLI
+  rather than quoting their adapter-provided string representation.
 
 ## 0.11.1 - 2026-09-14
 
