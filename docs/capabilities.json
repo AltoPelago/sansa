@@ -1,12 +1,14 @@
 {
   "implementation": "@altopelago/sansa",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "profiles": [
     "value-semantics-minimum-consumer",
     "aeon.value.default.v1",
     "aeon.value.string.codepoint.v1",
     "aeon.value.string.natural.ascii.v1",
     "aeon.value.string.locale.fr.v1",
+    "aeon.value.radix.numeric.same-base.v1",
+    "aeon.value.radix.numeric.cross-base.v1",
     "addressing",
     "resolve",
     "query",
