@@ -473,6 +473,20 @@ testAeonRuntime('query tool renders symbolic AEON values without string coercion
   assert.equal(result.stdout.trim(), String.raw`$.types.stage = |in review\|blocked|`);
 });
 
+testAeonRuntime('query tool renders exact AEON numbers without string quotes', () => {
+  const result = runTool([
+    '--fixture',
+    'fixtures/query-inventory.aeon',
+    '--fixture-kind',
+    'aeon',
+    '--query',
+    'from $.types.count select .',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '$.types.count = 2');
+});
+
 testTelexRuntime('query tool reads inferred and explicit Telex fixtures', () => {
   const args = [
     '--fixture',

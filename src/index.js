@@ -5,6 +5,7 @@ export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
+const COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY = Symbol('sansaComparableScalarDescriptor');
 const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
   ['objectFrom', 'sansa.transform.objectFrom'],
   ['fieldsFrom', 'sansa.transform.fieldsFrom'],
@@ -3714,8 +3715,8 @@ function evaluateNativeStructuralEquality(operator, left, right, namespace, opti
 
   const leftBinding = left.bindings[0];
   const rightBinding = right.bindings[0];
-  const leftKind = containerKindFromBinding(namespace, leftBinding);
-  const rightKind = containerKindFromBinding(namespace, rightBinding);
+  const leftKind = explicitContainerKindFromBinding(namespace, leftBinding);
+  const rightKind = explicitContainerKindFromBinding(namespace, rightBinding);
   if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind) return undefined;
 
   const equal = namespace.structurallyEqual(leftBinding, rightBinding, {
@@ -4863,7 +4864,10 @@ function evaluateStringFunction(name, args, arity, operation) {
 }
 
 function isStringQueryScalar(scalar) {
-  return typeof scalar.value === 'string' && scalar.metadata?.numericLexeme === undefined;
+  if (typeof scalar.value !== 'string' || scalar.metadata?.numericLexeme !== undefined) return false;
+  const info = queryScalarToInfo(scalar);
+  const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+  return category === undefined || category === 'string' || category === 'stringLiteral';
 }
 
 function queryScalarPosition(scalar) {
@@ -5527,13 +5531,7 @@ function codePointWidth(codePoint) {
 export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
     if (operation === 'radixScale') return evaluateValueSemanticsRadixScale(input.value);
-    if (operation === 'temporalRelation') {
-      return {
-        ok: true,
-        outcome: 'value',
-        relation: compareTemporalClaims(input.left, input.right),
-      };
-    }
+    if (operation === 'temporalRelation') return evaluateValueSemanticsTemporalRelation(input.left, input.right);
     const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
@@ -5556,6 +5554,19 @@ export function evaluateValueSemanticsOperation(operation, input = {}, options =
   } catch (error) {
     return valueSemanticsDiagnostic('invalid_value_descriptor', error.message);
   }
+}
+
+function evaluateValueSemanticsTemporalRelation(leftDescriptor, rightDescriptor) {
+  const left = valueDescriptorToScalarInfo(leftDescriptor);
+  const right = valueDescriptorToScalarInfo(rightDescriptor);
+  if (left.category !== 'temporal' || right.category !== 'temporal') {
+    return valueSemanticsDiagnostic('temporal_required', 'Temporal relation is defined only for temporal values');
+  }
+  return {
+    ok: true,
+    outcome: 'value',
+    relation: compareTemporalClaims(left.value, right.value),
+  };
 }
 
 function evaluateValueSemanticsRadixScale(descriptor) {
@@ -6102,6 +6113,13 @@ function structurallyEqualContainers(left, right, profile) {
 }
 
 function structurallyEqualValues(left, right, profile) {
+  const leftDescriptor = comparableScalarDescriptor(left);
+  const rightDescriptor = comparableScalarDescriptor(right);
+  if (leftDescriptor !== undefined || rightDescriptor !== undefined) {
+    if (leftDescriptor === undefined || rightDescriptor === undefined) return false;
+    const equality = evaluateValueSemanticsEquality('equal', leftDescriptor, rightDescriptor, profile);
+    return equality.ok && equality.value;
+  }
   if (Object.is(left, right)) return true;
   if (typeof left === 'string' && typeof right === 'string') return profile.compareStrings(left, right) === 0;
   if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
@@ -6117,6 +6135,11 @@ function structurallyEqualValues(left, right, profile) {
     if (!structurallyEqualValues(left[leftKeys[index]], right[rightKeys[index]], profile)) return false;
   }
   return true;
+}
+
+function comparableScalarDescriptor(value) {
+  if (typeof value !== 'object' || value === null) return undefined;
+  return value[COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY];
 }
 
 function isConcreteValueDescriptor(descriptor) {
@@ -6386,7 +6409,12 @@ function materializeAttributeComparableValue(namespace, binding, seen) {
 function materializeBindingComparableValue(namespace, binding, seen) {
   const scalar = getBindingScalarValue(namespace, binding);
   if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) {
-    return { ok: true, value: scalar.value };
+    return {
+      ok: true,
+      value: {
+        [COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY]: scalarInfoToValueDescriptor(queryScalarToInfo(scalar)),
+      },
+    };
   }
   if (!isContainerBinding(namespace, binding)) return scalar;
   return materializeContainerComparableValue(namespace, binding, seen);
@@ -6411,6 +6439,13 @@ function getBindingScalarInfo(namespace, binding) {
 }
 
 function containerKindFromBinding(namespace, binding) {
+  const explicitKind = explicitContainerKindFromBinding(namespace, binding);
+  if (explicitKind !== undefined) return explicitKind;
+  if (Array.isArray(binding.children)) return 'container';
+  return undefined;
+}
+
+function explicitContainerKindFromBinding(namespace, binding) {
   const rawKind = typeof namespace.representationKind === 'function'
     ? namespace.representationKind(binding)
     : binding.representationKind ?? binding.kind ?? binding.type ?? binding.literalKind ?? binding.valueKind;
@@ -6419,7 +6454,6 @@ function containerKindFromBinding(namespace, binding) {
   if (['list', 'listNode'].includes(kind)) return 'list';
   if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
   if (['node', 'nodeLiteral'].includes(kind)) return 'node';
-  if (Array.isArray(binding.children)) return 'container';
   return undefined;
 }
 

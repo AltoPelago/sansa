@@ -479,6 +479,7 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (value === null) return 'null';
   if (metadata?.kind === 'hex') return `#${value}`;
   if (metadata?.kind === 'radix') return `%${value}`;
+  if (metadata?.kind === 'number') return metadata.numericLexeme ?? String(value);
   if (metadata?.kind === 'encoding') return `&${value}`;
   if (metadata?.kind === 'separator') return `^${value}`;
   if (metadata?.kind === 'symbol') return renderSymbolLiteral(value);
@@ -505,6 +506,9 @@ function scalarMetadataFromBinding(binding) {
   const kind = binding.scalarKind ?? binding.valueKind ?? binding.literalKind ?? binding.representationKind ?? binding.kind ?? binding.type;
   if (typeof kind === 'string') metadata.kind = lowerFirst(kind);
   if (binding.nullReason !== undefined) metadata.nullReason = binding.nullReason;
+  if (binding.numericLexeme !== undefined) metadata.numericLexeme = binding.numericLexeme;
+  if (binding.radixBase !== undefined) metadata.radixBase = binding.radixBase;
+  if (binding.radixScale !== undefined) metadata.radixScale = binding.radixScale;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 

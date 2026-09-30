@@ -916,6 +916,22 @@ test('compares symbols exactly without string coercion or intrinsic ordering', (
   assert.equal(ordering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
 });
 
+test('rejects symbols in string-only query operations', () => {
+  const queries = [
+    'from $.types\nselect contains(|approved|, "app")',
+    'from $.types\nselect resolveChild($.inventory.categoryLabels, |hardware|)',
+    'from $.types\nselect objectFrom($.types.stage, $.types.count)',
+    'from $.types\nselect fieldsFrom($.table.header.*, $.table.content[0].*, |age|)',
+    'from $.types\nselect isNullReason($.inventory.items[0].status, |notSet|)',
+  ];
+
+  for (const query of queries) {
+    const result = evaluateQuery(query, namespace);
+    assert.equal(result.ok, false, query);
+    assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', query);
+  }
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
@@ -1837,11 +1853,12 @@ test('uses an optional native structural-equality hook for same-kind container b
   const nodeA = { name: 'nodeA', address: '$.nodeA', representationKind: 'node', nativeKey: 'same' };
   const nodeB = { name: 'nodeB', address: '$.nodeB', representationKind: 'node', nativeKey: 'same' };
   const nodeC = { name: 'nodeC', address: '$.nodeC', representationKind: 'node', nativeKey: 'different' };
-  const scalar = { name: 'scalar', address: '$.scalar', representationKind: 'number', value: 1 };
+  const scalar = { name: 'scalar', address: '$.scalar', representationKind: 'number', value: 1, children: [] };
+  const scalarCopy = { name: 'scalarCopy', address: '$.scalarCopy', representationKind: 'number', value: 1, children: [] };
   const nativeRoot = {
     address: '$',
     representationKind: 'object',
-    children: [nodeA, nodeB, nodeC, scalar],
+    children: [nodeA, nodeB, nodeC, scalar, scalarCopy],
   };
   const nativeCalls = [];
   const nativeNamespace = {
@@ -1874,7 +1891,7 @@ test('uses an optional native structural-equality hook for same-kind container b
 
   const scalarComparison = evaluateQuery([
     'from $',
-    'where $.scalar == 1',
+    'where $.scalar == $.scalarCopy',
     'select $.scalar',
   ].join('\n'), nativeNamespace);
   assert.equal(scalarComparison.ok, true, JSON.stringify(scalarComparison.errors ?? []));
@@ -2364,6 +2381,58 @@ test('gates experimental transform extensions explicitly', () => {
     { age: 22 },
     { age: 31 },
   ]);
+});
+
+test('preserves scalar value categories during structural container equality', () => {
+  const structuralNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'symbolContainer',
+          address: '$.symbolContainer',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.symbolContainer.state', representationKind: 'symbol', value: 'approved', children: [] },
+          ],
+        },
+        {
+          name: 'symbolCopy',
+          address: '$.symbolCopy',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.symbolCopy.state', representationKind: 'symbol', value: 'approved', children: [] },
+          ],
+        },
+        {
+          name: 'stringContainer',
+          address: '$.stringContainer',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.stringContainer.state', representationKind: 'string', value: 'approved', children: [] },
+          ],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+  };
+
+  const sameCategory = evaluateQuery([
+    'from $',
+    'where $.symbolContainer == $.symbolCopy',
+    'select $.symbolContainer',
+  ].join('\n'), structuralNamespace);
+  assert.equal(sameCategory.ok, true, JSON.stringify(sameCategory.errors ?? []));
+  assert.equal(sameCategory.results.length, 1);
+
+  const mixedCategory = evaluateQuery([
+    'from $',
+    'where $.symbolContainer != $.stringContainer',
+    'select $.symbolContainer',
+  ].join('\n'), structuralNamespace);
+  assert.equal(mixedCategory.ok, true, JSON.stringify(mixedCategory.errors ?? []));
+  assert.equal(mixedCategory.results.length, 1);
 });
 
 test('applies validation query policy restrictions before evaluation', () => {

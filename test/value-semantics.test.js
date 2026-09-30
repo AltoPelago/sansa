@@ -326,6 +326,13 @@ test('relates temporal claims as completion sets without inventing missing conte
   });
   assert.equal(operation.ok, true);
   assert.equal(operation.relation, 'contains');
+
+  const nonTemporal = evaluateValueSemanticsOperation('temporalRelation', {
+    left: { category: 'string', value: '10:Z' },
+    right: { category: 'string', value: '10:30Z' },
+  });
+  assert.equal(nonTemporal.ok, false);
+  assert.equal(nonTemporal.reason, 'temporal_required');
 });
 
 test('evaluates lexical structured scalar value-family boundaries', () => {
