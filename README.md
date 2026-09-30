@@ -56,6 +56,7 @@ npm run cts:mutate
 ```
 
 The default Query CTS lane runs core conformance and skips experimental extension cases. `cts:query:experimental` includes experimental extension coverage.
+The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base and cross-base radix numeric profiles. Pass `--cts <manifest>` to run an older compatibility target explicitly.
 The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy plan-filter cases.
 
 ## Query Tool
@@ -77,6 +78,16 @@ into a SANSA namespace without rebuilding an AEON parser AST.
 `.film.aes` fixtures use the same portable-record namespace after complete Film
 and AES validation. Film support is query-only; SANSA does not expose a Film
 mutation target or writer.
+
+Namespace adapters may optionally expose
+`structurallyEqual(leftBinding, rightBinding)`. SANSA uses this hook only for
+`==` and `!=` between one binding on each side when both bindings are
+containers of the same representation kind. A Boolean result is authoritative;
+returning `undefined`, or omitting the hook, retains SANSA's generic structural
+materialization and comparison. The hook receives the active value-semantics
+profile and must decline profiles it cannot implement. This lets retained
+binary document models compare native container handles without making their
+storage topology part of SANSA.Query.
 
 For browser-based technical testing, run the Query Workbench:
 
@@ -116,8 +127,18 @@ its current boundary is documented in
 
 Both the CLI and browser workbench can select an explicit query value-semantics
 profile, such as the default codepoint profile, the Natural ASCII numeric-region
-profile, or the French locale profile, to test comparison, ordering, and
-case-mapping behavior under different consumer contexts.
+profile, the French locale profile, the explicit same-base `radix-numeric`
+profile, or the exact `radix-numeric-cross-base` profile, to test comparison,
+ordering, and case-mapping behavior under different consumer contexts.
+Radix representation scale is independently available through
+`radixScale(value)` in queries and `radixScaleOf(payload, base?)` in the API;
+for example, `%19.9900` has scale 4 even when a numeric profile treats it as
+equal to `%19.99`.
+Conservative temporal completion-set relations are available through
+`temporalRelation(left, right)` in queries and `compareTemporalClaims(left,
+right)` in the API. Date literals may use year (`2026-`), month (`2026-07`),
+or day (`2026-07-25`) granularity; coarser forms contain compatible finer
+forms under those completion-set semantics.
 
 Full CLI, workbench, Query semantics, and recipe details live in
 [docs/query-tool.md](docs/query-tool.md).

@@ -668,7 +668,7 @@ function telexScalarReplacementRecord(current, value, operation, aes) {
 const PORTABLE_MUTABLE_SCALAR_KINDS = new Set([
   'StringLiteral', 'NumberLiteral', 'InfinityLiteral', 'NaNLiteral', 'NullLiteral',
   'BooleanLiteral', 'ToggleLiteral', 'HexLiteral', 'RadixLiteral', 'EncodingLiteral',
-  'SeparatorLiteral', 'SansaAddressLiteral', 'DateLiteral', 'TimeLiteral',
+  'SeparatorLiteral', 'SymbolicLiteral', 'SansaAddressLiteral', 'DateLiteral', 'TimeLiteral',
   'DateTimeLiteral', 'WTCDateTimeLiteral',
 ]);
 
@@ -680,6 +680,7 @@ const PORTABLE_KIND_ALIASES = new Map([
   ['hex', 'HexLiteral'], ['radix', 'RadixLiteral'], ['encoding', 'EncodingLiteral'],
   ['base64', 'EncodingLiteral'], ['embed', 'EncodingLiteral'], ['inline', 'EncodingLiteral'],
   ['separator', 'SeparatorLiteral'], ['sep', 'SeparatorLiteral'], ['csv', 'SeparatorLiteral'],
+  ['symbol', 'SymbolicLiteral'], ['symbolicliteral', 'SymbolicLiteral'],
   ['sansa', 'SansaAddressLiteral'], ['sansaaddress', 'SansaAddressLiteral'],
   ['date', 'DateLiteral'], ['time', 'TimeLiteral'], ['datetime', 'DateTimeLiteral'], ['wtc', 'WTCDateTimeLiteral'],
 ]);
@@ -752,6 +753,7 @@ function portableScalarSemanticTypeForWorkbench(kind) {
     StringLiteral: 'string', NumberLiteral: 'number', BooleanLiteral: 'boolean',
     NullLiteral: 'null', InfinityLiteral: 'infinity', NaNLiteral: 'nan', ToggleLiteral: 'toggle',
     HexLiteral: 'hex', RadixLiteral: 'radix', EncodingLiteral: 'encoding', SeparatorLiteral: 'sep',
+    SymbolicLiteral: 'symbol',
     SansaAddressLiteral: 'sansa', DateLiteral: 'date', TimeLiteral: 'time',
     DateTimeLiteral: 'datetime', WTCDateTimeLiteral: 'wtc',
   }[kind];
@@ -762,6 +764,7 @@ function portableScalarKindForWorkbench(kind) {
     StringLiteral: 'string', NumberLiteral: 'number', BooleanLiteral: 'boolean',
     NullLiteral: 'null', InfinityLiteral: 'infinity', NaNLiteral: 'nan', ToggleLiteral: 'toggle',
     HexLiteral: 'hex', RadixLiteral: 'radix', EncodingLiteral: 'encoding', SeparatorLiteral: 'separator',
+    SymbolicLiteral: 'symbol',
     SansaAddressLiteral: 'sansaAddress', DateLiteral: 'date', TimeLiteral: 'time',
     DateTimeLiteral: 'datetime', WTCDateTimeLiteral: 'wtc',
   }[kind];
@@ -910,6 +913,10 @@ function validateAeonWorkbenchScalarValue(value, representation, path) {
       return typeof value === 'string'
         ? { ok: true }
         : invalidAeonWorkbenchValue('String literals must use JSON string payloads', path);
+    case 'symbol':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Symbol literals must use non-empty JSON string payloads', path);
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
         ? { ok: true }
@@ -934,6 +941,10 @@ function validateAeonWorkbenchScalarValue(value, representation, path) {
       return typeof value === 'string' && value.length > 0
         ? { ok: true }
         : invalidAeonWorkbenchValue('Separator literals must be non-empty text without the ^ prefix', path);
+    case 'symbol':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonWorkbenchValue('Symbol literals must be non-empty text', path);
     case 'sansa':
     case 'sansaAddress':
       return typeof value === 'string' && value.length > 0
@@ -1406,8 +1417,12 @@ function renderScalarValue(binding) {
   if (kind === 'toggle') return String(value);
   if (kind === 'hex') return `#${value}`;
   if (kind === 'radix') return `%${value}`;
+  if (kind === 'number' || kind === 'NumberLiteral' || binding.numericLexeme !== undefined) {
+    return binding.numericLexeme ?? String(value);
+  }
   if (kind === 'encoding') return `&${value}`;
   if (kind === 'separator') return `^${value}`;
+  if (kind === 'symbol') return renderSymbolLiteral(value);
   if (['date', 'time', 'datetime', 'wtc'].includes(kind)) return String(value);
   if (kind === 'sansaAddress' || kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
@@ -1422,6 +1437,18 @@ function renderScalarValue(binding) {
 function renderBlockString(value) {
   const text = String(value ?? '').replace(/\\/g, '\\\\').replace(/`/g, '\\`');
   return `>\`${text}\``;
+}
+
+function renderSymbolLiteral(value) {
+  const text = String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\f/g, '\\f');
+  return `|${text}|`;
 }
 
 function renderDiagnosticText(errors, options = {}) {
@@ -1534,6 +1561,7 @@ function semanticTypeFromRepresentationKind(kind) {
     case 'radix':
     case 'encoding':
     case 'separator':
+    case 'symbol':
     case 'sansa':
     case 'date':
     case 'time':
@@ -1574,6 +1602,7 @@ function representationKindFromName(name, { allowUnknown = false } = {}) {
   if (base === 'infinity') return 'infinity';
   if (base === 'null') return 'null';
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
+  if (base === 'symbol' || lowered === 'symbolicliteral') return 'symbol';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
   if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;

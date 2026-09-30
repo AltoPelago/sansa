@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { evaluateQuery, parseAddress, parseQuery } from '../../src/index.js';
+import { evaluateQuery, parseAddress, parseQuery, radixScaleOf } from '../../src/index.js';
 
 const devAeonCoreUrl = new URL('../../../aeon/implementations/typescript/packages/core/dist/index.js', import.meta.url);
 const devAeonAesUrl = new URL('../../../aeon/implementations/typescript/packages/aes/dist/index.js', import.meta.url);
@@ -708,6 +708,12 @@ function buildNamespaceFromEvents(events, formatPath) {
     if (event.value?.type === 'NodeLiteral' && typeof event.value.tag === 'string') binding.nodeTag = event.value.tag;
     const nullReason = nullReasonFromValue(event.value);
     if (nullReason !== undefined) binding.nullReason = nullReason;
+    const numericLexeme = numericLexemeFromAeonValue(event.value);
+    if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
+    const radixBase = radixBaseFromAeonValue(event.value, binding.semanticType);
+    if (radixBase !== undefined) binding.radixBase = radixBase;
+    const radixScale = radixScaleFromAeonValue(event.value, radixBase);
+    if (radixScale !== undefined) binding.radixScale = radixScale;
 
     const scalar = scalarFromAeonValue(event.value);
     if (scalar.ok) binding.value = scalar.value;
@@ -761,6 +767,12 @@ function buildAttributeSpace(ownerAddress, annotations, parents, parent) {
     binding.scalarKind = scalarKindFromValue(entry.value, binding.semanticType);
     const nullReason = nullReasonFromValue(entry.value);
     if (nullReason !== undefined) binding.nullReason = nullReason;
+    const numericLexeme = numericLexemeFromAeonValue(entry.value);
+    if (numericLexeme !== undefined) binding.numericLexeme = numericLexeme;
+    const radixBase = radixBaseFromAeonValue(entry.value, binding.semanticType);
+    if (radixBase !== undefined) binding.radixBase = radixBase;
+    const radixScale = radixScaleFromAeonValue(entry.value, radixBase);
+    if (radixScale !== undefined) binding.radixScale = radixScale;
     const scalar = scalarFromAeonValue(entry.value);
     if (scalar.ok) binding.value = scalar.value;
     if (entry.annotations?.size) {
@@ -877,6 +889,15 @@ function portableBinding(record, finalSelector) {
   };
   const scalarKind = portableScalarKind(record.kind);
   if (scalarKind !== undefined) binding.scalarKind = scalarKind;
+  if (record.kind === 'NumberLiteral' && typeof record.value === 'string') {
+    binding.numericLexeme = record.value;
+  }
+  const radixBase = radixBaseFromPortableRecord(record);
+  if (radixBase !== undefined) binding.radixBase = radixBase;
+  if (record.kind === 'RadixLiteral' && typeof record.value === 'string') {
+    const radixScale = radixScaleOf(record.value, radixBase);
+    if (radixScale !== null) binding.radixScale = radixScale;
+  }
   const scalar = scalarFromPortableRecord(record);
   if (scalar.ok) binding.value = scalar.value;
   if (record.kind === 'NullLiteral') binding.nullReason = record.value;
@@ -897,6 +918,7 @@ function portableSemanticType(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'sep';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansa';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -908,6 +930,7 @@ function portableSemanticType(kind) {
 
 function portableScalarKind(kind) {
   switch (kind) {
+    case 'NumberLiteral': return 'number';
     case 'NullLiteral': return 'null';
     case 'InfinityLiteral': return 'infinity';
     case 'NaNLiteral': return 'nan';
@@ -916,6 +939,7 @@ function portableScalarKind(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'separator';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansaAddress';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -942,6 +966,7 @@ function portableRepresentationAlias(kind) {
     case 'RadixLiteral': return 'radix';
     case 'EncodingLiteral': return 'encoding';
     case 'SeparatorLiteral': return 'separator';
+    case 'SymbolicLiteral': return 'symbol';
     case 'SansaAddressLiteral': return 'sansa';
     case 'DateLiteral': return 'date';
     case 'TimeLiteral': return 'time';
@@ -964,6 +989,7 @@ function scalarFromPortableRecord(record) {
     case 'RadixLiteral':
     case 'EncodingLiteral':
     case 'SeparatorLiteral':
+    case 'SymbolicLiteral':
     case 'DateLiteral':
     case 'TimeLiteral':
     case 'DateTimeLiteral':
@@ -980,7 +1006,7 @@ function scalarFromPortableRecord(record) {
         },
       };
     case 'NumberLiteral':
-      return { ok: true, value: Number(record.value) };
+      return { ok: true, value: record.value ?? '' };
     case 'InfinityLiteral':
       return { ok: true, value: record.value === '-Infinity' ? -Infinity : Infinity };
     case 'NaNLiteral':
@@ -1032,6 +1058,8 @@ function semanticTypeFromValue(value) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'sep';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'DateLiteral':
       return 'date';
     case 'TimeLiteral':
@@ -1072,6 +1100,8 @@ function representationKindFromValue(value, semanticType) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'separator';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'SansaAddressLiteral':
       return 'sansa';
     case 'NumberLiteral':
@@ -1107,6 +1137,7 @@ function scalarFromAeonValue(value) {
     case 'RadixLiteral':
     case 'EncodingLiteral':
     case 'SeparatorLiteral':
+    case 'SymbolicLiteral':
       return { ok: true, value: value.value };
     case 'SansaAddressLiteral':
       return {
@@ -1118,7 +1149,7 @@ function scalarFromAeonValue(value) {
         },
       };
     case 'NumberLiteral':
-      return { ok: true, value: Number(value.value) };
+      return { ok: true, value: value.value };
     case 'InfinityLiteral':
       return { ok: true, value: value.value === '-Infinity' ? -Infinity : Infinity };
     case 'NaNLiteral':
@@ -1136,6 +1167,45 @@ function scalarFromAeonValue(value) {
     default:
       return { ok: false };
   }
+}
+
+function numericLexemeFromAeonValue(value) {
+  if (value.type === 'TypedValue') return numericLexemeFromAeonValue(value.value);
+  return value.type === 'NumberLiteral' ? value.value : undefined;
+}
+
+function radixBaseFromAeonValue(value, semanticType) {
+  if (value.type === 'TypedValue') return radixBaseFromAeonValue(value.value, semanticType ?? value.datatype);
+  return value.type === 'RadixLiteral' ? radixBaseFromSemanticType(semanticType) : undefined;
+}
+
+function radixScaleFromAeonValue(value, radixBase) {
+  if (value.type === 'TypedValue') return radixScaleFromAeonValue(value.value, radixBase);
+  if (value.type !== 'RadixLiteral') return undefined;
+  return radixScaleOf(value.value, radixBase) ?? undefined;
+}
+
+function radixBaseFromPortableRecord(record) {
+  if (record.kind !== 'RadixLiteral') return undefined;
+  const fromType = radixBaseFromSemanticType(record.datatype);
+  if (fromType !== undefined) return fromType;
+  if (record.datatype !== 'radix' || !Array.isArray(record.clarifiers) || record.clarifiers.length !== 1) return undefined;
+  const clarifier = record.clarifiers[0];
+  if (clarifier?.kind !== 'NumberLiteral') return undefined;
+  const base = Number(clarifier.value);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
+}
+
+function radixBaseFromSemanticType(semanticType) {
+  if (typeof semanticType !== 'string') return undefined;
+  const normalized = semanticType.trim().toLowerCase();
+  if (normalized === 'decimal') return 10;
+  const alias = /^radix(2|6|8|12)$/u.exec(normalized);
+  if (alias !== null) return Number(alias[1]);
+  const clarified = /^radix\[(\d+)\]$/u.exec(normalized);
+  if (clarified === null) return undefined;
+  const base = Number(clarified[1]);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
 }
 
 function scalarKindFromValue(value, semanticType) {
@@ -1158,8 +1228,12 @@ function scalarKindFromValue(value, semanticType) {
       return 'encoding';
     case 'SeparatorLiteral':
       return 'separator';
+    case 'SymbolicLiteral':
+      return 'symbol';
     case 'SansaAddressLiteral':
       return 'sansaAddress';
+    case 'NumberLiteral':
+      return 'number';
     case 'DateLiteral':
       return 'date';
     case 'DateTimeLiteral':
@@ -1283,8 +1357,10 @@ function renderAeonValue(value, metadata, fieldMetadata) {
   if (value === null) return 'null';
   if (metadata?.kind === 'hex') return `#${value}`;
   if (metadata?.kind === 'radix') return `%${value}`;
+  if (metadata?.kind === 'number') return metadata.numericLexeme ?? String(value);
   if (metadata?.kind === 'encoding') return `&${value}`;
   if (metadata?.kind === 'separator') return `^${value}`;
+  if (metadata?.kind === 'symbol') return renderSymbolLiteral(value);
   if (['date', 'time', 'datetime', 'wtc'].includes(metadata?.kind)) return String(value);
   if (metadata?.kind === 'sansaAddress' || metadata?.kind === 'sansa') {
     return value?.canonical ?? value?.address?.canonical ?? value?.address ?? String(value);
@@ -1311,11 +1387,26 @@ function scalarMetadataFromBinding(binding) {
   const kind = binding.scalarKind ?? binding.valueKind ?? binding.literalKind ?? binding.representationKind ?? binding.kind ?? binding.type;
   if (typeof kind === 'string') metadata.kind = lowerFirst(kind);
   if (binding.nullReason !== undefined) metadata.nullReason = binding.nullReason;
+  if (binding.numericLexeme !== undefined) metadata.numericLexeme = binding.numericLexeme;
+  if (binding.radixBase !== undefined) metadata.radixBase = binding.radixBase;
+  if (binding.radixScale !== undefined) metadata.radixScale = binding.radixScale;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function lowerFirst(value) {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function renderSymbolLiteral(value) {
+  const text = String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\f/g, '\\f');
+  return `|${text}|`;
 }
 
 function renderQueryValueInspectLines(value) {
@@ -1402,6 +1493,9 @@ function summarizeBinding(binding) {
     ...(binding.representationKind === undefined ? {} : { representationKind: binding.representationKind }),
     ...(binding.scalarKind === undefined ? {} : { scalarKind: binding.scalarKind }),
     ...(binding.nullReason === undefined ? {} : { nullReason: binding.nullReason }),
+    ...(binding.numericLexeme === undefined ? {} : { numericLexeme: binding.numericLexeme }),
+    ...(binding.radixBase === undefined ? {} : { radixBase: binding.radixBase }),
+    ...(binding.radixScale === undefined ? {} : { radixScale: binding.radixScale }),
     ...(scalar.ok ? { value: sanitizeJsonValue(scalar.value) } : {}),
   };
 }

@@ -174,6 +174,17 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(separator.value, '0.11.0');
   assert.equal(renderQueryExpression(separator), '^0.11.0');
 
+  const symbol = parseExpressionOk('|approved|');
+  assert.equal(symbol.type, 'literalExpression');
+  assert.equal(symbol.kind, 'symbol');
+  assert.equal(symbol.value, 'approved');
+  assert.equal(renderQueryExpression(symbol), '|approved|');
+
+  const escapedSymbol = parseExpressionOk(String.raw`|wait\|ready "as-is"|`);
+  assert.equal(escapedSymbol.kind, 'symbol');
+  assert.equal(escapedSymbol.value, 'wait|ready "as-is"');
+  assert.equal(renderQueryExpression(escapedSymbol), String.raw`|wait\|ready "as-is"|`);
+
   const quotedSeparator = parseExpressionOk('^"hello world"|"this, [is] fine"');
   assert.equal(quotedSeparator.type, 'literalExpression');
   assert.equal(quotedSeparator.kind, 'separator');
@@ -192,11 +203,28 @@ test('parses query expressions into canonical AST nodes', () => {
   assert.equal(time.value, '09:30:00Z');
   assert.equal(renderQueryExpression(time), '09:30:00Z');
 
+  const fractionalLeapSecond = parseExpressionOk('23:59:60.3400Z');
+  assert.equal(fractionalLeapSecond.kind, 'time');
+  assert.equal(fractionalLeapSecond.value, '23:59:60.3400Z');
+  assert.equal(renderQueryExpression(fractionalLeapSecond), '23:59:60.3400Z');
+
   const reducedTime = parseExpressionOk('09:');
   assert.equal(reducedTime.type, 'literalExpression');
   assert.equal(reducedTime.kind, 'time');
   assert.equal(reducedTime.value, '09:');
   assert.equal(renderQueryExpression(reducedTime), '09:');
+
+  const reducedYear = parseExpressionOk('2024-');
+  assert.equal(reducedYear.type, 'literalExpression');
+  assert.equal(reducedYear.kind, 'date');
+  assert.equal(reducedYear.value, '2024-');
+  assert.equal(renderQueryExpression(reducedYear), '2024-');
+
+  const reducedMonth = parseExpressionOk('2024-02');
+  assert.equal(reducedMonth.type, 'literalExpression');
+  assert.equal(reducedMonth.kind, 'date');
+  assert.equal(reducedMonth.value, '2024-02');
+  assert.equal(renderQueryExpression(reducedMonth), '2024-02');
 
   const datetime = parseExpressionOk('2026-07-25T09:30:00Z');
   assert.equal(datetime.type, 'literalExpression');
@@ -280,14 +308,42 @@ test('rejects invalid query expression forms', () => {
   parseExpressionBad('%', 'SANSA_QUERY_EXPECTED_LITERAL_PAYLOAD');
   parseExpressionBad('&bad/payload', 'SANSA_QUERY_INVALID_ENCODING_LITERAL');
   parseExpressionBad('^root/main', 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL');
+  parseExpressionBad('||', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
+  parseExpressionBad('|unterminated', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
+  parseExpressionBad('|line\nbreak|', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL');
   parseExpressionBad('^"unterminated', 'SANSA_QUERY_UNTERMINATED_EXPRESSION');
   parseExpressionBad('2025-13-40', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-02-29', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('24:00', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
-  parseExpressionBad('23:59:60', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:61', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('23:59:59.', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+  parseExpressionBad('0000-01-01', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe//Brussels', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
   parseExpressionBad('2025-01-01T09Z&Europe/*Brussels*/', 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL');
+});
+
+test('preserves comment markers, commas, and clause words inside symbol literals', () => {
+  const query = parseOk([
+    'from $.types.stage',
+    'where . == |approved // not a comment, select remains content|',
+    'select fallback(|first, value|, |second|)',
+  ].join('\n'));
+
+  assert.equal(query.where.ast.right.kind, 'symbol');
+  assert.equal(query.where.ast.right.value, 'approved // not a comment, select remains content');
+  assert.equal(query.select.ast.arguments[0].kind, 'symbol');
+  assert.equal(query.select.ast.arguments[0].value, 'first, value');
+});
+
+test('explains that projection colons are reserved for datatype annotations', () => {
+  const result = parseQueryExpression('{ sku: .sku }');
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_INVALID_PROJECTION');
+  assert.equal(
+    result.errors[0].message,
+    "Projection fields use AEON assignment syntax ('name = expression'); ':' is reserved for datatype annotations",
+  );
 });
 
 test('query CTS cases match parser behavior', () => {

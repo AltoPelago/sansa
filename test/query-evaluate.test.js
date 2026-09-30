@@ -10,6 +10,8 @@ function binding({
   representationKind,
   scalarKind,
   nullReason,
+  numericLexeme,
+  radixBase,
   identity,
   value,
   children = [],
@@ -23,6 +25,8 @@ function binding({
     ...(representationKind === undefined ? {} : { representationKind }),
     ...(scalarKind === undefined ? {} : { scalarKind }),
     ...(nullReason === undefined ? {} : { nullReason }),
+    ...(numericLexeme === undefined ? {} : { numericLexeme }),
+    ...(radixBase === undefined ? {} : { radixBase }),
     ...(identity === undefined ? {} : { identity }),
     ...(value === undefined ? {} : { value }),
     ...(localSpaces === undefined ? {} : { localSpaces }),
@@ -368,12 +372,16 @@ const root = binding({
         binding({ name: 'colorCopy', address: '$.types.colorCopy', semanticType: 'hex', representationKind: 'hex', scalarKind: 'hex', value: 'ff00aa' }),
         binding({ name: 'mask', address: '$.types.mask', semanticType: 'radix[16]', representationKind: 'radix', scalarKind: 'radix', value: 'ff00aa' }),
         binding({ name: 'octal', address: '$.types.octal', semanticType: 'radix8', representationKind: 'radix', scalarKind: 'radix', value: '70' }),
+        binding({ name: 'price', address: '$.types.price', semanticType: 'decimal', representationKind: 'radix', scalarKind: 'radix', radixBase: 10, value: '19.9900' }),
         binding({ name: 'payload', address: '$.types.payload', semanticType: 'encoding', representationKind: 'encoding', scalarKind: 'encoding', value: 'QmFzZTY0IQ==' }),
         binding({ name: 'version', address: '$.types.version', semanticType: 'sep["."]', representationKind: 'separator', scalarKind: 'separator', value: '0.11.0' }),
+        binding({ name: 'stage', address: '$.types.stage', semanticType: 'symbol', representationKind: 'symbol', scalarKind: 'symbol', value: 'approved' }),
         binding({ name: 'count', address: '$.types.count', semanticType: 'int32', representationKind: 'number', value: 2 }),
         binding({ name: 'capacity', address: '$.types.capacity', semanticType: 'uint64', representationKind: 'number', value: 8 }),
         binding({ name: 'ratio', address: '$.types.ratio', semanticType: 'float64', representationKind: 'number', value: 2.5 }),
         binding({ name: 'aliasNumber', address: '$.types.aliasNumber', semanticType: 'n', representationKind: 'number', value: 9 }),
+        binding({ name: 'largeA', address: '$.types.largeA', semanticType: 'number', representationKind: 'number', numericLexeme: '9007199254740992', value: '9007199254740992' }),
+        binding({ name: 'largeB', address: '$.types.largeB', semanticType: 'number', representationKind: 'number', numericLexeme: '9007199254740993', value: '9007199254740993' }),
         binding({ name: 'approved', address: '$.types.approved', semanticType: 'bool', representationKind: 'boolean', value: true }),
         binding({ name: 'note', address: '$.types.note', semanticType: 'trimtick', representationKind: 'string', value: 'hello trimtick' }),
         binding({ name: 'summary', address: '$.types.summary', semanticType: 'prose', representationKind: 'string', value: 'hello prose' }),
@@ -882,12 +890,146 @@ test('does not apply custom string profiles as separator domain semantics', () =
   ]);
 });
 
+test('compares symbols exactly without string coercion or intrinsic ordering', () => {
+  const equality = evaluateQuery([
+    'from $.types.*#symbol%symbol',
+    'where . == |approved|',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.types.stage']);
+
+  const stringComparison = evaluateQuery([
+    'from $.types.stage',
+    'where . == "approved"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(stringComparison.ok, false);
+  assert.equal(stringComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const ordering = evaluateQuery([
+    'from $.types.stage',
+    'where . < |pending|',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(ordering.ok, false);
+  assert.equal(ordering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
+test('rejects symbols in string-only query operations', () => {
+  const queries = [
+    'from $.types\nselect contains(|approved|, "app")',
+    'from $.types\nselect resolveChild($.inventory.categoryLabels, |hardware|)',
+    'from $.types\nselect objectFrom($.types.stage, $.types.count)',
+    'from $.types\nselect fieldsFrom($.table.header.*, $.table.content[0].*, |age|)',
+    'from $.types\nselect isNullReason($.inventory.items[0].status, |notSet|)',
+  ];
+
+  for (const query of queries) {
+    const result = evaluateQuery(query, namespace);
+    assert.equal(result.ok, false, query);
+    assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', query);
+  }
+});
+
 test('rejects non-boolean where expressions', () => {
   const result = evaluateQuery('from $.inventory.items.*\nwhere .sku\nselect .sku', namespace);
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_EXPECTED_BOOLEAN');
   assert.equal(result.errors[0].phase, 'where');
   assert.equal(result.errors[0].candidateAddress, '$.inventory.items[0]');
+});
+
+test('identifies both operand categories in cross-type comparison diagnostics', () => {
+  const result = evaluateQuery([
+    'from $.inventory.items[1]',
+    'where .id == 4',
+    'select .',
+  ].join('\n'), namespace);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+  assert.equal(result.errors[0].message, 'Cross-type comparison is not supported (string vs finiteNumber)');
+  assert.equal(result.errors[0].phase, 'where');
+  assert.equal(result.errors[0].candidateAddress, '$.inventory.items[1]');
+});
+
+test('uses lossless numeric lexemes for query literals, equality, and ordering', () => {
+  const equality = evaluateQuery([
+    'from $.types.*%number',
+    'where . == 9007199254740993',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(equality.ok, true, JSON.stringify(equality.errors ?? []));
+  assert.deepEqual(equality.results.map((entry) => entry.binding.address), ['$.types.largeB']);
+
+  const ordering = evaluateQuery([
+    'from $.types.largeB',
+    'where . > $.types.largeA',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(ordering.ok, true, JSON.stringify(ordering.errors ?? []));
+  assert.deepEqual(ordering.results.map((entry) => entry.binding.address), ['$.types.largeB']);
+
+  const projectedLiteral = evaluateQuery([
+    'from $.types.largeB',
+    'select 9007199254740993',
+  ].join('\n'), namespace);
+  assert.equal(projectedLiteral.ok, true, JSON.stringify(projectedLiteral.errors ?? []));
+  assert.equal(projectedLiteral.results[0].value.value, '9007199254740993');
+
+  const stringFunction = evaluateQuery([
+    'from $.types.largeB',
+    'select contains(9007199254740993, "993")',
+  ].join('\n'), namespace);
+  assert.equal(stringFunction.ok, false);
+  assert.equal(stringFunction.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+});
+
+test('uses explicit same-base radix numeric semantics without changing the default', () => {
+  const defaultEquality = evaluateQuery([
+    'from $.types.price',
+    'where . == %19.99',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(defaultEquality.ok, true, JSON.stringify(defaultEquality.errors ?? []));
+  assert.equal(defaultEquality.results.length, 0);
+
+  const numericEquality = evaluateQuery([
+    'from $.types.price',
+    'where . == %19.99',
+    'select .',
+  ].join('\n'), namespace, { valueSemantics: 'radix-numeric' });
+  assert.equal(numericEquality.ok, true, JSON.stringify(numericEquality.errors ?? []));
+  assert.deepEqual(numericEquality.results.map((entry) => entry.binding.address), ['$.types.price']);
+
+  const numericOrdering = evaluateQuery([
+    'from $.types.price',
+    'where . < %20',
+    'select .',
+  ].join('\n'), namespace, { valueSemantics: 'aeon.value.radix.numeric.same-base.v1' });
+  assert.equal(numericOrdering.ok, true, JSON.stringify(numericOrdering.errors ?? []));
+  assert.deepEqual(numericOrdering.results.map((entry) => entry.binding.address), ['$.types.price']);
+});
+
+test('queries radix fractional scale as representation metadata', () => {
+  const bindingScale = evaluateQuery([
+    'from $.types.price',
+    'select { value = . scale = radixScale(.) }',
+  ].join('\n'), namespace);
+  assert.equal(bindingScale.ok, true, JSON.stringify(bindingScale.errors ?? []));
+  assert.deepEqual(bindingScale.results[0].value.value, { value: '19.9900', scale: 4 });
+
+  const literalScale = evaluateQuery([
+    'from $.types.price',
+    'select { padded = radixScale(%19.9900) compact = radixScale(%19.99) }',
+  ].join('\n'), namespace);
+  assert.equal(literalScale.ok, true, JSON.stringify(literalScale.errors ?? []));
+  assert.deepEqual(literalScale.results[0].value.value, { padded: 4, compact: 2 });
+
+  const wrongFamily = evaluateQuery('from $.types.price select radixScale("19.9900")', namespace);
+  assert.equal(wrongFamily.ok, false);
+  assert.equal(wrongFamily.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
 });
 
 test('evaluates any all and none cardinality predicates', () => {
@@ -1397,6 +1539,44 @@ test('follows the comparison policy matrix', () => {
   assert.equal(wtcLiteralComparison.ok, true, JSON.stringify(wtcLiteralComparison.errors ?? []));
   assert.deepEqual(wtcLiteralComparison.results.map((entry) => entry.binding.address), ['$.types.zone']);
 
+  const temporalRelationProjection = evaluateQuery([
+    'from $.types',
+    'select { relation = temporalRelation(.window, 09:30Z) }',
+  ].join('\n'), namespace);
+  assert.equal(temporalRelationProjection.ok, true, JSON.stringify(temporalRelationProjection.errors ?? []));
+  assert.deepEqual(temporalRelationProjection.results[0].value.value, { relation: 'containedBy' });
+
+  const reducedDateRelation = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(2024-, 2024-02) == "contains"',
+    'select { relation = temporalRelation(2024-02, 2024-02-29) }',
+  ].join('\n'), namespace);
+  assert.equal(reducedDateRelation.ok, true, JSON.stringify(reducedDateRelation.errors ?? []));
+  assert.deepEqual(reducedDateRelation.results[0].value.value, { relation: 'contains' });
+
+  const temporalRelationPredicate = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(.window, 09:30:00Z) == "equal"',
+    'select .window',
+  ].join('\n'), namespace);
+  assert.equal(temporalRelationPredicate.ok, true, JSON.stringify(temporalRelationPredicate.errors ?? []));
+  assert.deepEqual(temporalRelationPredicate.results.map((entry) => entry.binding.address), ['$.types']);
+
+  const crossFamilyTemporalRelation = evaluateQuery([
+    'from $.types',
+    'where temporalRelation(.window, .released) == "incomparable"',
+    'select .',
+  ].join('\n'), namespace);
+  assert.equal(crossFamilyTemporalRelation.ok, true, JSON.stringify(crossFamilyTemporalRelation.errors ?? []));
+  assert.equal(crossFamilyTemporalRelation.results.length, 1);
+
+  const nonTemporalRelation = evaluateQuery([
+    'from $.types',
+    'select temporalRelation(.window, .count)',
+  ].join('\n'), namespace);
+  assert.equal(nonTemporalRelation.ok, false);
+  assert.equal(nonTemporalRelation.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
   const temporalCrossFamilyComparison = evaluateQuery([
     'from $.types.stamp',
     'where . > $.types.released',
@@ -1667,6 +1847,94 @@ test('follows the comparison policy matrix', () => {
   ].join('\n'), namespace);
   assert.equal(booleanOrdering.ok, false);
   assert.equal(booleanOrdering.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+});
+
+test('uses an optional native structural-equality hook for same-kind container bindings', () => {
+  const nodeA = { name: 'nodeA', address: '$.nodeA', representationKind: 'node', nativeKey: 'same' };
+  const nodeB = { name: 'nodeB', address: '$.nodeB', representationKind: 'node', nativeKey: 'same' };
+  const nodeC = { name: 'nodeC', address: '$.nodeC', representationKind: 'node', nativeKey: 'different' };
+  const scalar = { name: 'scalar', address: '$.scalar', representationKind: 'number', value: 1, children: [] };
+  const scalarCopy = { name: 'scalarCopy', address: '$.scalarCopy', representationKind: 'number', value: 1, children: [] };
+  const nativeRoot = {
+    address: '$',
+    representationKind: 'object',
+    children: [nodeA, nodeB, nodeC, scalar, scalarCopy],
+  };
+  const nativeCalls = [];
+  const nativeNamespace = {
+    root: nativeRoot,
+    children: (entry) => {
+      if (entry !== nativeRoot) throw new Error('native structural equality should avoid materialization');
+      return entry.children;
+    },
+    structurallyEqual: (left, right, context) => {
+      nativeCalls.push([left.address, right.address, context.operator, context.valueSemantics.id]);
+      return left.nativeKey === right.nativeKey;
+    },
+  };
+
+  const equal = evaluateQuery([
+    'from $',
+    'where $.nodeA == $.nodeB',
+    'select $.nodeA',
+  ].join('\n'), nativeNamespace);
+  assert.equal(equal.ok, true, JSON.stringify(equal.errors ?? []));
+  assert.equal(equal.results.length, 1);
+
+  const notEqual = evaluateQuery([
+    'from $',
+    'where $.nodeA != $.nodeC',
+    'select $.nodeC',
+  ].join('\n'), nativeNamespace);
+  assert.equal(notEqual.ok, true, JSON.stringify(notEqual.errors ?? []));
+  assert.equal(notEqual.results.length, 1);
+
+  const scalarComparison = evaluateQuery([
+    'from $',
+    'where $.scalar == $.scalarCopy',
+    'select $.scalar',
+  ].join('\n'), nativeNamespace);
+  assert.equal(scalarComparison.ok, true, JSON.stringify(scalarComparison.errors ?? []));
+  assert.equal(scalarComparison.results.length, 1);
+  assert.deepEqual(nativeCalls, [
+    ['$.nodeA', '$.nodeB', '==', 'aeon.value.default.v1'],
+    ['$.nodeA', '$.nodeC', '!=', 'aeon.value.default.v1'],
+  ]);
+
+  let declinedCalls = 0;
+  const fallbackNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'left',
+          address: '$.left',
+          representationKind: 'list',
+          children: [{ index: 0, address: '$.left[0]', representationKind: 'string', value: 'value' }],
+        },
+        {
+          name: 'right',
+          address: '$.right',
+          representationKind: 'list',
+          children: [{ index: 0, address: '$.right[0]', representationKind: 'string', value: 'value' }],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+    structurallyEqual: () => {
+      declinedCalls += 1;
+      return undefined;
+    },
+  };
+  const declined = evaluateQuery([
+    'from $',
+    'where $.left == $.right',
+    'select $.left',
+  ].join('\n'), fallbackNamespace);
+  assert.equal(declined.ok, true, JSON.stringify(declined.errors ?? []));
+  assert.equal(declined.results.length, 1);
+  assert.equal(declinedCalls, 1);
 });
 
 test('uses semantic filters as comparison guards', () => {
@@ -2113,6 +2381,58 @@ test('gates experimental transform extensions explicitly', () => {
     { age: 22 },
     { age: 31 },
   ]);
+});
+
+test('preserves scalar value categories during structural container equality', () => {
+  const structuralNamespace = {
+    root: {
+      address: '$',
+      representationKind: 'object',
+      children: [
+        {
+          name: 'symbolContainer',
+          address: '$.symbolContainer',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.symbolContainer.state', representationKind: 'symbol', value: 'approved', children: [] },
+          ],
+        },
+        {
+          name: 'symbolCopy',
+          address: '$.symbolCopy',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.symbolCopy.state', representationKind: 'symbol', value: 'approved', children: [] },
+          ],
+        },
+        {
+          name: 'stringContainer',
+          address: '$.stringContainer',
+          representationKind: 'object',
+          children: [
+            { name: 'state', address: '$.stringContainer.state', representationKind: 'string', value: 'approved', children: [] },
+          ],
+        },
+      ],
+    },
+    children: (entry) => entry.children ?? [],
+  };
+
+  const sameCategory = evaluateQuery([
+    'from $',
+    'where $.symbolContainer == $.symbolCopy',
+    'select $.symbolContainer',
+  ].join('\n'), structuralNamespace);
+  assert.equal(sameCategory.ok, true, JSON.stringify(sameCategory.errors ?? []));
+  assert.equal(sameCategory.results.length, 1);
+
+  const mixedCategory = evaluateQuery([
+    'from $',
+    'where $.symbolContainer != $.stringContainer',
+    'select $.symbolContainer',
+  ].join('\n'), structuralNamespace);
+  assert.equal(mixedCategory.ok, true, JSON.stringify(mixedCategory.errors ?? []));
+  assert.equal(mixedCategory.results.length, 1);
 });
 
 test('applies validation query policy restrictions before evaluation', () => {

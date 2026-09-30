@@ -299,6 +299,12 @@ test('parses instruction value literal families', () => {
   assert.equal(separator.mutation.value.kind, 'separator');
   assert.equal(separator.mutation.value.value, '"hello world"|"this, [is] fine"');
 
+  const symbol = parseOk(String.raw`create $.inventory.stage with :symbol, |in review\|blocked|`);
+  assert.equal(symbol.mutation.value.datatype, 'symbol');
+  assert.equal(symbol.mutation.value.kind, 'symbol');
+  assert.equal(symbol.mutation.value.value, 'in review|blocked');
+  assert.equal(symbol.canonical, String.raw`create $.inventory.stage with :symbol, |in review\|blocked|`);
+
   const radixMetadata = parseOk('create $.inventory.badRadix with :radix[65], %101');
   assert.equal(radixMetadata.mutation.value.datatype, 'radix[65]');
   assert.equal(radixMetadata.mutation.value.kind, 'radix');

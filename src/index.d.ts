@@ -47,6 +47,7 @@ export type SansaParseErrorCode =
   | 'SANSA_QUERY_INVALID_RADIX_LITERAL'
   | 'SANSA_QUERY_INVALID_ENCODING_LITERAL'
   | 'SANSA_QUERY_INVALID_SEPARATOR_LITERAL'
+  | 'SANSA_QUERY_INVALID_SYMBOL_LITERAL'
   | 'SANSA_QUERY_INVALID_NULL_LITERAL'
   | 'SANSA_QUERY_INVALID_TEMPORAL_LITERAL'
   | 'SANSA_QUERY_INVALID_RESOLUTION_EXPRESSION'
@@ -278,6 +279,12 @@ export interface SansaResolveBinding {
   readonly valueKind?: string;
   readonly literalKind?: string;
   readonly nullReason?: string;
+  /** Canonical finite AEON numeric text used for lossless comparison. */
+  readonly numericLexeme?: string;
+  /** Resolved base for an AEON radix-family value. */
+  readonly radixBase?: number;
+  /** Count of represented fractional radix digits, excluding visual separators. */
+  readonly radixScale?: number;
   readonly value?: unknown;
   readonly scalar?: unknown;
   readonly origin?: string;
@@ -311,7 +318,7 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly root: TBinding | (() => TBinding | undefined);
   readonly contextualRoot?: TBinding;
   readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
-  readonly parent?: (binding: TBinding) => TBinding | undefined;
+  readonly parent?: (binding: TBinding) => TBinding | null | undefined;
   readonly member?: (binding: TBinding, name: string) => TBinding | undefined;
   readonly position?: (binding: TBinding, index: number) => TBinding | undefined;
   readonly attributeSpace?: (binding: TBinding) => TBinding | undefined;
@@ -322,12 +329,33 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly representationKind?: (binding: TBinding) => string | undefined;
   readonly value?: (binding: TBinding) => unknown;
   readonly nullReason?: (binding: TBinding) => string | undefined;
+  /** Return canonical finite numeric text without host-number coercion. */
+  readonly numericLexeme?: (binding: TBinding) => string | undefined;
+  /** Return the resolved base for a radix-family binding. */
+  readonly radixBase?: (binding: TBinding) => number | undefined;
+  /** Return the represented fractional radix digit count. */
+  readonly radixScale?: (binding: TBinding) => number | undefined;
   readonly semanticTypeMatches?: (binding: TBinding, expected: string) => boolean;
   readonly representationKindMatches?: (binding: TBinding, expected: string) => boolean;
+  /**
+   * Optionally compare two same-kind container bindings without materializing them.
+   * The result must implement the active value-semantics profile. Return
+   * undefined to decline and use SANSA's generic structural comparison.
+   */
+  readonly structurallyEqual?: (
+    left: TBinding,
+    right: TBinding,
+    context: SansaStructuralEqualityContext,
+  ) => boolean | undefined;
   readonly bindingHandle?: (binding: TBinding) => unknown;
   readonly observedState?: (binding: TBinding) => unknown;
   readonly namespaceState?: (() => unknown) | unknown;
   readonly mutate?: SansaMutationAdapter<TBinding>;
+}
+
+export interface SansaStructuralEqualityContext {
+  readonly operator: '==' | '!=';
+  readonly valueSemantics: AeonValueSemanticsProfile;
 }
 
 export interface SansaGraphRelationshipDeclaration {
@@ -912,7 +940,13 @@ export interface SansaQueryObjectValue {
   readonly value: Record<string, unknown>;
 }
 
-export type AeonValueSemanticsOperation = 'equal' | 'notEqual' | 'compare' | 'isValue';
+export type AeonValueSemanticsOperation =
+  | 'equal'
+  | 'notEqual'
+  | 'compare'
+  | 'isValue'
+  | 'radixScale'
+  | 'temporalRelation';
 
 export type AeonValueSemanticsCategory =
   | 'finiteNumber'
@@ -926,6 +960,7 @@ export type AeonValueSemanticsCategory =
   | 'radix'
   | 'encoding'
   | 'separator'
+  | 'symbol'
   | 'sansaAddress'
   | 'referenceForm'
   | 'temporal'
@@ -942,14 +977,31 @@ export interface AeonValueSemanticsProfile {
   readonly stringOrder?: string;
   readonly temporalOrder?: string;
   readonly caseMapping?: string;
+  readonly radixComparison?: string;
   readonly compareStrings: (left: string, right: string) => number;
   readonly compareTemporal: (left: AeonTemporalSemanticValue, right: AeonTemporalSemanticValue) => number;
+  readonly compareRadix?: (left: AeonRadixSemanticValue, right: AeonRadixSemanticValue) => number | null;
   readonly lowerString: (value: string) => string;
   readonly upperString: (value: string) => string;
 }
 
 export interface AeonTemporalSemanticValue {
   readonly payload: string;
+  readonly semanticType?: string;
+}
+
+export type AeonTemporalClaimRelation =
+  | 'equal'
+  | 'before'
+  | 'after'
+  | 'contains'
+  | 'containedBy'
+  | 'overlaps'
+  | 'incomparable';
+
+export interface AeonRadixSemanticValue {
+  readonly payload: string;
+  readonly base: number;
   readonly semanticType?: string;
 }
 
@@ -962,6 +1014,7 @@ export interface AeonValueSemanticsProfileOptions {
   readonly numeric?: boolean;
   readonly caseFirst?: 'upper' | 'lower' | 'false';
   readonly compareTemporal?: (left: AeonTemporalSemanticValue, right: AeonTemporalSemanticValue) => number;
+  readonly compareRadix?: (left: AeonRadixSemanticValue, right: AeonRadixSemanticValue) => number | null;
 }
 
 export type AeonValueSemanticsProfileInput =
@@ -976,6 +1029,8 @@ export interface AeonValueSemanticsValueDescriptor {
   readonly value?: unknown;
   readonly reason?: string;
   readonly semanticType?: string;
+  readonly radixBase?: number;
+  readonly radixScale?: number;
   readonly containerKind?: string;
   readonly count?: number;
 }
@@ -1001,8 +1056,8 @@ export type AeonValueSemanticsResult =
   | {
       readonly ok: true;
       readonly outcome: 'value';
-      readonly value?: boolean;
-      readonly relation?: 'less' | 'equal' | 'greater';
+      readonly value?: boolean | number;
+      readonly relation?: 'less' | 'equal' | 'greater' | AeonTemporalClaimRelation;
     }
   | {
       readonly ok: false;
@@ -1027,6 +1082,25 @@ export function createFrenchValueSemanticsProfile(
   options?: Omit<AeonValueSemanticsProfileOptions, 'locale'> & { readonly locale?: 'fr' | 'fr-FR' },
 ): AeonValueSemanticsProfile;
 export function createNaturalAsciiValueSemanticsProfile(options?: Omit<AeonValueSemanticsProfileOptions, 'locale'>): AeonValueSemanticsProfile;
+export function createRadixNumericValueSemanticsProfile(
+  options?: { readonly id?: string },
+): AeonValueSemanticsProfile;
+export function createCrossBaseRadixNumericValueSemanticsProfile(
+  options?: { readonly id?: string },
+): AeonValueSemanticsProfile;
+export function compareExactRadixValues(left: string, right: string, base: number): -1 | 0 | 1 | null;
+export function compareExactCrossBaseRadixValues(
+  left: string,
+  leftBase: number,
+  right: string,
+  rightBase: number,
+): -1 | 0 | 1 | null;
+export function compareTemporalClaims(
+  left: AeonTemporalSemanticValue,
+  right: AeonTemporalSemanticValue,
+): AeonTemporalClaimRelation;
+/** Return represented fractional radix digits, excluding `_`, or `null` for an invalid payload. */
+export function radixScaleOf(value: string, base?: number): number | null;
 
 export interface SansaAddress {
   readonly type: 'SansaAddress';
@@ -1112,6 +1186,7 @@ export interface SansaQueryLiteralExpression {
     | 'radix'
     | 'encoding'
     | 'separator'
+    | 'symbol'
     | 'date'
     | 'time'
     | 'datetime'

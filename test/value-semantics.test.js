@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  compareExactCrossBaseRadixValues,
+  compareExactRadixValues,
+  compareTemporalClaims,
+  createCrossBaseRadixNumericValueSemanticsProfile,
   createFrenchValueSemanticsProfile,
   createNaturalAsciiValueSemanticsProfile,
+  createRadixNumericValueSemanticsProfile,
   evaluateValueSemanticsOperation,
+  radixScaleOf,
 } from '../src/index.js';
 
 test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
@@ -32,6 +38,126 @@ test('evaluates Shared AEON Value Semantics minimum-profile operations', () => {
   });
   assert.equal(container.ok, true);
   assert.equal(container.value, true);
+});
+
+test('compares finite numeric lexemes without JavaScript number precision loss', () => {
+  const largeInteger = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'finiteNumber', value: '9007199254740993' },
+    right: { category: 'finiteNumber', value: '9007199254740992' },
+  });
+  assert.equal(largeInteger.ok, true);
+  assert.equal(largeInteger.relation, 'greater');
+
+  const longFraction = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'finiteNumber', value: '0.1000000000000000000000000000000001' },
+    right: { category: 'finiteNumber', value: '0.1' },
+  });
+  assert.equal(longFraction.ok, true);
+  assert.equal(longFraction.value, false);
+
+  const exponentEquivalent = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'finiteNumber', value: '-12.50' },
+    right: { category: 'finiteNumber', value: '-1.25e1' },
+  });
+  assert.equal(exponentEquivalent.ok, true);
+  assert.equal(exponentEquivalent.value, true);
+
+  const extremeExponent = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'finiteNumber', value: '1e999999999999999999999' },
+    right: { category: 'finiteNumber', value: '9e999999999999999999998' },
+  });
+  assert.equal(extremeExponent.ok, true);
+  assert.equal(extremeExponent.relation, 'greater');
+});
+
+test('compares exact same-base radix values without host-number conversion', () => {
+  assert.equal(compareExactRadixValues('001.100', '1.1', 2), 0);
+  assert.equal(compareExactRadixValues('-A.8', '-A.7', 16), -1);
+  assert.equal(compareExactRadixValues('!', '&', 64), 1);
+  assert.equal(compareExactRadixValues('2', '1', 2), null);
+  assert.equal(compareExactRadixValues('1e3', '1', 10), null);
+});
+
+test('reports radix fractional scale without normalizing representation', () => {
+  assert.equal(radixScaleOf('19.9900', 10), 4);
+  assert.equal(radixScaleOf('19.99', 10), 2);
+  assert.equal(radixScaleOf('101', 2), 0);
+  assert.equal(radixScaleOf('-.0_0', 2), 2);
+  assert.equal(radixScaleOf('A.0', 10), null);
+  assert.equal(radixScaleOf('1.', 10), null);
+
+  const scale = evaluateValueSemanticsOperation('radixScale', {
+    value: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+  });
+  assert.deepEqual(scale, { ok: true, outcome: 'value', value: 4 });
+
+  const nonRadix = evaluateValueSemanticsOperation('radixScale', {
+    value: { category: 'finiteNumber', value: '19.9900' },
+  });
+  assert.equal(nonRadix.ok, false);
+  assert.equal(nonRadix.reason, 'radix_required');
+});
+
+test('applies explicit same-base radix numeric semantics', () => {
+  const profile = createRadixNumericValueSemanticsProfile();
+  const equal = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', value: '19.99' },
+  }, { valueSemantics: profile });
+  assert.equal(equal.ok, true);
+  assert.equal(equal.value, true);
+
+  const ordering = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', semanticType: 'radix[2]', value: '10.01' },
+    right: { category: 'radix', radixBase: 2, value: '10.1' },
+  }, { valueSemantics: 'radix-numeric' });
+  assert.equal(ordering.ok, true);
+  assert.equal(ordering.relation, 'less');
+
+  const crossBase = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', radixBase: 2, value: '10' },
+    right: { category: 'radix', radixBase: 10, value: '2' },
+  }, { valueSemantics: profile });
+  assert.equal(crossBase.ok, false);
+  assert.equal(crossBase.reason, 'mixed_radix_bases');
+
+  const unknownBase = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', value: '10' },
+    right: { category: 'radix', value: '10' },
+  }, { valueSemantics: profile });
+  assert.equal(unknownBase.ok, false);
+  assert.equal(unknownBase.reason, 'radix_base_required');
+});
+
+test('compares cross-base radix values exactly under an explicit profile', () => {
+  assert.equal(compareExactCrossBaseRadixValues('10', 2, '2', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('.1', 2, '.5', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('.1', 3, '.333', 10), 1);
+  assert.equal(compareExactCrossBaseRadixValues('-A', 16, '-9', 10), -1);
+  assert.equal(compareExactCrossBaseRadixValues('a', 37, '36', 10), 0);
+  assert.equal(compareExactCrossBaseRadixValues('2', 2, '2', 10), null);
+
+  const profile = createCrossBaseRadixNumericValueSemanticsProfile();
+  const equal = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'radix[2]', value: '10' },
+    right: { category: 'radix', semanticType: 'decimal', value: '2.0' },
+  }, { valueSemantics: profile });
+  assert.equal(equal.ok, true);
+  assert.equal(equal.value, true);
+
+  const ordered = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', radixBase: 3, value: '.1' },
+    right: { category: 'radix', radixBase: 10, value: '.333' },
+  }, { valueSemantics: 'radix-numeric-cross-base' });
+  assert.equal(ordered.ok, true);
+  assert.equal(ordered.relation, 'greater');
+
+  const sameBaseStillRejects = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', radixBase: 2, value: '10' },
+    right: { category: 'radix', radixBase: 10, value: '2' },
+  }, { valueSemantics: 'radix-numeric' });
+  assert.equal(sameBaseStillRejects.ok, false);
+  assert.equal(sameBaseStillRejects.reason, 'mixed_radix_bases');
 });
 
 test('rejects minimum-profile value comparisons that fail closed', () => {
@@ -167,6 +293,48 @@ test('evaluates same-family temporal value semantics', () => {
   assert.equal(temporalOnlyProfile.relation, 'less');
 });
 
+test('relates temporal claims as completion sets without inventing missing context', () => {
+  const temporal = (semanticType, payload) => ({ semanticType, payload });
+
+  assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '10:30Z')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-'), temporal('date', '2024-02')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02'), temporal('date', '2024-02-29')), 'contains');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02-29'), temporal('date', '2024-02')), 'containedBy');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-02'), temporal('date', '2024-03')), 'before');
+  assert.equal(compareTemporalClaims(temporal('date', '2024-03'), temporal('date', '2024-02')), 'after');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30Z'), temporal('time', '10:Z')), 'containedBy');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30:00.34Z'), temporal('time', '10:30:00.340Z')), 'equal');
+  assert.equal(compareTemporalClaims(temporal('time', '10:Z'), temporal('time', '11:Z')), 'before');
+  assert.equal(compareTemporalClaims(temporal('time', '11:Z'), temporal('time', '10:Z')), 'after');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30Z'), temporal('datetime', '2023-03-01T10:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30-00:00'), temporal('time', '10:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('time', '10:30+01:00'), temporal('time', '09:30Z')), 'incomparable');
+  assert.equal(compareTemporalClaims(temporal('datetime', '2027-01-31T10:30+01:00'), temporal('datetime', '2027-01-31T09:30Z')), 'equal');
+  assert.equal(compareTemporalClaims(temporal('datetime', '2027-01-31T10Z'), temporal('datetime', '2027-01-31T10+00:30')), 'overlaps');
+  assert.equal(compareTemporalClaims(temporal('time', '23:59:60Z'), temporal('time', '00:00:00Z')), 'incomparable');
+  assert.equal(
+    compareTemporalClaims(
+      temporal('wtc', '2027-01-31T23:59:59&Australia/Melbourne'),
+      temporal('wtc', '2027-01-31T23:59:59&Europe/Brussels'),
+    ),
+    'incomparable',
+  );
+
+  const operation = evaluateValueSemanticsOperation('temporalRelation', {
+    left: { category: 'temporal', semanticType: 'time', value: '10:Z' },
+    right: { category: 'temporal', semanticType: 'time', value: '10:30Z' },
+  });
+  assert.equal(operation.ok, true);
+  assert.equal(operation.relation, 'contains');
+
+  const nonTemporal = evaluateValueSemanticsOperation('temporalRelation', {
+    left: { category: 'string', value: '10:Z' },
+    right: { category: 'string', value: '10:30Z' },
+  });
+  assert.equal(nonTemporal.ok, false);
+  assert.equal(nonTemporal.reason, 'temporal_required');
+});
+
 test('evaluates lexical structured scalar value-family boundaries', () => {
   const toggleSpelling = evaluateValueSemanticsOperation('equal', {
     left: { category: 'toggle', value: 'yes' },
@@ -210,6 +378,20 @@ test('evaluates lexical structured scalar value-family boundaries', () => {
   assert.equal(radixDifferentMetadata.ok, true);
   assert.equal(radixDifferentMetadata.value, false);
 
+  const decimalRepresentation = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', semanticType: 'decimal', value: '19.99' },
+  });
+  assert.equal(decimalRepresentation.ok, true);
+  assert.equal(decimalRepresentation.value, false);
+
+  const decimalOrdering = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'radix', semanticType: 'decimal', value: '19.9900' },
+    right: { category: 'radix', semanticType: 'decimal', value: '20.00' },
+  });
+  assert.equal(decimalOrdering.ok, false);
+  assert.equal(decimalOrdering.reason, 'not_orderable');
+
   const encodingOrder = evaluateValueSemanticsOperation('compare', {
     left: { category: 'encoding', value: 'A' },
     right: { category: 'encoding', value: 'B' },
@@ -223,6 +405,27 @@ test('evaluates lexical structured scalar value-family boundaries', () => {
   });
   assert.equal(separatorOrder.ok, true);
   assert.equal(separatorOrder.relation, 'less');
+
+  const symbolIdentity = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'symbol', value: 'approved' },
+  });
+  assert.equal(symbolIdentity.ok, true);
+  assert.equal(symbolIdentity.value, true);
+
+  const symbolString = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'string', value: 'approved' },
+  });
+  assert.equal(symbolString.ok, false);
+  assert.equal(symbolString.reason, 'mixed_categories');
+
+  const symbolOrder = evaluateValueSemanticsOperation('compare', {
+    left: { category: 'symbol', value: 'approved' },
+    right: { category: 'symbol', value: 'pending' },
+  });
+  assert.equal(symbolOrder.ok, false);
+  assert.equal(symbolOrder.reason, 'not_orderable');
 
   const sansaIdentity = evaluateValueSemanticsOperation('equal', {
     left: { category: 'sansaAddress', value: '$.inventory.items.*.sku' },

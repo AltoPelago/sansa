@@ -7,6 +7,59 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Changed
+
+- Added AEON symbolic literals to Query, Instruction, mutation target
+  validation, and the AEON/Telex workbench adapters. Pipe-delimited source
+  such as `|approved|` and `|in review\|blocked|` preserves a distinct
+  `symbol` value family, compares by exact decoded payload, does not coerce to
+  strings, and has no intrinsic ordering.
+- Added year- and month-granularity AEON date literals (`YYYY-` and `YYYY-MM`)
+  to Query parsing and temporal completion-set comparison. Calendar years and
+  months now contain compatible finer-grained dates through
+  `temporalRelation(...)` and `compareTemporalClaims(...)`.
+
+- Cross-type query comparison diagnostics now identify both evaluator
+  categories, such as `string vs finiteNumber`, while retaining the candidate
+  address as structured diagnostic context.
+- Clarified that namespace addresses are current structural locators rather
+  than durable identities and that SANSA is a bounded in-process evaluator
+  rather than a persistent database.
+- Finite-number equality and ordering now compare canonical numeric lexemes
+  exactly, including large integers, long fractions, and exponent forms.
+  Namespace adapters can expose `numericLexeme` independently of their host
+  materialization value, and projected query-number literals retain their
+  canonical text. Radix-family `decimal` values remain
+  representation-preserving and profile-defined for numeric interpretation.
+- Added the explicit `aeon.value.radix.numeric.same-base.v1` (`radix-numeric`)
+  profile and `compareExactRadixValues(...)` for exact base-2-through-base-64
+  equality and ordering without host-number conversion. Default radix
+  comparison remains representation-preserving, and cross-base comparison
+  fails closed. The value-semantics runner now targets the 0.2 development CTS
+  manifest, and the query workbench includes a `decimal` equality example that
+  demonstrates the opt-in behavior.
+- Added `aeon.value.radix.numeric.cross-base.v1`
+  (`radix-numeric-cross-base`),
+  `createCrossBaseRadixNumericValueSemanticsProfile(...)`, and
+  `compareExactCrossBaseRadixValues(...)` for exact rational equality and
+  ordering across independently resolved bases. The same-base profile remains
+  fail-closed for mixed bases. Both radix profiles are now selectable in the
+  query workbench instead of being available only through example metadata or
+  programmatic options.
+- Added profile-independent radix fractional scale through `radixScaleOf(...)`,
+  the `radixScale` value-semantics operation and query function, and optional
+  namespace `radixScale` metadata. Trailing zeroes remain significant to scale
+  without changing either representation equality or numeric-profile equality.
+
+### Fixed
+
+- Allowed namespace `parent` callbacks to return `null` as well as `undefined`
+  for root bindings, matching the nullable parent field on resolver bindings
+  and common tree-adapter conventions.
+- Added a targeted projection diagnostic explaining that fields use AEON
+  `name = expression` syntax and that `:` remains reserved for datatype
+  annotations.
+
 ## 0.11.1 - 2026-09-14
 
 ### Fixed

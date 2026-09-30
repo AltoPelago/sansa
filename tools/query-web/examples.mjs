@@ -378,7 +378,7 @@ export const queryExampleGroups = [
         ),
         expected: {
           ok: true,
-          count: 22,
+          count: 23,
           includes: '$.types.selector = $.inventory.items.*.sku',
         },
       },
@@ -457,6 +457,49 @@ export const queryExampleGroups = [
           ok: true,
           count: 3,
           includes: '$.parts[1].value = "part-2"',
+        },
+      },
+      {
+        name: 'profileRadixNumericEquality',
+        label: 'Radix numeric equality',
+        valueSemantics: 'aeon.value.radix.numeric.same-base.v1',
+        query: lines(
+          'from $.prices.display',
+          'where . == %19.99',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.prices.display = %19.9900',
+        },
+      },
+      {
+        name: 'profileCrossBaseRadixEquality',
+        label: 'Cross-base radix equality',
+        valueSemantics: 'aeon.value.radix.numeric.cross-base.v1',
+        query: lines(
+          'from $.prices.binaryTwo',
+          'where . == $.prices.decimalTwo',
+          'select .',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '$.prices.binaryTwo = %10',
+        },
+      },
+      {
+        name: 'radixFractionalScale',
+        label: 'Radix fractional scale',
+        query: lines(
+          'from $.prices.display',
+          'select { value = . scale = radixScale(.) }',
+        ),
+        expected: {
+          ok: true,
+          count: 1,
+          includes: '"scale":4',
         },
       },
     ],

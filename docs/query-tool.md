@@ -180,13 +180,33 @@ same-kind structural container equality, and infinity as a numeric bound.
 Query source can express the same AEON scalar literal families directly, for
 example `#ff00aa`, `%ff00aa`,
 `&QmFzZTY0IQ==`, `^0.11.0`, `!notSet`, and temporal-looking literals such as
-`2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
+`2026-`, `2026-07`, `2026-07-25`, `09:30:00Z`, `2026-07-25T09:30:00Z`, and
 `2026-07-25T09:30:00Z&Australia/Melbourne`. Same-family temporal values compare
 through the active temporal value-semantics profile; the default profile uses
-canonical payload order for `date`, `time`, `datetime`, and `wtc` families. It rejects mixed-type
+canonical payload order for presentation and does not claim chronological
+ordering. `compareTemporalClaims(left, right)` and the `temporalRelation`
+operation expose conservative completion-set relations: `equal`, `before`,
+`after`, `contains`, `containedBy`, `overlaps`, or `incomparable`. They do not
+resolve named zones, local context, non-UTC timescales, unknown `-00:00`
+offsets, or leap-second chronology. The evaluator rejects mixed-type
 comparisons, toggle-to-Boolean coercion, hex-to-radix coercion, cross-family
 temporal comparison, Boolean ordering, container ordering, explicit null
 comparison, and NaN comparison.
+
+Queries can request the same completion-set relation with
+`temporalRelation(left, right)`. Both arguments must resolve to one temporal
+scalar or be temporal literals. The function returns one of the relation names
+above as a string, so it can be projected or used in a predicate:
+
+```text
+from $.schedule
+where temporalRelation(.window, 10:30Z) == "contains"
+select { window = .window relation = temporalRelation(.window, 10:30Z) }
+```
+
+Reduced-granularity dates use the same completion-set rules. For example,
+`temporalRelation(2026-, 2026-07)` and
+`temporalRelation(2026-07, 2026-07-25)` are both `contains`.
 
 Numeric datatype labels such as `int32`, `uint64`, and `float64` remain visible
 to semantic filters. When the host exposes their payload as a finite numeric
@@ -199,6 +219,17 @@ number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
 compares as a separator payload when the host exposes those representation
 families. `hex` remains distinct from radix, including `radix[16]`; no numeric
 or byte-level interpretation is implied without an explicit profile.
+Use `--value-semantics radix-numeric` (full id
+`aeon.value.radix.numeric.same-base.v1`) to enable exact numeric equality and
+ordering for radix-family operands with the same resolved base. The typed
+operand may supply the base for an untyped `%...` query literal. The profile
+does not enable cross-base comparison, and the default profile continues to
+preserve radix representation identity.
+Use `--value-semantics radix-numeric-cross-base` (full id
+`aeon.value.radix.numeric.cross-base.v1`) when both radix operands declare
+different bases and exact mathematical comparison is intended. The profile
+uses exact rational comparison, so base-2 `%.1` equals base-10 `%.5`, while
+base-3 `%.1` is greater than the finite decimal approximation `%.333`.
 Semantic filters match the base datatype label of generic claims, so
 `#null`, `#nan`, and `#infinity` can select values annotated as `null<T>`,
 `nan<T>`, and `infinity<T>` before predicates such as `isNullReason(...)`,
@@ -243,6 +274,15 @@ built-ins are `contains`, `startsWith`, `endsWith`, `lower`, `upper`, and
 `concat`. Function-name matching is case-sensitive. They fail on missing
 bindings, multiple bindings, explicit null, numeric specials, and other
 non-string values unless a specific function contract says otherwise.
+
+`radixScale(value)` is the non-string built-in for radix representation
+metadata. It returns the number of fractional radix digits excluding `_`
+separators, so `radixScale(%19.9900)` is `4` while
+`radixScale(%19.99)` is `2`. It does not select a numeric comparison profile
+or change equality.
+
+`temporalRelation(left, right)` is the non-string built-in for conservative
+completion-set relations between two temporal values.
 
 String comparison and `order by` use deterministic Unicode scalar-value
 ordering by default. They do not use host locale or process locale collation

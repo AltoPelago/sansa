@@ -4,6 +4,12 @@ target:number = 7
 targetClone:number = ~target
 targetPointer:number = ~>target
 
+prices:object = {
+  display:decimal = %19.9900
+  binaryTwo:radix[2] = %10
+  decimalTwo:decimal = %2
+}
+
 types:object = {
   color:hex = #ff00aa
   colorCopy:hex = #ff00aa
@@ -11,6 +17,7 @@ types:object = {
   octal:radix8 = %70
   payload:encoding = &QmFzZTY0IQ==
   version:sep["."] = ^0.11.0
+  stage:symbol = |in review\|blocked|
   released:date = 2026-07-25
   window:time = 09:30:00Z
   stamp:datetime = 2026-07-25T09:30:00Z

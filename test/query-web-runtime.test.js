@@ -152,6 +152,21 @@ testAeonRuntime('query web runtime evaluates against AEON source', async () => {
   ]);
 });
 
+testAeonRuntime('query web runtime compares and projects AEON numbers losslessly', async () => {
+  const source = 'values:list<number> = [9007199254740992, 9007199254740993]';
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.values.* where . == 9007199254740993 select .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.values[1] = 9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].value, '9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].numericLexeme, '9007199254740993');
+});
+
 testTelexRuntime('query web runtime evaluates directly against Telex AES', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.telex.aes', import.meta.url), 'utf8');
   const result = await evaluateQueryForWorkbench({
@@ -166,6 +181,58 @@ testTelexRuntime('query web runtime evaluates directly against Telex AES', async
   assert.equal(result.text, '$.inventory.items[1].sku = "B-200"');
   assert.equal(result.results[0].binding.representationKind, 'ObjectNode');
   assert.equal(result.results[0].value.bindings[0].representationKind, 'StringLiteral');
+});
+
+testTelexRuntime('query web runtime preserves symbolic Telex scalars', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.stage',
+    'kind=SymbolicLiteral',
+    'datatype=symbol',
+    'value=in review|blocked',
+    '',
+  ].join('\n');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: String.raw`from $.stage%symbol where . == |in review\|blocked| select .`,
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, String.raw`$.stage = |in review\|blocked|`);
+});
+
+testTelexRuntime('portable namespace compares and projects numeric lexemes losslessly', async () => {
+  const source = [
+    'telex.aes=1',
+    '',
+    'path=$.values',
+    'kind=ListNode',
+    '',
+    'path=$.values[0]',
+    'kind=NumberLiteral',
+    'datatype=number',
+    'value=9007199254740992',
+    '',
+    'path=$.values[1]',
+    'kind=NumberLiteral',
+    'datatype=number',
+    'value=9007199254740993',
+    '',
+  ].join('\n');
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'telex',
+    source,
+    query: 'from $.values.* where . == 9007199254740993 select .',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.values[1] = 9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].value, '9007199254740993');
+  assert.equal(result.results[0].value.bindings[0].numericLexeme, '9007199254740993');
 });
 
 testTelexRuntime('portable namespace applies exact, lower-first, and portable %kind matching', async () => {
@@ -445,6 +512,40 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   assert.equal(separatorLiteralEquality.ok, true, JSON.stringify(separatorLiteralEquality.errors ?? []));
   assert.equal(separatorLiteralEquality.text, '$.types.version = ^0.11.0');
 
+  const symbolLiteralEquality = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: String.raw`from $.types.*#symbol%symbol
+where . == |in review\|blocked|
+select .`,
+  });
+  assert.equal(symbolLiteralEquality.ok, true, JSON.stringify(symbolLiteralEquality.errors ?? []));
+  assert.equal(symbolLiteralEquality.text, String.raw`$.types.stage = |in review\|blocked|`);
+
+  const symbolStringComparison = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source,
+    query: 'from $.types.stage\nwhere . == "in review|blocked"\nselect .',
+  });
+  assert.equal(symbolStringComparison.ok, false);
+  assert.equal(symbolStringComparison.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_COMPARISON');
+
+  const customSymbolRepresentation = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'stage:workflowStage = |approved|',
+    query: 'from $.stage%symbol\nwhere . == |approved|\nselect .',
+  });
+  assert.equal(customSymbolRepresentation.ok, true, JSON.stringify(customSymbolRepresentation.errors ?? []));
+  assert.equal(customSymbolRepresentation.text, '$.stage = |approved|');
+
+  const customSymbolSemanticFilter = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'stage:workflowStage = |approved|',
+    query: 'from $.stage#symbol\nselect .',
+  });
+  assert.equal(customSymbolSemanticFilter.ok, true, JSON.stringify(customSymbolSemanticFilter.errors ?? []));
+  assert.equal(customSymbolSemanticFilter.count, 0);
+
   const hexRadixComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
     source,
@@ -476,6 +577,19 @@ testAeonRuntime('query web runtime preserves AEON scalar value families', async 
   });
   assert.equal(timeLiteralComparison.ok, true, JSON.stringify(timeLiteralComparison.errors ?? []));
   assert.equal(timeLiteralComparison.text, '$.types.window = 09:30:00Z');
+
+  const temporalRelationProjection = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: [
+      'types:object = {',
+      '  window:time = 09:Z',
+      '  point:time = 09:30Z',
+      '}',
+    ].join('\n'),
+    query: 'from $.types\nselect { relation = temporalRelation(.window, .point) }',
+  });
+  assert.equal(temporalRelationProjection.ok, true, JSON.stringify(temporalRelationProjection.errors ?? []));
+  assert.equal(temporalRelationProjection.text, '$.types = {"relation":"contains"}');
 
   const datetimeLiteralComparison = await evaluateQueryForWorkbench({
     sourceKind: 'aeon',
@@ -792,6 +906,20 @@ testAeonRuntime('query web runtime applies value semantics profiles to ordered f
     '$.labels[0] = "ZEBRE"',
   ].join('\n'));
   assert.equal(frenchResult.valueSemantics, 'aeon.value.string.locale.fr.v1');
+});
+
+testAeonRuntime('query web runtime applies exact same-base radix numeric semantics', async () => {
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'aeon',
+    source: 'price:decimal = %19.9900',
+    query: 'from $.price where . == %19.99 select .',
+    valueSemantics: 'radix-numeric',
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+  assert.equal(result.count, 1);
+  assert.equal(result.text, '$.price = %19.9900');
+  assert.equal(result.results[0].binding.radixBase, 10);
 });
 
 testAeonRuntime('query web runtime applies natural ASCII value semantics profiles', async () => {
@@ -1233,6 +1361,16 @@ test('query web example catalog is grouped and uniquely keyed', () => {
   const names = queryExampleGroups.flatMap((group) => group.examples.map((example) => example.name));
   assert.equal(new Set(names).size, names.length);
   assert.deepEqual(Object.keys(queryExamples), names);
+});
+
+test('query web profile picker exposes every catalogued value-semantics profile', () => {
+  const html = readFileSync(new URL('../tools/query-web/index.html', import.meta.url), 'utf8');
+  const profiles = new Set(queryExampleGroups.flatMap((group) => group.examples)
+    .map((example) => example.valueSemantics)
+    .filter(Boolean));
+  for (const profile of profiles) {
+    assert.match(html, new RegExp(`value="${escapeRegExp(profile)}"`), profile);
+  }
 });
 
 testAeonRuntime('query web runtime exercises workbench examples', async () => {

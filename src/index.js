@@ -5,6 +5,7 @@ export const SANSA_MAX_QUERY_INTEGER = Number.MAX_SAFE_INTEGER;
 
 const QUERY_VALUE_METADATA_PROPERTY = '__sansaQueryValueMetadata';
 const QUERY_OBJECT_FIELD_METADATA_PROPERTY = '__sansaObjectFieldMetadata';
+const COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY = Symbol('sansaComparableScalarDescriptor');
 const TRANSFORM_EXTENSION_FUNCTIONS = new Map([
   ['objectFrom', 'sansa.transform.objectFrom'],
   ['fieldsFrom', 'sansa.transform.fieldsFrom'],
@@ -13,7 +14,10 @@ const DEFAULT_VALUE_SEMANTICS_PROFILE_ID = 'aeon.value.default.v1';
 const CODEPOINT_STRING_PROFILE_ID = 'aeon.value.string.codepoint.v1';
 const FRENCH_STRING_PROFILE_ID = 'aeon.value.string.locale.fr.v1';
 const NATURAL_ASCII_STRING_PROFILE_ID = 'aeon.value.string.natural.ascii.v1';
-const TEMPORAL_ISO8601_PROFILE_ID = 'aeon.value.temporal.iso8601.v1';
+const TEMPORAL_CANONICAL_PROFILE_ID = 'aeon.value.temporal.canonical.v1';
+const RADIX_NUMERIC_SAME_BASE_PROFILE_ID = 'aeon.value.radix.numeric.same-base.v1';
+const RADIX_NUMERIC_CROSS_BASE_PROFILE_ID = 'aeon.value.radix.numeric.cross-base.v1';
+const MAX_EXACT_NUMERIC_CHARACTERS = 65_536;
 const MUTATION_REQUEST_ENVELOPE_FIELDS = new Set(['operations', 'preconditions', 'provenance']);
 const MUTATION_OPERATION_FIELDS = new Map([
   ['create', new Set(['op', 'parent', 'name', 'value', 'datatype', 'kind', 'provenance'])],
@@ -28,6 +32,7 @@ const VALUE_SEMANTICS_METADATA_CATEGORIES = [
   'radix',
   'encoding',
   'separator',
+  'symbol',
   'sansa',
   'sansaAddress',
   'cloneReference',
@@ -285,7 +290,7 @@ export function validateMutationPlanTarget(plan, targetSurface = 'aeon') {
 export const aeonValueSemanticsDefaultProfile = Object.freeze({
   id: DEFAULT_VALUE_SEMANTICS_PROFILE_ID,
   stringOrder: CODEPOINT_STRING_PROFILE_ID,
-  temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+  temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
   caseMapping: 'unicode-default',
   compareStrings: compareStringsByUnicodeScalarValue,
   compareTemporal: compareTemporalByCanonicalValue,
@@ -306,10 +311,11 @@ export function createIntlValueSemanticsProfile(options = {}) {
     id: options.id ?? `aeon.value.string.intl.${Array.isArray(locale) ? locale.join('-') : locale}.v1`,
     locale,
     stringOrder: 'intl-collator',
-    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
     caseMapping: 'intl-locale',
     compareStrings: (left, right) => normalizeComparison(collator.compare(left, right)),
     compareTemporal: options.compareTemporal ?? compareTemporalByCanonicalValue,
+    ...(typeof options.compareRadix === 'function' ? { compareRadix: options.compareRadix } : {}),
     lowerString: (value) => value.toLocaleLowerCase(locale),
     upperString: (value) => value.toLocaleUpperCase(locale),
   });
@@ -327,7 +333,7 @@ export function createNaturalAsciiValueSemanticsProfile(options = {}) {
   return Object.freeze({
     id: NATURAL_ASCII_STRING_PROFILE_ID,
     stringOrder: NATURAL_ASCII_STRING_PROFILE_ID,
-    temporalOrder: TEMPORAL_ISO8601_PROFILE_ID,
+    temporalOrder: TEMPORAL_CANONICAL_PROFILE_ID,
     caseMapping: 'unicode-default',
     ...options,
     compareStrings: compareStringsByNaturalAsciiOrder,
@@ -335,6 +341,73 @@ export function createNaturalAsciiValueSemanticsProfile(options = {}) {
     lowerString: (value) => value.toLowerCase(),
     upperString: (value) => value.toUpperCase(),
   });
+}
+
+export function createRadixNumericValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    ...aeonValueSemanticsDefaultProfile,
+    id: options.id ?? RADIX_NUMERIC_SAME_BASE_PROFILE_ID,
+    radixComparison: 'same-base-exact',
+    compareRadix: compareExactRadixSemanticValues,
+  });
+}
+
+export function createCrossBaseRadixNumericValueSemanticsProfile(options = {}) {
+  return Object.freeze({
+    ...aeonValueSemanticsDefaultProfile,
+    id: options.id ?? RADIX_NUMERIC_CROSS_BASE_PROFILE_ID,
+    radixComparison: 'cross-base-exact',
+    compareRadix: compareExactCrossBaseRadixSemanticValues,
+  });
+}
+
+/** Compare two exact radix payloads in the same declared base. */
+export function compareExactRadixValues(left, right, base) {
+  const leftValue = parseExactRadixValue(String(left), base);
+  const rightValue = parseExactRadixValue(String(right), base);
+  if (leftValue === null || rightValue === null) return null;
+  return compareParsedRadixValues(leftValue, rightValue);
+}
+
+/** Compare two exact radix payloads with independently declared bases. */
+export function compareExactCrossBaseRadixValues(left, leftBase, right, rightBase) {
+  const leftValue = parseExactRadixValue(String(left), leftBase);
+  const rightValue = parseExactRadixValue(String(right), rightBase);
+  if (leftValue === null || rightValue === null) return null;
+  if (leftBase === rightBase) return compareParsedRadixValues(leftValue, rightValue);
+  return compareParsedCrossBaseRadixValues(leftValue, leftBase, rightValue, rightBase);
+}
+
+/** Return the number of represented fractional radix digits, excluding visual separators. */
+export function radixScaleOf(value, base) {
+  const payload = String(value);
+  if (payload.length === 0 || payload.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+  if (base !== undefined && (!Number.isInteger(base) || base < 2 || base > 64)) return null;
+
+  let index = payload[0] === '+' || payload[0] === '-' ? 1 : 0;
+  if (index === payload.length) return null;
+  let sawDigit = false;
+  let sawPoint = false;
+  let scale = 0;
+  for (; index < payload.length; index += 1) {
+    const character = payload[index];
+    if (character === '.') {
+      if (sawPoint) return null;
+      sawPoint = true;
+      continue;
+    }
+    if (character === '_') {
+      const previous = payload[index - 1];
+      const next = payload[index + 1];
+      if (radixDigitValue(previous) === null || radixDigitValue(next) === null) return null;
+      continue;
+    }
+    const digit = radixDigitValue(character);
+    if (digit === null || base !== undefined && digit >= base) return null;
+    sawDigit = true;
+    if (sawPoint) scale += 1;
+  }
+  return !sawDigit || sawPoint && scale === 0 ? null : scale;
 }
 
 export function evaluateQuery(input, namespace, options = {}) {
@@ -1739,6 +1812,7 @@ const TELEX_SCALAR_KINDS = new Set([
   'RadixLiteral',
   'EncodingLiteral',
   'SeparatorLiteral',
+  'SymbolicLiteral',
   'SansaAddressLiteral',
   'DateLiteral',
   'TimeLiteral',
@@ -1754,6 +1828,7 @@ const TELEX_KIND_ALIASES = new Map([
   ['hex', 'HexLiteral'], ['radix', 'RadixLiteral'], ['encoding', 'EncodingLiteral'],
   ['base64', 'EncodingLiteral'], ['embed', 'EncodingLiteral'], ['inline', 'EncodingLiteral'],
   ['separator', 'SeparatorLiteral'], ['sep', 'SeparatorLiteral'], ['csv', 'SeparatorLiteral'],
+  ['symbol', 'SymbolicLiteral'], ['symbolicliteral', 'SymbolicLiteral'],
   ['sansa', 'SansaAddressLiteral'], ['sansaaddress', 'SansaAddressLiteral'],
   ['date', 'DateLiteral'], ['time', 'TimeLiteral'], ['datetime', 'DateTimeLiteral'], ['wtc', 'WTCDateTimeLiteral'],
 ]);
@@ -2033,6 +2108,10 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
       return typeof value === 'string'
         ? { ok: true }
         : invalidAeonTargetValue('String literals must use string payloads', path, operationIndex);
+    case 'symbol':
+      return typeof value === 'string' && value.length > 0
+        ? { ok: true }
+        : invalidAeonTargetValue('Symbol literals must use non-empty string payloads', path, operationIndex);
     case 'number':
       return typeof value === 'number' && Number.isFinite(value)
         ? { ok: true }
@@ -2275,6 +2354,7 @@ function isReservedAeonDatatypeBase(base) {
     'sep',
     'separator',
     'kadot',
+    'symbol',
     'sansa',
     'object',
     'obj',
@@ -2488,6 +2568,7 @@ function representationKindFromMutationName(name, { allowUnknown = false } = {})
   if (base === 'infinity') return 'infinity';
   if (base === 'null') return 'null';
   if (base === 'sep' || base === 'separator' || base === 'kadot') return 'separator';
+  if (base === 'symbol' || lowered === 'symbolicliteral') return 'symbol';
   if (base === 'sansa') return 'sansa';
   if (base === 'encoding' || ['base64', 'embed', 'inline'].includes(base)) return 'encoding';
   if (['date', 'time', 'datetime', 'wtc'].includes(base)) return base;
@@ -3528,7 +3609,7 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
       return {
         ok: true,
         value: scalarQueryValue(
-          expression.value,
+          expression.kind === 'number' ? expression.canonical : expression.value,
           queryLiteralMetadata(expression),
         ).value,
       };
@@ -3609,11 +3690,47 @@ function evaluateBinaryExpression(expression, currentBinding, namespace, options
     return evaluateMembershipExpression(left.value, right.value, namespace, options);
   }
 
+  const nativeStructuralEquality = evaluateNativeStructuralEquality(
+    expression.operator,
+    left.value,
+    right.value,
+    namespace,
+    options,
+  );
+  if (nativeStructuralEquality !== undefined) return nativeStructuralEquality;
+
   const leftScalar = expectComparableQueryValue(left.value, namespace);
   if (!leftScalar.ok) return leftScalar;
   const rightScalar = expectComparableQueryValue(right.value, namespace);
   if (!rightScalar.ok) return rightScalar;
   return compareQueryScalars(expression.operator, leftScalar, rightScalar, options);
+}
+
+function evaluateNativeStructuralEquality(operator, left, right, namespace, options) {
+  if (!['==', '!='].includes(operator) || typeof namespace.structurallyEqual !== 'function') {
+    return undefined;
+  }
+  if (left.type !== 'bindingSet' || right.type !== 'bindingSet') return undefined;
+  if (left.bindings.length !== 1 || right.bindings.length !== 1) return undefined;
+
+  const leftBinding = left.bindings[0];
+  const rightBinding = right.bindings[0];
+  const leftKind = explicitContainerKindFromBinding(namespace, leftBinding);
+  const rightKind = explicitContainerKindFromBinding(namespace, rightBinding);
+  if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind) return undefined;
+
+  const equal = namespace.structurallyEqual(leftBinding, rightBinding, {
+    operator,
+    valueSemantics: options.valueSemantics,
+  });
+  if (typeof equal !== 'boolean') return undefined;
+  return {
+    ok: true,
+    value: {
+      type: 'scalar',
+      value: operator === '==' ? equal : !equal,
+    },
+  };
 }
 
 function evaluateMembershipExpression(leftValue, rightValue, namespace, options) {
@@ -3746,7 +3863,7 @@ function evaluateFunctionCallExpression(expression, currentBinding, namespace, o
     if (!evaluated.ok) return evaluated;
     const scalar = expectScalarQueryValue(evaluated.value, namespace);
     if (!scalar.ok) return scalar;
-    evaluatedArgs.push(scalar.value);
+    evaluatedArgs.push(scalar);
   }
 
   return evaluateOrdinaryFunction(expression.name, evaluatedArgs, options);
@@ -3779,7 +3896,7 @@ function isExtensionEnabled(extensionId, options) {
 }
 
 function isOrdinaryFunctionName(name) {
-  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat'].includes(name);
+  return ['contains', 'startsWith', 'endsWith', 'lower', 'upper', 'concat', 'radixScale', 'temporalRelation'].includes(name);
 }
 
 function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
@@ -3803,12 +3920,72 @@ function evaluateOrdinaryFunction(name, evaluatedArgs, options = {}) {
         };
       }
       return evaluateStringFunction(name, evaluatedArgs, evaluatedArgs.length, (args) => args.join(''));
+    case 'radixScale':
+      return evaluateRadixScaleFunction(evaluatedArgs);
+    case 'temporalRelation':
+      return evaluateTemporalRelationFunction(evaluatedArgs);
     default:
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_UNSUPPORTED_FUNCTION', `Function '${name}' is not supported by this evaluator slice`),
       };
   }
+}
+
+function evaluateTemporalRelationFunction(args) {
+  if (args.length !== 2) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'temporalRelation' expects 2 arguments"),
+    };
+  }
+
+  const claims = args.map((argument) => {
+    const info = queryScalarToInfo(argument);
+    const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+    if (category !== 'temporal' || typeof info.value !== 'string') return null;
+    return {
+      payload: info.value,
+      semanticType: temporalSemanticType(info),
+    };
+  });
+
+  if (claims.some((claim) => claim === null)) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'temporalRelation' expects temporal arguments"),
+    };
+  }
+
+  return scalarQueryValue(compareTemporalClaims(claims[0], claims[1]), {
+    kind: 'string',
+    category: 'string',
+  });
+}
+
+function evaluateRadixScaleFunction(args) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' expects 1 argument"),
+    };
+  }
+  const info = queryScalarToInfo(args[0]);
+  const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+  if (category !== 'radix') {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' expects a radix value"),
+    };
+  }
+  const scale = radixScaleOf(info.value, info.radixBase);
+  if (scale === null || info.radixScale !== undefined && info.radixScale !== scale) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'radixScale' received an invalid radix value"),
+    };
+  }
+  return scalarQueryValue(scale, { kind: 'number', category: 'finiteNumber', numericLexeme: String(scale) });
 }
 
 function evaluatePathExpression(expression, currentBinding, namespace, options) {
@@ -3823,6 +4000,12 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   if (!evaluated.ok) return evaluated;
   const scalar = expectScalarQueryValue(evaluated.value, namespace);
   if (!scalar.ok) return scalar;
+  if (scalar.metadata?.numericLexeme !== undefined) {
+    return {
+      ok: false,
+      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'path' expects a string or SANSA address literal"),
+    };
+  }
 
   const activated = activateAddressLiteral(scalar.value, options.parse?.address);
   if (!activated.ok) return activated;
@@ -4213,10 +4396,11 @@ function evaluateResolveChildExpression(expression, currentBinding, namespace, o
   if (!keyScalar.ok) return keyScalar;
 
   let bindings;
-  if (typeof keyScalar.value === 'string') {
+  const numericPosition = queryScalarPosition(keyScalar);
+  if (numericPosition !== null) {
+    bindings = selectPosition(namespace, base.value.bindings[0], numericPosition);
+  } else if (isStringQueryScalar(keyScalar)) {
     bindings = selectMember(namespace, base.value.bindings[0], keyScalar.value);
-  } else if (Number.isInteger(keyScalar.value) && keyScalar.value >= 0) {
-    bindings = selectPosition(namespace, base.value.bindings[0], keyScalar.value);
   } else {
     return {
       ok: false,
@@ -4389,7 +4573,7 @@ function evaluateFieldsFromExpression(expression, currentBinding, namespace, opt
     if (!evaluated.ok) return evaluated;
     const scalar = expectScalarQueryValue(evaluated.value, namespace);
     if (!scalar.ok) return scalar;
-    if (typeof scalar.value !== 'string') {
+    if (!isStringQueryScalar(scalar)) {
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'fieldsFrom' expects string field names"),
@@ -4426,7 +4610,7 @@ function objectFromBindingSets(keyBindings, valueBindings, namespace, functionNa
   for (let index = 0; index < keyBindings.length; index += 1) {
     const keyScalar = getBindingScalarValue(namespace, keyBindings[index]);
     if (!keyScalar.ok) return keyScalar;
-    if (typeof keyScalar.value !== 'string') {
+    if (!isStringQueryScalar(keyScalar)) {
       return {
         ok: false,
         error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${functionName}' expects string key bindings`),
@@ -4500,7 +4684,7 @@ function evaluateSpecialValuePredicate(expression, currentBinding, namespace, op
       if (!reason.ok) return reason;
       const scalarReason = expectScalarQueryValue(reason.value, namespace);
       if (!scalarReason.ok) return scalarReason;
-      if (typeof scalarReason.value !== 'string') {
+      if (!isStringQueryScalar(scalarReason)) {
         return {
           ok: false,
           error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', "Function 'isNullReason' expects a string reason"),
@@ -4614,6 +4798,8 @@ function scalarBoolean(value) {
 
 function queryLiteralMetadata(expression) {
   switch (expression.kind) {
+    case 'number':
+      return { kind: 'number', category: 'finiteNumber', numericLexeme: expression.canonical };
     case 'toggle':
       return { kind: 'toggle', category: 'toggle' };
     case 'hex':
@@ -4624,6 +4810,8 @@ function queryLiteralMetadata(expression) {
       return { kind: 'encoding', category: 'encoding' };
     case 'separator':
       return { kind: 'separator', category: 'separator' };
+    case 'symbol':
+      return { kind: 'symbol', category: 'symbol' };
     case 'date':
     case 'time':
     case 'datetime':
@@ -4660,7 +4848,7 @@ function evaluateStringFunction(name, args, arity, operation) {
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects ${arity} argument${arity === 1 ? '' : 's'}`),
     };
   }
-  if (args.some((arg) => typeof arg !== 'string')) {
+  if (args.some((arg) => !isStringQueryScalar(arg))) {
     return {
       ok: false,
       error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL', `Function '${name}' expects string arguments`),
@@ -4670,9 +4858,41 @@ function evaluateStringFunction(name, args, arity, operation) {
     ok: true,
     value: {
       type: 'scalar',
-      value: operation(args),
+      value: operation(args.map((arg) => arg.value)),
     },
   };
+}
+
+function isStringQueryScalar(scalar) {
+  if (typeof scalar.value !== 'string' || scalar.metadata?.numericLexeme !== undefined) return false;
+  const info = queryScalarToInfo(scalar);
+  const category = normalizeValueSemanticsCategory(info.category ?? info.kind);
+  return category === undefined || category === 'string' || category === 'stringLiteral';
+}
+
+function queryScalarPosition(scalar) {
+  const numericLexeme = scalar.metadata?.numericLexeme;
+  if (typeof numericLexeme === 'string') {
+    const parsed = parseExactFiniteNumber(numericLexeme);
+    if (parsed === null || parsed.sign < 0) return null;
+    if (parsed.sign === 0) return 0;
+
+    let integerDigits = parsed.digits;
+    if (parsed.scale < 0n) {
+      const fractionalWidth = -parsed.scale;
+      if (fractionalWidth > BigInt(integerDigits.length)) return null;
+      const split = integerDigits.length - Number(fractionalWidth);
+      if (!/^0*$/u.test(integerDigits.slice(split))) return null;
+      integerDigits = integerDigits.slice(0, split) || '0';
+    } else {
+      if (BigInt(integerDigits.length) + parsed.scale > 16n) return null;
+      integerDigits += '0'.repeat(Number(parsed.scale));
+    }
+
+    const value = Number(integerDigits);
+    return Number.isSafeInteger(value) ? value : null;
+  }
+  return Number.isSafeInteger(scalar.value) && scalar.value >= 0 ? scalar.value : null;
 }
 
 function evaluateExistenceExpression(expression, currentBinding, namespace, options) {
@@ -4822,7 +5042,7 @@ function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespa
     }
     const scalar = expectScalarQueryValue(evaluatedArgs[index], namespace);
     if (!scalar.ok) return scalar;
-    scalarArgs.push(scalar.value);
+    scalarArgs.push(scalar);
   }
 
   const values = [];
@@ -4830,7 +5050,7 @@ function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespa
     const bindingScalar = getBindingScalarValue(namespace, binding);
     if (!bindingScalar.ok) return bindingScalar;
     const args = scalarArgs.slice();
-    args[bindingSetArgs[0].index] = bindingScalar.value;
+    args[bindingSetArgs[0].index] = bindingScalar;
     const evaluated = evaluateOrdinaryFunction(expression.name, args);
     if (!evaluated.ok) return evaluated;
     if (evaluated.value.type !== 'scalar' || typeof evaluated.value.value !== 'boolean') {
@@ -4981,6 +5201,12 @@ function getValueSemanticsProfile(valueSemantics) {
   if (valueSemantics === NATURAL_ASCII_STRING_PROFILE_ID || valueSemantics === 'natural-ascii') {
     return createNaturalAsciiValueSemanticsProfile();
   }
+  if (valueSemantics === RADIX_NUMERIC_SAME_BASE_PROFILE_ID || valueSemantics === 'radix-numeric') {
+    return createRadixNumericValueSemanticsProfile();
+  }
+  if (valueSemantics === RADIX_NUMERIC_CROSS_BASE_PROFILE_ID || valueSemantics === 'radix-numeric-cross-base') {
+    return createCrossBaseRadixNumericValueSemanticsProfile();
+  }
   if (valueSemantics === 'fr' || valueSemantics === 'fr-FR') {
     return createFrenchValueSemanticsProfile({ locale: valueSemantics });
   }
@@ -4992,6 +5218,7 @@ function getValueSemanticsProfile(valueSemantics) {
   const hasLowerString = typeof valueSemantics.lowerString === 'function';
   const hasUpperString = typeof valueSemantics.upperString === 'function';
   const hasCompareTemporal = typeof valueSemantics.compareTemporal === 'function';
+  const hasCompareRadix = typeof valueSemantics.compareRadix === 'function';
   if (hasCompareStrings && hasLowerString && hasUpperString) {
     return {
       ...aeonValueSemanticsDefaultProfile,
@@ -5000,16 +5227,24 @@ function getValueSemanticsProfile(valueSemantics) {
       compareTemporal: typeof valueSemantics.compareTemporal === 'function'
         ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
         : aeonValueSemanticsDefaultProfile.compareTemporal,
+      ...(hasCompareRadix ? {
+        compareRadix: (left, right) => normalizeOptionalComparison(valueSemantics.compareRadix(left, right)),
+      } : {}),
     };
   }
   if (hasCompareStrings || hasLowerString || hasUpperString) {
     throw new Error('Custom value-semantics profiles must define compareStrings, lowerString, and upperString together.');
   }
-  if (hasCompareTemporal) {
+  if (hasCompareTemporal || hasCompareRadix) {
     return {
       ...aeonValueSemanticsDefaultProfile,
       ...valueSemantics,
-      compareTemporal: (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right)),
+      compareTemporal: hasCompareTemporal
+        ? (left, right) => normalizeComparison(valueSemantics.compareTemporal(left, right))
+        : aeonValueSemanticsDefaultProfile.compareTemporal,
+      ...(hasCompareRadix ? {
+        compareRadix: (left, right) => normalizeOptionalComparison(valueSemantics.compareRadix(left, right)),
+      } : {}),
     };
   }
   if (
@@ -5024,6 +5259,10 @@ function normalizeComparison(value) {
   if (value < 0) return -1;
   if (value > 0) return 1;
   return 0;
+}
+
+function normalizeOptionalComparison(value) {
+  return value === null || value === undefined ? null : normalizeComparison(value);
 }
 
 function compareStringsByUnicodeScalarValue(left, right) {
@@ -5090,6 +5329,197 @@ function compareTemporalByCanonicalValue(left, right) {
   return compareStringsByUnicodeScalarValue(String(left.payload ?? ''), String(right.payload ?? ''));
 }
 
+/**
+ * Compare two temporal claims as completion sets without resolving external
+ * timezone, leap-second, calendar, or clock authorities.
+ *
+ * @returns {'equal'|'before'|'after'|'contains'|'containedBy'|'overlaps'|'incomparable'}
+ */
+export function compareTemporalClaims(left, right) {
+  const leftClaim = parseTemporalCompletionSet(left);
+  const rightClaim = parseTemporalCompletionSet(right);
+  if (leftClaim === null || rightClaim === null || leftClaim.domain !== rightClaim.domain) {
+    return 'incomparable';
+  }
+
+  // UTC leap-second chronology requires a leap table. Preserve exact identity,
+  // but do not manufacture an ordering around second 60 without that authority.
+  if (leftClaim.leapSecond || rightClaim.leapSecond) {
+    return leftClaim.leapSecond
+      && rightClaim.leapSecond
+      && compareTemporalDecimal(leftClaim.start, rightClaim.start) === 0
+      ? 'equal'
+      : 'incomparable';
+  }
+
+  const startOrder = compareTemporalDecimal(leftClaim.start, rightClaim.start);
+  if (leftClaim.point && rightClaim.point) {
+    return startOrder < 0 ? 'before' : startOrder > 0 ? 'after' : 'equal';
+  }
+  if (leftClaim.point) {
+    if (startOrder < 0) return 'before';
+    if (compareTemporalDecimal(leftClaim.start, rightClaim.end) >= 0) return 'after';
+    return 'containedBy';
+  }
+  if (rightClaim.point) {
+    if (compareTemporalDecimal(leftClaim.end, rightClaim.start) <= 0) return 'before';
+    if (startOrder > 0) return 'after';
+    return 'contains';
+  }
+
+  const endOrder = compareTemporalDecimal(leftClaim.end, rightClaim.end);
+  if (startOrder === 0 && endOrder === 0) return 'equal';
+  if (compareTemporalDecimal(leftClaim.end, rightClaim.start) <= 0) return 'before';
+  if (compareTemporalDecimal(rightClaim.end, leftClaim.start) <= 0) return 'after';
+  if (startOrder <= 0 && endOrder >= 0) return 'contains';
+  if (startOrder >= 0 && endOrder <= 0) return 'containedBy';
+  return 'overlaps';
+}
+
+function parseTemporalCompletionSet(input) {
+  const semanticType = String(input?.semanticType ?? 'temporal');
+  const payload = String(input?.payload ?? input?.value ?? '');
+  if (semanticType === 'date') {
+    const date = parseTemporalDate(payload);
+    if (date === null) return null;
+    const startMonth = date.month ?? 1;
+    const startDay = date.day ?? 1;
+    const start = temporalInteger(dateOrdinal(date.year, startMonth, startDay) * 86_400n);
+    let endOrdinal;
+    if (date.month === null) {
+      endOrdinal = dateOrdinal(date.year + 1, 1, 1);
+    } else if (date.day === null) {
+      endOrdinal = date.month === 12
+        ? dateOrdinal(date.year + 1, 1, 1)
+        : dateOrdinal(date.year, date.month + 1, 1);
+    } else {
+      endOrdinal = dateOrdinal(date.year, date.month, date.day) + 1n;
+    }
+    const end = temporalInteger(endOrdinal * 86_400n);
+    return { domain: 'date', start, end, point: false, leapSecond: false };
+  }
+  if (!['time', 'datetime', 'wtc'].includes(semanticType)) return null;
+
+  let base = payload;
+  let context = null;
+  if (semanticType === 'wtc') {
+    const ampersand = payload.indexOf('&');
+    if (ampersand === -1) return null;
+    base = payload.slice(0, ampersand);
+    context = payload.slice(ampersand + 1);
+    if (context.length === 0) return null;
+  }
+
+  let date = null;
+  let clockText = base;
+  if (semanticType !== 'time') {
+    const marker = base.indexOf('T');
+    if (marker === -1) return null;
+    date = parseTemporalDate(base.slice(0, marker));
+    if (date === null) return null;
+    clockText = base.slice(marker + 1);
+  }
+  const clock = parseTemporalClock(clockText, semanticType === 'time');
+  if (clock === null) return null;
+  const domain = temporalCompletionDomain(semanticType, clock.anchor, context);
+  if (domain === null) return null;
+
+  let wholeSeconds = BigInt(clock.hour * 3_600 + (clock.minute ?? 0) * 60 + (clock.second ?? 0));
+  if (date !== null) wholeSeconds += dateOrdinal(date.year, date.month, date.day) * 86_400n;
+  if (clock.anchor === 'Z') {
+    // already UTC-relative
+  } else if (clock.anchor !== null && clock.anchor !== '-00:00') {
+    const sign = clock.anchor[0] === '-' ? -1n : 1n;
+    const offset = BigInt(Number(clock.anchor.slice(1, 3)) * 3_600 + Number(clock.anchor.slice(4, 6)) * 60);
+    wholeSeconds -= sign * offset;
+  }
+
+  const start = clock.fraction === null
+    ? temporalInteger(wholeSeconds)
+    : { coefficient: wholeSeconds * (10n ** BigInt(clock.fraction.length)) + BigInt(clock.fraction), scale: clock.fraction.length };
+  if (clock.second !== null) {
+    return { domain, start, end: start, point: true, leapSecond: clock.second === 60 };
+  }
+  const width = clock.minute === null ? 3_600n : 60n;
+  return { domain, start, end: addTemporalInteger(start, width), point: false, leapSecond: false };
+}
+
+function temporalCompletionDomain(semanticType, anchor, context) {
+  const scope = semanticType === 'time' ? 'time' : 'datetime';
+  const recognizedTimescales = new Set(['UTC', 'TAI', 'UT1', 'TT', 'GPS']);
+  if (context !== null && recognizedTimescales.has(context) && anchor !== null) {
+    if (context !== 'UTC') return null;
+  }
+  if (scope === 'time' && anchor !== null && anchor !== '-00:00') {
+    return anchor === 'Z' || anchor === '+00:00' ? 'instant:time:UTC' : `offset-time:${anchor}`;
+  }
+  if (anchor === 'Z' || (anchor !== null && anchor !== '-00:00')) return 'instant:datetime';
+  if (anchor === '-00:00') return `unknown-offset:${scope}:${context ?? ''}`;
+  if (context === 'local') return `resolver-local:${scope}`;
+  if (context !== null && recognizedTimescales.has(context)) return `timescale:${context}:${scope}`;
+  if (context !== null) return `context:${context}:${scope}`;
+  return `civil:${scope}`;
+}
+
+function parseTemporalDate(value) {
+  const yearOnly = /^(\d{4})-$/.exec(value);
+  if (yearOnly !== null) {
+    const year = Number(yearOnly[1]);
+    return year >= 1 && year <= 9999 ? { year, month: null, day: null } : null;
+  }
+  const yearMonth = /^(\d{4})-(\d{2})$/.exec(value);
+  if (yearMonth !== null) {
+    const year = Number(yearMonth[1]);
+    const month = Number(yearMonth[2]);
+    return year >= 1 && year <= 9999 && month >= 1 && month <= 12
+      ? { year, month, day: null }
+      : null;
+  }
+  const fullDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (fullDate === null || !isValidDateParts(fullDate[1], fullDate[2], fullDate[3])) return null;
+  return { year: Number(fullDate[1]), month: Number(fullDate[2]), day: Number(fullDate[3]) };
+}
+
+function parseTemporalClock(value, requireColon) {
+  const pattern = requireColon
+    ? /^(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/
+    : /^(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/;
+  const match = pattern.exec(value);
+  if (match === null) return null;
+  const hour = Number(match[1]);
+  const minute = match[2] === undefined ? null : Number(match[2]);
+  const second = match[3] === undefined ? null : Number(match[3]);
+  const anchor = match[5] ?? null;
+  if (hour > 23 || (minute !== null && minute > 59) || (second !== null && second > 60)) return null;
+  if (anchor !== null && anchor !== 'Z') {
+    if (Number(anchor.slice(1, 3)) > 23 || Number(anchor.slice(4, 6)) > 59) return null;
+  }
+  return { hour, minute, second, fraction: match[4] ?? null, anchor };
+}
+
+function dateOrdinal(year, month, day) {
+  const priorYear = BigInt(year - 1);
+  const daysBeforeYear = priorYear * 365n + priorYear / 4n - priorYear / 100n + priorYear / 400n;
+  const monthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  const leapAdjustment = month > 2 && isLeapYear(year) ? 1 : 0;
+  return daysBeforeYear + BigInt(monthDays[month - 1] + leapAdjustment + day - 1);
+}
+
+function temporalInteger(value) {
+  return { coefficient: value, scale: 0 };
+}
+
+function addTemporalInteger(value, integer) {
+  return { coefficient: value.coefficient + integer * (10n ** BigInt(value.scale)), scale: value.scale };
+}
+
+function compareTemporalDecimal(left, right) {
+  const scale = Math.max(left.scale, right.scale);
+  const leftCoefficient = left.coefficient * (10n ** BigInt(scale - left.scale));
+  const rightCoefficient = right.coefficient * (10n ** BigInt(scale - right.scale));
+  return leftCoefficient < rightCoefficient ? -1 : leftCoefficient > rightCoefficient ? 1 : 0;
+}
+
 function isAsciiDigitCodePoint(codePoint) {
   return codePoint >= 0x30 && codePoint <= 0x39;
 }
@@ -5100,6 +5530,8 @@ function codePointWidth(codePoint) {
 
 export function evaluateValueSemanticsOperation(operation, input = {}, options = {}) {
   try {
+    if (operation === 'radixScale') return evaluateValueSemanticsRadixScale(input.value);
+    if (operation === 'temporalRelation') return evaluateValueSemanticsTemporalRelation(input.left, input.right);
     const profile = getValueSemanticsProfile(options.valueSemantics ?? input.valueSemantics ?? input.profile);
     switch (operation) {
       case 'equal':
@@ -5124,6 +5556,31 @@ export function evaluateValueSemanticsOperation(operation, input = {}, options =
   }
 }
 
+function evaluateValueSemanticsTemporalRelation(leftDescriptor, rightDescriptor) {
+  const left = valueDescriptorToScalarInfo(leftDescriptor);
+  const right = valueDescriptorToScalarInfo(rightDescriptor);
+  if (left.category !== 'temporal' || right.category !== 'temporal') {
+    return valueSemanticsDiagnostic('temporal_required', 'Temporal relation is defined only for temporal values');
+  }
+  return {
+    ok: true,
+    outcome: 'value',
+    relation: compareTemporalClaims(left.value, right.value),
+  };
+}
+
+function evaluateValueSemanticsRadixScale(descriptor) {
+  const info = valueDescriptorToScalarInfo(descriptor);
+  if (info.category !== 'radix') {
+    return valueSemanticsDiagnostic('radix_required', 'Radix scale is defined only for radix-family values');
+  }
+  const scale = radixScaleOf(info.value.payload, info.value.radixBase);
+  if (scale === null || scale === undefined) {
+    return valueSemanticsDiagnostic('invalid_radix_value', 'Radix payload is invalid for its resolved base');
+  }
+  return { ok: true, outcome: 'value', value: scale };
+}
+
 function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescriptor, profile) {
   const left = valueDescriptorToScalarInfo(leftDescriptor);
   const right = valueDescriptorToScalarInfo(rightDescriptor);
@@ -5132,6 +5589,12 @@ function evaluateValueSemanticsEquality(operation, leftDescriptor, rightDescript
   }
   if (left.category === 'missing' || right.category === 'missing' || left.category === 'bindingSet' || right.category === 'bindingSet') {
     return valueSemanticsDiagnostic('not_equality_comparable', 'Evaluation state or non-scalar value is not equality-comparable');
+  }
+  if (left.category === 'radix' && right.category === 'radix' && typeof profile.compareRadix === 'function') {
+    const comparison = compareRadixWithProfile(left, right, profile);
+    if (!comparison.ok) return comparison.diagnostic;
+    const value = comparison.value === 0;
+    return { ok: true, outcome: 'value', value: operation === 'equal' ? value : !value };
   }
   if (!sameMinimumEqualityDomain(left, right)) {
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not compare by implicit coercion');
@@ -5156,7 +5619,19 @@ function evaluateValueSemanticsOrdering(leftDescriptor, rightDescriptor, profile
   if (typeof left.value === 'boolean' && typeof right.value === 'boolean') {
     return valueSemanticsDiagnostic('not_orderable', 'Boolean ordering is not part of the minimum profile');
   }
+  if (left.category === 'radix' && right.category === 'radix' && typeof profile.compareRadix === 'function') {
+    const comparison = compareRadixWithProfile(left, right, profile);
+    if (!comparison.ok) return comparison.diagnostic;
+    return {
+      ok: true,
+      outcome: 'value',
+      relation: comparison.value < 0 ? 'less' : comparison.value > 0 ? 'greater' : 'equal',
+    };
+  }
   if (!sameMinimumOrderingDomain(left, right)) {
+    if (left.category === right.category && left.category !== 'temporal') {
+      return valueSemanticsDiagnostic('not_orderable', 'Value category is not orderable in the minimum profile');
+    }
     return valueSemanticsDiagnostic('mixed_categories', 'Mixed categories do not order by implicit coercion');
   }
   const comparison = compareMinimumOrdering(left, right, profile);
@@ -5173,8 +5648,10 @@ function valueDescriptorToScalarInfo(descriptor) {
   }
   switch (descriptor.category) {
     case 'finiteNumber': {
-      const value = Number(descriptor.value);
-      if (!Number.isFinite(value)) throw new Error('finiteNumber descriptor must contain a finite numeric value');
+      const value = String(descriptor.value);
+      if (parseExactFiniteNumber(value) === null) {
+        throw new Error('finiteNumber descriptor must contain a canonical finite numeric value');
+      }
       return { category: 'finiteNumber', value };
     }
     case 'positiveInfinity':
@@ -5197,12 +5674,15 @@ function valueDescriptorToScalarInfo(descriptor) {
         value: {
           payload: String(descriptor.value ?? ''),
           semanticType: descriptor.semanticType ?? 'radix',
+          radixBase: normalizeRadixBase(descriptor.radixBase ?? radixBaseFromSemanticType(descriptor.semanticType)),
         },
       };
     case 'encoding':
       return { category: 'encoding', value: String(descriptor.value ?? '') };
     case 'separator':
       return { category: 'separator', value: String(descriptor.value ?? '') };
+    case 'symbol':
+      return { category: 'symbol', value: String(descriptor.value ?? '') };
     case 'sansaAddress':
       return { category: 'sansaAddress', value: sansaAddressSemanticValue(descriptor.value) };
     case 'referenceForm':
@@ -5252,6 +5732,9 @@ function scalarInfoToValueDescriptor(info) {
       ? { category: 'negativeInfinity' }
       : { category: 'positiveInfinity' };
   }
+  if (info.numericLexeme !== undefined) {
+    return { category: 'finiteNumber', value: info.numericLexeme };
+  }
   const semanticCategory = VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.category)
     ? info.category
     : VALUE_SEMANTICS_METADATA_CATEGORIES.includes(info.kind)
@@ -5263,6 +5746,8 @@ function scalarInfoToValueDescriptor(info) {
       category,
       value: info.value,
       ...(info.semanticType === undefined ? {} : { semanticType: info.semanticType }),
+      ...(info.radixBase === undefined ? {} : { radixBase: info.radixBase }),
+      ...(info.radixScale === undefined ? {} : { radixScale: info.radixScale }),
       ...(info.containerKind === undefined ? {} : { containerKind: info.containerKind }),
     };
   }
@@ -5306,6 +5791,7 @@ function sameMinimumEqualityDomain(left, right) {
     'radix',
     'encoding',
     'separator',
+    'symbol',
     'sansaAddress',
     'referenceForm',
   ].includes(left.category);
@@ -5335,7 +5821,8 @@ function temporalSemanticType(info) {
 
 function compareMinimumEquality(operation, left, right, profile) {
   if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
-    return operation === 'equal' ? left.value === right.value : left.value !== right.value;
+    const equals = compareMinimumNumeric(left, right) === 0;
+    return operation === 'equal' ? equals : !equals;
   }
   const equals = (() => {
     if (left.category === 'string' && right.category === 'string') return profile.compareStrings(left.value, right.value) === 0;
@@ -5347,6 +5834,9 @@ function compareMinimumEquality(operation, left, right, profile) {
 }
 
 function compareMinimumOrdering(left, right, profile) {
+  if (isValueSemanticsNumeric(left) && isValueSemanticsNumeric(right)) {
+    return compareMinimumNumeric(left, right);
+  }
   if (left.category === 'temporal' && right.category === 'temporal') {
     return profile.compareTemporal(left.value, right.value);
   }
@@ -5354,6 +5844,252 @@ function compareMinimumOrdering(left, right, profile) {
     return compareStringsByUnicodeScalarValue(String(left.value), String(right.value));
   }
   return comparePrimitiveOrderValues(left.value, right.value, profile);
+}
+
+function compareMinimumNumeric(left, right) {
+  if (left.category === right.category && left.category !== 'finiteNumber') return 0;
+  if (left.category === 'negativeInfinity' || right.category === 'positiveInfinity') return -1;
+  if (left.category === 'positiveInfinity' || right.category === 'negativeInfinity') return 1;
+  const comparison = compareExactFiniteNumbers(left.value, right.value);
+  if (comparison === null) throw new Error('Invalid finite numeric value reached comparison');
+  return comparison;
+}
+
+function compareExactFiniteNumbers(left, right) {
+  const leftValue = parseExactFiniteNumber(String(left));
+  const rightValue = parseExactFiniteNumber(String(right));
+  if (leftValue === null || rightValue === null) return null;
+  if (leftValue.sign !== rightValue.sign) return leftValue.sign < rightValue.sign ? -1 : 1;
+  if (leftValue.sign === 0) return 0;
+
+  const leftOrder = BigInt(leftValue.digits.length) + leftValue.scale;
+  const rightOrder = BigInt(rightValue.digits.length) + rightValue.scale;
+  let comparison;
+  if (leftOrder !== rightOrder) {
+    comparison = leftOrder < rightOrder ? -1 : 1;
+  } else {
+    const width = Math.max(leftValue.digits.length, rightValue.digits.length);
+    const leftDigits = leftValue.digits.padEnd(width, '0');
+    const rightDigits = rightValue.digits.padEnd(width, '0');
+    comparison = leftDigits === rightDigits ? 0 : leftDigits < rightDigits ? -1 : 1;
+  }
+  return leftValue.sign === -1 ? -comparison : comparison;
+}
+
+function parseExactFiniteNumber(value) {
+  if (value.length === 0 || value.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+  const match = /^([+-]?)(?:(0|[1-9]\d*)(?:\.(\d+))?|\.(\d+))(?:[eE]([+-]?\d+))?$/u.exec(value);
+  if (match === null) return null;
+  const integer = match[2] ?? '';
+  const fraction = match[3] ?? match[4] ?? '';
+  const digits = `${integer}${fraction}`.replace(/^0+/u, '');
+  if (digits.length === 0) return { sign: 0, digits: '0', scale: 0n };
+  return {
+    sign: match[1] === '-' ? -1 : 1,
+    digits,
+    scale: BigInt(match[5] ?? '0') - BigInt(fraction.length),
+  };
+}
+
+function compareRadixWithProfile(left, right, profile) {
+  const leftBase = left.value.radixBase;
+  const rightBase = right.value.radixBase;
+  const resolvedLeftBase = leftBase ?? rightBase;
+  const resolvedRightBase = rightBase ?? leftBase;
+  if (resolvedLeftBase === undefined || resolvedRightBase === undefined) {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'radix_base_required',
+        'Radix numeric comparison requires at least one operand with a resolved base',
+      ),
+    };
+  }
+  if (resolvedLeftBase !== resolvedRightBase && profile.radixComparison !== 'cross-base-exact') {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'mixed_radix_bases',
+        `Radix numeric comparison requires the same base (${leftBase} vs ${rightBase})`,
+      ),
+    };
+  }
+
+  const value = profile.compareRadix(
+    { payload: left.value.payload, base: resolvedLeftBase, semanticType: left.value.semanticType },
+    { payload: right.value.payload, base: resolvedRightBase, semanticType: right.value.semanticType },
+  );
+  if (value === null) {
+    return {
+      ok: false,
+      diagnostic: valueSemanticsDiagnostic(
+        'invalid_radix_value',
+        `Radix payload is invalid for base ${resolvedLeftBase} or ${resolvedRightBase}`,
+      ),
+    };
+  }
+  return { ok: true, value: normalizeComparison(value) };
+}
+
+function compareExactRadixSemanticValues(left, right) {
+  if (left.base !== right.base) return null;
+  return compareExactRadixValues(left.payload, right.payload, left.base);
+}
+
+function compareExactCrossBaseRadixSemanticValues(left, right) {
+  return compareExactCrossBaseRadixValues(left.payload, left.base, right.payload, right.base);
+}
+
+function parseExactRadixValue(value, base) {
+  if (!Number.isInteger(base) || base < 2 || base > 64) return null;
+  if (value.length === 0 || value.length > MAX_EXACT_NUMERIC_CHARACTERS) return null;
+
+  let index = 0;
+  let sign = 1;
+  if (value[index] === '+' || value[index] === '-') {
+    sign = value[index] === '-' ? -1 : 1;
+    index += 1;
+  }
+  if (index >= value.length) return null;
+
+  const integerDigits = [];
+  const fractionalDigits = [];
+  let target = integerDigits;
+  let sawPoint = false;
+  let sawDigit = false;
+  for (; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '.') {
+      if (sawPoint || index === value.length - 1) return null;
+      sawPoint = true;
+      target = fractionalDigits;
+      continue;
+    }
+    if (character === '_') {
+      const previous = value[index - 1];
+      const next = value[index + 1];
+      if (radixDigitValue(previous) === null || radixDigitValue(next) === null) return null;
+      continue;
+    }
+    const digit = radixDigitValue(character);
+    if (digit === null || digit >= base) return null;
+    target.push(digit);
+    sawDigit = true;
+  }
+  if (!sawDigit || fractionalDigits.length === 0 && sawPoint) return null;
+
+  let leadingZeroes = 0;
+  while (leadingZeroes < integerDigits.length && integerDigits[leadingZeroes] === 0) leadingZeroes += 1;
+  if (leadingZeroes > 0) integerDigits.splice(0, leadingZeroes);
+  while (fractionalDigits.length > 0 && fractionalDigits.at(-1) === 0) fractionalDigits.pop();
+  if (integerDigits.length === 0 && fractionalDigits.length === 0) sign = 0;
+  return { sign, integerDigits, fractionalDigits };
+}
+
+function compareParsedRadixValues(left, right) {
+  if (left.sign !== right.sign) return left.sign < right.sign ? -1 : 1;
+  if (left.sign === 0) return 0;
+
+  let comparison = 0;
+  if (left.integerDigits.length !== right.integerDigits.length) {
+    comparison = left.integerDigits.length < right.integerDigits.length ? -1 : 1;
+  } else {
+    comparison = compareRadixDigitArrays(left.integerDigits, right.integerDigits);
+    if (comparison === 0) {
+      const width = Math.max(left.fractionalDigits.length, right.fractionalDigits.length);
+      for (let index = 0; index < width; index += 1) {
+        const leftDigit = left.fractionalDigits[index] ?? 0;
+        const rightDigit = right.fractionalDigits[index] ?? 0;
+        if (leftDigit !== rightDigit) {
+          comparison = leftDigit < rightDigit ? -1 : 1;
+          break;
+        }
+      }
+    }
+  }
+  return left.sign === -1 ? -comparison : comparison;
+}
+
+function compareParsedCrossBaseRadixValues(left, leftBase, right, rightBase) {
+  if (left.sign !== right.sign) return left.sign < right.sign ? -1 : 1;
+  if (left.sign === 0) return 0;
+
+  const leftNumerator = radixDigitsToBigInt(
+    [...left.integerDigits, ...left.fractionalDigits],
+    leftBase,
+  );
+  const rightNumerator = radixDigitsToBigInt(
+    [...right.integerDigits, ...right.fractionalDigits],
+    rightBase,
+  );
+  const leftDenominator = BigInt(leftBase) ** BigInt(left.fractionalDigits.length);
+  const rightDenominator = BigInt(rightBase) ** BigInt(right.fractionalDigits.length);
+  const leftScaled = leftNumerator * rightDenominator;
+  const rightScaled = rightNumerator * leftDenominator;
+  const comparison = leftScaled < rightScaled ? -1 : leftScaled > rightScaled ? 1 : 0;
+  return left.sign === -1 ? -comparison : comparison;
+}
+
+function radixDigitsToBigInt(digits, base) {
+  if (digits.length === 0) return 0n;
+  let chunkSize = 1;
+  let fullChunkMultiplier = base;
+  while (fullChunkMultiplier <= Math.floor(Number.MAX_SAFE_INTEGER / base)) {
+    fullChunkMultiplier *= base;
+    chunkSize += 1;
+  }
+
+  let result = 0n;
+  for (let offset = 0; offset < digits.length; offset += chunkSize) {
+    const length = Math.min(chunkSize, digits.length - offset);
+    let chunkValue = 0;
+    let multiplier = 1;
+    for (let index = 0; index < length; index += 1) {
+      chunkValue = chunkValue * base + digits[offset + index];
+      multiplier *= base;
+    }
+    result = result * BigInt(multiplier) + BigInt(chunkValue);
+  }
+  return result;
+}
+
+function compareRadixDigitArrays(left, right) {
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] < right[index]) return -1;
+    if (left[index] > right[index]) return 1;
+  }
+  return 0;
+}
+
+function radixDigitValue(character) {
+  if (typeof character !== 'string') return null;
+  const codePoint = character.codePointAt(0);
+  if (codePoint >= 48 && codePoint <= 57) return codePoint - 48;
+  if (codePoint >= 65 && codePoint <= 90) return codePoint - 55;
+  if (codePoint >= 97 && codePoint <= 122) return codePoint - 61;
+  if (character === '&') return 62;
+  if (character === '!') return 63;
+  return null;
+}
+
+function normalizeRadixBase(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!Number.isInteger(value) || value < 2 || value > 64) {
+    throw new Error('radixBase must be an integer from 2 through 64');
+  }
+  return value;
+}
+
+function radixBaseFromSemanticType(semanticType) {
+  if (typeof semanticType !== 'string') return undefined;
+  const normalized = semanticType.trim().toLowerCase();
+  if (normalized === 'decimal') return 10;
+  const alias = /^radix(2|6|8|12)$/u.exec(normalized);
+  if (alias !== null) return Number(alias[1]);
+  const clarified = /^radix\[(\d+)\]$/u.exec(normalized);
+  if (clarified === null) return undefined;
+  const base = Number(clarified[1]);
+  return Number.isInteger(base) && base >= 2 && base <= 64 ? base : undefined;
 }
 
 function normalizeValueSemanticsCategory(category) {
@@ -5377,6 +6113,13 @@ function structurallyEqualContainers(left, right, profile) {
 }
 
 function structurallyEqualValues(left, right, profile) {
+  const leftDescriptor = comparableScalarDescriptor(left);
+  const rightDescriptor = comparableScalarDescriptor(right);
+  if (leftDescriptor !== undefined || rightDescriptor !== undefined) {
+    if (leftDescriptor === undefined || rightDescriptor === undefined) return false;
+    const equality = evaluateValueSemanticsEquality('equal', leftDescriptor, rightDescriptor, profile);
+    return equality.ok && equality.value;
+  }
   if (Object.is(left, right)) return true;
   if (typeof left === 'string' && typeof right === 'string') return profile.compareStrings(left, right) === 0;
   if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) return false;
@@ -5392,6 +6135,11 @@ function structurallyEqualValues(left, right, profile) {
     if (!structurallyEqualValues(left[leftKeys[index]], right[rightKeys[index]], profile)) return false;
   }
   return true;
+}
+
+function comparableScalarDescriptor(value) {
+  if (typeof value !== 'object' || value === null) return undefined;
+  return value[COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY];
 }
 
 function isConcreteValueDescriptor(descriptor) {
@@ -5429,7 +6177,10 @@ function compareQueryScalars(operator, left, right, options = {}) {
   if (!evaluated.ok) {
     return {
       ok: false,
-      error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_COMPARISON', queryComparisonMessage(evaluated.reason, operator)),
+      error: queryEvaluateError(
+        'SANSA_QUERY_EVALUATE_INVALID_COMPARISON',
+        queryComparisonMessage(evaluated.reason, operator, leftDescriptor, rightDescriptor),
+      ),
     };
   }
   const value = (() => {
@@ -5454,15 +6205,26 @@ function queryScalarToInfo(scalar) {
       ...(metadata.semanticType === undefined ? {} : { semanticType: metadata.semanticType }),
       ...(metadata.containerKind === undefined ? {} : { containerKind: metadata.containerKind }),
       ...(metadata.nullReason === undefined ? {} : { nullReason: metadata.nullReason }),
+      ...(metadata.numericLexeme === undefined ? {} : { numericLexeme: metadata.numericLexeme }),
+      ...(metadata.radixBase === undefined ? {} : { radixBase: metadata.radixBase }),
+      ...(metadata.radixScale === undefined ? {} : { radixScale: metadata.radixScale }),
     };
   }
   return { value: scalar };
 }
 
-function queryComparisonMessage(reason, operator) {
-  if (reason === 'mixed_categories') return 'Cross-type comparison is not supported by this evaluator slice';
+function queryComparisonMessage(reason, operator, leftDescriptor, rightDescriptor) {
+  if (reason === 'mixed_categories') {
+    const categories = leftDescriptor?.category && rightDescriptor?.category
+      ? ` (${leftDescriptor.category} vs ${rightDescriptor.category})`
+      : '';
+    return `Cross-type comparison is not supported${categories}`;
+  }
   if (reason === 'not_equality_comparable') return 'NaN, null, and absence values are not equality-comparable in this evaluator slice';
   if (reason === 'not_orderable' && ['<', '<=', '>', '>='].includes(operator)) return 'Ordering comparison is not defined for this value category';
+  if (reason === 'radix_base_required') return 'Radix numeric comparison requires a resolved base from at least one operand';
+  if (reason === 'mixed_radix_bases') return 'Cross-base radix comparison is not enabled by this value-semantics profile';
+  if (reason === 'invalid_radix_value') return 'Radix payload is invalid for its resolved base';
   return 'Invalid scalar comparison';
 }
 
@@ -5647,7 +6409,12 @@ function materializeAttributeComparableValue(namespace, binding, seen) {
 function materializeBindingComparableValue(namespace, binding, seen) {
   const scalar = getBindingScalarValue(namespace, binding);
   if (scalar.ok && !(scalar.value === undefined && isContainerBinding(namespace, binding))) {
-    return { ok: true, value: scalar.value };
+    return {
+      ok: true,
+      value: {
+        [COMPARABLE_SCALAR_DESCRIPTOR_PROPERTY]: scalarInfoToValueDescriptor(queryScalarToInfo(scalar)),
+      },
+    };
   }
   if (!isContainerBinding(namespace, binding)) return scalar;
   return materializeContainerComparableValue(namespace, binding, seen);
@@ -5657,11 +6424,14 @@ function getBindingScalarInfo(namespace, binding) {
   const kind = getBindingScalarKind(namespace, binding);
   const semanticType = getBindingSemanticType(namespace, binding);
   const nullReason = getBindingNullReason(namespace, binding);
+  const numericLexeme = getBindingNumericLexeme(namespace, binding);
+  const radixBase = getBindingRadixBase(namespace, binding);
+  const radixScale = getBindingRadixScale(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason };
+    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason };
+  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
@@ -5669,6 +6439,13 @@ function getBindingScalarInfo(namespace, binding) {
 }
 
 function containerKindFromBinding(namespace, binding) {
+  const explicitKind = explicitContainerKindFromBinding(namespace, binding);
+  if (explicitKind !== undefined) return explicitKind;
+  if (Array.isArray(binding.children)) return 'container';
+  return undefined;
+}
+
+function explicitContainerKindFromBinding(namespace, binding) {
   const rawKind = typeof namespace.representationKind === 'function'
     ? namespace.representationKind(binding)
     : binding.representationKind ?? binding.kind ?? binding.type ?? binding.literalKind ?? binding.valueKind;
@@ -5677,7 +6454,6 @@ function containerKindFromBinding(namespace, binding) {
   if (['list', 'listNode'].includes(kind)) return 'list';
   if (['tuple', 'tupleLiteral'].includes(kind)) return 'tuple';
   if (['node', 'nodeLiteral'].includes(kind)) return 'node';
-  if (Array.isArray(binding.children)) return 'container';
   return undefined;
 }
 
@@ -5692,6 +6468,7 @@ function getBindingScalarKind(namespace, binding) {
   if (actual === 'NullLiteral') return 'null';
   if (actual === 'NaNLiteral') return 'nan';
   if (actual === 'InfinityLiteral') return 'infinity';
+  if (actual === 'SymbolicLiteral') return 'symbol';
   return typeof actual === 'string' ? lowerFirst(actual) : undefined;
 }
 
@@ -5705,6 +6482,29 @@ function getBindingSemanticType(namespace, binding) {
 function getBindingNullReason(namespace, binding) {
   if (typeof namespace.nullReason === 'function') return namespace.nullReason(binding);
   return binding.nullReason;
+}
+
+function getBindingNumericLexeme(namespace, binding) {
+  if (typeof namespace.numericLexeme === 'function') return namespace.numericLexeme(binding);
+  return typeof binding.numericLexeme === 'string' ? binding.numericLexeme : undefined;
+}
+
+function getBindingRadixBase(namespace, binding) {
+  if (typeof namespace.radixBase === 'function') return namespace.radixBase(binding);
+  if (Number.isInteger(binding.radixBase)) return binding.radixBase;
+  return radixBaseFromSemanticType(getBindingSemanticType(namespace, binding));
+}
+
+function getBindingRadixScale(namespace, binding) {
+  if (typeof namespace.radixScale === 'function') return namespace.radixScale(binding);
+  if (Number.isInteger(binding.radixScale) && binding.radixScale >= 0) return binding.radixScale;
+  const kind = getBindingScalarKind(namespace, binding);
+  if (kind !== 'radix') return undefined;
+  const value = typeof namespace.value === 'function'
+    ? namespace.value(binding)
+    : Object.hasOwn(binding, 'value') ? binding.value : binding.scalar;
+  if (typeof value !== 'string') return undefined;
+  return radixScaleOf(value, getBindingRadixBase(namespace, binding)) ?? undefined;
 }
 
 function getBindingNodeTag(namespace, binding) {
@@ -5735,6 +6535,9 @@ function scalarMetadataFromInfo(info) {
   if (info.kind !== undefined) metadata.kind = info.kind;
   if (info.semanticType !== undefined) metadata.semanticType = info.semanticType;
   if (info.nullReason !== undefined) metadata.nullReason = info.nullReason;
+  if (info.numericLexeme !== undefined) metadata.numericLexeme = info.numericLexeme;
+  if (info.radixBase !== undefined) metadata.radixBase = info.radixBase;
+  if (info.radixScale !== undefined) metadata.radixScale = info.radixScale;
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
@@ -7139,6 +7942,7 @@ class QueryExpressionParser {
     const char = this.peek();
     if (!char) this.fail('Expected SANSA query expression', 'SANSA_QUERY_EXPECTED_EXPRESSION');
     if (char === '"') return this.parseString();
+    if (char === '|') return this.parseSymbol();
     if (char === '#') return this.parseHex();
     if (char === '%') return this.parseRadix();
     if (char === '&') return this.parseEncoding();
@@ -7219,6 +8023,39 @@ class QueryExpressionParser {
       value,
       canonical: quotePayload(value),
     };
+  }
+
+  parseSymbol() {
+    const start = this.index;
+    this.index += 1;
+    let value = '';
+    while (!this.atEnd()) {
+      const char = this.peek();
+      if (char === '|') {
+        this.index += 1;
+        if (value.length === 0) {
+          this.fail('Symbol literals must not be empty', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', start);
+        }
+        return {
+          type: 'literalExpression',
+          kind: 'symbol',
+          value,
+          canonical: symbolPayload(value),
+        };
+      }
+      if (char === '\n' || char === '\r') {
+        this.fail('Symbol literals must not contain raw newlines', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', this.index);
+      }
+      if (char === '\\') {
+        const escape = readSymbolPayloadEscape(this.input, this.index);
+        value += escape.value;
+        this.index = escape.end;
+        continue;
+      }
+      value += char;
+      this.index += 1;
+    }
+    this.fail('Unterminated symbol literal', 'SANSA_QUERY_INVALID_SYMBOL_LITERAL', start);
   }
 
   parseNumber() {
@@ -7419,8 +8256,8 @@ class QueryExpressionParser {
 
   startsTemporalLiteral() {
     const rest = this.input.slice(this.index);
-    return /^\d{4}-\d{2}-\d{2}(?:T|(?=$|[\s,)}\]]))/.test(rest)
-      || /^\d{2}:(?:\d{2})?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?(?=$|[\s,)}\]])/.test(rest);
+    return /^\d{4}-(?=$|[\s,)}\]]|\d|T)/.test(rest)
+      || /^\d{2}:/.test(rest);
   }
 
   readSimpleLiteralPayload() {
@@ -7526,7 +8363,7 @@ class QueryExpressionParser {
         }
         continue;
       }
-      if (char === '"') {
+      if (char === '"' || isSymbolLiteralStart(this.input, this.index)) {
         quote = char;
         this.index += 1;
         continue;
@@ -7637,7 +8474,7 @@ function stripQueryComments(input) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(input, index)) {
       quote = char;
       output += char;
       continue;
@@ -7759,7 +8596,7 @@ function scanInstructionClauses(source) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -7860,7 +8697,7 @@ function findTopLevelInstructionKeyword(source, keyword, start = 0) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -7900,7 +8737,7 @@ function readInstructionToken(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, cursor)) {
       quote = char;
       continue;
     }
@@ -7959,7 +8796,7 @@ function unwrapInstructionDelimitedLiteral(source, open, close, offset) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8010,7 +8847,7 @@ function splitTopLevelInstructionValueList(source, offset) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8081,7 +8918,7 @@ function scanQueryClauses(source) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8175,7 +9012,7 @@ function normalizeQueryExpression(source) {
       }
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       if (pendingSpace && output.length > 0) output += ' ';
       pendingSpace = false;
       quote = char;
@@ -8199,12 +9036,11 @@ function isQueryCurrentPositionalShorthand(source) {
 
 function isQueryTemporalLiteral(source, kind) {
   const date = String.raw`(\d{4})-(\d{2})-(\d{2})`;
-  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2}))?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const zone = String.raw`[A-Za-z0-9_+\-]+(?:/[A-Za-z0-9_+\-]+)*`;
+  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
+  const zone = String.raw`[A-Za-z0-9_+.\-]+(?:/[A-Za-z0-9_+.\-]+)*`;
   if (kind === 'date') {
-    const match = new RegExp(`^${date}$`).exec(source);
-    return Boolean(match) && isValidDateParts(match[1], match[2], match[3]);
+    return parseTemporalDate(source) !== null;
   }
   if (kind === 'time') {
     const match = new RegExp(`^${time}$`).exec(source);
@@ -8229,7 +9065,7 @@ function isValidDateParts(yearText, monthText, dayText) {
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
-  if (month < 1 || month > 12) return false;
+  if (year < 1 || month < 1 || month > 12) return false;
   const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return day >= 1 && day <= days[month - 1];
 }
@@ -8242,11 +9078,11 @@ function isValidTimeMatch(match, offset = 1) {
   const hour = Number(match[offset]);
   const minute = match[offset + 1] === undefined ? null : Number(match[offset + 1]);
   const second = match[offset + 2] === undefined ? null : Number(match[offset + 2]);
-  const zoneHour = match[offset + 4] === undefined ? null : Number(match[offset + 4]);
-  const zoneMinute = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  const zoneHour = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
+  const zoneMinute = match[offset + 6] === undefined ? null : Number(match[offset + 6]);
   if (hour < 0 || hour > 23) return false;
   if (minute !== null && (minute < 0 || minute > 59)) return false;
-  if (second !== null && (second < 0 || second > 59)) return false;
+  if (second !== null && (second < 0 || second > 60)) return false;
   if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
   if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
   return true;
@@ -8309,7 +9145,7 @@ function splitTopLevelQueryList(source) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"' || char === "'") {
+    if (char === '"' || char === "'" || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8342,6 +9178,13 @@ function splitProjectionFields(source) {
     while (isIdentifierContinue(source[cursor] ?? '')) cursor += 1;
     const name = source.slice(nameStart, cursor);
     while (isLayout(source[cursor] ?? '')) cursor += 1;
+    if (source[cursor] === ':') {
+      throw new SansaParseError(
+        "Projection fields use AEON assignment syntax ('name = expression'); ':' is reserved for datatype annotations",
+        cursor,
+        'SANSA_QUERY_INVALID_PROJECTION',
+      );
+    }
     if (source[cursor] !== '=') {
       throw new SansaParseError("Expected '=' after projection field name", cursor, 'SANSA_QUERY_INVALID_PROJECTION');
     }
@@ -8440,7 +9283,7 @@ function findNextProjectionField(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8483,7 +9326,7 @@ function findNextInstructionObjectField(source, start) {
       else if (char === quote) quote = null;
       continue;
     }
-    if (char === '"') {
+    if (char === '"' || isSymbolLiteralStart(source, index)) {
       quote = char;
       continue;
     }
@@ -8519,6 +9362,13 @@ function isComparisonStart(char) {
   return char === '=' || char === '!' || char === '<' || char === '>';
 }
 
+function isSymbolLiteralStart(source, index) {
+  if (source[index] !== '|') return false;
+  if (index === 0 || isLayout(source[index - 1])) return true;
+  if ('([{,=<>!'.includes(source[index - 1])) return true;
+  return /(?:^|[^A-Za-z0-9_])(?:and|or|not|in)$/u.test(source.slice(0, index));
+}
+
 function readQuotedPayloadEscape(source, start) {
   const escape = source[start + 1];
   if (!escape) throw new SansaParseError('Unterminated escape sequence', start, 'SANSA_UNTERMINATED_ESCAPE');
@@ -8537,6 +9387,11 @@ function readQuotedPayloadEscape(source, start) {
     default:
       throw new SansaParseError(`Invalid escape sequence \\${escape}`, start, 'SANSA_INVALID_ESCAPE');
   }
+}
+
+function readSymbolPayloadEscape(source, start) {
+  if (source[start + 1] === '|') return { value: '|', end: start + 2 };
+  return readQuotedPayloadEscape(source, start);
 }
 
 function readUnicodePayloadEscape(source, start) {
@@ -8653,5 +9508,39 @@ function quotePayload(value) {
     }
   }
   output += '"';
+  return output;
+}
+
+function symbolPayload(value) {
+  let output = '|';
+  for (const char of value) {
+    switch (char) {
+      case '\\':
+        output += '\\\\';
+        break;
+      case '|':
+        output += '\\|';
+        break;
+      case '\n':
+        output += '\\n';
+        break;
+      case '\r':
+        output += '\\r';
+        break;
+      case '\t':
+        output += '\\t';
+        break;
+      case '\b':
+        output += '\\b';
+        break;
+      case '\f':
+        output += '\\f';
+        break;
+      default:
+        output += char;
+        break;
+    }
+  }
+  output += '|';
   return output;
 }
