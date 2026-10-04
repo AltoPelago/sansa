@@ -1,17 +1,23 @@
 # SANSA Rust Runtime
 
-This directory contains the unpublished shell for a future host-neutral Rust
-SANSA runtime. It is additive to the released JavaScript implementation and
-does not currently implement or claim SANSA Address, Resolve, Query, or AEON
-Value Semantics conformance.
+This directory contains the unpublished host-neutral Rust SANSA runtime. It is
+additive to the released JavaScript implementation. The current slice directly
+implements the pinned stable `SANSA.Addressing` and `AEON.ValueSemantics`
+minimum-consumer CTS lanes. Resolve and Query remain unimplemented and
+unclaimed.
 
-The initial workspace exists to establish:
+The workspace establishes:
 
 - a SANSA-owned Rust dependency boundary;
 - normalized diagnostic and capability metadata;
-- direct validation of pinned, authoritative CTS manifests; and
+- direct execution of pinned, authoritative stable CTS cases; and
 - CI checks that prevent capabilities from being claimed before their stable
   lanes are implemented.
+
+The Value Semantics implementation includes exact finite-number comparison,
+portable Unicode scalar ordering, and the stable natural-ASCII string profile.
+It deliberately does not claim locale-sensitive collation or the experimental
+radix numeric profiles.
 
 Run the Rust lane from the repository root with:
 

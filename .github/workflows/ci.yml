@@ -34,7 +34,7 @@ jobs:
           toolchain: 1.93.1
           components: rustfmt, clippy
 
-      - name: Rust runtime shell and CTS manifest harness
+      - name: Rust runtime and stable CTS lanes
         run: npm run test:rust
 
   test:
