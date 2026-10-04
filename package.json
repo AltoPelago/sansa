@@ -65,7 +65,8 @@
     "version:check": "node scripts/version.mjs check",
     "version:recover": "node scripts/version.mjs recover",
     "validate:cts-claims": "node scripts/validate-cts-claims.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:rust": "cargo fmt --all --check --manifest-path implementations/rust/Cargo.toml && cargo clippy --locked --workspace --all-targets --manifest-path implementations/rust/Cargo.toml -- -D warnings && cargo test --locked --workspace --all-targets --manifest-path implementations/rust/Cargo.toml"
   },
   "keywords": [
     "sansa",

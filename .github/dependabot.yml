@@ -10,3 +10,8 @@ updates:
     schedule:
       interval: weekly
     versioning-strategy: increase
+
+  - package-ecosystem: cargo
+    directory: /implementations/rust
+    schedule:
+      interval: weekly

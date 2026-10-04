@@ -32,6 +32,7 @@ version is:
 ## Development expectations
 
 - run `npm test` for normal package changes
+- run `npm run test:rust` for Rust runtime or conformance-harness changes
 - run `npm run cts` for conformance-affecting changes
 - run `npm run cts:query:experimental` when touching experimental Query or
   Transform behavior

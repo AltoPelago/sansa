@@ -12,6 +12,31 @@ permissions:
   contents: read
 
 jobs:
+  rust:
+    runs-on: ubuntu-latest
+    env:
+      AEONITE_CTS_ROOT: ${{ github.workspace }}/aeonite-cts/cts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout pinned aeonite-cts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aeonite-org/aeonite-cts
+          ref: 3af0471d627fa91d6b88d079ec1294acbf337315
+          path: aeonite-cts
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.93.1
+          components: rustfmt, clippy
+
+      - name: Rust runtime shell and CTS manifest harness
+        run: npm run test:rust
+
   test:
     runs-on: ubuntu-latest
     strategy:

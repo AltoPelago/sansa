@@ -1,0 +1,16 @@
+[package]
+name = "sansa-runtime"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Unpublished host-neutral Rust runtime shell for SANSA."
+publish = false
+
+[dev-dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+
+[lints]
+workspace = true
