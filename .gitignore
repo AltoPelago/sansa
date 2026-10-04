@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 coverage/
+implementations/rust/target/
 
 # Test/runtime output
 .nyc_output/
