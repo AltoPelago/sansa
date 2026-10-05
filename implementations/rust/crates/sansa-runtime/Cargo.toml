@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Unpublished host-neutral Rust runtime shell for SANSA."
+description = "Unpublished host-neutral Rust runtime for SANSA."
 publish = false
 
 [dev-dependencies]

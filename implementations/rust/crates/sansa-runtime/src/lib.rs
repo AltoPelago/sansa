@@ -1,7 +1,7 @@
-//! Unpublished shell for the host-neutral Rust SANSA runtime.
-//!
-//! The crate currently supplies only capability and diagnostic contracts. It
-//! deliberately makes no Address, Resolve, Query, or Value Semantics claim.
+//! Unpublished host-neutral Rust SANSA runtime.
+
+pub mod address;
+pub mod value_semantics;
 
 /// Stable CTS protocol consumed by this runtime's conformance harness.
 pub const CTS_PROTOCOL: &str = "cts.protocol.v1";
@@ -12,6 +12,8 @@ pub const IMPLEMENTATION_ID: &str = "sansa-runtime-rust";
 /// Implementation state for one conformance lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CapabilityStatus {
+    /// The lane is implemented and exercised directly against its pinned CTS.
+    Implemented,
     /// The lane is known, but no runtime implementation or conformance claim
     /// exists yet.
     NotImplemented,
@@ -34,12 +36,12 @@ pub const STABLE_CTS_LANES: [CtsLane; 4] = [
     CtsLane {
         capability: "AEON.ValueSemantics",
         snapshot_id: "value-semantics-cts-v1-snapshot-0.1",
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
     CtsLane {
         capability: "SANSA.Addressing",
         snapshot_id: "sansa-address-parser-cts-v1-snapshot-0.1",
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
     CtsLane {
         capability: "SANSA.Resolve",
@@ -115,17 +117,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shell_claims_no_runtime_capabilities() {
-        assert!(
-            STABLE_CTS_LANES
-                .iter()
-                .all(|lane| lane.status == CapabilityStatus::NotImplemented)
-        );
+    fn only_slice_one_runtime_capabilities_are_claimed() {
+        assert_eq!(STABLE_CTS_LANES[0].status, CapabilityStatus::Implemented);
+        assert_eq!(STABLE_CTS_LANES[1].status, CapabilityStatus::Implemented);
+        assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::NotImplemented);
+        assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::NotImplemented);
     }
 
     #[test]
     fn normalized_diagnostic_starts_without_invented_context() {
-        let diagnostic = Diagnostic::new("SANSA_NOT_IMPLEMENTED", "runtime shell only");
+        let diagnostic = Diagnostic::new("SANSA_NOT_IMPLEMENTED", "runtime lane unavailable");
 
         assert_eq!(diagnostic.phase, None);
         assert_eq!(diagnostic.selector_index, None);
