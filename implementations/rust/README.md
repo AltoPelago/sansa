@@ -2,9 +2,9 @@
 
 This directory contains the unpublished host-neutral Rust SANSA runtime. It is
 additive to the released JavaScript implementation. The current slice directly
-implements the pinned stable `SANSA.Addressing` and `AEON.ValueSemantics`
-minimum-consumer CTS lanes. Resolve and Query remain unimplemented and
-unclaimed.
+implements the pinned stable `SANSA.Addressing`, `SANSA.Resolve`, and
+`AEON.ValueSemantics` minimum-consumer CTS lanes. Query remains unimplemented
+and unclaimed.
 
 The workspace establishes:
 
@@ -18,6 +18,12 @@ The Value Semantics implementation includes exact finite-number comparison,
 portable Unicode scalar ordering, and the stable natural-ASCII string profile.
 It deliberately does not claim locale-sensitive collation or the experimental
 radix numeric profiles.
+
+Resolve operates on opaque `Clone + Eq` binding handles through a generic host
+namespace trait. Hosts retain their own document representation while exposing
+only the navigation and metadata capabilities they support. Resolution covers
+contextual roots, parent-boundary policy, attribute and local spaces, filters,
+exact multiplicity, and bounded binding materialization.
 
 Run the Rust lane from the repository root with:
 
