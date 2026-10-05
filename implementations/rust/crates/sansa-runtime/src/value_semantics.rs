@@ -1,6 +1,7 @@
 //! Stable AEON minimum-consumer value semantics.
 
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 pub const DEFAULT_PROFILE_ID: &str = "aeon.value.default.v1";
 pub const CODEPOINT_PROFILE_ID: &str = "aeon.value.string.codepoint.v1";
@@ -30,7 +31,7 @@ impl Profile {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
-    FiniteNumber(String),
+    FiniteNumber(FiniteNumber),
     PositiveInfinity,
     NegativeInfinity,
     Nan,
@@ -63,8 +64,35 @@ pub enum Value {
     Missing,
     Container {
         kind: String,
+        payload: ContainerValue,
     },
     BindingSet,
+}
+
+/// A validated, lossless finite-number lexeme.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FiniteNumber(String);
+
+impl FiniteNumber {
+    pub fn parse(value: impl Into<String>) -> Result<Self, ValueError> {
+        let value = value.into();
+        parse_finite_number(&value)?;
+        Ok(Self(value))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Recursive, acyclic payload retained for structural container equality.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerValue {
+    Null,
+    Scalar(Box<Value>),
+    Sequence(Vec<ContainerValue>),
+    Object(BTreeMap<String, ContainerValue>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,7 +171,9 @@ pub fn equal(left: &Value, right: &Value, profile: Profile) -> Result<bool, Valu
                 semantic_type: _,
             },
         ) => lp == rp,
-        (Value::Container { kind: left }, Value::Container { kind: right }) => left == right,
+        (Value::Container { payload: left, .. }, Value::Container { payload: right, .. }) => {
+            structurally_equal(left, right, profile)
+        }
         _ => false,
     })
 }
@@ -240,7 +270,9 @@ fn same_equality_domain(left: &Value, right: &Value) -> bool {
                 ..
             },
         ) => left == right,
-        (Value::Container { kind: left }, Value::Container { kind: right }) => left == right,
+        (Value::Container { kind: left, .. }, Value::Container { kind: right, .. }) => {
+            left == right
+        }
         _ => {
             category(left) == category(right)
                 && matches!(
@@ -327,9 +359,34 @@ fn compare_numeric(left: &Value, right: &Value) -> Result<Ordering, ValueError> 
         (Value::NegativeInfinity, _) | (_, Value::PositiveInfinity) => Ok(Ordering::Less),
         (Value::PositiveInfinity, _) | (_, Value::NegativeInfinity) => Ok(Ordering::Greater),
         (Value::FiniteNumber(left), Value::FiniteNumber(right)) => {
-            compare_finite_numbers(left, right)
+            compare_finite_numbers(left.as_str(), right.as_str())
         }
         _ => Err(mixed_categories()),
+    }
+}
+
+fn structurally_equal(left: &ContainerValue, right: &ContainerValue, profile: Profile) -> bool {
+    match (left, right) {
+        (ContainerValue::Null, ContainerValue::Null) => true,
+        (ContainerValue::Scalar(left), ContainerValue::Scalar(right)) => {
+            equal(left, right, profile).unwrap_or(false)
+        }
+        (ContainerValue::Sequence(left), ContainerValue::Sequence(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| structurally_equal(left, right, profile))
+        }
+        (ContainerValue::Object(left), ContainerValue::Object(right)) => {
+            left.len() == right.len()
+                && left.iter().all(|(key, left)| {
+                    right
+                        .get(key)
+                        .is_some_and(|right| structurally_equal(left, right, profile))
+                })
+        }
+        _ => false,
     }
 }
 
@@ -676,6 +733,40 @@ mod tests {
             Ok(Ordering::Greater)
         );
         assert_eq!(compare_finite_numbers("-0.00", "0"), Ok(Ordering::Equal));
+    }
+
+    #[test]
+    fn finite_numbers_are_validated_before_becoming_values() {
+        assert_eq!(
+            FiniteNumber::parse("invalid").map(Value::FiniteNumber),
+            Err(invalid_number())
+        );
+        let finite = Value::FiniteNumber(FiniteNumber::parse("1").expect("valid fixture"));
+        assert_eq!(
+            compare(&finite, &Value::PositiveInfinity, Profile::Default),
+            Ok(Ordering::Less)
+        );
+    }
+
+    #[test]
+    fn container_equality_retains_and_recurses_through_payloads() {
+        let container = |number| Value::Container {
+            kind: "object".into(),
+            payload: ContainerValue::Object(BTreeMap::from([(
+                "count".into(),
+                ContainerValue::Scalar(Box::new(Value::FiniteNumber(
+                    FiniteNumber::parse(number).expect("valid fixture"),
+                ))),
+            )])),
+        };
+        assert_eq!(
+            equal(&container("1"), &container("1.0"), Profile::Default),
+            Ok(true)
+        );
+        assert_eq!(
+            equal(&container("1"), &container("2"), Profile::Default),
+            Ok(false)
+        );
     }
 
     #[test]

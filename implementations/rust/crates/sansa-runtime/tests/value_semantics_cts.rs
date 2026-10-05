@@ -1,8 +1,11 @@
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use sansa_runtime::value_semantics::{Profile, Value, compare, equal, is_value, not_equal};
+use sansa_runtime::value_semantics::{
+    ContainerValue, FiniteNumber, Profile, Value, compare, equal, is_value, not_equal,
+};
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
@@ -135,7 +138,10 @@ fn descriptor(value: Option<&Descriptor>, id: &str) -> Value {
             .to_owned()
     };
     match value.category.as_str() {
-        "finiteNumber" => Value::FiniteNumber(text()),
+        "finiteNumber" => Value::FiniteNumber(
+            FiniteNumber::parse(text())
+                .unwrap_or_else(|error| panic!("{id}: invalid finite number: {error:?}")),
+        ),
         "positiveInfinity" => Value::PositiveInfinity,
         "negativeInfinity" => Value::NegativeInfinity,
         "nan" => Value::Nan,
@@ -198,9 +204,38 @@ fn descriptor(value: Option<&Descriptor>, id: &str) -> Value {
                 .container_kind
                 .clone()
                 .unwrap_or_else(|| "container".into()),
+            payload: value
+                .value
+                .as_ref()
+                .map(|value| container_value(value, id))
+                .unwrap_or_else(|| ContainerValue::Object(BTreeMap::new())),
         },
         "bindingSet" => Value::BindingSet,
         category => panic!("{id}: unsupported category {category}"),
+    }
+}
+
+fn container_value(value: &JsonValue, id: &str) -> ContainerValue {
+    match value {
+        JsonValue::Null => ContainerValue::Null,
+        JsonValue::Bool(value) => ContainerValue::Scalar(Box::new(Value::Boolean(*value))),
+        JsonValue::Number(value) => ContainerValue::Scalar(Box::new(Value::FiniteNumber(
+            FiniteNumber::parse(value.to_string())
+                .unwrap_or_else(|error| panic!("{id}: invalid nested finite number: {error:?}")),
+        ))),
+        JsonValue::String(value) => ContainerValue::Scalar(Box::new(Value::String(value.clone()))),
+        JsonValue::Array(values) => ContainerValue::Sequence(
+            values
+                .iter()
+                .map(|value| container_value(value, id))
+                .collect(),
+        ),
+        JsonValue::Object(values) => ContainerValue::Object(
+            values
+                .iter()
+                .map(|(key, value)| (key.clone(), container_value(value, id)))
+                .collect(),
+        ),
     }
 }
 
