@@ -23,6 +23,7 @@ const repositoryRoot = path.resolve(
 const expectedPackageName = '@altopelago/sansa';
 const packagePath = path.join(repositoryRoot, 'package.json');
 const capabilitiesPath = path.join(repositoryRoot, 'docs', 'capabilities.json');
+const cargoManifestPath = path.join(repositoryRoot, 'implementations', 'rust', 'Cargo.toml');
 const changelogPath = path.join(repositoryRoot, 'CHANGELOG.md');
 const transactionPath = path.join(repositoryRoot, '.sansa-version-transaction');
 const journalPath = path.join(transactionPath, 'journal.json');
@@ -44,6 +45,13 @@ const transactionTargets = [
     next: path.join(transactionPath, 'capabilities.next'),
     backup: path.join(transactionPath, 'capabilities.backup'),
     restore: path.join(transactionPath, 'capabilities.restore'),
+  },
+  {
+    label: 'implementations/rust/Cargo.toml',
+    path: cargoManifestPath,
+    next: path.join(transactionPath, 'cargo.next'),
+    backup: path.join(transactionPath, 'cargo.backup'),
+    restore: path.join(transactionPath, 'cargo.restore'),
   },
 ];
 
@@ -294,6 +302,30 @@ async function jsonWithReplacedVersion(file, label, currentVersion, nextVersion)
   );
 }
 
+function cargoVersionFromSource(source) {
+  const matches = [...source.matchAll(/^version\s*=\s*"([^"]+)"\s*$/gm)];
+  if (matches.length !== 1) {
+    throw new Error(
+      'implementations/rust/Cargo.toml must contain exactly one workspace package version',
+    );
+  }
+  return matches[0][1];
+}
+
+async function cargoWithReplacedVersion(currentVersion, nextVersion) {
+  const source = await readFile(cargoManifestPath, 'utf8');
+  const actualVersion = cargoVersionFromSource(source);
+  if (actualVersion !== currentVersion) {
+    throw new Error(
+      `implementations/rust/Cargo.toml version ${JSON.stringify(actualVersion)} does not match package version ${JSON.stringify(currentVersion)}`,
+    );
+  }
+  return source.replace(
+    new RegExp(`^(version\\s*=\\s*)"${escapeRegExp(currentVersion)}"[ \\t]*$`, 'm'),
+    `$1${JSON.stringify(nextVersion)}`,
+  );
+}
+
 function releaseHeadingProblem(changelog, version) {
   const releaseHeading = new RegExp(
     `^## ${escapeRegExp(version)} - \\d{4}-\\d{2}-\\d{2}$`,
@@ -305,7 +337,7 @@ function releaseHeadingProblem(changelog, version) {
     : `CHANGELOG.md must have exactly one dated release heading for ${version}`;
 }
 
-function metadataProblems(packageManifest, capabilities, changelog = null) {
+function metadataProblems(packageManifest, capabilities, cargoVersion, changelog = null) {
   const problems = [];
   const version = packageManifest.version;
   if (packageManifest.name !== expectedPackageName) {
@@ -324,6 +356,11 @@ function metadataProblems(packageManifest, capabilities, changelog = null) {
       `docs/capabilities.json version ${JSON.stringify(capabilities.version)} does not match package version ${JSON.stringify(version)}`,
     );
   }
+  if (cargoVersion !== version) {
+    problems.push(
+      `implementations/rust/Cargo.toml version ${JSON.stringify(cargoVersion)} does not match package version ${JSON.stringify(version)}`,
+    );
+  }
   if (changelog !== null && typeof version === 'string') {
     const problem = releaseHeadingProblem(changelog, version);
     if (problem !== null) problems.push(problem);
@@ -332,14 +369,21 @@ function metadataProblems(packageManifest, capabilities, changelog = null) {
 }
 
 async function loadMetadata({ includeChangelog }) {
-  const [packageManifest, capabilities, changelog] = await Promise.all([
+  const [packageManifest, capabilities, cargoManifest, changelog] = await Promise.all([
     readJson(packagePath, 'package.json'),
     readJson(capabilitiesPath, 'docs/capabilities.json'),
+    assertRegularFile(cargoManifestPath, 'implementations/rust/Cargo.toml')
+      .then(() => readFile(cargoManifestPath, 'utf8')),
     includeChangelog
       ? assertRegularFile(changelogPath, 'CHANGELOG.md').then(() => readFile(changelogPath, 'utf8'))
       : Promise.resolve(null),
   ]);
-  return { packageManifest, capabilities, changelog };
+  return {
+    packageManifest,
+    capabilities,
+    cargoVersion: cargoVersionFromSource(cargoManifest),
+    changelog,
+  };
 }
 
 async function checkVersion() {
@@ -348,6 +392,7 @@ async function checkVersion() {
   const problems = metadataProblems(
     metadata.packageManifest,
     metadata.capabilities,
+    metadata.cargoVersion,
     metadata.changelog,
   );
   await Promise.all([
@@ -362,6 +407,10 @@ async function checkVersion() {
       'docs/capabilities.json',
       metadata.capabilities.version,
       metadata.capabilities.version,
+    ),
+    cargoWithReplacedVersion(
+      metadata.packageManifest.version,
+      metadata.packageManifest.version,
     ),
   ]).catch((error) => problems.push(errorMessage(error)));
   if (problems.length > 0) throw new Error(problems.join('; '));
@@ -421,6 +470,7 @@ async function setVersion(version) {
   const problems = metadataProblems(
     metadata.packageManifest,
     metadata.capabilities,
+    metadata.cargoVersion,
     metadata.changelog,
   );
   if (problems.length > 0) {
@@ -449,6 +499,7 @@ async function setVersion(version) {
       metadata.capabilities.version,
       version,
     ),
+    cargoWithReplacedVersion(metadata.packageManifest.version, version),
   ]);
   await writeVersionTransaction(updates);
   console.log(`Set ${expectedPackageName} release metadata to ${version}.`);

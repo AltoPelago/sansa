@@ -1,4 +1,4 @@
-//! Unpublished host-neutral Rust SANSA runtime.
+//! Host-neutral Rust SANSA runtime.
 
 pub mod address;
 pub mod resolve;

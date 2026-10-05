@@ -1,8 +1,9 @@
 # SANSA Rust Runtime
 
-This directory contains the unpublished host-neutral Rust SANSA runtime. It is
-additive to the released JavaScript implementation. The current slice directly
-implements the pinned stable `SANSA.Addressing`, `SANSA.Resolve`, and
+This directory contains the host-neutral Rust SANSA runtime, published as
+`altopelago-sansa-runtime` and imported as `sansa_runtime`. It is additive to
+the JavaScript implementation. The current Rust surface directly implements
+the pinned stable `SANSA.Addressing`, `SANSA.Resolve`, and
 `AEON.ValueSemantics` minimum-consumer CTS lanes. Query remains unimplemented
 and unclaimed.
 
