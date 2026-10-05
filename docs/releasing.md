@@ -29,7 +29,9 @@ must be released from tag `vX.Y.Z`.
 
 ## crates.io setup
 
-Configure a trusted publisher for `altopelago-sansa-runtime`:
+crates.io does not allow a trusted publisher to create a crate. Bootstrap the
+initial release with a conventional crates.io API token, then configure a
+trusted publisher for `altopelago-sansa-runtime`:
 
 - GitHub organization or user: `AltoPelago`
 - Repository: `sansa`
@@ -41,6 +43,29 @@ that the tag resolves to `main`, matches the shared project version, passes all
 implemented stable Rust CTS lanes, and produces a package that builds before
 requesting a short-lived crates.io token through GitHub OIDC. A clean consumer
 then installs and exercises the exact published version.
+
+### Initial crates.io bootstrap
+
+For the initial `0.12.0` publication only:
+
+1. Merge the reviewed Rust-publication PR and confirm CI passes on `main`.
+2. Create the narrowest short-lived crates.io API token that permits publishing
+   a new crate.
+3. From a clean checkout of that `main` commit, run `cargo login`, enter the
+   token when prompted, and then run:
+
+   ```sh
+   cargo publish --locked --manifest-path implementations/rust/crates/sansa-runtime/Cargo.toml
+   ```
+
+4. Run `cargo logout` and revoke the bootstrap token on crates.io.
+5. Configure the trusted publisher above now that the crate exists.
+6. Create and push the signed annotated `rust/v0.12.0` tag from the same
+   reviewed commit. The workflow verifies the existing exact release, skips a
+   duplicate upload, and runs the clean-registry smoke test.
+
+Do not retain the bootstrap token as a GitHub secret. Subsequent Rust releases
+are published by the workflow using short-lived OIDC credentials.
 
 ## Release steps
 
@@ -62,10 +87,9 @@ then installs and exercises the exact published version.
 10. Let `Rust Publish` complete, including its clean-registry smoke test.
 11. Confirm both registry pages show the expected version and provenance.
 
-For the initial Rust-only 0.12.0 publication, create `rust/v0.12.0` from the
-reviewed Rust-publication commit on `main`; the existing npm `v0.12.0` tag and
-artifact remain unchanged. From the next coordinated version onward, create
-both tags from the same checked commit.
+For the initial Rust-only 0.12.0 publication, follow the bootstrap procedure
+above; the existing npm `v0.12.0` tag and artifact remain unchanged. From the
+next coordinated version onward, create both tags from the same checked commit.
 
 `version:set` updates `package.json`, `docs/capabilities.json`, and
 `implementations/rust/Cargo.toml` together.
