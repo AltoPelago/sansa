@@ -1,0 +1,176 @@
+name: Rust Publish
+
+on:
+  push:
+    tags:
+      - "rust/v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify and package crate
+    runs-on: ubuntu-24.04
+    env:
+      AEONITE_CTS_ROOT: ${{ github.workspace }}/aeonite-cts/cts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Checkout pinned aeonite-cts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aeonite-org/aeonite-cts
+          ref: 3af0471d627fa91d6b88d079ec1294acbf337315
+          path: aeonite-cts
+
+      - name: Require signed annotated release tag
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          test "$(git cat-file -t "${GITHUB_REF_NAME}")" = "tag"
+          git cat-file tag "${GITHUB_REF_NAME}" | grep -Eq '^-+BEGIN (PGP|SSH) SIGNATURE-+$'
+
+      - name: Verify tag commit is on main
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          tag_commit="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          git merge-base --is-ancestor "${tag_commit}" origin/main
+
+      - name: Verify release tag signature
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}")"
+          tag_type="$(printf '%s' "${tag_ref}" | jq -r '.object.type')"
+          tag_sha="$(printf '%s' "${tag_ref}" | jq -r '.object.sha')"
+          test "${tag_type}" = "tag"
+          gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" --jq '.verification.verified' | grep -qx true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.93.1
+          components: rustfmt, clippy
+
+      - name: Check version consistency
+        run: npm run version:check
+
+      - name: Match tag to Rust version
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 --manifest-path implementations/rust/Cargo.toml | jq -r '.packages[] | select(.name == "altopelago-sansa-runtime") | .version')"
+          test "rust/v${version}" = "${GITHUB_REF_NAME}"
+
+      - name: Rust runtime and stable CTS lanes
+        run: npm run test:rust
+
+      - name: Package crate
+        run: cargo package --locked --manifest-path implementations/rust/crates/sansa-runtime/Cargo.toml
+
+  publish:
+    name: Publish or verify crate
+    if: ${{ github.event_name == 'push' }}
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/altopelago-sansa-runtime
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.93.1
+
+      - name: Check for an existing exact release
+        id: registry
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#rust/v}"
+          status="$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' \
+            --header 'User-Agent: AltoPelago/sansa Rust release workflow' \
+            "https://crates.io/api/v1/crates/altopelago-sansa-runtime/${version}")"
+          case "${status}" in
+            200) published=true ;;
+            404) published=false ;;
+            *)
+              echo "Unexpected crates.io response: HTTP ${status}" >&2
+              exit 1
+              ;;
+          esac
+          echo "published=${published}" >> "${GITHUB_OUTPUT}"
+
+      - name: Note existing exact release
+        if: ${{ steps.registry.outputs.published == 'true' }}
+        run: echo "The exact crate version already exists; skipping its upload."
+
+      - name: Authenticate with crates.io
+        if: ${{ steps.registry.outputs.published != 'true' }}
+        id: auth
+        uses: rust-lang/crates-io-auth-action@9c067fc5d5c254b33978fed918cb50c032549d0e # main
+
+      - name: Publish crate
+        if: ${{ steps.registry.outputs.published != 'true' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked --manifest-path implementations/rust/crates/sansa-runtime/Cargo.toml
+
+  published-smoke:
+    name: Clean crates.io consumer
+    if: ${{ github.event_name == 'push' }}
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.93.1
+
+      - name: Install and exercise exact published version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#rust/v}"
+          cargo new --bin sansa-registry-smoke
+          cd sansa-registry-smoke
+          cat >> Cargo.toml <<EOF
+          sansa-runtime = { package = "altopelago-sansa-runtime", version = "=${version}" }
+          EOF
+          cat > src/main.rs <<'EOF'
+          use sansa_runtime::address::parse_address;
+          use sansa_runtime::{CapabilityStatus, STABLE_CTS_LANES};
+
+          fn main() {
+              let address = parse_address("$.inventory.items[0]").expect("parse address");
+              assert_eq!(address.canonical, "$.inventory.items[0]");
+              assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
+              assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::NotImplemented);
+          }
+          EOF
+          for attempt in $(seq 1 12); do
+            if cargo fetch; then
+              break
+            fi
+            if [ "${attempt}" -eq 12 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+          cargo run --release

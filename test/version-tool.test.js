@@ -38,6 +38,12 @@ function fixtureSources(version = '1.2.3') {
       '}',
       '',
     ].join('\n'),
+    cargo: [
+      '[workspace.package]',
+      'edition = "2024"',
+      `version = "${version}"`,
+      '',
+    ].join('\n'),
     changelog: `# Changelog\n\n## ${version} - 2026-09-14\n`,
   };
 }
@@ -47,10 +53,12 @@ function createFixture(t, version = '1.2.3') {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'scripts'));
   mkdirSync(join(root, 'docs'));
+  mkdirSync(join(root, 'implementations', 'rust'), { recursive: true });
   copyFileSync(sourceToolPath, join(root, 'scripts', 'version.mjs'));
   const sources = fixtureSources(version);
   writeFileSync(join(root, 'package.json'), sources.package);
   writeFileSync(join(root, 'docs', 'capabilities.json'), sources.capabilities);
+  writeFileSync(join(root, 'implementations', 'rust', 'Cargo.toml'), sources.cargo);
   writeFileSync(join(root, 'CHANGELOG.md'), sources.changelog);
   return { root, sources };
 }
@@ -66,6 +74,7 @@ function readFixture(root) {
   return {
     package: readFileSync(join(root, 'package.json'), 'utf8'),
     capabilities: readFileSync(join(root, 'docs', 'capabilities.json'), 'utf8'),
+    cargo: readFileSync(join(root, 'implementations', 'rust', 'Cargo.toml'), 'utf8'),
   };
 }
 
@@ -78,6 +87,7 @@ function createTransaction(root, state, originals) {
   );
   writeFileSync(join(transaction, 'package.backup'), originals.package);
   writeFileSync(join(transaction, 'capabilities.backup'), originals.capabilities);
+  writeFileSync(join(transaction, 'cargo.backup'), originals.cargo);
   return transaction;
 }
 
@@ -96,11 +106,16 @@ test('version check reports metadata mismatches and missing changelog headings',
     join(root, 'docs', 'capabilities.json'),
     fixtureSources('1.2.4').capabilities,
   );
+  writeFileSync(
+    join(root, 'implementations', 'rust', 'Cargo.toml'),
+    fixtureSources('1.2.4').cargo,
+  );
   writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n');
   const result = runVersion(root, ['check']);
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /does not match package version "1\.2\.3"/);
+  assert.match(result.stderr, /Cargo\.toml version "1\.2\.4"/);
   assert.match(result.stderr, /exactly one dated release heading for 1\.2\.3/);
 });
 
@@ -143,7 +158,7 @@ test('version check refuses symbolic-link metadata targets', {
   assert.match(result.stderr, /must not be a symbolic link/);
 });
 
-test('version set updates both files while preserving surrounding formatting', (t) => {
+test('version set updates all release files while preserving surrounding formatting', (t) => {
   const { root, sources } = createFixture(t);
   const result = runVersion(root, ['set', '1.3.0']);
 
@@ -152,11 +167,12 @@ test('version set updates both files while preserving surrounding formatting', (
   assert.deepEqual(readFixture(root), {
     package: sources.package.replace('"1.2.3"', '"1.3.0"'),
     capabilities: sources.capabilities.replace('"1.2.3"', '"1.3.0"'),
+    cargo: sources.cargo.replace('"1.2.3"', '"1.3.0"'),
   });
   assert.equal(existsSync(join(root, transactionDirectory)), false);
 });
 
-test('version set rejects invalid input without changing either file', (t) => {
+test('version set rejects invalid input without changing release files', (t) => {
   const { root, sources } = createFixture(t);
   const result = runVersion(root, ['set', 'v1.3.0']);
 
@@ -165,6 +181,7 @@ test('version set rejects invalid input without changing either file', (t) => {
   assert.deepEqual(readFixture(root), {
     package: sources.package,
     capabilities: sources.capabilities,
+    cargo: sources.cargo,
   });
 });
 
@@ -178,6 +195,7 @@ test('version set rejects downgrades and equal-precedence build changes', (t) =>
     assert.deepEqual(readFixture(root), {
       package: sources.package,
       capabilities: sources.capabilities,
+      cargo: sources.cargo,
     });
   }
 });
@@ -198,7 +216,7 @@ test('version commands fail closed while a transaction is pending', (t) => {
   }
 });
 
-test('version recovery rolls a prepared partial update back as a pair', (t) => {
+test('version recovery rolls a prepared partial update back as one release set', (t) => {
   const { root, sources } = createFixture(t);
   createTransaction(root, 'prepared', sources);
   writeFileSync(
@@ -212,18 +230,21 @@ test('version recovery rolls a prepared partial update back as a pair', (t) => {
   assert.deepEqual(readFixture(root), {
     package: sources.package,
     capabilities: sources.capabilities,
+    cargo: sources.cargo,
   });
   assert.equal(existsSync(join(root, transactionDirectory)), false);
 });
 
-test('version recovery keeps a committed pair and removes backups', (t) => {
+test('version recovery keeps a committed release set and removes backups', (t) => {
   const { root, sources } = createFixture(t);
   const updated = {
     package: sources.package.replace('"1.2.3"', '"1.3.0"'),
     capabilities: sources.capabilities.replace('"1.2.3"', '"1.3.0"'),
+    cargo: sources.cargo.replace('"1.2.3"', '"1.3.0"'),
   };
   writeFileSync(join(root, 'package.json'), updated.package);
   writeFileSync(join(root, 'docs', 'capabilities.json'), updated.capabilities);
+  writeFileSync(join(root, 'implementations', 'rust', 'Cargo.toml'), updated.cargo);
   createTransaction(root, 'committed', sources);
   const result = runVersion(root, ['recover']);
 
@@ -242,6 +263,7 @@ test('version recovery is harmless when no transaction exists', (t) => {
   assert.deepEqual(readFixture(root), {
     package: sources.package,
     capabilities: sources.capabilities,
+    cargo: sources.cargo,
   });
 });
 
@@ -257,6 +279,7 @@ test('version recovery removes known staging artifacts without a journal', (t) =
   assert.deepEqual(readFixture(root), {
     package: sources.package,
     capabilities: sources.capabilities,
+    cargo: sources.cargo,
   });
   assert.equal(existsSync(transaction), false);
 });
@@ -303,6 +326,7 @@ test('version set automatically rolls back a mid-commit write failure', {
   assert.deepEqual(readFixture(root), {
     package: sources.package,
     capabilities: sources.capabilities,
+    cargo: sources.cargo,
   });
   assert.equal(existsSync(join(root, transactionDirectory)), false);
 });

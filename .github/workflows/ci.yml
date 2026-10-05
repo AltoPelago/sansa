@@ -37,6 +37,9 @@ jobs:
       - name: Rust runtime and stable CTS lanes
         run: npm run test:rust
 
+      - name: Rust package dry-run
+        run: cargo package --locked --manifest-path implementations/rust/crates/sansa-runtime/Cargo.toml
+
   test:
     runs-on: ubuntu-latest
     strategy:

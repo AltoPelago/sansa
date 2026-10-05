@@ -9,6 +9,12 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## 0.12.0 - 2026-10-01
 
+### Added
+
+- Added the publishable `altopelago-sansa-runtime` Rust crate. The initial
+  Rust surface implements the pinned stable Address, Resolve, and shared AEON
+  minimum value-semantics CTS lanes while reporting Query as unimplemented.
+
 ### Changed
 
 - Added AEON symbolic literals to Query, Instruction, mutation target

@@ -1,12 +1,44 @@
 [package]
-name = "sansa-runtime"
-version = "0.0.0"
+name = "altopelago-sansa-runtime"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Unpublished host-neutral Rust runtime for SANSA."
-publish = false
+description = "Host-neutral Rust runtime for SANSA Address, Resolve, and shared AEON value semantics."
+readme = "README.md"
+homepage = "https://github.com/AltoPelago/sansa"
+keywords = ["sansa", "aeon", "address", "resolver", "query"]
+categories = ["parser-implementations", "data-structures"]
+include = ["src/**", "tests/**", "README.md", "LICENSE"]
+autotests = false
+
+[lib]
+name = "sansa_runtime"
+path = "src/lib.rs"
+
+[features]
+cts = []
+
+[[test]]
+name = "address_cts"
+path = "tests/address_cts.rs"
+required-features = ["cts"]
+
+[[test]]
+name = "cts_manifests"
+path = "tests/cts_manifests.rs"
+required-features = ["cts"]
+
+[[test]]
+name = "resolve_cts"
+path = "tests/resolve_cts.rs"
+required-features = ["cts"]
+
+[[test]]
+name = "value_semantics_cts"
+path = "tests/value_semantics_cts.rs"
+required-features = ["cts"]
 
 [dev-dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
