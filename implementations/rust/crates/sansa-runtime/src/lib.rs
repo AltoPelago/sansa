@@ -1,6 +1,7 @@
 //! Unpublished host-neutral Rust SANSA runtime.
 
 pub mod address;
+pub mod resolve;
 pub mod value_semantics;
 
 /// Stable CTS protocol consumed by this runtime's conformance harness.
@@ -46,7 +47,7 @@ pub const STABLE_CTS_LANES: [CtsLane; 4] = [
     CtsLane {
         capability: "SANSA.Resolve",
         snapshot_id: "sansa-resolve-cts-v1-snapshot-0.1",
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
     CtsLane {
         capability: "SANSA.Query",
@@ -117,10 +118,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_slice_one_runtime_capabilities_are_claimed() {
+    fn capability_claims_match_the_implemented_runtime_lanes() {
         assert_eq!(STABLE_CTS_LANES[0].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[1].status, CapabilityStatus::Implemented);
-        assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::NotImplemented);
+        assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::NotImplemented);
     }
 
