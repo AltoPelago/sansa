@@ -7,6 +7,14 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Added
+
+- Added bounded Rust SANSA Query clause and expression parsing, covering all 57
+  stable parser cases from the pinned Query CTS. The syntax surface includes
+  canonical AST rendering, AEON scalar literal families, projections, dynamic
+  `path(...)` sources, and explicit input, token, AST-node, nesting, and literal
+  ceilings. Query evaluation remains unimplemented and unclaimed.
+
 ## 0.12.0 - 2026-10-01
 
 ### Added

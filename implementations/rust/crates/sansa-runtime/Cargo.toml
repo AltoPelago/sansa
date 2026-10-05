@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Host-neutral Rust runtime for SANSA Address, Resolve, and shared AEON value semantics."
+description = "Host-neutral Rust runtime for SANSA Address, Resolve, Query syntax, and shared AEON value semantics."
 readme = "README.md"
 homepage = "https://github.com/AltoPelago/sansa"
 keywords = ["sansa", "aeon", "address", "resolver", "query"]
@@ -33,6 +33,11 @@ required-features = ["cts"]
 [[test]]
 name = "resolve_cts"
 path = "tests/resolve_cts.rs"
+required-features = ["cts"]
+
+[[test]]
+name = "query_parser_cts"
+path = "tests/query_parser_cts.rs"
 required-features = ["cts"]
 
 [[test]]
