@@ -528,56 +528,88 @@ pub fn render_query(query: &Query) -> String {
 
 #[must_use]
 pub fn render_expression(expression: &Expression) -> String {
-    match expression {
-        Expression::Literal(literal) => literal.canonical.clone(),
-        Expression::CurrentBinding => String::from("."),
-        Expression::Resolution { canonical, .. } => canonical.clone(),
-        Expression::Group(inner) => format!("({})", render_expression(inner)),
-        Expression::Unary { argument, .. } => format!("not {}", render_expression(argument)),
-        Expression::Binary {
-            operator,
-            left,
-            right,
-        } => format!(
-            "{} {} {}",
-            render_expression(left),
-            operator.as_str(),
-            render_expression(right)
-        ),
-        Expression::FunctionCall { name, arguments } => format!(
-            "{name}({})",
-            arguments
-                .iter()
-                .map(render_expression)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        Expression::Existence { operator, argument } => format!(
-            "{}({})",
-            match operator {
-                ExistenceOperator::Exists => "exists",
-                ExistenceOperator::Absent => "absent",
-            },
-            render_expression(argument)
-        ),
-        Expression::Cardinality { operator, argument } => format!(
-            "{}({})",
-            match operator {
-                CardinalityOperator::Any => "any",
-                CardinalityOperator::All => "all",
-                CardinalityOperator::None => "none",
-            },
-            render_expression(argument)
-        ),
-        Expression::Projection { fields } => format!(
-            "{{ {} }}",
-            fields
-                .iter()
-                .map(|field| format!("{} = {}", field.name, render_expression(&field.expression)))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ),
+    enum Task<'a> {
+        Expression(&'a Expression),
+        Text(&'a str),
     }
+
+    let mut rendered = String::new();
+    let mut tasks = vec![Task::Expression(expression)];
+    while let Some(task) = tasks.pop() {
+        let Task::Expression(expression) = task else {
+            let Task::Text(text) = task else {
+                unreachable!();
+            };
+            rendered.push_str(text);
+            continue;
+        };
+        match expression {
+            Expression::Literal(literal) => rendered.push_str(&literal.canonical),
+            Expression::CurrentBinding => rendered.push('.'),
+            Expression::Resolution { canonical, .. } => rendered.push_str(canonical),
+            Expression::Group(inner) => {
+                tasks.push(Task::Text(")"));
+                tasks.push(Task::Expression(inner));
+                tasks.push(Task::Text("("));
+            }
+            Expression::Unary { argument, .. } => {
+                tasks.push(Task::Expression(argument));
+                tasks.push(Task::Text("not "));
+            }
+            Expression::Binary {
+                operator,
+                left,
+                right,
+            } => {
+                tasks.push(Task::Expression(right));
+                tasks.push(Task::Text(" "));
+                tasks.push(Task::Text(operator.as_str()));
+                tasks.push(Task::Text(" "));
+                tasks.push(Task::Expression(left));
+            }
+            Expression::FunctionCall { name, arguments } => {
+                tasks.push(Task::Text(")"));
+                for (index, argument) in arguments.iter().enumerate().rev() {
+                    tasks.push(Task::Expression(argument));
+                    if index > 0 {
+                        tasks.push(Task::Text(", "));
+                    }
+                }
+                tasks.push(Task::Text("("));
+                tasks.push(Task::Text(name));
+            }
+            Expression::Existence { operator, argument } => {
+                tasks.push(Task::Text(")"));
+                tasks.push(Task::Expression(argument));
+                tasks.push(Task::Text(match operator {
+                    ExistenceOperator::Exists => "exists(",
+                    ExistenceOperator::Absent => "absent(",
+                }));
+            }
+            Expression::Cardinality { operator, argument } => {
+                tasks.push(Task::Text(")"));
+                tasks.push(Task::Expression(argument));
+                tasks.push(Task::Text(match operator {
+                    CardinalityOperator::Any => "any(",
+                    CardinalityOperator::All => "all(",
+                    CardinalityOperator::None => "none(",
+                }));
+            }
+            Expression::Projection { fields } => {
+                tasks.push(Task::Text(" }"));
+                for (index, field) in fields.iter().enumerate().rev() {
+                    tasks.push(Task::Expression(&field.expression));
+                    tasks.push(Task::Text(" = "));
+                    tasks.push(Task::Text(&field.name));
+                    if index > 0 {
+                        tasks.push(Task::Text(" "));
+                    }
+                }
+                tasks.push(Task::Text("{ "));
+            }
+        }
+    }
+    rendered
 }
 
 #[derive(Debug)]
@@ -1141,6 +1173,7 @@ impl ExpressionParser<'_, '_> {
                 start,
             ));
         }
+        self.check_literal(&reason, start)?;
         let canonical = if valid_identifier(&reason) {
             format!("!{reason}")
         } else {
@@ -1170,6 +1203,7 @@ impl ExpressionParser<'_, '_> {
                 start,
             ));
         }
+        self.check_literal(&source, start)?;
         self.literal(kind, LiteralValue::Text(source.clone()), source)
     }
 
@@ -1189,11 +1223,17 @@ impl ExpressionParser<'_, '_> {
         } else {
             source.clone()
         };
+        let inserted_root = source.starts_with('.') && !positional;
         let address = parse_address(&parse_source).map_err(|error| {
             ParseError::new(
                 error.code,
                 error.message,
-                start + error.index.saturating_sub(1),
+                start
+                    + if inserted_root {
+                        error.index.saturating_sub(1)
+                    } else {
+                        error.index
+                    },
             )
         })?;
         let scope = if source.starts_with('.') {
@@ -1414,7 +1454,7 @@ impl ExpressionParser<'_, '_> {
                 self.advance();
                 continue;
             }
-            if ch == '"' || (ch == '|' && is_symbol_start(self.input, self.index)) {
+            if ch == '"' || ch == '\'' || (ch == '|' && is_symbol_start(self.input, self.index)) {
                 quote = Some(ch);
                 self.advance();
                 continue;
@@ -2017,7 +2057,7 @@ fn find_next_projection_field(source: &str, start: usize) -> Option<usize> {
             if ch == end {
                 quote = None;
             }
-        } else if ch == '"' || (ch == '|' && is_symbol_start(source, index)) {
+        } else if ch == '"' || ch == '\'' || (ch == '|' && is_symbol_start(source, index)) {
             quote = Some(ch);
         } else {
             match ch {
@@ -2202,14 +2242,14 @@ fn valid_time(value: &str, require_colon: bool) -> bool {
         (clock, Some("Z"))
     } else if value.len() >= 6 {
         let split = value.len() - 6;
-        let candidate = &value[split..];
-        if (candidate.starts_with('+') || candidate.starts_with('-'))
-            && candidate.as_bytes().get(3) == Some(&b':')
-        {
-            (&value[..split], Some(candidate))
-        } else {
-            (value, None)
-        }
+        value
+            .get(split..)
+            .zip(value.get(..split))
+            .filter(|(candidate, _)| {
+                (candidate.starts_with('+') || candidate.starts_with('-'))
+                    && candidate.as_bytes().get(3) == Some(&b':')
+            })
+            .map_or((value, None), |(candidate, clock)| (clock, Some(candidate)))
     } else {
         (value, None)
     };
@@ -2417,6 +2457,37 @@ mod tests {
     }
 
     #[test]
+    fn canonical_rendering_handles_long_binary_chains_linearly() {
+        let source = std::iter::repeat_n("true", 4_096)
+            .collect::<Vec<_>>()
+            .join(" and ");
+        let expression = parse_expression(&source).expect("long chain parses within limits");
+        assert_eq!(render_expression(&expression), source);
+    }
+
+    #[test]
+    fn temporal_validation_rejects_non_ascii_offset_boundaries_without_panicking() {
+        let error = parse_expression("12:éaaaaa").expect_err("invalid temporal literal");
+        assert_eq!(error.code, "SANSA_QUERY_INVALID_TEMPORAL_LITERAL");
+    }
+
+    #[test]
+    fn nested_scanners_preserve_single_quoted_separator_payloads() {
+        for source in ["wrap(^'x)y')", "{ value = ^'x}y' next = true }"] {
+            let expression = parse_expression(source).expect(source);
+            assert_eq!(render_expression(&expression), source);
+        }
+    }
+
+    #[test]
+    fn resolution_errors_report_source_relative_offsets() {
+        for (source, expected_index) in [("$.", 2), ("?.", 2), (".[", 2), (".name.", 6)] {
+            let error = parse_expression(source).expect_err(source);
+            assert_eq!(error.index, expected_index, "{source}");
+        }
+    }
+
+    #[test]
     fn query_parser_rejects_malformed_literal_and_projection_edges() {
         for (source, code) in [
             ("||", "SANSA_QUERY_INVALID_SYMBOL_LITERAL"),
@@ -2484,6 +2555,20 @@ mod tests {
                 "\"long\"",
                 ParseLimits {
                     max_literal_bytes: 3,
+                    ..defaults
+                },
+            ),
+            (
+                "!longReason",
+                ParseLimits {
+                    max_literal_bytes: 1,
+                    ..defaults
+                },
+            ),
+            (
+                "23:59",
+                ParseLimits {
+                    max_literal_bytes: 4,
                     ..defaults
                 },
             ),
