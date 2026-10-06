@@ -31,7 +31,7 @@ const EXPECTED_LANES: [ExpectedLane; 4] = [
         manifest: "sansa/v1/sansa-query-parser-cts.v1.json",
         capability: "SANSA.Query",
         snapshot_id: "sansa-query-parser-cts-v1-snapshot-0.2",
-        stable_cases: 217,
+        stable_cases: 226,
         experimental_cases: 13,
     },
 ];

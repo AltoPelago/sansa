@@ -12,7 +12,7 @@ lanes:
 - the `AEON.ValueSemantics` minimum-consumer contract
 
 The Rust Query surface parses the stable clause and expression grammar and
-evaluates the complete stable core lane: 57 parser cases and 160 evaluator
+evaluates the complete stable core lane: 57 parser cases and 169 evaluator
 cases. It preserves opaque host binding handles, typed scalar families,
 binding sets, ordered derived-object fields, deterministic ordering,
 short-circuit behavior, phase-specific budgets, and constrained dynamic

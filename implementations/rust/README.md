@@ -4,8 +4,8 @@ This directory contains the host-neutral Rust SANSA runtime, published as
 `altopelago-sansa-runtime` and imported as `sansa_runtime`. It is additive to
 the JavaScript implementation. The current Rust surface directly implements
 the pinned stable `SANSA.Addressing`, `SANSA.Resolve`, and
-`AEON.ValueSemantics` minimum-consumer CTS lanes, plus all 217 stable core
-`SANSA.Query` cases: 57 parser cases and 160 evaluator cases.
+`AEON.ValueSemantics` minimum-consumer CTS lanes, plus all 226 stable core
+`SANSA.Query` cases: 57 parser cases and 169 evaluator cases.
 
 The workspace establishes:
 

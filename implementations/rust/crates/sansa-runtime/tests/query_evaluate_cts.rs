@@ -260,7 +260,7 @@ fn passes_every_stable_query_evaluation_case() {
                 .is_some_and(|tags| tags.iter().any(|tag| tag == "experimental"))
         })
         .collect::<Vec<_>>();
-    assert_eq!(stable.len(), 160, "{path:?}");
+    assert_eq!(stable.len(), 169, "{path:?}");
 
     let mut failures = Vec::new();
     for test in stable {
