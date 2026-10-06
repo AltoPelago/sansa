@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.13.0 - 2026-10-06
+
 ### Added
 
 - Added bounded Rust SANSA Query clause and expression parsing, covering all 57
@@ -15,11 +17,11 @@ versions may still include breaking changes when the SANSA specifications move.
   `path(...)` sources, and explicit input, token, AST-node, nesting, and literal
   ceilings.
 - Added host-neutral Rust SANSA Query evaluation over opaque namespace handles,
-  covering all 160 stable evaluator cases from the pinned Query CTS. The
+  covering all 169 stable evaluator cases from the pinned Query CTS. The
   evaluator implements From, Where, Order, Offset, Limit, Select, stable
   functions and value families, short-circuiting, deterministic ordering,
   phase-specific budgets, and constrained dynamic-address activation. Together
-  with parsing, the Rust runtime now claims the complete 217-case stable core
+  with parsing, the Rust runtime now claims the complete 226-case stable core
   `SANSA.Query` lane; experimental Transform cases remain excluded.
 
 ## 0.12.0 - 2026-10-01

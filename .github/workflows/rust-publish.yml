@@ -155,13 +155,17 @@ jobs:
           EOF
           cat > src/main.rs <<'EOF'
           use sansa_runtime::address::parse_address;
+          use sansa_runtime::query::parse_query;
           use sansa_runtime::{CapabilityStatus, STABLE_CTS_LANES};
 
           fn main() {
               let address = parse_address("$.inventory.items[0]").expect("parse address");
               assert_eq!(address.canonical, "$.inventory.items[0]");
+              let query = parse_query("from $.inventory.items.*\nselect .sku")
+                  .expect("parse query");
+              assert_eq!(query.canonical, "from $.inventory.items.*\nselect .sku");
               assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
-              assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::NotImplemented);
+              assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::Implemented);
           }
           EOF
           for attempt in $(seq 1 12); do
