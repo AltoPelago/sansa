@@ -4,8 +4,10 @@ This directory contains the host-neutral Rust SANSA runtime, published as
 `altopelago-sansa-runtime` and imported as `sansa_runtime`. It is additive to
 the JavaScript implementation. The current Rust surface directly implements
 the pinned stable `SANSA.Addressing`, `SANSA.Resolve`, and
-`AEON.ValueSemantics` minimum-consumer CTS lanes. Query remains unimplemented
-and unclaimed.
+`AEON.ValueSemantics` minimum-consumer CTS lanes. It also implements the 57
+stable Query clause and expression parser cases with bounded resource usage.
+Query evaluation remains unimplemented, so the complete `SANSA.Query` lane is
+still unclaimed.
 
 The workspace establishes:
 
@@ -25,6 +27,10 @@ namespace trait. Hosts retain their own document representation while exposing
 only the navigation and metadata capabilities they support. Resolution covers
 contextual roots, parent-boundary policy, attribute and local spaces, filters,
 exact multiplicity, and bounded binding materialization.
+
+The Query parser produces a host-neutral syntax AST and canonical source. It
+does not resolve bindings or evaluate expressions. Its default limits bound
+input bytes, consumed tokens, AST nodes, nesting depth, and literal bytes.
 
 Run the Rust lane from the repository root with:
 

@@ -1,6 +1,7 @@
 //! Host-neutral Rust SANSA runtime.
 
 pub mod address;
+pub mod query;
 pub mod resolve;
 pub mod value_semantics;
 
