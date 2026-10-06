@@ -8,16 +8,15 @@ lanes:
 
 - `SANSA.Addressing`
 - `SANSA.Resolve`
+- `SANSA.Query`
 - the `AEON.ValueSemantics` minimum-consumer contract
 
-`SANSA.Query` is intentionally reported as unimplemented. The JavaScript
-`@altopelago/sansa` package remains the released reference implementation for
-Query and the broader experimental surfaces.
-
-The additive Rust surface does parse the stable Query clause and expression
-grammar and passes all 57 parser CTS cases. Parsing is resource-bounded and
-returns a canonical host-neutral AST. This is not a Query capability claim:
-evaluation and its 173 stable CTS cases remain unimplemented.
+The Rust Query surface parses the stable clause and expression grammar and
+evaluates the complete stable core lane: 57 parser cases and 160 evaluator
+cases. It preserves opaque host binding handles, typed scalar families,
+binding sets, ordered derived-object fields, deterministic ordering,
+short-circuit behavior, phase-specific budgets, and constrained dynamic
+address activation. Experimental Transform cases remain excluded.
 
 Resolve operates on opaque `Clone + Eq` binding handles through the `Namespace`
 trait, so hosts retain their own document representation. The runtime does not
@@ -32,7 +31,12 @@ assert_eq!(address.canonical, "$.inventory.items[0]");
 
 let query = parse_query("from $.inventory.items.*\nselect .sku").expect("query parses");
 assert_eq!(query.canonical, "from $.inventory.items.*\nselect .sku");
+
 ```
+
+Hosts implement `resolve::Namespace` over their own opaque binding handles,
+including the defaulted value and canonical-address hooks consumed by
+`evaluate::evaluate_query`.
 
 See the [SANSA repository](https://github.com/AltoPelago/sansa) for contracts,
 conformance details, and the JavaScript implementation.

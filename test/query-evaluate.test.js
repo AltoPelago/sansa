@@ -2809,6 +2809,26 @@ test('evaluates fallback over missing scalar values', () => {
   ].join('\n'), namespace);
   assert.equal(invalidArity.ok, false);
   assert.equal(invalidArity.errors[0].code, 'SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL');
+
+  const emptyValueRoot = binding({
+    address: '$',
+    representationKind: 'object',
+    children: [{ name: 'empty', address: '$.empty' }],
+  });
+  const valueHookNamespace = {
+    root: emptyValueRoot,
+    children: (entry) => entry.children ?? [],
+    value: (entry) => entry.value,
+  };
+  const missingValue = evaluateQuery([
+    'from $',
+    'select { guard = isValue(.empty) replacement = fallback(.empty, "replacement") }',
+  ].join('\n'), valueHookNamespace);
+  assert.equal(missingValue.ok, true, JSON.stringify(missingValue.errors ?? []));
+  assert.deepEqual(missingValue.results[0].value.value, {
+    guard: false,
+    replacement: 'replacement',
+  });
 });
 
 test('evaluates built-in string functions', () => {

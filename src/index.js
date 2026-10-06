@@ -4355,6 +4355,9 @@ function consumeFallbackOperand(value, namespace) {
     };
   }
   const scalar = getBindingScalarValue(namespace, value.bindings[0]);
+  if (!scalar.ok && scalar.error.code === 'SANSA_QUERY_EVALUATE_MISSING_SCALAR') {
+    return { ok: false, missing: true };
+  }
   if (!scalar.ok) return scalar;
   return scalarQueryValue(scalar.value, scalar.metadata);
 }
@@ -6428,10 +6431,17 @@ function getBindingScalarInfo(namespace, binding) {
   const radixBase = getBindingRadixBase(namespace, binding);
   const radixScale = getBindingRadixScale(namespace, binding);
   if (typeof namespace.value === 'function') {
-    return { ok: true, value: namespace.value(binding), kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+    const value = namespace.value(binding);
+    if (value !== undefined) {
+      return { ok: true, value, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+    }
   }
-  if (Object.hasOwn(binding, 'value')) return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
-  if (Object.hasOwn(binding, 'scalar')) return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+  if (Object.hasOwn(binding, 'value') && binding.value !== undefined) {
+    return { ok: true, value: binding.value, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+  }
+  if (Object.hasOwn(binding, 'scalar') && binding.scalar !== undefined) {
+    return { ok: true, value: binding.scalar, kind, semanticType, nullReason, numericLexeme, radixBase, radixScale };
+  }
   return {
     ok: false,
     error: queryEvaluateError('SANSA_QUERY_EVALUATE_MISSING_SCALAR', 'Binding does not expose a scalar value'),
