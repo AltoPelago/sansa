@@ -116,15 +116,22 @@ impl FixtureNamespace {
                 _ => Value::PositiveInfinity,
             },
             "referenceForm" | "cloneReference" | "pointerReference" => {
-                let target = raw["path"]
-                    .as_array()?
-                    .iter()
-                    .map(|item| item.as_str())
-                    .collect::<Option<Vec<_>>>()?
-                    .join(".");
+                let target = if let Some(path) = raw["path"].as_str() {
+                    path.to_owned()
+                } else {
+                    format!(
+                        "$.{}",
+                        raw["path"]
+                            .as_array()?
+                            .iter()
+                            .map(|item| item.as_str())
+                            .collect::<Option<Vec<_>>>()?
+                            .join(".")
+                    )
+                };
                 Value::ReferenceForm {
                     kind: raw["type"].as_str().unwrap_or(kind).into(),
-                    target: format!("$.{target}"),
+                    target,
                 }
             }
             _ if raw.is_string() => Value::String(raw.as_str()?.into()),
@@ -378,6 +385,7 @@ fn options_from_json(source: Option<&JsonValue>) -> EvaluateOptions<usize> {
             match selector.as_str().expect("selector") {
                 "member" => selectors.push(ActivationSelector::Member),
                 "position" => selectors.push(ActivationSelector::Position),
+                "range" => selectors.push(ActivationSelector::Range),
                 "parent" => selectors.push(ActivationSelector::Parent),
                 "attribute" => selectors.push(ActivationSelector::Attribute),
                 "localSpace" => selectors.push(ActivationSelector::LocalSpace),
