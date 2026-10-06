@@ -1,6 +1,7 @@
 //! Host-neutral Rust SANSA runtime.
 
 pub mod address;
+pub mod evaluate;
 pub mod query;
 pub mod resolve;
 pub mod value_semantics;
@@ -53,7 +54,7 @@ pub const STABLE_CTS_LANES: [CtsLane; 4] = [
     CtsLane {
         capability: "SANSA.Query",
         snapshot_id: "sansa-query-parser-cts-v1-snapshot-0.2",
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
 ];
 
@@ -123,7 +124,7 @@ mod tests {
         assert_eq!(STABLE_CTS_LANES[0].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[1].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
-        assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::NotImplemented);
+        assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::Implemented);
     }
 
     #[test]

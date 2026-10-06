@@ -1,6 +1,7 @@
 //! Host-neutral SANSA Address resolution over opaque binding handles.
 
 use crate::address::{Address, Root, Selector, parse_address};
+use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
 
 /// Result of a namespace navigation capability.
@@ -62,6 +63,20 @@ pub trait Namespace {
 
     fn representation_kind_matches(&self, binding: &Self::Binding, expected: &str) -> bool {
         representation_kind_matches(self.representation_kind(binding).as_deref(), expected)
+    }
+
+    /// Return the host-neutral value exposed by a binding.
+    ///
+    /// Containers may return a structural [`Value::Container`] when the host
+    /// can expose a stable snapshot. Returning `None` means the binding does
+    /// not expose a scalar or structural value to Query.
+    fn value(&self, _binding: &Self::Binding) -> Option<Value> {
+        None
+    }
+
+    /// Return the canonical absolute address of a binding when available.
+    fn binding_address(&self, _binding: &Self::Binding) -> Option<String> {
+        None
     }
 }
 

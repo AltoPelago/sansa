@@ -41,6 +41,11 @@ path = "tests/query_parser_cts.rs"
 required-features = ["cts"]
 
 [[test]]
+name = "query_evaluate_cts"
+path = "tests/query_evaluate_cts.rs"
+required-features = ["cts"]
+
+[[test]]
 name = "value_semantics_cts"
 path = "tests/value_semantics_cts.rs"
 required-features = ["cts"]

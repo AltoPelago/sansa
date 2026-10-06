@@ -13,7 +13,14 @@ versions may still include breaking changes when the SANSA specifications move.
   stable parser cases from the pinned Query CTS. The syntax surface includes
   canonical AST rendering, AEON scalar literal families, projections, dynamic
   `path(...)` sources, and explicit input, token, AST-node, nesting, and literal
-  ceilings. Query evaluation remains unimplemented and unclaimed.
+  ceilings.
+- Added host-neutral Rust SANSA Query evaluation over opaque namespace handles,
+  covering all 160 stable evaluator cases from the pinned Query CTS. The
+  evaluator implements From, Where, Order, Offset, Limit, Select, stable
+  functions and value families, short-circuiting, deterministic ordering,
+  phase-specific budgets, and constrained dynamic-address activation. Together
+  with parsing, the Rust runtime now claims the complete 217-case stable core
+  `SANSA.Query` lane; experimental Transform cases remain excluded.
 
 ## 0.12.0 - 2026-10-01
 
