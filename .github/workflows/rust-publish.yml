@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aeonite-org/aeonite-cts
-          ref: 3af0471d627fa91d6b88d079ec1294acbf337315
+          ref: 64a4034c7077d94eedcfe1f12e8e43be1e18249c
           path: aeonite-cts
 
       - name: Require signed annotated release tag
