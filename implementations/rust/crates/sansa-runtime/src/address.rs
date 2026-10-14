@@ -3,6 +3,39 @@
 /// Portable upper bound for positional indexes.
 pub const MAX_POSITION_INDEX: usize = 999_999;
 
+/// Address parser limits that a host may deliberately relax.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseOptions {
+    /// Largest positional index accepted by this parser invocation.
+    ///
+    /// Values above [`MAX_POSITION_INDEX`] are accepted only when the host
+    /// explicitly raises this ceiling and are reported as non-portable.
+    pub max_position_index: usize,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            max_position_index: MAX_POSITION_INDEX,
+        }
+    }
+}
+
+/// Non-fatal diagnostic produced while parsing a locally accepted address.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseWarning {
+    pub code: String,
+    pub message: String,
+    pub index: usize,
+}
+
+/// Parsed address together with any portability diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseOutput {
+    pub address: Address,
+    pub warnings: Vec<ParseWarning>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Address {
     pub root: Root,
@@ -105,7 +138,16 @@ impl ParseError {
 
 /// Parse an Address and produce its canonical spelling.
 pub fn parse_address(input: &str) -> Result<Address, ParseError> {
-    Parser::new(input).parse()
+    parse_address_with_options(input, ParseOptions::default()).map(|output| output.address)
+}
+
+/// Parse an Address with explicit local limits while retaining portability
+/// warnings for values outside the portable profile.
+pub fn parse_address_with_options(
+    input: &str,
+    options: ParseOptions,
+) -> Result<ParseOutput, ParseError> {
+    Parser::new(input, options).parse()
 }
 
 #[must_use]
@@ -216,14 +258,21 @@ fn render_qualifier_term(term: &QualifierTerm) -> String {
 struct Parser<'a> {
     input: &'a str,
     index: usize,
+    options: ParseOptions,
+    warnings: Vec<ParseWarning>,
 }
 
 impl<'a> Parser<'a> {
-    const fn new(input: &'a str) -> Self {
-        Self { input, index: 0 }
+    const fn new(input: &'a str, options: ParseOptions) -> Self {
+        Self {
+            input,
+            index: 0,
+            options,
+            warnings: Vec::new(),
+        }
     }
 
-    fn parse(&mut self) -> Result<Address, ParseError> {
+    fn parse(&mut self) -> Result<ParseOutput, ParseError> {
         let root = match self.peek() {
             Some('$') => Root::Absolute,
             Some('?') => Root::Contextual,
@@ -293,7 +342,10 @@ impl<'a> Parser<'a> {
             canonical: String::new(),
         };
         address.canonical = render_address(&address);
-        Ok(address)
+        Ok(ParseOutput {
+            address,
+            warnings: std::mem::take(&mut self.warnings),
+        })
     }
 
     fn parse_dot_selector(&mut self) -> Result<Selector, ParseError> {
@@ -384,16 +436,29 @@ impl<'a> Parser<'a> {
                 "SANSA_LEADING_ZERO_INDEX",
             ));
         }
-        if exceeds_index_limit(raw) {
+        if exceeds_index_limit(raw, self.options.max_position_index) {
             return Err(ParseError::new(
-                format!("Position indexes must be less than or equal to {MAX_POSITION_INDEX}"),
+                format!(
+                    "Position indexes must be less than or equal to {}",
+                    self.options.max_position_index
+                ),
                 start,
                 "SANSA_POSITION_INDEX_LIMIT_EXCEEDED",
             ));
         }
-        raw.parse()
-            .map(Some)
-            .map_err(|_| ParseError::new("Invalid positional index", start, "SANSA_INVALID_INDEX"))
+        let index = raw.parse().map_err(|_| {
+            ParseError::new("Invalid positional index", start, "SANSA_INVALID_INDEX")
+        })?;
+        if exceeds_index_limit(raw, MAX_POSITION_INDEX) {
+            self.warnings.push(ParseWarning {
+                code: "SANSA_NON_PORTABLE_POSITION_INDEX".into(),
+                message: format!(
+                    "Position index {raw} exceeds the portable limit {MAX_POSITION_INDEX}"
+                ),
+                index: start,
+            });
+        }
+        Ok(Some(index))
     }
 
     fn parse_qualifier_expression(&mut self) -> Result<QualifierExpression, ParseError> {
@@ -640,8 +705,8 @@ fn is_exact_selector(selector: &Selector) -> bool {
             | Selector::LocalSpace { .. }
     )
 }
-fn exceeds_index_limit(raw: &str) -> bool {
-    let max = MAX_POSITION_INDEX.to_string();
+fn exceeds_index_limit(raw: &str, limit: usize) -> bool {
+    let max = limit.to_string();
     raw.len() > max.len() || (raw.len() == max.len() && raw > max.as_str())
 }
 fn is_identifier(value: &str) -> bool {
@@ -710,4 +775,30 @@ fn quote(value: &str) -> String {
     }
     output.push('"');
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_position_limit_remains_strict() {
+        let error = parse_address("$.items[1000000]").expect_err("portable limit");
+        assert_eq!(error.code, "SANSA_POSITION_INDEX_LIMIT_EXCEEDED");
+    }
+
+    #[test]
+    fn relaxed_position_limit_retains_portability_warning() {
+        let output = parse_address_with_options(
+            "$.items[1000000]",
+            ParseOptions {
+                max_position_index: 1_000_000,
+            },
+        )
+        .expect("locally accepted address");
+
+        assert_eq!(output.address.canonical, "$.items[1000000]");
+        assert_eq!(output.warnings.len(), 1);
+        assert_eq!(output.warnings[0].code, "SANSA_NON_PORTABLE_POSITION_INDEX");
+    }
 }
