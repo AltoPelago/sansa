@@ -19,14 +19,88 @@ pub const MUTATION_PLAN_VERSION: &str = "sansa.mutate.plan.v1";
 pub enum MutationValue {
     /// Plain host null with no invented AEON null reason.
     Null,
-    /// One host-neutral AEON/SANSA scalar family.
-    Scalar(Value),
+    /// One validated host-neutral AEON/SANSA scalar family.
+    Scalar(MutationScalar),
     /// Ordered positional values.
     Sequence(Vec<MutationValue>),
     /// Ordered named fields. Duplicate names remain visible to later
     /// validation rather than being overwritten during request construction.
     Object(Vec<(String, MutationValue)>),
 }
+
+impl MutationValue {
+    /// Validate and wrap one scalar value family.
+    pub fn try_scalar(value: Value) -> Result<Self, MutationScalarError> {
+        MutationScalar::try_from(value).map(Self::Scalar)
+    }
+}
+
+/// AEON/SANSA value known not to contain a structural container, a missing
+/// sentinel, or a binding set.
+///
+/// The inner value is private so callers cannot bypass [`MutationValue`]'s
+/// order- and duplicate-preserving structural variants.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MutationScalar(Value);
+
+impl MutationScalar {
+    /// Borrow the validated scalar value.
+    #[must_use]
+    pub const fn as_value(&self) -> &Value {
+        &self.0
+    }
+
+    /// Consume the wrapper and recover the scalar value.
+    #[must_use]
+    pub fn into_value(self) -> Value {
+        self.0
+    }
+}
+
+impl TryFrom<Value> for MutationScalar {
+    type Error = MutationScalarError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let error = match &value {
+            Value::Container { .. } => Some(MutationScalarError::Container),
+            Value::Missing => Some(MutationScalarError::Missing),
+            Value::BindingSet => Some(MutationScalarError::BindingSet),
+            _ => None,
+        };
+        error.map_or_else(|| Ok(Self(value)), Err)
+    }
+}
+
+impl From<MutationScalar> for Value {
+    fn from(value: MutationScalar) -> Self {
+        value.into_value()
+    }
+}
+
+/// Reason a shared value cannot enter the mutation scalar branch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MutationScalarError {
+    /// Structural values must use the ordered mutation tree.
+    Container,
+    /// Missing is an evaluator sentinel, not supplied mutation data.
+    Missing,
+    /// Binding sets are evaluator results, not supplied mutation data.
+    BindingSet,
+}
+
+impl std::fmt::Display for MutationScalarError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Container => {
+                "structural values must use MutationValue::Sequence or MutationValue::Object"
+            }
+            Self::Missing => "Value::Missing is not supplied mutation data",
+            Self::BindingSet => "Value::BindingSet is not supplied mutation data",
+        })
+    }
+}
+
+impl std::error::Error for MutationScalarError {}
 
 /// Inert request or operation provenance.
 ///
@@ -353,24 +427,85 @@ pub struct MutationPrecondition<Binding, State = ()> {
 ///
 /// A plan retains live host bindings and is not a portable serialization or a
 /// grant of mutation authority.
+///
+/// Planner-owned storage is private. Consumers can inspect it through
+/// read-only accessors but cannot rewrite validated operations:
+///
+/// ```compile_fail
+/// use sansa_runtime::mutate::MutationPlan;
+///
+/// fn rewrite<Binding>(plan: &mut MutationPlan<Binding>) {
+///     plan.operations.clear();
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MutationPlan<Binding, State = (), NamespaceState = ()> {
     /// Stable current plan-shape identifier.
-    pub plan_version: &'static str,
+    plan_version: &'static str,
     /// Optional consumer-assigned plan identifier.
-    pub plan_id: Option<String>,
+    plan_id: Option<String>,
     /// Optional host namespace state observed during planning.
-    pub namespace_state: Option<NamespaceState>,
+    namespace_state: Option<NamespaceState>,
     /// Exact operations in deterministic plan order.
-    pub operations: Vec<MutationOperation<Binding, State>>,
+    operations: Vec<MutationOperation<Binding, State>>,
     /// Preconditions evaluated against the planning snapshot.
-    pub preconditions: Vec<MutationPrecondition<Binding, State>>,
+    preconditions: Vec<MutationPrecondition<Binding, State>>,
     /// Optional inert request provenance.
-    pub source_provenance: Option<MutationProvenance>,
+    source_provenance: Option<MutationProvenance>,
     /// Aggregated non-portability diagnostics.
-    pub portability_warnings: Vec<Diagnostic>,
+    portability_warnings: Vec<Diagnostic>,
     /// Non-error diagnostics produced during planning.
-    pub diagnostics: Vec<MutationDiagnostic>,
+    diagnostics: Vec<MutationDiagnostic>,
+}
+
+impl<Binding, State, NamespaceState> MutationPlan<Binding, State, NamespaceState> {
+    /// Stable shape identifier for this plan.
+    #[must_use]
+    pub const fn plan_version(&self) -> &'static str {
+        self.plan_version
+    }
+
+    /// Optional consumer-assigned plan identifier.
+    #[must_use]
+    pub fn plan_id(&self) -> Option<&str> {
+        self.plan_id.as_deref()
+    }
+
+    /// Optional host namespace state observed during planning.
+    #[must_use]
+    pub const fn namespace_state(&self) -> Option<&NamespaceState> {
+        self.namespace_state.as_ref()
+    }
+
+    /// Validated operations in deterministic plan order.
+    #[must_use]
+    pub fn operations(&self) -> &[MutationOperation<Binding, State>] {
+        &self.operations
+    }
+
+    /// Preconditions evaluated against the planning snapshot.
+    #[must_use]
+    pub fn preconditions(&self) -> &[MutationPrecondition<Binding, State>] {
+        &self.preconditions
+    }
+
+    /// Optional inert request provenance.
+    #[must_use]
+    pub const fn source_provenance(&self) -> Option<&MutationProvenance> {
+        self.source_provenance.as_ref()
+    }
+
+    /// Aggregated non-portability diagnostics.
+    #[must_use]
+    pub fn portability_warnings(&self) -> &[Diagnostic] {
+        &self.portability_warnings
+    }
+
+    /// Non-error diagnostics produced during planning.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[MutationDiagnostic] {
+        &self.diagnostics
+    }
 }
 
 /// Mutate-specific phase retained on normalized diagnostics.
@@ -453,7 +588,8 @@ mod tests {
     #[test]
     fn operation_vocabulary_is_closed_and_canonical() {
         let value = MutationValueIntent {
-            value: MutationValue::Scalar(Value::String("B-200".into())),
+            value: MutationValue::try_scalar(Value::String("B-200".into()))
+                .expect("string is scalar"),
             datatype: Some("string".into()),
             kind: None,
         };
@@ -472,11 +608,11 @@ mod tests {
         let value = MutationValue::Object(vec![
             (
                 "second".into(),
-                MutationValue::Scalar(Value::String("B".into())),
+                MutationValue::try_scalar(Value::String("B".into())).expect("string is scalar"),
             ),
             (
                 "first".into(),
-                MutationValue::Scalar(Value::String("A".into())),
+                MutationValue::try_scalar(Value::String("A".into())).expect("string is scalar"),
             ),
             ("second".into(), MutationValue::Null),
         ]);
@@ -501,5 +637,31 @@ mod tests {
         assert_eq!(diagnostic.budget, None);
         assert_eq!(diagnostic.target_format, None);
         assert_eq!(diagnostic.value_path, None);
+    }
+
+    #[test]
+    fn mutation_scalar_rejects_structural_and_evaluator_only_values() {
+        assert_eq!(
+            MutationScalar::try_from(Value::Container {
+                kind: "object".into(),
+                payload: crate::value_semantics::ContainerValue::Null,
+            }),
+            Err(MutationScalarError::Container)
+        );
+        assert_eq!(
+            MutationScalar::try_from(Value::Missing),
+            Err(MutationScalarError::Missing)
+        );
+        assert_eq!(
+            MutationScalar::try_from(Value::BindingSet),
+            Err(MutationScalarError::BindingSet)
+        );
+        assert!(MutationScalar::try_from(Value::Nan).is_ok());
+        assert!(
+            MutationScalar::try_from(Value::ExplicitAbsence {
+                reason: "redacted".into(),
+            })
+            .is_ok()
+        );
     }
 }
