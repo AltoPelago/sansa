@@ -44,3 +44,9 @@ conformance details, and the JavaScript implementation.
 The repository conformance harness is opt-in for registry consumers because it
 requires an authoritative `aeonite-cts` checkout. Set `AEONITE_CTS_ROOT` to its
 `cts` directory and run `cargo test --features cts`.
+
+The crate also contains a proposal-stage SANSA.Mutate type shell and directly
+inventories the pinned experimental Mutate CTS as four independent surfaces:
+plan, target validation, apply, and policy. Every surface remains explicitly
+`NotImplemented`; the crate exposes no planner or apply function and makes no
+SANSA.Mutate capability claim.

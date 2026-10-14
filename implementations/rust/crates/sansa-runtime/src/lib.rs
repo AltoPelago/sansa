@@ -2,6 +2,7 @@
 
 pub mod address;
 pub mod evaluate;
+pub mod mutate;
 pub mod query;
 pub mod resolve;
 pub mod value_semantics;
@@ -21,6 +22,80 @@ pub enum CapabilityStatus {
     /// exists yet.
     NotImplemented,
 }
+
+/// Independently claimable surface inside the experimental SANSA.Mutate CTS
+/// lane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MutateCtsSurface {
+    /// Side-effect-free exact-target plan construction.
+    Plan,
+    /// Post-plan target-surface representability validation.
+    TargetValidation,
+    /// Host-adapter application and stale-target checks.
+    Apply,
+    /// Workbench-only trusted-consumer policy filtering.
+    Policy,
+}
+
+/// One independently tracked surface in the pinned experimental Mutate CTS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExperimentalMutateCtsSlice {
+    /// Host-neutral capability identifier from the CTS manifest.
+    pub capability: &'static str,
+    /// Immutable experimental CTS snapshot identifier.
+    pub snapshot_id: &'static str,
+    /// Profile identifier from the CTS manifest.
+    pub profile: &'static str,
+    /// Independently claimable runtime surface.
+    pub surface: MutateCtsSurface,
+    /// Cases assigned to this surface in the pinned snapshot.
+    pub case_count: usize,
+    /// Current implementation status.
+    pub status: CapabilityStatus,
+}
+
+/// Pinned proposal-stage SANSA.Mutate CTS snapshot.
+pub const MUTATE_CTS_SNAPSHOT_ID: &str = "sansa-mutate-cts-v1-snapshot-0.1";
+
+/// Experimental SANSA.Mutate surfaces tracked independently by the Rust
+/// runtime.
+///
+/// All remain unimplemented in Slice 0. Defining public request and plan types
+/// does not constitute a capability claim.
+pub const EXPERIMENTAL_MUTATE_CTS_SLICES: [ExperimentalMutateCtsSlice; 4] = [
+    ExperimentalMutateCtsSlice {
+        capability: "SANSA.Mutate",
+        snapshot_id: MUTATE_CTS_SNAPSHOT_ID,
+        profile: "mutate-plan-and-policy",
+        surface: MutateCtsSurface::Plan,
+        case_count: 28,
+        status: CapabilityStatus::NotImplemented,
+    },
+    ExperimentalMutateCtsSlice {
+        capability: "SANSA.Mutate",
+        snapshot_id: MUTATE_CTS_SNAPSHOT_ID,
+        profile: "mutate-plan-and-policy",
+        surface: MutateCtsSurface::TargetValidation,
+        case_count: 36,
+        status: CapabilityStatus::NotImplemented,
+    },
+    ExperimentalMutateCtsSlice {
+        capability: "SANSA.Mutate",
+        snapshot_id: MUTATE_CTS_SNAPSHOT_ID,
+        profile: "mutate-plan-and-policy",
+        surface: MutateCtsSurface::Apply,
+        case_count: 18,
+        status: CapabilityStatus::NotImplemented,
+    },
+    ExperimentalMutateCtsSlice {
+        capability: "SANSA.Mutate",
+        snapshot_id: MUTATE_CTS_SNAPSHOT_ID,
+        profile: "mutate-plan-and-policy",
+        surface: MutateCtsSurface::Policy,
+        case_count: 24,
+        status: CapabilityStatus::NotImplemented,
+    },
+];
 
 /// One pinned stable CTS lane tracked by the implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -125,6 +200,15 @@ mod tests {
         assert_eq!(STABLE_CTS_LANES[1].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
         assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::Implemented);
+    }
+
+    #[test]
+    fn experimental_mutate_surfaces_are_not_claimed_by_the_type_shell() {
+        assert!(
+            EXPERIMENTAL_MUTATE_CTS_SLICES
+                .iter()
+                .all(|slice| slice.status == CapabilityStatus::NotImplemented)
+        );
     }
 
     #[test]
