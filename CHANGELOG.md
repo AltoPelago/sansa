@@ -7,6 +7,13 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Added
+
+- Added a proposal-stage Rust SANSA.Mutate type shell and direct inventory of
+  the pinned experimental CTS snapshot. Planning, target validation, apply,
+  and policy remain independent unimplemented surfaces; this does not add a
+  SANSA.Mutate capability claim or mutation hook.
+
 ## 0.13.0 - 2026-10-06
 
 ### Added
