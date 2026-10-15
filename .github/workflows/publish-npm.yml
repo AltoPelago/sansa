@@ -22,10 +22,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Checkout aeonite-cts
+      - name: Checkout pinned aeonite-cts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aeonite-org/aeonite-cts
+          ref: af209336b983c56ed4db974ed376c93f539c25bb
           path: aeonite-cts
 
       - name: Setup Node
@@ -55,6 +56,11 @@ jobs:
 
       - name: Experimental Query CTS
         run: npm run cts:query:experimental
+
+      - name: Next AEON value-alignment CTS
+        run: |
+          node scripts/cts-query.mjs --cts "${AEONITE_CTS_ROOT}/sansa/v1/sansa-query-parser-cts.v1.next.json"
+          node scripts/cts-mutate.mjs --cts "${AEONITE_CTS_ROOT}/sansa/v1/sansa-mutate-cts.v1.next.json"
 
       - name: Stress tests
         run: npm run stress

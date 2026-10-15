@@ -77,7 +77,10 @@ are published by the workflow using short-lived OIDC credentials.
 3. Add the dated `X.Y.Z` release section and human-authored notes to
    `CHANGELOG.md`.
 4. Run `npm run version:check`, the test suite, CTS, stress tests, and package
-   dry-run.
+   dry-run. Keep the CTS checkout pinned to the same reviewed commit in CI and
+   both publish workflows. CI and npm publication also run the Query and Mutate
+   `next` manifests as supplemental AEON value-alignment checks; these do not
+   promote development snapshots into stable conformance claims.
 5. Merge the release-prep PR into `main`.
 6. Confirm CI passes on `main`.
 7. Create tag `vX.Y.Z` from the checked `main` commit.
