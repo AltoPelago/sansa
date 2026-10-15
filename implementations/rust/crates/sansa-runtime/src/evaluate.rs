@@ -1417,6 +1417,16 @@ fn parse_temporal_completion_set(
     payload: &str,
     semantic_type: &str,
 ) -> Option<TemporalCompletionSet> {
+    let kind = match semantic_type {
+        "date" => LiteralKind::Date,
+        "time" => LiteralKind::Time,
+        "datetime" => LiteralKind::Datetime,
+        "wtc" => LiteralKind::Wtc,
+        _ => return None,
+    };
+    if !crate::query::valid_temporal(payload, kind) {
+        return None;
+    }
     if semantic_type == "date" {
         let date = parse_temporal_date(payload)?;
         let month = date.month.unwrap_or(1);
@@ -1885,6 +1895,24 @@ mod tests {
         );
         assert!(output.is_ok(), "{:?}", output.errors);
         assert_eq!(output.results.len(), 1);
+    }
+
+    #[test]
+    fn reduced_date_clocks_and_malformed_descriptors_fail_closed_without_panicking() {
+        for (kind, payload) in [
+            ("datetime", "2024-T10:"),
+            ("wtc", "2024-02T10:&Europe"),
+            ("time", "10::20"),
+            ("time", "12:éaaaaa"),
+            ("date", "éaa-"),
+            ("wtc", "2024-01-01T10:&Local"),
+        ] {
+            assert_eq!(
+                temporal_relation(payload, kind, payload, kind),
+                "incomparable",
+                "{payload}"
+            );
+        }
     }
 
     #[test]

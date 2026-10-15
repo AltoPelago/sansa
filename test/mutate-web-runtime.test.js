@@ -111,6 +111,28 @@ test('mutate web example catalog is grouped and uniquely keyed', () => {
   assert.equal(byId.get('policy-explicit-deny-sku')?.group, 'Policy Boundaries');
 });
 
+testAeonRuntime('prose and trimtick writers preserve decoded gutters, edge newlines, and escapes', async () => {
+  const values = ['\nhello', '\n\nhello', '  hello\n world\n hello', '\t hello\n\t world\n\t hello', 'first\n\nsecond', 'first\n  second', 'path\\`tick\r\n\tend', '', ' \t '];
+  const operations = ['prose', 'trimtick'].flatMap((datatype) => values.map((value, index) => ({
+    op: 'create', parent: '$', name: `${datatype}${index}`, datatype, value,
+  })));
+  const source = 'saved:prose = >`\\n  saved\\n`\nprobe:string = "old"\n';
+  const before = await namespaceFromAeonSource(source);
+  const result = await runMutationForWorkbench({ source, mode: 'apply', requestSource: JSON.stringify({ operations }) });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  const reparsed = await namespaceFromAeonSource(result.source);
+  assert.equal(reparsed.ok, true, JSON.stringify(reparsed.errors));
+  const byName = new Map(reparsed.namespace.root.children.map((entry) => [entry.name, entry]));
+  assert.equal(byName.get('saved').value, before.namespace.root.children.find((entry) => entry.name === 'saved').value);
+  for (const operation of operations) assert.equal(byName.get(operation.name).value, operation.value, operation.name);
+  for (const datatype of ['prose', 'trimtick']) for (const value of ['hello\n', '\n\n', 'first\n \t\nlast']) {
+    const rejected = await runMutationForWorkbench({ source, mode: 'apply', requestSource: JSON.stringify({ op: 'create', parent: '$', name: 'bad', datatype, value }) });
+    assert.equal(rejected.ok, false, `${datatype}:${JSON.stringify(value)}`);
+    assert.equal(rejected.phase, 'target');
+    assert.equal(rejected.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
+  }
+});
+
 testAeonRuntime('mutate web runtime exercises declared catalog expectations', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   for (const example of mutateExamples) {

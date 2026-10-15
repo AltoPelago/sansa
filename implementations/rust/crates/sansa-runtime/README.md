@@ -22,6 +22,15 @@ Resolve operates on opaque `Clone + Eq` binding handles through the `Namespace`
 trait, so hosts retain their own document representation. The runtime does not
 use JSON as its semantic model.
 
+Temporal source and target values follow Core's year/month/day ticks, second
+`60`, arbitrary fractional precision and opaque WTC contexts, not GP/schema
+bounds. Clock-bearing reduced dates remain literal values; the conservative
+temporal relation helper currently reports their disjoint daily completion
+sets as `incomparable`. AEON target validation separately enforces reserved
+`base64` decodability and fails closed on prose/trimtick payloads that cannot
+survive gutter normalization. Opaque encoding families and ordinary strings
+are not narrowed by those datatype-specific checks.
+
 ```rust
 use sansa_runtime::address::parse_address;
 use sansa_runtime::query::parse_query;

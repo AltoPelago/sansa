@@ -13,7 +13,7 @@ use crate::mutate::{
     MutationDiagnostic, MutationOperation, MutationPhase, MutationPlan, MutationTarget,
     MutationValue, MutationValueIntent,
 };
-use crate::query::{Expression, LiteralKind, parse_expression};
+use crate::query::{LiteralKind, valid_temporal};
 use crate::value_semantics::Value;
 
 /// Context supplied to one host-neutral target-surface validator invocation.
@@ -402,6 +402,26 @@ fn validate_aeon_value(
         return validate_aeon_node_value(value, path, operation_index);
     }
     validate_aeon_scalar_value(value, representation.as_deref(), path, operation_index)?;
+    if datatype.is_some_and(|datatype| matches!(datatype_base_name(datatype), "prose" | "trimtick"))
+        && scalar_text(value).is_some_and(|value| !representable_trimtick_payload(value))
+    {
+        return Err(invalid_aeon_value(
+            "Trimtick normalization cannot preserve trailing newlines or whitespace-only content lines",
+            path,
+            operation_index,
+            datatype,
+        ));
+    }
+    if datatype.is_some_and(|datatype| datatype_base_name(datatype) == "base64")
+        && !scalar_text(value).is_some_and(valid_base64url_payload)
+    {
+        return Err(invalid_aeon_value(
+            "base64 requires decodable Base64URL with zero unused tail bits",
+            path,
+            operation_index,
+            datatype,
+        ));
+    }
     match value {
         MutationValue::Sequence(values) => {
             for (index, value) in values.iter().enumerate() {
@@ -1011,6 +1031,40 @@ fn valid_encoding_payload(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
+fn representable_trimtick_payload(value: &str) -> bool {
+    !value.contains('\n')
+        || (!value.ends_with('\n')
+            && value.split('\n').all(|line| {
+                line.is_empty() || !line.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
+            }))
+}
+
+fn valid_base64url_payload(value: &str) -> bool {
+    if !valid_encoding_payload(value) {
+        return false;
+    }
+    let body = value.trim_end_matches('=');
+    let padding = value.len() - body.len();
+    let remainder = body.len() % 4;
+    if remainder == 1
+        || (padding != 0 && !value.len().is_multiple_of(4))
+        || (padding == 1 && remainder != 3)
+        || (padding == 2 && remainder != 2)
+    {
+        return false;
+    }
+    let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let last = alphabet
+        .iter()
+        .position(|byte| Some(byte) == body.as_bytes().last())
+        .expect("validated encoding alphabet");
+    match remainder {
+        2 => last & 15 == 0,
+        3 => last & 3 == 0,
+        _ => true,
+    }
+}
+
 fn valid_separator_payload(value: &str) -> bool {
     if value.is_empty() {
         return false;
@@ -1058,7 +1112,7 @@ fn valid_temporal_payload(value: &str, representation: &str) -> bool {
         "wtc" => LiteralKind::Wtc,
         _ => return false,
     };
-    matches!(parse_expression(value), Ok(Expression::Literal(literal)) if literal.kind == expected)
+    valid_temporal(value, expected)
 }
 
 fn valid_reference_target(value: &str) -> bool {

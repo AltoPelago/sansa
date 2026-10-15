@@ -1887,8 +1887,19 @@ fn strip_comments(input: &str) -> Result<String, ParseError> {
         }
         let next_index = index + ch.len_utf8();
         let next = char_at(input, next_index);
-        if ch == '/' && matches!(next, Some('/') | Some('*')) && !zone_comment_context(input, index)
-        {
+        if ch == '/' && matches!(next, Some('/') | Some('*')) {
+            if zone_comment_context(input, index) {
+                // Keep a comment-looking zone suffix as payload, scanning it
+                // once even if it contains a long run of slashes.
+                while let Some(current) = char_at(input, index) {
+                    if is_layout(current) || matches!(current, ',' | ')' | '}' | ']') {
+                        break;
+                    }
+                    output.push(current);
+                    index += current.len_utf8();
+                }
+                continue;
+            }
             let block = next == Some('*');
             output.push(' ');
             output.push(' ');
@@ -1941,7 +1952,12 @@ fn zone_comment_context(input: &str, slash: usize) -> bool {
     let mut start = slash;
     while let Some(previous) = previous_char_index(input, start) {
         let ch = char_at(input, previous).expect("character boundary");
-        if is_layout(ch) || matches!(ch, ',' | ')' | '}' | ']') {
+        if is_layout(ch)
+            || matches!(
+                ch,
+                ',' | '(' | ')' | '{' | '}' | '[' | ']' | '=' | '<' | '>' | '!'
+            )
+        {
             break;
         }
         start = previous;
@@ -1952,6 +1968,7 @@ fn zone_comment_context(input: &str, slash: usize) -> bool {
             .as_bytes()
             .get(..4)
             .is_some_and(|v| v.iter().all(u8::is_ascii_digit))
+        && prefix.as_bytes().get(4) == Some(&b'-')
         && prefix.contains('T')
         && prefix.contains('&')
 }
@@ -2239,9 +2256,9 @@ fn valid_separator(value: &str) -> bool {
     quote.is_none() && !escaped
 }
 
-fn valid_temporal(value: &str, kind: LiteralKind) -> bool {
+pub(crate) fn valid_temporal(value: &str, kind: LiteralKind) -> bool {
     match kind {
-        LiteralKind::Date => valid_date(value, true),
+        LiteralKind::Date => valid_date(value),
         LiteralKind::Time => valid_time(value, true),
         LiteralKind::Datetime | LiteralKind::Wtc => {
             let (datetime, zone) = if kind == LiteralKind::Wtc {
@@ -2261,21 +2278,25 @@ fn valid_temporal(value: &str, kind: LiteralKind) -> bool {
             let Some((date, time)) = datetime.split_once('T') else {
                 return false;
             };
-            valid_date(date, false) && valid_time(time, false)
+            valid_date(date) && valid_time(time, false)
         }
         _ => false,
     }
 }
 
-fn valid_date(value: &str, allow_reduced: bool) -> bool {
+fn valid_date(value: &str) -> bool {
     let parts = value.split('-').collect::<Vec<_>>();
-    if allow_reduced && parts.len() == 2 && parts[1].is_empty() {
+    if parts.len() == 2 && parts[1].is_empty() {
         return four_digit_year(parts[0]);
     }
-    if allow_reduced && parts.len() == 2 {
+    if parts.len() == 2 {
         return four_digit_year(parts[0]) && two_digits_in(parts[1], 1, 12);
     }
-    if parts.len() != 3 || !four_digit_year(parts[0]) || !two_digits_in(parts[1], 1, 12) {
+    if parts.len() != 3
+        || !four_digit_year(parts[0])
+        || !two_digits_in(parts[1], 1, 12)
+        || !two_digits_in(parts[2], 1, 31)
+    {
         return false;
     }
     let year = parts[0].parse::<u32>().unwrap_or(0);
@@ -2351,6 +2372,7 @@ fn valid_time(value: &str, require_colon: bool) -> bool {
 
 fn valid_zone(value: &str) -> bool {
     !value.is_empty()
+        && (value == "local" || !value.eq_ignore_ascii_case("local"))
         && value.split('/').all(|part| {
             !part.is_empty()
                 && part

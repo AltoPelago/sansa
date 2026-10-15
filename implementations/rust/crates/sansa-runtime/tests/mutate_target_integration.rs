@@ -7,8 +7,268 @@ use sansa_runtime::mutate::{
 use sansa_runtime::mutate_target::{
     ValidateMutationPlanTargetResult, validate_mutation_plan_target,
 };
+use sansa_runtime::query::{Expression, parse_expression, parse_query};
 use sansa_runtime::resolve::{Namespace, Navigation};
 use sansa_runtime::value_semantics::Value;
+
+#[test]
+fn aeon_014_calendar_clock_matrix_aligns_parser_and_native_target_values() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/aeon-014-values.json"))
+            .expect("valid value fixture");
+    let strings = |field: &str| -> Vec<&str> {
+        fixture[field]
+            .as_array()
+            .expect("fixture string array")
+            .iter()
+            .map(|value| value.as_str().expect("fixture string"))
+            .collect()
+    };
+    let namespace = TestNamespace {
+        container_kind: "list",
+        first_child_kind: "string",
+    };
+    let target = |payload: &str, kind: &str, native: bool| {
+        let value = if native {
+            Value::Temporal {
+                payload: payload.into(),
+                semantic_type: kind.into(),
+            }
+        } else {
+            Value::String(payload.into())
+        };
+        let request = MutationRequest {
+            operations: vec![RequestedMutationOperation::Replace(
+                RequestedReplaceOperation {
+                    target: "$.items[0]".into(),
+                    value: MutationValueIntent {
+                        value: MutationValue::try_scalar(value).expect("scalar fixture"),
+                        datatype: (!native).then(|| kind.into()),
+                        kind: None,
+                    },
+                    provenance: None,
+                },
+            )],
+            ..Default::default()
+        };
+        let PlanMutationResult::Planned(plan) =
+            plan_mutation(&request, &namespace, &PlanMutationOptions::default())
+        else {
+            panic!("plan {payload}");
+        };
+        matches!(
+            validate_mutation_plan_target(&plan, "aeon"),
+            ValidateMutationPlanTargetResult::Validated { .. }
+        )
+    };
+    let check = |source: &str, kind: &str| {
+        let Expression::Literal(literal) =
+            parse_expression(source).unwrap_or_else(|error| panic!("{source}: {error:?}"))
+        else {
+            panic!("literal {source}");
+        };
+        assert_eq!(literal.kind.as_str(), kind, "{source}");
+        assert_eq!(literal.canonical, source);
+        assert!(
+            parse_query(&format!("from $.items[0]\nselect {source}")).is_ok(),
+            "{source}"
+        );
+        for native in [true, false] {
+            assert!(target(source, kind, native), "{source} native={native}");
+        }
+    };
+    for date in strings("dates") {
+        check(date, "date");
+    }
+    for clock in strings("clocks")
+        .into_iter()
+        .filter(|clock| clock.contains(':'))
+    {
+        for anchor in strings("anchors") {
+            check(&format!("{clock}{anchor}"), "time");
+        }
+    }
+    for date in strings("dates") {
+        for clock in strings("clocks") {
+            for anchor in strings("anchors") {
+                for context in strings("contexts") {
+                    check(
+                        &format!("{date}T{clock}{anchor}{context}"),
+                        if context.is_empty() {
+                            "datetime"
+                        } else {
+                            "wtc"
+                        },
+                    );
+                }
+            }
+        }
+    }
+    for source in strings("invalid") {
+        assert!(parse_expression(source).is_err(), "{source}");
+        assert!(
+            parse_expression(&format!("temporalRelation({source}, {source})")).is_err(),
+            "nested {source}"
+        );
+        let kind = if source.contains('T') {
+            if source.contains('&') {
+                "wtc"
+            } else {
+                "datetime"
+            }
+        } else if source.contains(':') {
+            "time"
+        } else {
+            "date"
+        };
+        for native in [true, false] {
+            assert!(!target(source, kind, native), "{source} native={native}");
+        }
+    }
+    for (source, kind) in [
+        ("2024-\n", "date"),
+        ("10: //comment", "time"),
+        ("2024-T10: ", "datetime"),
+        ("2024-T10:&local\r", "wtc"),
+    ] {
+        for native in [true, false] {
+            assert!(!target(source, kind, native), "{source:?} native={native}");
+        }
+    }
+}
+
+#[test]
+fn reserved_base64_requires_decodability_without_narrowing_other_encoding_aliases() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/aeon-014-values.json"))
+            .expect("valid value fixture");
+    let namespace = TestNamespace {
+        container_kind: "list",
+        first_child_kind: "string",
+    };
+    for (field, expected) in [
+        ("base64_valid", true),
+        ("base64_opaque_only", false),
+        ("encoding_invalid", false),
+    ] {
+        for payload in fixture[field].as_array().expect("encoding fixture array") {
+            let payload = payload.as_str().expect("encoding fixture string");
+            for datatype in ["base64", "encoding", "embed", "inline"] {
+                for native in [true, false] {
+                    let value = if native {
+                        Value::Encoding(payload.into())
+                    } else {
+                        Value::String(payload.into())
+                    };
+                    let request = MutationRequest {
+                        operations: vec![RequestedMutationOperation::Replace(
+                            RequestedReplaceOperation {
+                                target: "$.items[0]".into(),
+                                value: MutationValueIntent {
+                                    value: MutationValue::try_scalar(value)
+                                        .expect("scalar fixture"),
+                                    datatype: Some(datatype.into()),
+                                    kind: None,
+                                },
+                                provenance: None,
+                            },
+                        )],
+                        ..Default::default()
+                    };
+                    let PlanMutationResult::Planned(plan) =
+                        plan_mutation(&request, &namespace, &PlanMutationOptions::default())
+                    else {
+                        panic!("plan");
+                    };
+                    let accepted = matches!(
+                        validate_mutation_plan_target(&plan, "aeon"),
+                        ValidateMutationPlanTargetResult::Validated { .. }
+                    );
+                    let encoding_lexical = field != "encoding_invalid";
+                    assert_eq!(
+                        accepted,
+                        if datatype == "base64" {
+                            expected
+                        } else {
+                            encoding_lexical
+                        },
+                        "{datatype}:{payload} native={native}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn symbols_and_trimtick_intent_preserve_their_distinct_native_boundaries() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/aeon-014-values.json"))
+            .expect("valid value fixture");
+    let namespace = TestNamespace {
+        container_kind: "list",
+        first_child_kind: "string",
+    };
+    for source in fixture["symbols"].as_array().expect("symbol fixture array") {
+        let source = source.as_str().expect("symbol fixture string");
+        let Expression::Literal(literal) = parse_expression(source).expect("valid symbol") else {
+            panic!("symbol literal");
+        };
+        assert_eq!(literal.kind.as_str(), "symbol");
+        assert!(parse_expression(&literal.canonical).is_ok());
+    }
+    for source in fixture["invalid_symbols"]
+        .as_array()
+        .expect("invalid symbol fixture array")
+    {
+        assert!(parse_expression(source.as_str().expect("invalid symbol string")).is_err());
+    }
+    for (datatype, payload, expected) in [
+        ("symbol", "approved", true),
+        ("symbol", "", false),
+        ("prose", "\nfirst\n\t second", true),
+        ("trimtick", "  first\n second", true),
+        ("prose", "\t ", true),
+        ("trimtick", "", true),
+        ("prose", "first\n", false),
+        ("trimtick", "\n\n", false),
+        ("prose", "first\n \t\nlast", false),
+        ("string", "first\n \t\nlast\n", true),
+    ] {
+        let value = if datatype == "symbol" {
+            Value::Symbol(payload.into())
+        } else {
+            Value::String(payload.into())
+        };
+        let request = MutationRequest {
+            operations: vec![RequestedMutationOperation::Replace(
+                RequestedReplaceOperation {
+                    target: "$.items[0]".into(),
+                    value: MutationValueIntent {
+                        value: MutationValue::try_scalar(value).expect("scalar fixture"),
+                        datatype: Some(datatype.into()),
+                        kind: None,
+                    },
+                    provenance: None,
+                },
+            )],
+            ..Default::default()
+        };
+        let PlanMutationResult::Planned(plan) =
+            plan_mutation(&request, &namespace, &PlanMutationOptions::default())
+        else {
+            panic!("plan");
+        };
+        assert_eq!(
+            matches!(
+                validate_mutation_plan_target(&plan, "aeon"),
+                ValidateMutationPlanTargetResult::Validated { .. }
+            ),
+            expected,
+            "{datatype}: {payload:?}"
+        );
+    }
+}
 
 // Use the real planner and public target-validation entry point: helper-only
 // tests cannot detect a guard attached to the wrong built-in validator.

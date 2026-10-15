@@ -2049,6 +2049,14 @@ function validateAeonTargetValue(value, hints, path, operationIndex) {
   if (representation === 'node') return validateAeonTargetNodeValue(value, path, operationIndex);
   const scalarValidation = validateAeonTargetScalarValue(value, representation, path, operationIndex);
   if (!scalarValidation.ok) return scalarValidation;
+  if (typeof hints.datatype === 'string' && ['prose', 'trimtick'].includes(datatypeBaseName(hints.datatype))
+      && typeof value === 'string' && !isRepresentableTrimtickPayload(value)) {
+    return invalidAeonTargetValue('Trimtick normalization cannot preserve trailing newlines or whitespace-only content lines', path, operationIndex);
+  }
+  if (typeof hints.datatype === 'string' && datatypeBaseName(hints.datatype) === 'base64'
+      && (typeof value !== 'string' || !isDecodableBase64UrlPayload(value))) {
+    return invalidAeonTargetValue('base64 requires decodable Base64URL with zero unused tail bits', path, operationIndex);
+  }
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
       const result = validateAeonTargetValue(value[index], {}, `${path}[${index}]`, operationIndex);
@@ -2121,7 +2129,7 @@ function validateAeonTargetScalarValue(value, representation, path, operationInd
         ? { ok: true }
         : invalidAeonTargetValue('Boolean literals must use boolean payloads', path, operationIndex);
     case 'hex':
-      return typeof value === 'string' && /^[0-9A-Fa-f]+$/.test(value)
+      return typeof value === 'string' && value.trim() === value && /^[0-9A-Fa-f]+$/.test(value)
         ? { ok: true }
         : invalidAeonTargetValue('Hex literals must be non-empty hexadecimal text without the # prefix', path, operationIndex);
     case 'radix':
@@ -5388,6 +5396,7 @@ export function compareTemporalClaims(left, right) {
 function parseTemporalCompletionSet(input) {
   const semanticType = String(input?.semanticType ?? 'temporal');
   const payload = String(input?.payload ?? input?.value ?? '');
+  if (!isQueryTemporalLiteral(payload, semanticType)) return null;
   if (semanticType === 'date') {
     const date = parseTemporalDate(payload);
     if (date === null) return null;
@@ -5425,7 +5434,10 @@ function parseTemporalCompletionSet(input) {
     const marker = base.indexOf('T');
     if (marker === -1) return null;
     date = parseTemporalDate(base.slice(0, marker));
-    if (date === null) return null;
+    // Clock-bearing year/month ticks have disjoint daily completion sets. This
+    // conservative interval comparator must not invent a month/day or flatten
+    // those sets into one interval. Rust returns incomparable for these too.
+    if (date === null || date.month === null || date.day === null) return null;
     clockText = base.slice(marker + 1);
   }
   const clock = parseTemporalClock(clockText, semanticType === 'time');
@@ -5471,6 +5483,7 @@ function temporalCompletionDomain(semanticType, anchor, context) {
 }
 
 function parseTemporalDate(value) {
+  if (value.trim() !== value) return null;
   const yearOnly = /^(\d{4})-$/.exec(value);
   if (yearOnly !== null) {
     const year = Number(yearOnly[1]);
@@ -5490,9 +5503,10 @@ function parseTemporalDate(value) {
 }
 
 function parseTemporalClock(value, requireColon) {
+  if (value.trim() !== value) return null;
   const pattern = requireColon
-    ? /^(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/
-    : /^(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:\d{2})?$/;
+    ? /^(\d{2}):(?:(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(Z|[+-]\d{2}:\d{2})?$/
+    : /^(\d{2})(?::(?:(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?(Z|[+-]\d{2}:\d{2})?$/;
   const match = pattern.exec(value);
   if (match === null) return null;
   const hour = Number(match[1]);
@@ -8272,7 +8286,7 @@ class QueryExpressionParser {
 
   startsTemporalLiteral() {
     const rest = this.input.slice(this.index);
-    return /^\d{4}-(?=$|[\s,)}\]]|\d|T)/.test(rest)
+    return /^\d{4}-/.test(rest)
       || /^\d{2}:/.test(rest);
   }
 
@@ -8495,7 +8509,17 @@ function stripQueryComments(input) {
       output += char;
       continue;
     }
-    if (char === '/' && next === '/' && !isTemporalZoneCommentContext(input, index)) {
+    if (char === '/' && (next === '/' || next === '*') && isTemporalZoneCommentContext(input, index)) {
+      // Preserve the rest of this invalid zone token once, avoiding repeated
+      // backwards scans for a long run of comment-looking slashes.
+      while (index < input.length && !isLayout(input[index]) && ![',', ')', '}', ']'].includes(input[index])) {
+        output += input[index];
+        index += 1;
+      }
+      index -= 1;
+      continue;
+    }
+    if (char === '/' && next === '/') {
       output += '  ';
       index += 1;
       while (index + 1 < input.length && input[index + 1] !== '\n' && input[index + 1] !== '\r') {
@@ -8504,7 +8528,7 @@ function stripQueryComments(input) {
       }
       continue;
     }
-    if (char === '/' && next === '*' && !isTemporalZoneCommentContext(input, index)) {
+    if (char === '/' && next === '*') {
       const start = index;
       output += '  ';
       index += 1;
@@ -8533,13 +8557,11 @@ function stripQueryComments(input) {
 
 function isTemporalZoneCommentContext(input, index) {
   let cursor = index - 1;
-  while (cursor >= 0 && !isLayout(input[cursor]) && ![',', ')', '}', ']'].includes(input[cursor])) {
+  while (cursor >= 0 && !isLayout(input[cursor]) && ![',', '(', ')', '{', '}', '[', ']', '=', '<', '>', '!'].includes(input[cursor])) {
     cursor -= 1;
   }
   const tokenPrefix = input.slice(cursor + 1, index);
-  const date = String.raw`\d{4}-\d{2}-\d{2}`;
-  const datetimeTime = String.raw`\d{2}(?::(?:\d{2})?)?(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?`;
-  return new RegExp(`^${date}T${datetimeTime}&[A-Za-z0-9_+\\-/]*$`).test(tokenPrefix);
+  return /^\d{4}-/.test(tokenPrefix) && tokenPrefix.includes('T') && tokenPrefix.includes('&');
 }
 
 function renderInstruction(instruction) {
@@ -9051,30 +9073,24 @@ function isQueryCurrentPositionalShorthand(source) {
 }
 
 function isQueryTemporalLiteral(source, kind) {
-  const date = String.raw`(\d{4})-(\d{2})-(\d{2})`;
-  const time = String.raw`(\d{2}):(?:(\d{2}))?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const datetimeTime = String.raw`(\d{2})(?::(\d{2})?)?(?::(\d{2})(?:\.(\d+))?)?(?:Z|([+-])(\d{2}):(\d{2}))?`;
-  const zone = String.raw`[A-Za-z0-9_+.\-]+(?:/[A-Za-z0-9_+.\-]+)*`;
-  if (kind === 'date') {
-    return parseTemporalDate(source) !== null;
-  }
-  if (kind === 'time') {
-    const match = new RegExp(`^${time}$`).exec(source);
-    return Boolean(match) && isValidTimeMatch(match);
-  }
-  if (kind === 'datetime') {
-    const match = new RegExp(`^${date}T${datetimeTime}$`).exec(source);
-    return Boolean(match)
-      && isValidDateParts(match[1], match[2], match[3])
-      && isValidTimeMatch(match, 4);
-  }
+  if (kind === 'date') return parseTemporalDate(source) !== null;
+  if (kind === 'time') return parseTemporalClock(source, true) !== null;
+  let datetime = source;
   if (kind === 'wtc') {
-    const match = new RegExp(`^${date}T${datetimeTime}&(${zone})$`).exec(source);
-    return Boolean(match)
-      && isValidDateParts(match[1], match[2], match[3])
-      && isValidTimeMatch(match, 4);
+    const marker = source.indexOf('&');
+    if (marker === -1) return false;
+    datetime = source.slice(0, marker);
+    const zone = source.slice(marker + 1);
+    if (!zone || zone.trim() !== zone
+        || (zone.toLowerCase() === 'local' && zone !== 'local')
+        || !/^[A-Za-z0-9_+.\-]+(?:\/[A-Za-z0-9_+.\-]+)*$/.test(zone)) return false;
+  } else if (kind !== 'datetime') {
+    return false;
   }
-  return false;
+  const marker = datetime.indexOf('T');
+  return marker !== -1
+    && parseTemporalDate(datetime.slice(0, marker)) !== null
+    && parseTemporalClock(datetime.slice(marker + 1), false) !== null;
 }
 
 function isValidDateParts(yearText, monthText, dayText) {
@@ -9090,26 +9106,29 @@ function isLeapYear(year) {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
-function isValidTimeMatch(match, offset = 1) {
-  const hour = Number(match[offset]);
-  const minute = match[offset + 1] === undefined ? null : Number(match[offset + 1]);
-  const second = match[offset + 2] === undefined ? null : Number(match[offset + 2]);
-  const zoneHour = match[offset + 5] === undefined ? null : Number(match[offset + 5]);
-  const zoneMinute = match[offset + 6] === undefined ? null : Number(match[offset + 6]);
-  if (hour < 0 || hour > 23) return false;
-  if (minute !== null && (minute < 0 || minute > 59)) return false;
-  if (second !== null && (second < 0 || second > 60)) return false;
-  if (zoneHour !== null && (zoneHour < 0 || zoneHour > 23)) return false;
-  if (zoneMinute !== null && (zoneMinute < 0 || zoneMinute > 59)) return false;
-  return true;
-}
-
 function isAeonRadixPayload(payload) {
-  return /^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload);
+  return payload.trim() === payload
+    && /^[+-]?(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)(?:\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*))?$|^[+-]?\.(?:[0-9A-Za-z&!](?:_?[0-9A-Za-z&!])*)$/.test(payload);
 }
 
 function isAeonEncodingPayload(payload) {
-  return /^[A-Za-z0-9_-]+={0,2}$/.test(payload);
+  return payload.trim() === payload && /^[A-Za-z0-9_-]+={0,2}$/.test(payload);
+}
+
+function isRepresentableTrimtickPayload(payload) {
+  return !payload.includes('\n') || (!payload.endsWith('\n')
+    && payload.split('\n').every((line) => line.length === 0 || !/^[ \t]+$/.test(line)));
+}
+
+function isDecodableBase64UrlPayload(payload) {
+  if (!isAeonEncodingPayload(payload)) return false;
+  const body = payload.replace(/=+$/, '');
+  const padding = payload.length - body.length;
+  const remainder = body.length % 4;
+  if (remainder === 1 || (padding !== 0 && payload.length % 4 !== 0)
+      || (padding === 1 && remainder !== 3) || (padding === 2 && remainder !== 2)) return false;
+  const last = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(body.at(-1));
+  return remainder === 2 ? (last & 15) === 0 : remainder === 3 ? (last & 3) === 0 : true;
 }
 
 function isAeonSeparatorPayload(payload) {

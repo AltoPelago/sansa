@@ -7,6 +7,33 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Fixed
+
+- Aligned JavaScript and Rust temporal literals and AEON target validation with
+  AEON 0.14.0's year/month date ticks composed with clocks. Exact authored
+  fractional seconds, second 60, offset anchors and opaque WTC contexts remain
+  intact; GP/schema limits are not imposed by the parser.
+- Rejected malformed clock/date fields, noncanonical `Local` case variants,
+  and comment-looking suffixes inside WTC contexts, including nested expressions.
+  Rust target validation checks the complete payload rather than parsing away
+  trailing trivia. Temporal relation helpers fail closed on malformed descriptors
+  and unsupported disjoint date/clock completion sets without panicking or
+  inventing omitted calendar fields.
+- Updated AEON mutation target validation for the recent reserved `base64`
+  decodability rule, while retaining opaque `encoding`, `inline` and `embed`
+  payload semantics.
+- Protected decoded multiline prose/trimtick gutters when the mutation
+  workbench writes AEON source. AEON target validation rejects payloads whose
+  trailing newlines or whitespace-only content lines cannot survive trimtick
+  normalization; ordinary string and Telex payloads are not narrowed.
+
+### Tests
+
+- Added one shared JavaScript/Rust value fixture and a 1,109-case valid
+  calendar/clock matrix, plus malformed boundaries, Base64URL and symbol probes.
+  Tests exercise Query, JavaScript Instruction, native Rust scalar descriptors,
+  target validation and round trips through an available AEON Core runtime.
+
 ## 0.14.0 - 2026-10-15
 
 ### Added
