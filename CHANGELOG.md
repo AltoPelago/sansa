@@ -22,6 +22,10 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Fixed
 
+- Corrected Rust target-validator dispatch so JSON's container and attribute
+  restrictions run in the JSON validator, while AEON accepts those targets.
+  Public API regression coverage now exercises every mutation operation across
+  AEON, JSON, and their default/alias spellings.
 - Hardened the Rust mutation planner so every resolved alias of the namespace
   root is protected from removal, pre-parsed targets are revalidated under the
   planner's Address ceiling, and non-portable Address warnings inside Query

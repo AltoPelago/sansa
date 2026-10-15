@@ -136,9 +136,6 @@ impl<Binding, State, NamespaceState> MutationTargetValidator<Binding, State, Nam
         operation: &MutationOperation<Binding, State>,
         context: MutationTargetValidationContext<'_, Binding, State, NamespaceState>,
     ) -> Vec<MutationDiagnostic> {
-        if let Err(error) = validate_json_operation_targets(operation, context.operation_index) {
-            return vec![error];
-        }
         let Some(intent) = operation_value_intent(operation) else {
             return Vec::new();
         };
@@ -172,6 +169,9 @@ impl<Binding, State, NamespaceState> MutationTargetValidator<Binding, State, Nam
         operation: &MutationOperation<Binding, State>,
         context: MutationTargetValidationContext<'_, Binding, State, NamespaceState>,
     ) -> Vec<MutationDiagnostic> {
+        if let Err(error) = validate_json_operation_targets(operation, context.operation_index) {
+            return vec![error];
+        }
         let Some(intent) = operation_value_intent(operation) else {
             return Vec::new();
         };
