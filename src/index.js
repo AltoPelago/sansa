@@ -2049,6 +2049,8 @@ function validateAeonTargetValue(value, hints, path, operationIndex) {
   if (representation === 'node') return validateAeonTargetNodeValue(value, path, operationIndex);
   const scalarValidation = validateAeonTargetScalarValue(value, representation, path, operationIndex);
   if (!scalarValidation.ok) return scalarValidation;
+  // A reference payload is an address, not the referred value's literal data.
+  if (['cloneReference', 'pointerReference', 'referenceForm'].includes(representation)) return { ok: true };
   if (typeof hints.datatype === 'string' && ['prose', 'trimtick'].includes(datatypeBaseName(hints.datatype))
       && typeof value === 'string' && !isRepresentableTrimtickPayload(value)) {
     return invalidAeonTargetValue('Trimtick normalization cannot preserve trailing newlines or whitespace-only content lines', path, operationIndex);

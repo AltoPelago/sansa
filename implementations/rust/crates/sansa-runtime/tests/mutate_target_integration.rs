@@ -201,6 +201,67 @@ fn reserved_base64_requires_decodability_without_narrowing_other_encoding_aliase
 }
 
 #[test]
+fn base64_reference_values_are_addresses_not_encoding_payloads() {
+    let namespace = TestNamespace {
+        container_kind: "list",
+        first_child_kind: "string",
+    };
+    for kind in ["cloneReference", "pointerReference", "referenceForm"] {
+        for (address, expected) in [
+            ("target", true),
+            ("path.to", true),
+            ("$.target", true),
+            ("$.[\"literal.key\"]", true),
+            ("", false),
+            ("target.*", false),
+            ("target..child", false),
+            ("target child", false),
+        ] {
+            // Native descriptors work with and without a redundant explicit
+            // kind hint; plain strings require the explicit reference kind.
+            for (native, hinted) in [(false, true), (true, true), (true, false)] {
+                let value = if native {
+                    Value::ReferenceForm {
+                        kind: kind.into(),
+                        target: address.into(),
+                    }
+                } else {
+                    Value::String(address.into())
+                };
+                let request = MutationRequest {
+                    operations: vec![RequestedMutationOperation::Replace(
+                        RequestedReplaceOperation {
+                            target: "$.items[0]".into(),
+                            value: MutationValueIntent {
+                                value: MutationValue::try_scalar(value)
+                                    .expect("reference fixture scalar"),
+                                datatype: Some("base64".into()),
+                                kind: hinted.then(|| kind.into()),
+                            },
+                            provenance: None,
+                        },
+                    )],
+                    ..Default::default()
+                };
+                let PlanMutationResult::Planned(plan) =
+                    plan_mutation(&request, &namespace, &PlanMutationOptions::default())
+                else {
+                    panic!("reference fixture plan");
+                };
+                let accepted = matches!(
+                    validate_mutation_plan_target(&plan, "aeon"),
+                    ValidateMutationPlanTargetResult::Validated { .. }
+                );
+                assert_eq!(
+                    accepted, expected,
+                    "{kind}:{address} native={native} hinted={hinted}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn symbols_and_trimtick_intent_preserve_their_distinct_native_boundaries() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/aeon-014-values.json"))

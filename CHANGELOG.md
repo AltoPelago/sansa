@@ -21,7 +21,8 @@ versions may still include breaking changes when the SANSA specifications move.
   inventing omitted calendar fields.
 - Updated AEON mutation target validation for the recent reserved `base64`
   decodability rule, while retaining opaque `encoding`, `inline` and `embed`
-  payload semantics.
+  payload semantics. Clone/pointer reference addresses are validated as addresses,
+  including native Rust descriptors, not decoded as literal Base64URL data.
 - Protected decoded multiline prose/trimtick gutters when the mutation
   workbench writes AEON source. AEON target validation rejects payloads whose
   trailing newlines or whitespace-only content lines cannot survive trimtick

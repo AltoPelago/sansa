@@ -10,8 +10,8 @@ const root = { address: '$', representationKind: 'ObjectLiteral', children: [chi
 child.parent = root;
 const namespace = { root, children: (binding) => binding.children, parent: (binding) => binding.parent };
 
-function target(value, datatype) {
-  const result = planMutation({ op: 'replace', target: '$.value', value, datatype }, namespace);
+function target(value, datatype, kind) {
+  const result = planMutation({ op: 'replace', target: '$.value', value, datatype, ...(kind === undefined ? {} : { kind }) }, namespace);
   assert.equal(result.ok, true, JSON.stringify(result.errors));
   return validateMutationPlanTarget(result.plan, 'aeon');
 }
@@ -69,6 +69,9 @@ test('shared value matrix agrees with an available AEON Core runtime', async (t)
   for (const payload of fixture.base64_valid) {
     assert.equal((await namespaceFromAeonSource(`probe:base64 = &${payload}\n`)).ok, true, payload);
   }
+  for (const prefix of ['~', '~>']) {
+    assert.equal((await namespaceFromAeonSource(`target:base64 = &Zg==\nprobe:base64 = ${prefix}target\n`)).ok, true, prefix);
+  }
   for (const payload of [...fixture.base64_opaque_only, ...fixture.encoding_invalid]) {
     // Source layout follows a token; direct mutation payload whitespace does not.
     if (payload.trim() !== payload) continue;
@@ -102,6 +105,19 @@ test('target validation distinguishes reserved base64 from opaque encoding famil
   for (const [datatype, payload] of [['base64', 'AAA\n'], ['encoding', 'AAA\n'], ['radix', 'ff\n'], ['hex', 'ff\n']]) {
     assert.equal(target(payload, datatype).ok, false, datatype);
   }
+});
+
+test('base64 references validate addresses rather than interpreting them as encoding data', () => {
+  for (const kind of ['cloneReference', 'pointerReference', 'referenceForm']) {
+    for (const address of ['target', 'path.to', '$.target', '$.["literal.key"]']) {
+      assert.equal(target(address, 'base64', kind).ok, true, `${kind}:${address}`);
+    }
+    for (const address of ['', 'target.*', 'target..child', 'target child']) {
+      assert.equal(target(address, 'base64', kind).ok, false, `${kind}:${address}`);
+    }
+  }
+  // The same text remains invalid when it really is Base64URL payload data.
+  assert.equal(target('target', 'base64', 'encoding').ok, false);
 });
 
 test('symbol source families preserve payloads through Query and Instruction', () => {

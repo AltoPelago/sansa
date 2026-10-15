@@ -397,11 +397,24 @@ fn validate_aeon_value(
     validate_aeon_datatype_kind_compatibility(datatype, kind, path, operation_index)?;
     let representation = kind
         .and_then(|value| representation_kind(value, true))
+        .or_else(|| match scalar(value) {
+            Some(Value::ReferenceForm { kind, .. }) => representation_kind(kind, true),
+            _ => None,
+        })
         .or_else(|| datatype.and_then(|value| representation_kind(value, false)));
     if representation.as_deref() == Some("node") {
         return validate_aeon_node_value(value, path, operation_index);
     }
     validate_aeon_scalar_value(value, representation.as_deref(), path, operation_index)?;
+    // Native and hinted references have already passed address validation. Their
+    // text is not a literal payload of the declared/resolved value datatype.
+    if matches!(
+        representation.as_deref(),
+        Some("cloneReference" | "pointerReference" | "referenceForm")
+    ) || matches!(scalar(value), Some(Value::ReferenceForm { .. }))
+    {
+        return Ok(());
+    }
     if datatype.is_some_and(|datatype| matches!(datatype_base_name(datatype), "prose" | "trimtick"))
         && scalar_text(value).is_some_and(|value| !representable_trimtick_payload(value))
     {

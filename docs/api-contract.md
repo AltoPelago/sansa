@@ -1122,6 +1122,11 @@ diagnostic before apply. The workbench protects representable leading empty
 lines and mixed payload indentation when re-emitting trimticks. Ordinary
 quoted-string values and direct Telex string payloads retain their full domain.
 
+These datatype-specific literal checks do not decode reference addresses as
+payload data. Clone/pointer references (including native Rust reference-form
+descriptors) retain address validation; `base64` describes the referred value,
+not the bytes or Base64URL tail bits of its address.
+
 Current comparison policy:
 
 | Operands | Equality | Ordering | Result |
