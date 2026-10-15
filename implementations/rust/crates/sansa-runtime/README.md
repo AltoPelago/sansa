@@ -48,6 +48,8 @@ requires an authoritative `aeonite-cts` checkout. Set `AEONITE_CTS_ROOT` to its
 The crate also contains a proposal-stage, side-effect-free SANSA.Mutate planner.
 `mutate::plan_mutation` directly passes all 28 cases assigned to the pinned
 experimental plan surface while retaining opaque host bindings in an immutable,
-current-process plan. Target validation, apply, and policy remain explicitly
-`NotImplemented`; the crate exposes no mutation hook and does not claim those
-surfaces.
+current-process plan. Targets and precondition addresses share one configurable
+position-index ceiling and preserve non-portability warnings; precondition
+resolution also uses a finite binding ceiling. Target validation, apply, and
+policy remain explicitly `NotImplemented`; the crate exposes no mutation hook
+and does not claim those surfaces.

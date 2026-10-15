@@ -9,17 +9,21 @@
 #![allow(clippy::result_large_err)]
 
 use crate::address::{
-    Address, MAX_POSITION_INDEX, ParseOptions as AddressParseOptions, Root,
-    parse_address_with_options, render_address,
+    Address, MAX_POSITION_INDEX, ParseOptions as AddressParseOptions, parse_address_with_options,
+    render_address,
 };
 use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_expression};
-use crate::query::{parse_expression, render_expression};
+use crate::query::{ParseLimits, parse_expression_with_address_options, render_expression};
 use crate::resolve::{Namespace, Navigation, ResolveOptions, resolve_parsed_address};
 use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
 
 /// Current in-process mutation-plan shape.
 pub const MUTATION_PLAN_VERSION: &str = "sansa.mutate.plan.v1";
+
+/// Fail-closed default for bindings materialized by one precondition
+/// resolution when the caller does not provide a stricter Resolve ceiling.
+pub const DEFAULT_PRECONDITION_MAX_BINDINGS: usize = 100_000;
 
 /// Recursive, order-preserving structured value carried by a mutation request.
 ///
@@ -459,6 +463,8 @@ pub struct MutationPrecondition<Binding, State = ()> {
     pub canonical: String,
     /// Optional exact target retained for candidate-scoped evaluation.
     pub target: Option<MutationTarget<Binding, State>>,
+    /// Non-portable-but-locally-accepted addresses embedded in the expression.
+    pub portability_warnings: Vec<Diagnostic>,
 }
 
 /// Immutable current-process SANSA mutation plan.
@@ -679,12 +685,15 @@ pub fn plan_mutation<N: Namespace>(
     let portability_warnings = operations
         .iter()
         .flat_map(operation_targets)
-        .chain(
-            preconditions
-                .iter()
-                .filter_map(|precondition| precondition.target.as_ref()),
-        )
         .flat_map(|target| target.portability_warnings.iter().cloned())
+        .chain(preconditions.iter().flat_map(|precondition| {
+            precondition
+                .target
+                .iter()
+                .flat_map(|target| target.portability_warnings.iter())
+                .chain(precondition.portability_warnings.iter())
+                .cloned()
+        }))
         .collect();
 
     PlanMutationResult::Planned(MutationPlan {
@@ -771,7 +780,7 @@ fn plan_operation<N: Namespace>(
                 namespace,
                 options,
             )?;
-            if target.address.root == Root::Absolute && target.address.selectors.is_empty() {
+            if namespace.root().as_ref() == Some(&target.binding) {
                 return Err(operation_error(
                     "SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN",
                     "The conservative mutation core does not remove the namespace root",
@@ -949,15 +958,12 @@ fn resolve_exact_target<N: Namespace>(
     namespace: &N,
     options: &PlanMutationOptions<N::Binding>,
 ) -> Result<MutationTarget<N::Binding>, MutationDiagnostic> {
+    let parse_options = AddressParseOptions {
+        max_position_index: options.max_position_index,
+    };
     let (requested_address, address, warnings) = match input {
         MutationAddressInput::Source(source) => {
-            let parsed = parse_address_with_options(
-                source,
-                AddressParseOptions {
-                    max_position_index: options.max_position_index,
-                },
-            )
-            .map_err(|error| {
+            let parsed = parse_address_with_options(source, parse_options).map_err(|error| {
                 operation_error(
                     "SANSA_MUTATE_INVALID_TARGET",
                     format!(
@@ -970,16 +976,28 @@ fn resolve_exact_target<N: Namespace>(
             let warnings = parsed
                 .warnings
                 .into_iter()
-                .map(|warning| {
-                    let mut diagnostic = Diagnostic::new(warning.code, warning.message);
-                    diagnostic.phase = Some(DiagnosticPhase::Parse);
-                    diagnostic
-                })
+                .map(address_warning_diagnostic)
                 .collect();
             (source.clone(), parsed.address, warnings)
         }
         MutationAddressInput::Parsed(address) => {
-            (render_address(address), address.clone(), Vec::new())
+            let source = render_address(address);
+            let parsed = parse_address_with_options(&source, parse_options).map_err(|error| {
+                operation_error(
+                    "SANSA_MUTATE_INVALID_TARGET",
+                    format!(
+                        "{role} address is not valid under the planner's Address limits: {}",
+                        error.message
+                    ),
+                    operation_index,
+                )
+            })?;
+            let warnings = parsed
+                .warnings
+                .into_iter()
+                .map(address_warning_diagnostic)
+                .collect();
+            (source, parsed.address, warnings)
         }
     };
     if !address.is_exact {
@@ -1025,13 +1043,26 @@ fn resolve_exact_target<N: Namespace>(
     })
 }
 
+fn address_warning_diagnostic(warning: crate::address::ParseWarning) -> Diagnostic {
+    let mut diagnostic = Diagnostic::new(warning.code, warning.message);
+    diagnostic.phase = Some(DiagnosticPhase::Parse);
+    diagnostic
+}
+
 fn plan_precondition<N: Namespace>(
     requested: &RequestedMutationPrecondition,
     precondition_index: usize,
     namespace: &N,
     options: &PlanMutationOptions<N::Binding>,
 ) -> Result<MutationPrecondition<N::Binding>, MutationDiagnostic> {
-    let expression = parse_expression(&requested.expression).map_err(|error| {
+    let (expression, portability_warnings) = parse_expression_with_address_options(
+        &requested.expression,
+        ParseLimits::default(),
+        AddressParseOptions {
+            max_position_index: options.max_position_index,
+        },
+    )
+    .map_err(|error| {
         precondition_error(
             "SANSA_MUTATE_INVALID_PRECONDITION",
             format!(
@@ -1041,6 +1072,10 @@ fn plan_precondition<N: Namespace>(
             precondition_index,
         )
     })?;
+    let portability_warnings = portability_warnings
+        .into_iter()
+        .map(address_warning_diagnostic)
+        .collect();
     let target = match requested.target.as_ref() {
         Some(input) => Some(
             resolve_exact_target(input, "precondition target", 0, namespace, options).map_err(
@@ -1065,19 +1100,19 @@ fn plan_precondition<N: Namespace>(
             )
         })?,
     };
+    let mut precondition_resolve = options.resolve.clone();
+    precondition_resolve.max_bindings = Some(
+        precondition_resolve
+            .max_bindings
+            .unwrap_or(DEFAULT_PRECONDITION_MAX_BINDINGS),
+    );
     let evaluate_options = EvaluateOptions {
-        resolve: options.resolve.clone(),
+        resolve: precondition_resolve,
         profile: options.value_semantics,
         ..EvaluateOptions::default()
     };
     let evaluated = evaluate_expression(&expression, &binding, namespace, &evaluate_options)
-        .map_err(|error| {
-            precondition_error(
-                "SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED",
-                error.message,
-                precondition_index,
-            )
-        })?;
+        .map_err(|error| precondition_evaluation_error(error, precondition_index))?;
     match evaluated {
         EvaluatedValue::Scalar(Value::Boolean(true)) => {}
         EvaluatedValue::Scalar(Value::Boolean(false)) => {
@@ -1099,7 +1134,30 @@ fn plan_precondition<N: Namespace>(
         expression: requested.expression.clone(),
         canonical: render_expression(&expression),
         target,
+        portability_warnings,
     })
+}
+
+fn precondition_evaluation_error(
+    error: Diagnostic,
+    precondition_index: usize,
+) -> MutationDiagnostic {
+    if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" {
+        let mut diagnostic = precondition_error(
+            "SANSA_MUTATE_BUDGET_EXCEEDED",
+            error.message,
+            precondition_index,
+        );
+        diagnostic.budget = error.budget;
+        diagnostic.limit = error.limit;
+        diagnostic.observed = error.observed;
+        return diagnostic;
+    }
+    precondition_error(
+        "SANSA_MUTATE_PRECONDITION_EVALUATION_FAILED",
+        error.message,
+        precondition_index,
+    )
 }
 
 fn check_plan_conflict<Binding: Clone + Eq>(
@@ -1415,6 +1473,87 @@ mod tests {
     use super::*;
     use crate::value_semantics::Value;
 
+    struct TestNamespace {
+        positions: Vec<usize>,
+    }
+
+    impl Namespace for TestNamespace {
+        type Binding = usize;
+
+        fn root(&self) -> Option<Self::Binding> {
+            Some(0)
+        }
+
+        fn children(&self, binding: &Self::Binding) -> Vec<Self::Binding> {
+            if *binding == 0 {
+                (1..=self.positions.len()).collect()
+            } else {
+                Vec::new()
+            }
+        }
+
+        fn parent(&self, binding: &Self::Binding) -> Navigation<Self::Binding> {
+            if *binding == 0 {
+                Navigation::Missing
+            } else {
+                Navigation::Binding(0)
+            }
+        }
+
+        fn position(&self, binding: &Self::Binding) -> Option<usize> {
+            binding
+                .checked_sub(1)
+                .and_then(|index| self.positions.get(index).copied())
+        }
+
+        fn representation_kind(&self, binding: &Self::Binding) -> Option<String> {
+            Some(if *binding == 0 { "sequence" } else { "string" }.into())
+        }
+
+        fn value(&self, binding: &Self::Binding) -> Option<Value> {
+            (*binding != 0).then(|| Value::String(format!("value-{binding}")))
+        }
+
+        fn binding_address(&self, binding: &Self::Binding) -> Option<String> {
+            if *binding == 0 {
+                Some("$".into())
+            } else {
+                self.position(binding)
+                    .map(|position| format!("$[{position}]"))
+            }
+        }
+    }
+
+    fn remove_request(target: MutationAddressInput) -> MutationRequest {
+        MutationRequest {
+            operations: vec![RequestedMutationOperation::Remove(
+                RequestedRemoveOperation {
+                    target,
+                    provenance: None,
+                },
+            )],
+            ..MutationRequest::default()
+        }
+    }
+
+    fn replace_request(target: MutationAddressInput) -> MutationRequest {
+        MutationRequest {
+            operations: vec![RequestedMutationOperation::Replace(
+                RequestedReplaceOperation {
+                    target,
+                    value: MutationValueIntent {
+                        value: MutationValue::try_scalar(Value::String("updated".into()))
+                            .expect("string is scalar"),
+                        datatype: None,
+                        kind: None,
+                    },
+                    provenance: None,
+                },
+            )],
+            ..MutationRequest::default()
+        }
+    }
+
     #[test]
     fn operation_vocabulary_is_closed_and_canonical() {
         let value = MutationValueIntent {
@@ -1494,5 +1633,109 @@ mod tests {
             })
             .is_ok()
         );
+    }
+
+    #[test]
+    fn root_remove_guard_uses_the_resolved_binding() {
+        let namespace = TestNamespace { positions: vec![] };
+        let mut options = PlanMutationOptions::default();
+        options.resolve.contextual_root = Some(0);
+
+        let PlanMutationResult::Rejected(errors) =
+            plan_mutation(&remove_request("?".into()), &namespace, &options)
+        else {
+            panic!("contextual alias of root must be rejected");
+        };
+        assert_eq!(errors[0].code, "SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN");
+    }
+
+    #[test]
+    fn parsed_targets_are_revalidated_under_planner_address_limits() {
+        let namespace = TestNamespace {
+            positions: vec![1_000_000],
+        };
+        let parsed = parse_address_with_options(
+            "$[1000000]",
+            AddressParseOptions {
+                max_position_index: 1_000_000,
+            },
+        )
+        .expect("relaxed parse")
+        .address;
+        let request = replace_request(parsed.into());
+
+        let PlanMutationResult::Rejected(errors) =
+            plan_mutation(&request, &namespace, &PlanMutationOptions::default())
+        else {
+            panic!("default planner ceiling must reject the parsed target");
+        };
+        assert_eq!(errors[0].code, "SANSA_MUTATE_INVALID_TARGET");
+
+        let relaxed = PlanMutationOptions {
+            max_position_index: 1_000_000,
+            ..PlanMutationOptions::default()
+        };
+        let PlanMutationResult::Planned(plan) = plan_mutation(&request, &namespace, &relaxed)
+        else {
+            panic!("raised planner ceiling should accept the parsed target");
+        };
+        assert_eq!(
+            plan.portability_warnings()[0].code,
+            "SANSA_NON_PORTABLE_POSITION_INDEX"
+        );
+    }
+
+    #[test]
+    fn precondition_addresses_share_the_planner_ceiling_and_warnings() {
+        let namespace = TestNamespace {
+            positions: vec![1_000_000],
+        };
+        let request = MutationRequest {
+            preconditions: vec![RequestedMutationPrecondition {
+                expression: "exists($[1000000])".into(),
+                target: None,
+            }],
+            ..MutationRequest::default()
+        };
+        let options = PlanMutationOptions {
+            max_position_index: 1_000_000,
+            ..PlanMutationOptions::default()
+        };
+
+        let PlanMutationResult::Planned(plan) = plan_mutation(&request, &namespace, &options)
+        else {
+            panic!("relaxed precondition address should plan");
+        };
+        assert_eq!(
+            plan.portability_warnings()[0].code,
+            "SANSA_NON_PORTABLE_POSITION_INDEX"
+        );
+        assert_eq!(plan.preconditions()[0].portability_warnings.len(), 1);
+    }
+
+    #[test]
+    fn precondition_resolution_is_bounded_and_normalized() {
+        let namespace = TestNamespace {
+            positions: vec![0, 1],
+        };
+        let request = MutationRequest {
+            preconditions: vec![RequestedMutationPrecondition {
+                expression: "exists($.*)".into(),
+                target: None,
+            }],
+            ..MutationRequest::default()
+        };
+        let mut options = PlanMutationOptions::default();
+        options.resolve.max_bindings = Some(1);
+
+        let PlanMutationResult::Rejected(errors) = plan_mutation(&request, &namespace, &options)
+        else {
+            panic!("precondition resolution over its ceiling must reject");
+        };
+        assert_eq!(errors[0].code, "SANSA_MUTATE_BUDGET_EXCEEDED");
+        assert_eq!(errors[0].budget.as_deref(), Some("maxBindings"));
+        assert_eq!(errors[0].limit, Some(1));
+        assert_eq!(errors[0].observed, Some(2));
+        assert_eq!(errors[0].precondition_index, Some(0));
     }
 }

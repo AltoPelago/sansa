@@ -17,6 +17,15 @@ versions may still include breaking changes when the SANSA specifications move.
   and policy remain independent unimplemented surfaces; no mutation hook is
   exposed.
 
+### Fixed
+
+- Hardened the Rust mutation planner so every resolved alias of the namespace
+  root is protected from removal, pre-parsed targets are revalidated under the
+  planner's Address ceiling, and non-portable Address warnings inside Query
+  preconditions are retained on the plan. Precondition resolution now has a
+  finite default binding ceiling and reports exhaustion through the normalized
+  mutation budget diagnostic.
+
 ## 0.13.0 - 2026-10-06
 
 ### Added

@@ -453,7 +453,7 @@ planMutation({
 }, namespace)
 ```
 
-If mutation targets parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the target resolves exactly, the plan remains inspectable but carries the non-portability warning.
+If mutation targets or addresses embedded in precondition expressions parse successfully but produce SANSA portability warnings, successful planning preserves those diagnostics on `plan.portabilityWarnings`. For example, a caller may raise the local position-index limit above the SANSA portable ceiling; if the address resolves successfully, the plan remains inspectable but carries the non-portability warning. Pre-parsed target addresses are rendered and revalidated under the planner's configured Address ceiling, so they cannot bypass its limit or warning behavior.
 
 Mutation plans are current-process execution artifacts, not portable serialized plan documents. A plan retains live binding objects supplied by the resolver, along with local adapter artifacts such as `bindingHandle` and `observedState`. These fields are for same-process continuity checks and diagnostics. Do not `JSON.stringify` a plan and replay it later or in another implementation; cloned or serialized plans cannot prove live binding continuity and should fail apply-time stale-target checks. A portable mutation-plan serialization format may be defined by a later profile.
 
@@ -489,6 +489,12 @@ applyMutationPlan(plan, namespace, {
 ```
 
 Budget exhaustion returns `SANSA_MUTATE_BUDGET_EXCEEDED` with `phase`, `budget`, `limit`, and `observed`. It does not produce a partial plan and does not apply partial mutations.
+
+Query preconditions also inherit the planner's Resolve `maxBindings` ceiling.
+The Rust planner applies a fail-closed default of `100000` bindings when the
+caller does not provide a stricter ceiling. Exhausting this resolution budget
+is normalized as `SANSA_MUTATE_BUDGET_EXCEEDED` with `budget: "maxBindings"`
+and the failing precondition index.
 
 `maxValueNodes`, `maxValueDepth`, and `maxStringLength` are budgets over supplied values for `create`, `replace`, and `insert`. They are honored during planning and again during apply when callers provide a prebuilt plan. `maxValueNodes` counts all supplied value nodes across the request or plan; arrays and objects count as one node plus their entries. `maxValueDepth` is the deepest supplied value tree, with scalar values at depth `1`. `maxStringLength` is the longest supplied string payload observed by this implementation.
 
