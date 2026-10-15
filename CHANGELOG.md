@@ -13,9 +13,12 @@ versions may still include breaking changes when the SANSA specifications move.
   planner covering all 28 cases assigned to the pinned experimental plan
   surface. The planner retains opaque exact bindings, evaluates Query
   preconditions, enforces conservative container/conflict/budget rules, and
-  preserves provenance and portability warnings. Target validation, apply,
-  and policy remain independent unimplemented surfaces; no mutation hook is
-  exposed.
+  preserves provenance and portability warnings.
+- Added post-plan Rust SANSA.Mutate target-surface validation covering all 36
+  pinned experimental AEON and JSON cases. Built-in validation remains
+  representability-only, and a host-neutral trait permits separate custom
+  validators without granting authority or exposing mutation hooks. Apply and
+  policy remain independent unimplemented surfaces.
 
 ### Fixed
 

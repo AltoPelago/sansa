@@ -3,6 +3,7 @@
 pub mod address;
 pub mod evaluate;
 pub mod mutate;
+pub mod mutate_target;
 pub mod query;
 pub mod resolve;
 pub mod value_semantics;
@@ -60,8 +61,9 @@ pub const MUTATE_CTS_SNAPSHOT_ID: &str = "sansa-mutate-cts-v1-snapshot-0.1";
 /// Experimental SANSA.Mutate surfaces tracked independently by the Rust
 /// runtime.
 ///
-/// The side-effect-free plan surface is implemented directly against all 28
-/// assigned cases. Target validation, apply, and policy remain unimplemented.
+/// The side-effect-free plan and target-validation surfaces are implemented
+/// directly against all 64 assigned cases. Apply and policy remain
+/// unimplemented.
 pub const EXPERIMENTAL_MUTATE_CTS_SLICES: [ExperimentalMutateCtsSlice; 4] = [
     ExperimentalMutateCtsSlice {
         capability: "SANSA.Mutate",
@@ -77,7 +79,7 @@ pub const EXPERIMENTAL_MUTATE_CTS_SLICES: [ExperimentalMutateCtsSlice; 4] = [
         profile: "mutate-plan-and-policy",
         surface: MutateCtsSurface::TargetValidation,
         case_count: 36,
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
     ExperimentalMutateCtsSlice {
         capability: "SANSA.Mutate",
@@ -208,8 +210,12 @@ mod tests {
             EXPERIMENTAL_MUTATE_CTS_SLICES[0].status,
             CapabilityStatus::Implemented
         );
+        assert_eq!(
+            EXPERIMENTAL_MUTATE_CTS_SLICES[1].status,
+            CapabilityStatus::Implemented
+        );
         assert!(
-            EXPERIMENTAL_MUTATE_CTS_SLICES[1..]
+            EXPERIMENTAL_MUTATE_CTS_SLICES[2..]
                 .iter()
                 .all(|slice| slice.status == CapabilityStatus::NotImplemented)
         );

@@ -12,6 +12,10 @@ use sansa_runtime::mutate::{
     RequestedMutationPrecondition, RequestedRemoveOperation, RequestedReplaceOperation,
     plan_mutation,
 };
+use sansa_runtime::mutate_target::{
+    MutationTargetValidationContext, MutationTargetValidator, ValidateMutationPlanTargetResult,
+    validate_mutation_plan_target, validate_mutation_plan_with,
+};
 use sansa_runtime::resolve::{Namespace, Navigation};
 use sansa_runtime::value_semantics::{FiniteNumber, Value};
 use serde_json::Value as JsonValue;
@@ -142,6 +146,189 @@ fn passes_every_experimental_core_mutation_planner_case() {
         compare_result(id, expected, &result, &mut failures);
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn passes_every_experimental_target_validation_case() {
+    let path = cts_root().join(SUITE_PATH);
+    let suite: JsonValue =
+        serde_json::from_str(&fs::read_to_string(&path).expect("read CTS")).expect("parse CTS");
+    let namespaces = suite["fixtures"]["namespaces"]
+        .as_array()
+        .expect("namespace fixtures")
+        .iter()
+        .map(|fixture| {
+            (
+                fixture["id"].as_str().expect("fixture id"),
+                FixtureNamespace::from_root(&fixture["root"]),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let cases = suite["tests"]
+        .as_array()
+        .expect("tests")
+        .iter()
+        .filter(|test| test["input"]["mode"] == "plan" && test["input"].get("target").is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(cases.len(), 36, "{path:?}");
+
+    let mut failures = Vec::new();
+    for test in cases {
+        let id = test["id"].as_str().expect("test id");
+        let input = &test["input"];
+        let expected = &test["expected"];
+        let namespace = &namespaces[input["namespace"].as_str().expect("namespace id")];
+        let request = match request_from_input(input) {
+            Ok(request) => request,
+            Err(error) => {
+                failures.push(format!(
+                    "{id}: request rejected before target validation: {error:?}"
+                ));
+                continue;
+            }
+        };
+        let PlanMutationResult::Planned(plan) =
+            plan_mutation(&request, namespace, &options_from_input(input))
+        else {
+            failures.push(format!("{id}: request did not produce a plan"));
+            continue;
+        };
+        compare_target_result(
+            id,
+            expected,
+            &validate_mutation_plan_target(&plan, input["target"].as_str().expect("target format")),
+            &mut failures,
+        );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn custom_target_validator_receives_immutable_context_and_normalizes_diagnostics() {
+    struct RejectingTarget;
+
+    impl MutationTargetValidator<usize> for RejectingTarget {
+        fn id(&self) -> &str {
+            ""
+        }
+
+        fn validate_operation(
+            &self,
+            operation: &MutationOperation<usize>,
+            context: MutationTargetValidationContext<'_, usize>,
+        ) -> Vec<MutationDiagnostic> {
+            assert_eq!(context.plan.plan_version(), "sansa.mutate.plan.v1");
+            assert_eq!(context.operation_index, 0);
+            assert_eq!(context.target_format, "custom");
+            assert_eq!(operation.kind().as_str(), "replace");
+            vec![MutationDiagnostic::new(
+                "CUSTOM_TARGET_REJECTED",
+                "custom surface rejected the operation",
+                MutationPhase::Apply,
+            )]
+        }
+    }
+
+    let path = cts_root().join(SUITE_PATH);
+    let suite: JsonValue =
+        serde_json::from_str(&fs::read_to_string(path).expect("read CTS")).expect("parse CTS");
+    let test = suite["tests"]
+        .as_array()
+        .expect("tests")
+        .iter()
+        .find(|test| test["id"] == "sansa-mutate-0044-target-aeon-accepts-plain-replace")
+        .expect("plain target-validation case");
+    let namespace_id = test["input"]["namespace"].as_str().expect("namespace id");
+    let namespace = suite["fixtures"]["namespaces"]
+        .as_array()
+        .expect("namespace fixtures")
+        .iter()
+        .find(|fixture| fixture["id"] == namespace_id)
+        .map(|fixture| FixtureNamespace::from_root(&fixture["root"]))
+        .expect("fixture namespace");
+    let request = request_from_input(&test["input"]).expect("valid request");
+    let PlanMutationResult::Planned(plan) =
+        plan_mutation(&request, &namespace, &options_from_input(&test["input"]))
+    else {
+        panic!("request did not produce a plan");
+    };
+
+    let ValidateMutationPlanTargetResult::Rejected(errors) =
+        validate_mutation_plan_with(&plan, &RejectingTarget)
+    else {
+        panic!("custom validator did not reject the plan");
+    };
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].code, "CUSTOM_TARGET_REJECTED");
+    assert_eq!(errors[0].phase, MutationPhase::Target);
+    assert_eq!(errors[0].operation_index, Some(0));
+    assert_eq!(errors[0].target_format.as_deref(), Some("custom"));
+}
+
+fn compare_target_result(
+    id: &str,
+    expected: &JsonValue,
+    result: &ValidateMutationPlanTargetResult,
+    failures: &mut Vec<String>,
+) {
+    match (expected["ok"].as_bool().unwrap_or(false), result) {
+        (true, ValidateMutationPlanTargetResult::Validated { diagnostics }) => {
+            if !diagnostics.is_empty() {
+                failures.push(format!(
+                    "{id}: unexpected target diagnostics {diagnostics:?}"
+                ));
+            }
+        }
+        (false, ValidateMutationPlanTargetResult::Rejected(errors)) => {
+            let error = &errors[0];
+            compare_field(
+                id,
+                "error",
+                expected["error"].as_str(),
+                Some(&error.code),
+                failures,
+            );
+            compare_field(
+                id,
+                "errorPhase",
+                expected["errorPhase"].as_str(),
+                Some(match error.phase {
+                    MutationPhase::Plan => "plan",
+                    MutationPhase::Policy => "policy",
+                    MutationPhase::Target => "target",
+                    MutationPhase::Apply => "apply",
+                }),
+                failures,
+            );
+            compare_field(
+                id,
+                "errorTargetFormat",
+                expected["errorTargetFormat"].as_str(),
+                error.target_format.as_deref(),
+                failures,
+            );
+            compare_field(
+                id,
+                "errorDatatype",
+                expected["errorDatatype"].as_str(),
+                error.datatype.as_deref(),
+                failures,
+            );
+            compare_field(
+                id,
+                "errorValuePath",
+                expected["errorValuePath"].as_str(),
+                error.value_path.as_deref(),
+                failures,
+            );
+        }
+        (true, ValidateMutationPlanTargetResult::Rejected(errors)) => {
+            failures.push(format!("{id}: unexpectedly rejected with {errors:?}"));
+        }
+        (false, ValidateMutationPlanTargetResult::Validated { .. }) => {
+            failures.push(format!("{id}: unexpectedly validated"));
+        }
+    }
 }
 
 fn request_from_input(input: &JsonValue) -> Result<MutationRequest, MutationDiagnostic> {

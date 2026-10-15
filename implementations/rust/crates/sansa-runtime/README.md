@@ -50,6 +50,13 @@ The crate also contains a proposal-stage, side-effect-free SANSA.Mutate planner.
 experimental plan surface while retaining opaque host bindings in an immutable,
 current-process plan. Targets and precondition addresses share one configurable
 position-index ceiling and preserve non-portability warnings; precondition
-resolution also uses a finite binding ceiling. Target validation, apply, and
-policy remain explicitly `NotImplemented`; the crate exposes no mutation hook
-and does not claim those surfaces.
+resolution also uses a finite binding ceiling.
+
+`mutate_target::validate_mutation_plan_target` validates an immutable plan
+against the experimental AEON or JSON representability surface and passes all
+36 target-validation cases in the pinned snapshot. Custom hosts can implement
+`MutationTargetValidator` without changing planning semantics. Planned targets
+retain the host representation kind observed during resolution so post-plan
+validation does not need to reread a potentially changed namespace. Validation
+does not enforce schema or policy and does not apply operations; apply and
+policy remain explicitly `NotImplemented`.
