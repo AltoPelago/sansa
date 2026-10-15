@@ -6493,15 +6493,33 @@ function isContainerBinding(namespace, binding) {
   return containerKindFromBinding(namespace, binding) !== undefined;
 }
 
+const PORTABLE_SCALAR_QUERY_KINDS = new Map([
+  ['StringLiteral', 'string'],
+  ['NumberLiteral', 'number'],
+  ['BooleanLiteral', 'boolean'],
+  ['ToggleLiteral', 'toggle'],
+  ['HexLiteral', 'hex'],
+  ['RadixLiteral', 'radix'],
+  ['EncodingLiteral', 'encoding'],
+  ['SeparatorLiteral', 'separator'],
+  ['SymbolicLiteral', 'symbol'],
+  ['SansaAddressLiteral', 'sansaAddress'],
+  ['DateLiteral', 'date'],
+  ['TimeLiteral', 'time'],
+  ['DateTimeLiteral', 'datetime'],
+  ['WTCDateTimeLiteral', 'wtc'],
+  ['NullLiteral', 'null'],
+  ['NaNLiteral', 'nan'],
+  ['InfinityLiteral', 'infinity'],
+]);
+
 function getBindingScalarKind(namespace, binding) {
   const actual = typeof namespace.representationKind === 'function'
     ? namespace.representationKind(binding)
     : binding.scalarKind ?? binding.valueKind ?? binding.literalKind ?? binding.representationKind ?? binding.kind ?? binding.type;
-  if (actual === 'NullLiteral') return 'null';
-  if (actual === 'NaNLiteral') return 'nan';
-  if (actual === 'InfinityLiteral') return 'infinity';
-  if (actual === 'SymbolicLiteral') return 'symbol';
-  return typeof actual === 'string' ? lowerFirst(actual) : undefined;
+  return typeof actual === 'string'
+    ? PORTABLE_SCALAR_QUERY_KINDS.get(actual) ?? lowerFirst(actual)
+    : undefined;
 }
 
 function getBindingSemanticType(namespace, binding) {

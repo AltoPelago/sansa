@@ -1,6 +1,6 @@
 {
   "name": "@altopelago/sansa",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "Semantic Address NameSpace Abstraction parser, resolver, and query toolkit.",
   "license": "MIT",
   "type": "module",
