@@ -7,6 +7,16 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.14.2 - 2026-10-16
+
+### Fixed
+
+- Preserved scalar value families in JavaScript Query when a host namespace
+  exposes portable PascalCase representation kinds such as `DateTimeLiteral`
+  or `WTCDateTimeLiteral`. Temporal bindings now reach temporal functions rather
+  than being mistaken for strings; other portable scalar families retain their
+  distinct comparison domains without changing representation-kind filters.
+
 ## 0.14.1 - 2026-10-16
 
 ### Fixed
