@@ -367,6 +367,11 @@ pub struct MutationTarget<Binding, State = ()> {
     pub address: Address,
     /// Live host binding retained by this in-process plan.
     pub binding: Binding,
+    /// Host representation kind observed while resolving the target.
+    ///
+    /// Post-plan target-surface validation uses this immutable snapshot rather
+    /// than consulting a potentially changed namespace.
+    pub representation_kind: Option<String>,
     /// Optional host continuity token observed during planning.
     pub observed_state: Option<State>,
     /// Non-portable-but-locally-accepted Address diagnostics.
@@ -1033,11 +1038,13 @@ fn resolve_exact_target<N: Namespace>(
     let canonical_address = namespace
         .binding_address(&binding)
         .unwrap_or_else(|| address.canonical.clone());
+    let representation_kind = namespace.representation_kind(&binding);
     Ok(MutationTarget {
         requested_address,
         canonical_address,
         address,
         binding,
+        representation_kind,
         observed_state: None,
         portability_warnings: warnings,
     })
@@ -1647,6 +1654,22 @@ mod tests {
             panic!("contextual alias of root must be rejected");
         };
         assert_eq!(errors[0].code, "SANSA_MUTATE_ROOT_REMOVE_FORBIDDEN");
+    }
+
+    #[test]
+    fn planned_targets_retain_observed_representation_kind() {
+        let namespace = TestNamespace { positions: vec![0] };
+        let PlanMutationResult::Planned(plan) = plan_mutation(
+            &replace_request("$[0]".into()),
+            &namespace,
+            &PlanMutationOptions::default(),
+        ) else {
+            panic!("valid replacement must produce a plan");
+        };
+        let MutationOperation::Replace { target, .. } = &plan.operations()[0] else {
+            panic!("expected replacement operation");
+        };
+        assert_eq!(target.representation_kind.as_deref(), Some("string"));
     }
 
     #[test]

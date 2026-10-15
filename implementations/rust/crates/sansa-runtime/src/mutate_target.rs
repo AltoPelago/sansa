@@ -10,8 +10,8 @@
 
 use crate::address::{Root, Selector, parse_address};
 use crate::mutate::{
-    MutationDiagnostic, MutationOperation, MutationPhase, MutationPlan, MutationValue,
-    MutationValueIntent,
+    MutationDiagnostic, MutationOperation, MutationPhase, MutationPlan, MutationTarget,
+    MutationValue, MutationValueIntent,
 };
 use crate::query::{Expression, LiteralKind, parse_expression};
 use crate::value_semantics::Value;
@@ -136,6 +136,9 @@ impl<Binding, State, NamespaceState> MutationTargetValidator<Binding, State, Nam
         operation: &MutationOperation<Binding, State>,
         context: MutationTargetValidationContext<'_, Binding, State, NamespaceState>,
     ) -> Vec<MutationDiagnostic> {
+        if let Err(error) = validate_json_operation_targets(operation, context.operation_index) {
+            return vec![error];
+        }
         let Some(intent) = operation_value_intent(operation) else {
             return Vec::new();
         };
@@ -199,6 +202,67 @@ fn operation_value_intent<Binding, State>(
         | MutationOperation::Insert { value, .. } => Some(value),
         MutationOperation::Remove { .. } | MutationOperation::Move { .. } => None,
     }
+}
+
+fn validate_json_operation_targets<Binding, State>(
+    operation: &MutationOperation<Binding, State>,
+    operation_index: usize,
+) -> Result<(), MutationDiagnostic> {
+    match operation {
+        MutationOperation::Create { parent, .. } => validate_json_target(parent, operation_index),
+        MutationOperation::Replace { target, .. } | MutationOperation::Remove { target, .. } => {
+            validate_json_target(target, operation_index)
+        }
+        MutationOperation::Insert { container, .. } => {
+            validate_json_target(container, operation_index)
+        }
+        MutationOperation::Move {
+            source, container, ..
+        } => {
+            validate_json_target(source, operation_index)?;
+            validate_json_target(container, operation_index)
+        }
+    }
+}
+
+fn validate_json_target<Binding, State>(
+    target: &MutationTarget<Binding, State>,
+    operation_index: usize,
+) -> Result<(), MutationDiagnostic> {
+    let representation = target
+        .representation_kind
+        .as_deref()
+        .map(str::to_ascii_lowercase);
+    if representation.as_deref() == Some("attributespace")
+        || target.canonical_address.contains(".@")
+    {
+        return Err(target_error(
+            "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE",
+            format!(
+                "Target 'json' cannot represent AEON attribute-space mutations at {}",
+                target.canonical_address
+            ),
+            Some(operation_index),
+            "json",
+        ));
+    }
+    let container = match representation.as_deref() {
+        Some("node" | "nodeliteral") => Some("node"),
+        Some("tuple" | "tupleliteral") => Some("tuple"),
+        _ => None,
+    };
+    if let Some(container) = container {
+        return Err(target_error(
+            "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE",
+            format!(
+                "Target 'json' cannot represent {container} container mutations at {}",
+                target.canonical_address
+            ),
+            Some(operation_index),
+            "json",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_aeon_datatype(
@@ -437,6 +501,9 @@ fn validate_aeon_scalar_value(
     path: &str,
     operation_index: usize,
 ) -> Result<(), MutationDiagnostic> {
+    if let MutationValue::Scalar(value) = value {
+        validate_aeon_intrinsic_scalar(value.as_value(), path, operation_index)?;
+    }
     let Some(representation) = representation else {
         return Ok(());
     };
@@ -492,6 +559,65 @@ fn validate_aeon_scalar_value(
             None,
         ))
     }
+}
+
+fn validate_aeon_intrinsic_scalar(
+    value: &Value,
+    path: &str,
+    operation_index: usize,
+) -> Result<(), MutationDiagnostic> {
+    let valid = match value {
+        Value::FiniteNumber(_)
+        | Value::PositiveInfinity
+        | Value::NegativeInfinity
+        | Value::Nan
+        | Value::String(_)
+        | Value::Boolean(_) => true,
+        Value::Toggle(value) => matches!(value.as_str(), "yes" | "no" | "on" | "off"),
+        Value::Hex(value) => valid_hex_payload(value),
+        Value::Radix {
+            payload,
+            semantic_type,
+        } => {
+            valid_radix_payload(payload)
+                && intrinsic_metadata_matches(semantic_type, "radix", operation_index)
+        }
+        Value::Encoding(value) => valid_encoding_payload(value),
+        Value::Separator(value) => valid_separator_payload(value),
+        Value::Symbol(value) => !value.is_empty(),
+        Value::SansaAddress(value) => parse_address(value).is_ok(),
+        Value::ReferenceForm { kind, target } => {
+            matches!(
+                representation_kind(kind, false).as_deref(),
+                Some("cloneReference" | "pointerReference" | "referenceForm")
+            ) && valid_reference_target(target)
+        }
+        Value::Temporal {
+            payload,
+            semantic_type,
+        } => representation_kind(semantic_type, false)
+            .is_some_and(|kind| valid_temporal_payload(payload, &kind)),
+        Value::ExplicitNull { reason } => !reason.is_empty(),
+        Value::ExplicitAbsence { .. }
+        | Value::Missing
+        | Value::Container { .. }
+        | Value::BindingSet => false,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(invalid_aeon_value(
+            "intrinsic scalar family or metadata is not representable",
+            path,
+            operation_index,
+            None,
+        ))
+    }
+}
+
+fn intrinsic_metadata_matches(semantic_type: &str, expected: &str, operation_index: usize) -> bool {
+    representation_kind(semantic_type, false).as_deref() == Some(expected)
+        && validate_aeon_datatype(semantic_type, operation_index).is_ok()
 }
 
 fn validate_aeon_datatype_kind_compatibility(
@@ -568,6 +694,15 @@ fn validate_json_value(
             Ok(())
         }
         MutationValue::Object(fields) => {
+            let reference_type = object_field(fields, "type").and_then(plain_string);
+            let has_reference_marker =
+                matches!(reference_type, Some("CloneReference" | "PointerReference"))
+                    || object_field(fields, "canonical")
+                        .and_then(plain_string)
+                        .is_some();
+            if has_reference_marker {
+                return Err(invalid_json_value(path, operation_index));
+            }
             if fields
                 .iter()
                 .any(|(name, _)| matches!(name.as_str(), "tag" | "children" | "attributes"))
@@ -676,6 +811,13 @@ fn scalar_text(value: &MutationValue) -> Option<&str> {
         Value::Radix { payload, .. } | Value::Temporal { payload, .. } => Some(payload),
         Value::ReferenceForm { target, .. } => Some(target),
         Value::ExplicitNull { reason } | Value::ExplicitAbsence { reason } => Some(reason),
+        _ => None,
+    }
+}
+
+fn plain_string(value: &MutationValue) -> Option<&str> {
+    match scalar(value)? {
+        Value::String(value) => Some(value),
         _ => None,
     }
 }
@@ -841,8 +983,10 @@ fn valid_encoding_payload(value: &str) -> bool {
         return false;
     }
     let padding = value.bytes().rev().take_while(|byte| *byte == b'=').count();
-    padding <= 2
-        && value[..value.len() - padding]
+    let body = &value[..value.len() - padding];
+    !body.is_empty()
+        && padding <= 2
+        && body
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
@@ -861,7 +1005,10 @@ fn valid_separator_payload(value: &str) -> bool {
                     return false;
                 }
                 if inner == '\\' {
-                    if chars.next().is_none() {
+                    if chars
+                        .next()
+                        .is_none_or(|escaped| matches!(escaped, '\n' | '\r'))
+                    {
                         return false;
                     }
                 } else if inner == quote {
@@ -923,11 +1070,38 @@ fn normalize_reference_target(value: &str) -> Option<String> {
     if value.starts_with('[') {
         return value.starts_with("[\"").then(|| format!("$.{value}"));
     }
+    if value.starts_with('"') {
+        let end = quoted_prefix_end(value)?;
+        let rest = &value[end..];
+        if !rest.is_empty() && !rest.starts_with(['.', '[']) {
+            return None;
+        }
+        return Some(format!("$.[{}]{rest}", &value[..end]));
+    }
     let first = value.chars().next()?;
     if !is_identifier_start(first) {
         return None;
     }
     Some(format!("$.{value}"))
+}
+
+fn quoted_prefix_end(value: &str) -> Option<usize> {
+    let mut chars = value[1..].char_indices();
+    while let Some((offset, ch)) = chars.next() {
+        let index = offset + 1;
+        if matches!(ch, '\n' | '\r') {
+            return None;
+        }
+        if ch == '\\' {
+            let (_, escaped) = chars.next()?;
+            if matches!(escaped, '\n' | '\r') {
+                return None;
+            }
+        } else if ch == '"' {
+            return Some(index + ch.len_utf8());
+        }
+    }
+    None
 }
 
 fn valid_aeon_identifier(value: &str) -> bool {
@@ -956,17 +1130,115 @@ fn value_path_segment(name: &str) -> String {
 mod tests {
     use super::*;
 
+    fn scalar(value: Value) -> MutationValue {
+        MutationValue::try_scalar(value).expect("test value is a mutation scalar")
+    }
+
+    fn target(address: &str, representation_kind: Option<&str>) -> MutationTarget<usize> {
+        MutationTarget {
+            requested_address: address.into(),
+            canonical_address: address.into(),
+            address: parse_address(address).expect("valid test address"),
+            binding: 0,
+            representation_kind: representation_kind.map(str::to_owned),
+            observed_state: None,
+            portability_warnings: Vec::new(),
+        }
+    }
+
     #[test]
     fn payload_helpers_cover_reviewed_edges() {
         assert!(valid_radix_payload("1A"));
         assert!(!valid_radix_payload("1__0"));
         assert!(valid_encoding_payload("abc_-=="));
         assert!(!valid_encoding_payload("abc+/=="));
+        assert!(!valid_encoding_payload("="));
+        assert!(!valid_encoding_payload("=="));
         assert!(valid_separator_payload(
             "\"hello world\"|\"this, [is] fine\""
         ));
         assert!(!valid_separator_payload("root/main"));
+        assert!(!valid_separator_payload("\"escaped\\\nnewline\""));
+        assert!(!valid_separator_payload("\"escaped\\\rnewline\""));
         assert!(valid_reference_target("[\"target.key\"]"));
+        assert!(valid_reference_target("\"target.key\".child"));
         assert!(!valid_reference_target("target.*"));
+    }
+
+    #[test]
+    fn intrinsic_scalar_families_are_validated_without_operation_hints() {
+        let invalid = [
+            Value::Hex("GG".into()),
+            Value::Radix {
+                payload: "10".into(),
+                semantic_type: "radix65".into(),
+            },
+            Value::Temporal {
+                payload: "2025-02-29".into(),
+                semantic_type: "date".into(),
+            },
+            Value::ReferenceForm {
+                kind: "cloneReference".into(),
+                target: "target.*".into(),
+            },
+            Value::ExplicitNull {
+                reason: String::new(),
+            },
+            Value::ExplicitAbsence {
+                reason: "redacted".into(),
+            },
+        ];
+        for value in invalid {
+            let error = validate_aeon_value(&scalar(value), None, None, "value", 0)
+                .expect_err("invalid intrinsic scalar must be rejected");
+            assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE");
+            assert_eq!(error.value_path.as_deref(), Some("value"));
+        }
+
+        validate_aeon_value(
+            &scalar(Value::ReferenceForm {
+                kind: "pointerReference".into(),
+                target: "\"target.key\".child".into(),
+            }),
+            None,
+            None,
+            "value",
+            0,
+        )
+        .expect("quoted reference head is representable");
+    }
+
+    #[test]
+    fn json_rejects_reference_objects_and_aeon_only_operation_targets() {
+        let reference = MutationValue::Object(vec![
+            (
+                "type".into(),
+                scalar(Value::String("CloneReference".into())),
+            ),
+            ("target".into(), scalar(Value::String("$.target".into()))),
+        ]);
+        let error = validate_json_value(&reference, "value.nested", 0)
+            .expect_err("structured reference objects are not JSON target values");
+        assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE");
+        assert_eq!(error.value_path.as_deref(), Some("value.nested"));
+
+        let remove_attribute = MutationOperation::Remove {
+            target: target("$.item.@", Some("attributeSpace")),
+            provenance: None,
+        };
+        let error = validate_json_operation_targets(&remove_attribute, 0)
+            .expect_err("attribute removal is not representable in JSON");
+        assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE");
+
+        let move_from_tuple = MutationOperation::Move {
+            source: target("$.pair[0]", Some("tuple")),
+            container: target("$.items", Some("list")),
+            placement: crate::mutate::MutationPlacement::Last,
+            provenance: None,
+        };
+        let error = validate_json_operation_targets(&move_from_tuple, 1)
+            .expect_err("tuple mutation is not representable in JSON");
+        assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE");
+        assert_eq!(error.operation_index, Some(1));
     }
 }
