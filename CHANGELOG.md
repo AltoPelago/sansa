@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.14.0 - 2026-10-15
+
 ### Added
 
 - Added a proposal-stage Rust SANSA.Mutate type shell and a side-effect-free
