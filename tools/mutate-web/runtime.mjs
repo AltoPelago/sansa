@@ -1435,7 +1435,19 @@ function renderScalarValue(binding) {
 }
 
 function renderBlockString(value) {
-  const text = String(value ?? '').replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+  let text = String(value ?? '');
+  if (text.includes('\n')) {
+    // Core trims after escape decoding. Protect nonblank lines with an opposite
+    // gutter so one common character is removed without touching payload indent.
+    const first = text.split('\n').find((line) => line.length > 0) ?? '';
+    const gutter = first.startsWith(' ') ? '\t' : ' ';
+    const leadingNewline = text.startsWith('\n');
+    text = text.split('\n').map((line) => line.length === 0 ? '' : gutter + line).join('\n');
+    if (leadingNewline) text = '\n' + text;
+  }
+  text = text
+    .replace(/\\/g, '\\\\').replace(/`/g, '\\`')
+    .replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
   return `>\`${text}\``;
 }
 

@@ -1099,6 +1099,34 @@ literals compare through the active temporal profile; the default profile uses
 canonical payload order.
 Explicit null literals are tested through null predicates rather than equality.
 
+The temporal literal boundary follows Core rather than the general-purpose
+schema: year/month date ticks can compose with clocks (`2024-T10:Z`,
+`2024-02T10:&Europe`), second `60` remains structurally valid, and arbitrary
+authored fractional digits are preserved. WTC `local` is case-sensitive; named
+contexts remain opaque ASCII payloads. Invalid fields and comment-looking
+punctuation inside a contiguous WTC token are not reinterpreted as trivia.
+
+The built-in temporal relation helper handles contiguous date extents and
+complete-date clock extents. Clock-bearing year/month ticks can denote disjoint
+daily sets; those comparisons currently return `incomparable` rather than
+inventing a month/day or flattening the sets into a single interval. This
+conservative comparison limitation does not reject the literal or its AEON
+target representation. Default representation equality/order is unchanged.
+
+AEON target validation also distinguishes reserved `base64` (decodable
+Base64URL, including valid padding and zero unused tail bits) from opaque
+`encoding`, `inline` and `embed` payloads. For `prose`/`trimtick`, exact multiline
+values must survive Core gutter normalization: trailing newlines and nonempty
+whitespace-only content lines cannot be preserved and produce a target-phase
+diagnostic before apply. The workbench protects representable leading empty
+lines and mixed payload indentation when re-emitting trimticks. Ordinary
+quoted-string values and direct Telex string payloads retain their full domain.
+
+These datatype-specific literal checks do not decode reference addresses as
+payload data. Clone/pointer references (including native Rust reference-form
+descriptors) retain address validation; `base64` describes the referred value,
+not the bytes or Base64URL tail bits of its address.
+
 Current comparison policy:
 
 | Operands | Equality | Ordering | Result |
