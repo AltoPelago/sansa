@@ -124,7 +124,10 @@ fn inventories_pinned_experimental_mutate_surfaces_independently() {
         assert_eq!(slice.snapshot_id, manifest.meta.snapshot_id);
         assert_eq!(slice.profile, manifest.meta.profile);
         assert_eq!(observed.get(&slice.surface), Some(&slice.case_count));
-        let expected_status = if slice.surface == MutateCtsSurface::Plan {
+        let expected_status = if matches!(
+            slice.surface,
+            MutateCtsSurface::Plan | MutateCtsSurface::TargetValidation
+        ) {
             CapabilityStatus::Implemented
         } else {
             CapabilityStatus::NotImplemented

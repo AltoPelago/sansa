@@ -500,6 +500,14 @@ and the failing precondition index.
 
 Planning is side-effect free. Every executable target is resolved exactly at planning time. Expanded selectors such as `$.items.*`, ranges such as `$.items[0..2]`, filters, name patterns, and parent traversal are not accepted as mutation targets in this initial slice. `create` targets an existing exact parent and carries the new child name separately.
 
+The Rust runtime exposes post-plan target validation separately through
+`mutate_target::validate_mutation_plan_target`. Its built-in proposal-stage
+surfaces cover AEON and JSON representability and are exercised directly by all
+36 target-validation cases in the pinned experimental CTS snapshot.
+`MutationTargetValidator` permits a host-defined immutable plan validator, but
+successful representability does not imply schema validity, authorization, or
+permission to apply the plan.
+
 `applyMutationPlan` applies an already planned mutation only when the namespace exposes matching mutation hooks:
 
 ```js
