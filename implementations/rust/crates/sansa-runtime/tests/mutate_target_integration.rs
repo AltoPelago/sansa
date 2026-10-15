@@ -136,18 +136,30 @@ fn operations() -> Vec<RequestedMutationOperation> {
 }
 
 fn check_formats(
-    namespace: &TestNamespace,
+    namespace: &impl Namespace<Binding = usize>,
     operation: RequestedMutationOperation,
     json_accepts: bool,
+) {
+    check_formats_with_options(
+        namespace,
+        operation,
+        json_accepts,
+        &PlanMutationOptions::default(),
+    );
+}
+
+fn check_formats_with_options(
+    namespace: &impl Namespace<Binding = usize>,
+    operation: RequestedMutationOperation,
+    json_accepts: bool,
+    options: &PlanMutationOptions<usize>,
 ) {
     let operation_kind = operation.kind();
     let request = MutationRequest {
         operations: vec![operation],
         ..MutationRequest::default()
     };
-    let PlanMutationResult::Planned(plan) =
-        plan_mutation(&request, namespace, &PlanMutationOptions::default())
-    else {
+    let PlanMutationResult::Planned(plan) = plan_mutation(&request, namespace, options) else {
         panic!("{operation_kind:?} did not produce a plan");
     };
     for format in ["aeon", "", "json", "json-compatible"] {
@@ -218,4 +230,130 @@ fn public_json_validator_checks_move_sources_as_well_as_containers() {
     };
     let operation = operations().pop().expect("move operation");
     check_formats(&namespace, operation, false);
+}
+
+struct QuotedNamespace {
+    inner: TestNamespace,
+    name: &'static str,
+}
+
+impl Namespace for QuotedNamespace {
+    type Binding = usize;
+
+    fn root(&self) -> Option<usize> {
+        self.inner.root()
+    }
+
+    fn children(&self, binding: &usize) -> Vec<usize> {
+        self.inner.children(binding)
+    }
+
+    fn parent(&self, binding: &usize) -> Navigation<usize> {
+        self.inner.parent(binding)
+    }
+
+    fn attribute_space(&self, binding: &usize) -> Navigation<usize> {
+        self.inner.attribute_space(binding)
+    }
+
+    fn name(&self, binding: &usize) -> Option<String> {
+        if *binding == 1 {
+            Some(self.name.into())
+        } else {
+            self.inner.name(binding)
+        }
+    }
+
+    fn position(&self, binding: &usize) -> Option<usize> {
+        self.inner.position(binding)
+    }
+
+    fn representation_kind(&self, binding: &usize) -> Option<String> {
+        self.inner.representation_kind(binding)
+    }
+
+    fn binding_address(&self, binding: &usize) -> Option<String> {
+        self.inner.binding_address(binding).map(|address| {
+            address.replace(
+                "$.items",
+                &format!(
+                    "$.[{}]",
+                    serde_json::to_string(self.name).expect("quoted name")
+                ),
+            )
+        })
+    }
+}
+
+#[test]
+fn quoted_member_text_is_distinct_from_attribute_selectors() {
+    for name in ["literal.@key", "quote\".@key", "slash\\.@key"] {
+        let namespace = QuotedNamespace {
+            inner: TestNamespace {
+                container_kind: "list",
+                first_child_kind: "string",
+            },
+            name,
+        };
+        let path = namespace.binding_address(&1).expect("quoted path");
+        for mut operation in operations() {
+            match &mut operation {
+                RequestedMutationOperation::Create(op) => op.parent = path.as_str().into(),
+                RequestedMutationOperation::Replace(op) => op.target = path.as_str().into(),
+                RequestedMutationOperation::Remove(op) => op.target = path.as_str().into(),
+                RequestedMutationOperation::Insert(op) => op.container = path.as_str().into(),
+                RequestedMutationOperation::Move(op) => {
+                    op.source = format!("{path}[0]").into();
+                    op.container = path.as_str().into();
+                    op.placement = RequestedMutationPlacement::After(format!("{path}[1]").into());
+                }
+            }
+            check_formats(&namespace, operation, true);
+        }
+        for target in [path.clone(), format!("{path}.@.note")] {
+            let json_accepts = target == path;
+            for operation in [
+                RequestedMutationOperation::Replace(RequestedReplaceOperation {
+                    target: target.as_str().into(),
+                    value: value(),
+                    provenance: None,
+                }),
+                RequestedMutationOperation::Remove(RequestedRemoveOperation {
+                    target: target.as_str().into(),
+                    provenance: None,
+                }),
+            ] {
+                check_formats(&namespace, operation, json_accepts);
+            }
+        }
+        // The requested contextual address has no attribute selector, so the
+        // validator must also inspect the host's canonical address.
+        let options = PlanMutationOptions {
+            resolve: sansa_runtime::resolve::ResolveOptions {
+                contextual_root: Some(5),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut member_options = options.clone();
+        member_options.resolve.contextual_root = Some(1);
+        check_formats_with_options(
+            &namespace,
+            RequestedMutationOperation::Remove(RequestedRemoveOperation {
+                target: "?".into(),
+                provenance: None,
+            }),
+            true,
+            &member_options,
+        );
+        check_formats_with_options(
+            &namespace,
+            RequestedMutationOperation::Remove(RequestedRemoveOperation {
+                target: "?".into(),
+                provenance: None,
+            }),
+            false,
+            &options,
+        );
+    }
 }

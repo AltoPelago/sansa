@@ -606,6 +606,55 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonInvalidKadotMetadataResult.errors[0].datatype, 'kadot["."]');
 });
 
+test('JSON targets distinguish quoted .@ member names from attribute selectors', () => {
+  for (const name of ['literal.@key', 'quote".@key', 'slash\\.@key']) {
+    const namespace = sampleNamespace();
+    const items = namespace.root.children[1];
+    const path = `$.[${JSON.stringify(name)}]`;
+    items.name = name;
+    items.address = path;
+    items.children.forEach((child, index) => { child.address = `${path}[${index}]`; });
+    const attributes = binding({ address: `${path}.@`, representationKind: 'attributeSpace', children: [] });
+    attributes.parent = items;
+    const attribute = binding({ address: `${path}.@.note`, name: 'note', value: 'old', representationKind: 'string' });
+    attribute.parent = attributes;
+    attributes.children.push(attribute);
+    items.attributeSpace = attributes;
+    const contextual = planMutation({ op: 'remove', target: '?' }, namespace, { resolve: { contextualRoot: items } });
+    assert.equal(contextual.ok, true, JSON.stringify(contextual.errors));
+    for (const format of ['json', 'json-compatible']) {
+      const result = validateMutationPlanTarget(contextual.plan, format);
+      assert.equal(result.ok, true, JSON.stringify(result.errors));
+    }
+    for (const operation of [
+      { op: 'create', parent: path, name: 'new', value: 'updated' },
+      { op: 'replace', target: path, value: 'updated' },
+      { op: 'remove', target: path },
+      { op: 'insert', container: path, placement: 'last', value: 'updated' },
+      { op: 'move', source: `${path}[0]`, container: path, placement: { kind: 'after', anchor: `${path}[1]` } },
+    ]) {
+      const plan = planOk(operation, namespace);
+      for (const format of ['json', 'json-compatible']) {
+        const result = validateMutationPlanTarget(plan, format);
+        assert.equal(result.ok, true, `${operation.op} ${format}: ${JSON.stringify(result.errors)}`);
+      }
+    }
+    for (const target of [`${path}.@.note`, '?']) {
+      for (const op of ['replace', 'remove']) {
+        const operation = { op, target, ...(op === 'replace' ? { value: 'updated' } : {}) };
+        const planned = planMutation(operation, namespace, { resolve: { contextualRoot: attribute } });
+        assert.equal(planned.ok, true, JSON.stringify(planned.errors));
+        for (const format of ['json', 'json-compatible']) {
+          const result = validateMutationPlanTarget(planned.plan, format);
+          assert.equal(result.ok, false);
+          assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE');
+          assert.equal(result.errors[0].targetFormat, 'json');
+        }
+      }
+    }
+  }
+});
+
 test('limits the built-in Telex target surface to portable scalar replacement', () => {
   const namespace = sampleNamespace();
   const sku = namespace.root.children[0].children[0];

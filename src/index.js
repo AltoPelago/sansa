@@ -2420,7 +2420,13 @@ function validateJsonTargetAddresses(operation, operationIndex) {
   for (const role of ['target', 'parent', 'source', 'container']) {
     const target = operation[role];
     if (!target) continue;
-    if (target.binding?.representationKind === 'attributeSpace' || String(target.canonicalAddress ?? '').includes('.@')) {
+    // A quoted member can contain literal .@ text. Classify selectors in both
+    // paths so contextual aliases still reveal canonical attribute ancestors.
+    // Do not reimpose the portable index ceiling on an already planned path.
+    const canonical = parseAddress(String(target.canonicalAddress ?? ''), { maxPositionIndex: Number.MAX_SAFE_INTEGER });
+    const hasAttributeSelector = target.address?.selectors?.some((selector) => selector.type === 'attributeSpace')
+      || (canonical.ok && canonical.address.selectors.some((selector) => selector.type === 'attributeSpace'));
+    if (target.binding?.representationKind === 'attributeSpace' || hasAttributeSelector) {
       return {
         ok: false,
         error: mutationTargetSurfaceError(

@@ -22,6 +22,9 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Fixed
 
+- JSON mutation target validation in Rust and JavaScript now distinguishes
+  actual attribute-space selectors from quoted property names containing
+  `.@`, including contextual aliases and attribute descendants.
 - Corrected Rust target-validator dispatch so JSON's container and attribute
   restrictions run in the JSON validator, while AEON accepts those targets.
   Public API regression coverage now exercises every mutation operation across
