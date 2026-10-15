@@ -8,7 +8,7 @@
 // diagnostic envelope and only cross cold failure paths.
 #![allow(clippy::result_large_err)]
 
-use crate::address::{Root, Selector, parse_address};
+use crate::address::{ParseOptions, Root, Selector, parse_address, parse_address_with_options};
 use crate::mutate::{
     MutationDiagnostic, MutationOperation, MutationPhase, MutationPlan, MutationTarget,
     MutationValue, MutationValueIntent,
@@ -136,9 +136,6 @@ impl<Binding, State, NamespaceState> MutationTargetValidator<Binding, State, Nam
         operation: &MutationOperation<Binding, State>,
         context: MutationTargetValidationContext<'_, Binding, State, NamespaceState>,
     ) -> Vec<MutationDiagnostic> {
-        if let Err(error) = validate_json_operation_targets(operation, context.operation_index) {
-            return vec![error];
-        }
         let Some(intent) = operation_value_intent(operation) else {
             return Vec::new();
         };
@@ -172,6 +169,9 @@ impl<Binding, State, NamespaceState> MutationTargetValidator<Binding, State, Nam
         operation: &MutationOperation<Binding, State>,
         context: MutationTargetValidationContext<'_, Binding, State, NamespaceState>,
     ) -> Vec<MutationDiagnostic> {
+        if let Err(error) = validate_json_operation_targets(operation, context.operation_index) {
+            return vec![error];
+        }
         let Some(intent) = operation_value_intent(operation) else {
             return Vec::new();
         };
@@ -233,9 +233,29 @@ fn validate_json_target<Binding, State>(
         .representation_kind
         .as_deref()
         .map(str::to_ascii_lowercase);
-    if representation.as_deref() == Some("attributespace")
-        || target.canonical_address.contains(".@")
-    {
+    // Inspect both paths: contextual/local aliases can hide an attribute
+    // ancestor, while quoted member names may contain the literal text ".@".
+    // This parse only classifies an already resolved canonical path and must
+    // not reimpose the default portable position ceiling on an accepted plan.
+    let has_attribute_selector = target
+        .address
+        .selectors
+        .iter()
+        .any(|selector| matches!(selector, Selector::AttributeSpace))
+        || parse_address_with_options(
+            &target.canonical_address,
+            ParseOptions {
+                max_position_index: usize::MAX,
+            },
+        )
+        .is_ok_and(|parsed| {
+            parsed
+                .address
+                .selectors
+                .iter()
+                .any(|selector| matches!(selector, Selector::AttributeSpace))
+        });
+    if representation.as_deref() == Some("attributespace") || has_attribute_selector {
         return Err(target_error(
             "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE",
             format!(
@@ -1240,5 +1260,18 @@ mod tests {
             .expect_err("tuple mutation is not representable in JSON");
         assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE");
         assert_eq!(error.operation_index, Some(1));
+    }
+
+    #[test]
+    fn canonical_attribute_detection_preserves_locally_accepted_position_indexes() {
+        let mut contextual_target = target("?", Some("string"));
+        contextual_target.canonical_address = "$.items[1000000].@.note".into();
+        let error = validate_json_target(&contextual_target, 0)
+            .expect_err("a locally accepted index must not hide canonical attribute ancestry");
+        assert_eq!(error.code, "SANSA_MUTATE_TARGET_UNSUPPORTED_FEATURE");
+
+        contextual_target.canonical_address = "$.items[1000000].[\"literal.@key\"]".into();
+        validate_json_target(&contextual_target, 0)
+            .expect("quoted member text at a locally accepted index remains JSON-compatible");
     }
 }

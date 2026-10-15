@@ -51,6 +51,10 @@ path = "tests/mutate_cts_inventory.rs"
 required-features = ["cts"]
 
 [[test]]
+name = "mutate_target_integration"
+path = "tests/mutate_target_integration.rs"
+
+[[test]]
 name = "mutate_plan_cts"
 path = "tests/mutate_plan_cts.rs"
 required-features = ["cts"]
