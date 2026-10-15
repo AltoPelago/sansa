@@ -33,10 +33,13 @@ Resolve, returns typed scalar/binding/object results, preserves deterministic
 ordering and short-circuit behavior, enforces phase-specific budgets, and
 requires explicit authority for dynamic `path(...)` activation.
 
-The runtime additionally tracks the proposal-stage SANSA.Mutate CTS snapshot
-without claiming it. Immutable request and plan types establish the future
-planner boundary, while plan, target-validation, apply, and policy cases remain
-separately marked unimplemented. No mutation hook is exposed by this slice.
+The runtime additionally implements the side-effect-free plan surface from the
+proposal-stage SANSA.Mutate CTS snapshot: all 28 planner cases execute directly
+against opaque host bindings. Planning covers the closed conservative operation
+set, exact resolution, container and placement rules, Query preconditions,
+conflict detection, budgets, provenance, and portability warnings. Target
+validation, apply, and policy remain separately marked unimplemented. No
+mutation hook is exposed by this slice.
 
 Run the Rust lane from the repository root with:
 

@@ -1,6 +1,9 @@
 //! Bounded, host-neutral SANSA Query syntax parsing.
 
-use crate::address::{Address, Root, parse_address, render_address};
+use crate::address::{
+    Address, ParseOptions as AddressParseOptions, ParseWarning as AddressParseWarning, Root,
+    parse_address, parse_address_with_options, render_address,
+};
 
 const MAX_QUERY_INTEGER: u64 = 9_007_199_254_740_991;
 
@@ -454,17 +457,37 @@ pub fn parse_expression_with_limits(
     input: &str,
     limits: ParseLimits,
 ) -> Result<Expression, ParseError> {
+    parse_expression_with_address_options(input, limits, AddressParseOptions::default())
+        .map(|(expression, _)| expression)
+}
+
+pub(crate) fn parse_expression_with_address_options(
+    input: &str,
+    limits: ParseLimits,
+    address_options: AddressParseOptions,
+) -> Result<(Expression, Vec<AddressParseWarning>), ParseError> {
     check_input(input, limits)?;
     let source = normalize_layout(&strip_comments(input)?);
     let mut budget = Budget::default();
-    parse_expression_inner(&source, limits, 0, &mut budget)
+    let mut address_warnings = Vec::new();
+    let expression = parse_expression_inner(
+        &source,
+        limits,
+        address_options,
+        0,
+        &mut budget,
+        &mut address_warnings,
+    )?;
+    Ok((expression, address_warnings))
 }
 
 fn parse_expression_inner(
     source: &str,
     limits: ParseLimits,
+    address_options: AddressParseOptions,
     depth: usize,
     budget: &mut Budget,
+    address_warnings: &mut Vec<AddressParseWarning>,
 ) -> Result<Expression, ParseError> {
     if depth > limits.max_nesting_depth {
         return Err(limit_error("nesting depth", limits.max_nesting_depth, 0));
@@ -473,8 +496,10 @@ fn parse_expression_inner(
         input: source,
         index: 0,
         limits,
+        address_options,
         depth,
         budget,
+        address_warnings,
     };
     if source.is_empty() {
         return Err(parser.error(
@@ -491,6 +516,23 @@ fn parse_expression_inner(
         ));
     }
     Ok(expression)
+}
+
+fn parse_expression_inner_default(
+    source: &str,
+    limits: ParseLimits,
+    depth: usize,
+    budget: &mut Budget,
+) -> Result<Expression, ParseError> {
+    let mut address_warnings = Vec::new();
+    parse_expression_inner(
+        source,
+        limits,
+        AddressParseOptions::default(),
+        depth,
+        budget,
+        &mut address_warnings,
+    )
 }
 
 #[must_use]
@@ -743,7 +785,7 @@ fn parse_from_clause(
                 ParseError::new(error.code, error.message, clause.body_start + error.index)
             });
     }
-    let expression = parse_expression_inner(&source, limits, 0, budget)?;
+    let expression = parse_expression_inner_default(&source, limits, 0, budget)?;
     if !matches!(&expression, Expression::FunctionCall { name, .. } if name == "path") {
         return Err(ParseError::new(
             "SANSA_QUERY_INVALID_FROM_SOURCE",
@@ -768,7 +810,7 @@ fn parse_expression_clause(
             clause.body_start,
         ));
     }
-    let ast = parse_expression_inner(&source, limits, 0, budget)?;
+    let ast = parse_expression_inner_default(&source, limits, 0, budget)?;
     Ok(ExpressionClause {
         expression: render_expression(&ast),
         ast,
@@ -805,7 +847,7 @@ fn parse_order_clause(
                 clause.body_start,
             ));
         }
-        let ast = parse_expression_inner(body, limits, 0, budget)?;
+        let ast = parse_expression_inner_default(body, limits, 0, budget)?;
         keys.push(OrderKey {
             expression: render_expression(&ast),
             ast,
@@ -849,8 +891,10 @@ struct ExpressionParser<'a, 'b> {
     input: &'a str,
     index: usize,
     limits: ParseLimits,
+    address_options: AddressParseOptions,
     depth: usize,
     budget: &'b mut Budget,
+    address_warnings: &'b mut Vec<AddressParseWarning>,
 }
 
 impl ExpressionParser<'_, '_> {
@@ -972,8 +1016,10 @@ impl ExpressionParser<'_, '_> {
             arguments.push(parse_expression_inner(
                 &normalize_layout(part),
                 self.limits,
+                self.address_options,
                 self.depth + 1,
                 self.budget,
+                self.address_warnings,
             )?);
         }
         self.node()?;
@@ -1224,18 +1270,29 @@ impl ExpressionParser<'_, '_> {
             source.clone()
         };
         let inserted_root = source.starts_with('.') && !positional;
-        let address = parse_address(&parse_source).map_err(|error| {
-            ParseError::new(
-                error.code,
-                error.message,
-                start
-                    + if inserted_root {
-                        error.index.saturating_sub(1)
-                    } else {
-                        error.index
-                    },
-            )
-        })?;
+        let parsed =
+            parse_address_with_options(&parse_source, self.address_options).map_err(|error| {
+                ParseError::new(
+                    error.code,
+                    error.message,
+                    start
+                        + if inserted_root {
+                            error.index.saturating_sub(1)
+                        } else {
+                            error.index
+                        },
+                )
+            })?;
+        for mut warning in parsed.warnings {
+            warning.index = start
+                + if inserted_root {
+                    warning.index.saturating_sub(1)
+                } else {
+                    warning.index
+                };
+            self.address_warnings.push(warning);
+        }
+        let address = parsed.address;
         let scope = if source.starts_with('.') {
             ResolutionScope::Current
         } else if address.root == Root::Absolute {
@@ -1266,8 +1323,10 @@ impl ExpressionParser<'_, '_> {
         let inner = parse_expression_inner(
             &normalize_layout(&body),
             self.limits,
+            self.address_options,
             self.depth + 1,
             self.budget,
+            self.address_warnings,
         )?;
         self.node()?;
         Ok(Expression::Group(Box::new(inner)))
@@ -1288,8 +1347,10 @@ impl ExpressionParser<'_, '_> {
             let expression = parse_expression_inner(
                 &normalize_layout(&source),
                 self.limits,
+                self.address_options,
                 self.depth + 1,
                 self.budget,
+                self.address_warnings,
             )?;
             fields.push(ProjectionField { name, expression });
         }

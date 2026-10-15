@@ -68,7 +68,7 @@ struct TestInput {
 }
 
 #[test]
-fn inventories_pinned_experimental_mutate_surfaces_without_claiming_them() {
+fn inventories_pinned_experimental_mutate_surfaces_independently() {
     let cts_root = cts_root();
     let manifest_path = cts_root.join(MANIFEST_PATH);
     let manifest: Manifest = read_json(&manifest_path);
@@ -124,7 +124,12 @@ fn inventories_pinned_experimental_mutate_surfaces_without_claiming_them() {
         assert_eq!(slice.snapshot_id, manifest.meta.snapshot_id);
         assert_eq!(slice.profile, manifest.meta.profile);
         assert_eq!(observed.get(&slice.surface), Some(&slice.case_count));
-        assert_eq!(slice.status, CapabilityStatus::NotImplemented);
+        let expected_status = if slice.surface == MutateCtsSurface::Plan {
+            CapabilityStatus::Implemented
+        } else {
+            CapabilityStatus::NotImplemented
+        };
+        assert_eq!(slice.status, expected_status);
     }
 }
 

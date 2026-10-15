@@ -9,10 +9,22 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Added
 
-- Added a proposal-stage Rust SANSA.Mutate type shell and direct inventory of
-  the pinned experimental CTS snapshot. Planning, target validation, apply,
-  and policy remain independent unimplemented surfaces; this does not add a
-  SANSA.Mutate capability claim or mutation hook.
+- Added a proposal-stage Rust SANSA.Mutate type shell and a side-effect-free
+  planner covering all 28 cases assigned to the pinned experimental plan
+  surface. The planner retains opaque exact bindings, evaluates Query
+  preconditions, enforces conservative container/conflict/budget rules, and
+  preserves provenance and portability warnings. Target validation, apply,
+  and policy remain independent unimplemented surfaces; no mutation hook is
+  exposed.
+
+### Fixed
+
+- Hardened the Rust mutation planner so every resolved alias of the namespace
+  root is protected from removal, pre-parsed targets are revalidated under the
+  planner's Address ceiling, and non-portable Address warnings inside Query
+  preconditions are retained on the plan. Precondition resolution now has a
+  finite default binding ceiling and reports exhaustion through the normalized
+  mutation budget diagnostic.
 
 ## 0.13.0 - 2026-10-06
 

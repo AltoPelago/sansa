@@ -60,8 +60,8 @@ pub const MUTATE_CTS_SNAPSHOT_ID: &str = "sansa-mutate-cts-v1-snapshot-0.1";
 /// Experimental SANSA.Mutate surfaces tracked independently by the Rust
 /// runtime.
 ///
-/// All remain unimplemented in Slice 0. Defining public request and plan types
-/// does not constitute a capability claim.
+/// The side-effect-free plan surface is implemented directly against all 28
+/// assigned cases. Target validation, apply, and policy remain unimplemented.
 pub const EXPERIMENTAL_MUTATE_CTS_SLICES: [ExperimentalMutateCtsSlice; 4] = [
     ExperimentalMutateCtsSlice {
         capability: "SANSA.Mutate",
@@ -69,7 +69,7 @@ pub const EXPERIMENTAL_MUTATE_CTS_SLICES: [ExperimentalMutateCtsSlice; 4] = [
         profile: "mutate-plan-and-policy",
         surface: MutateCtsSurface::Plan,
         case_count: 28,
-        status: CapabilityStatus::NotImplemented,
+        status: CapabilityStatus::Implemented,
     },
     ExperimentalMutateCtsSlice {
         capability: "SANSA.Mutate",
@@ -203,9 +203,13 @@ mod tests {
     }
 
     #[test]
-    fn experimental_mutate_surfaces_are_not_claimed_by_the_type_shell() {
+    fn experimental_mutate_surfaces_are_claimed_independently() {
+        assert_eq!(
+            EXPERIMENTAL_MUTATE_CTS_SLICES[0].status,
+            CapabilityStatus::Implemented
+        );
         assert!(
-            EXPERIMENTAL_MUTATE_CTS_SLICES
+            EXPERIMENTAL_MUTATE_CTS_SLICES[1..]
                 .iter()
                 .all(|slice| slice.status == CapabilityStatus::NotImplemented)
         );

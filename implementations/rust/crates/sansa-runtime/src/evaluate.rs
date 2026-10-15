@@ -338,7 +338,12 @@ fn evaluate_from<N: Namespace>(
     }
 }
 
-fn evaluate_expression<N: Namespace>(
+/// Evaluate one already-parsed Query expression against a supplied current
+/// binding without running a complete query pipeline.
+///
+/// This is the read-only primitive used by mutation preconditions. Address
+/// activation and value-semantics behavior remain governed by `options`.
+pub fn evaluate_expression<N: Namespace>(
     expression: &Expression,
     current: &N::Binding,
     namespace: &N,
