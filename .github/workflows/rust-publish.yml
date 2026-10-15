@@ -155,8 +155,29 @@ jobs:
           EOF
           cat > src/main.rs <<'EOF'
           use sansa_runtime::address::parse_address;
+          use sansa_runtime::mutate::{
+              MutationOperation, MutationRequest, MutationValue, MutationValueIntent,
+              PlanMutationOptions, PlanMutationResult, RequestedCreateOperation,
+              RequestedMutationOperation, plan_mutation,
+          };
+          use sansa_runtime::mutate_target::{
+              ValidateMutationPlanTargetResult, validate_mutation_plan_target,
+          };
           use sansa_runtime::query::parse_query;
-          use sansa_runtime::{CapabilityStatus, STABLE_CTS_LANES};
+          use sansa_runtime::resolve::Namespace;
+          use sansa_runtime::value_semantics::Value;
+          use sansa_runtime::{CapabilityStatus, EXPERIMENTAL_MUTATE_CTS_SLICES, STABLE_CTS_LANES};
+
+          struct SmokeNamespace;
+
+          impl Namespace for SmokeNamespace {
+              type Binding = usize;
+
+              fn root(&self) -> Option<usize> { Some(0) }
+              fn children(&self, _: &usize) -> Vec<usize> { Vec::new() }
+              fn representation_kind(&self, _: &usize) -> Option<String> { Some("object".into()) }
+              fn binding_address(&self, _: &usize) -> Option<String> { Some("$".into()) }
+          }
 
           fn main() {
               let address = parse_address("$.inventory.items[0]").expect("parse address");
@@ -166,6 +187,35 @@ jobs:
               assert_eq!(query.canonical, "from $.inventory.items.*\nselect .sku");
               assert_eq!(STABLE_CTS_LANES[2].status, CapabilityStatus::Implemented);
               assert_eq!(STABLE_CTS_LANES[3].status, CapabilityStatus::Implemented);
+              assert_eq!(EXPERIMENTAL_MUTATE_CTS_SLICES[0].status, CapabilityStatus::Implemented);
+              assert_eq!(EXPERIMENTAL_MUTATE_CTS_SLICES[1].status, CapabilityStatus::Implemented);
+              assert_eq!(EXPERIMENTAL_MUTATE_CTS_SLICES[2].status, CapabilityStatus::NotImplemented);
+              assert_eq!(EXPERIMENTAL_MUTATE_CTS_SLICES[3].status, CapabilityStatus::NotImplemented);
+
+              let request = MutationRequest {
+                  operations: vec![RequestedMutationOperation::Create(RequestedCreateOperation {
+                      parent: "$".into(),
+                      name: "status".into(),
+                      value: MutationValueIntent {
+                          value: MutationValue::try_scalar(Value::Symbol("approved".into()))
+                              .expect("symbol scalar"),
+                          datatype: Some("symbol".into()),
+                          kind: Some("symbol".into()),
+                      },
+                      provenance: None,
+                  })],
+                  ..Default::default()
+              };
+              let PlanMutationResult::Planned(plan) =
+                  plan_mutation(&request, &SmokeNamespace, &PlanMutationOptions::default())
+              else { panic!("create must produce a plan"); };
+              assert!(matches!(&plan.operations()[0], MutationOperation::Create { name, .. } if name == "status"));
+              assert!(matches!(validate_mutation_plan_target(&plan, "aeon"), ValidateMutationPlanTargetResult::Validated { .. }));
+              let ValidateMutationPlanTargetResult::Rejected(errors) =
+                  validate_mutation_plan_target(&plan, "json-compatible")
+              else { panic!("JSON must reject symbol intent"); };
+              assert_eq!(errors[0].code, "SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE");
+              assert_eq!(errors[0].target_format.as_deref(), Some("json"));
           }
           EOF
           for attempt in $(seq 1 12); do
