@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+## 0.14.1 - 2026-10-16
+
 ### Fixed
 
 - Aligned JavaScript and Rust temporal literals and AEON target validation with
