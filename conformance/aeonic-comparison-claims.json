@@ -1,0 +1,29 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-operations-comparison",
+      "snapshot_id": "aeonic-operations-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability_set": "baseline",
+      "command": "npm run cts:aeonic-comparison",
+      "notes": "Verified frozen compatibility target; specification remains proposal-stage. Declared order is unavailable. No Query, Rust or published-package claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-10",
+    "node": "v24.22.2",
+    "manifest_sha256": "8e7a42fe340ec2b9c5f4612e8818a9cbce9e3250a5b6d9971e22eed992fc7d69",
+    "report": "results/aeonic-comparison-snapshot-0.1.json",
+    "report_normalization": "cwd is recorded as .; other shared-runner fields are retained",
+    "implementation_files_sha256": {
+      "src/index.js": "afd248907c58c8923f7c70334c2832a6b3c01383d1dce0db9259a7e0db1952ba",
+      "src/aeonic-comparison.js": "cc1bee9d12ee7a1421aad0fff049e1dd445425a5527060d4ad41006a629d30d4",
+      "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "scripts/cts-aeonic-comparison-adapter.mjs": "1a7ad1b5f3149c0ec83d61d8d1562ebd4f4cf2c2bcac891bcaf947bbf4a460ed"
+    }
+  }
+}

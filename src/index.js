@@ -1,3 +1,11 @@
+export {
+  evaluateAeonicComparison,
+  evaluateAeonicComparisonText,
+  AEONIC_COMPARISON_BASELINE_PROFILE,
+  AEONIC_COMPARISON_CODEPOINT_PROFILE,
+  AEONIC_COMPARISON_DEFAULT_RESOURCE_LIMITS,
+} from './aeonic-comparison.js';
+
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
 export const SANSA_MAX_POSITION_INDEX = 999_999;

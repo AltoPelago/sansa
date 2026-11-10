@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "target": "aeonic-operations-cts-v1-snapshot-0.1",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "manifest_sha256": "8e7a42fe340ec2b9c5f4612e8818a9cbce9e3250a5b6d9971e22eed992fc7d69",
+  "specification_schema_sha256": "3234268193e294cb247d2e8327a715b08a4369706eac0a020b1b2593f4ef1353",
+  "specification_source_sha256": "c8f301c0f43f25e0acfd553bf572ccdf1631eaeaa114b9dfa063e4495fb62966",
+  "capability_set": "baseline",
+  "sut": "node scripts/cts-aeonic-comparison-adapter.mjs",
+  "without_declared_order_sut": "node scripts/cts-aeonic-comparison-adapter.mjs",
+  "cwd": ".",
+  "operation_cases": 124,
+  "ordering_groups": 4,
+  "resource_boundaries": 16,
+  "sut_executions": 406,
+  "ordering_assertions": 896,
+  "failures": []
+}

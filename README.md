@@ -8,6 +8,13 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 
 CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/cts-claims.json).
 
+The unreleased JavaScript [Aeonic comparison entry points](docs/aeonic-comparison.md)
+implement frozen comparison snapshot 0.1's baseline through
+`evaluateAeonicComparison` and `evaluateAeonicComparisonText`. They return
+symbolic outcomes and staged fail-closed diagnostics, with a separate
+[comparison claim](conformance/aeonic-comparison-claims.json). Historical
+value-semantics profiles and Query behavior retain their existing contracts.
+
 ## Current Scope
 
 - root selectors: `$`, `?`

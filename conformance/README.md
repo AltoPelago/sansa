@@ -1,5 +1,13 @@
 # Conformance Claims
 
+`aeonic-comparison-claims.json` separately records the unreleased JavaScript
+Aeonic comparison baseline against frozen snapshot 0.1. Run
+`npm run cts:aeonic-comparison` and validate its claim with
+`node scripts/validate-cts-claims.mjs --claims conformance/aeonic-comparison-claims.json`.
+The retained report is under `results/`; this claim does not include declared
+symbol order, Query integration, the Rust runtime, or a published package release.
+The owning specification remains proposal-stage despite the compatibility freeze.
+
 This directory records the CTS snapshots claimed by the standalone SANSA
 implementation package.
 
