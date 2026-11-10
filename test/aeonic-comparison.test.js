@@ -84,3 +84,41 @@ test('deep structured CTS requests reach resource admission without a serializer
   assert.deepEqual(result, { outcome: 'diagnostic', reason: 'resource_limit', context: { stage: 1, path: null } });
   assert.ok(!Object.hasOwn(result, 'value'));
 });
+
+test('typed admission bounds repeated work on shared acyclic payloads', () => {
+  let reads = 0;
+  let payload = {};
+  const levels = 24;
+  for (let i = 0; i < levels; i += 1) {
+    const child = payload;
+    payload = {
+      get left() { assert.ok(++reads <= 4 * levels, 'shared graph was repeatedly expanded'); return child; },
+      get right() { assert.ok(++reads <= 4 * levels, 'shared graph was repeatedly expanded'); return child; },
+    };
+  }
+  assert.deepEqual(evaluate(request(operand('container', payload), number('1'))), {
+    outcome: 'diagnostic', reason: 'unsupported_domain', context: { stage: 5, path: '/input/left/category' },
+  });
+  assert.ok(reads <= 4 * levels);
+});
+
+test('shared payloads reached at a greater depth still undergo depth admission', () => {
+  const shared = { child: {} };
+  // LIFO traversal reaches shallow first, then revisits shared one level deeper.
+  const payload = { deep: { shared }, shallow: shared };
+  assert.deepEqual(evaluate(request(operand('container', payload), number('1')), {
+    resourceLimits: { maxRequestDepth: 6 },
+  }), { outcome: 'diagnostic', reason: 'resource_limit', context: { stage: 1, path: null } });
+});
+
+test('shared-graph memoization preserves cycle diagnostics and admission precedence', () => {
+  const payload = {};
+  payload.self = payload;
+  const logical = request(operand('container', payload), number('1'));
+  assert.deepEqual(evaluate(logical), {
+    outcome: 'diagnostic', reason: 'invalid_operand', context: { stage: 2, path: null },
+  });
+  assert.deepEqual(evaluate(logical, { resourceLimits: { maxRequestDepth: 4 } }), {
+    outcome: 'diagnostic', reason: 'resource_limit', context: { stage: 1, path: null },
+  });
+});

@@ -56,7 +56,8 @@ active profiles. No trusted option enables declared-order execution.
 
 `evaluateAeonicComparison(request, options)` accepts typed logical operands and
 checks structural depth without serializing the request or inventing a JSON
-byte count. `evaluateAeonicComparisonText(requestText, options)` accepts exact
+byte count. Completed shared subtrees are revisited only at a greater depth;
+cycles still produce a diagnostic. `evaluateAeonicComparisonText(requestText, options)` accepts exact
 Unicode JSON text: UTF-8 byte/depth admission precedes decoding, and malformed
 JSON or duplicate decoded keys produce stage-2 diagnostics.
 

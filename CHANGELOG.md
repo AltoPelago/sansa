@@ -7,6 +7,11 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Fixed
+
+- Bounded typed Aeonic comparison admission on shared object graphs while
+  preserving deeper-path limits, cycle rejection and diagnostic precedence.
+
 ### Added
 
 - Added JavaScript `evaluateAeonicComparison` and `evaluateAeonicComparisonText`

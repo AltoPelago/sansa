@@ -183,12 +183,20 @@ function validateOperand(operand, path, limits) {
 function objectAdmission(request, limit) {
   const stack = [[request, 1, false]];
   const ancestors = new Set();
+  const checkedDepth = new WeakMap();
   while (stack.length) {
     const [value, depth, leaving] = stack.pop();
     if (value === null || typeof value !== 'object') continue;
-    if (leaving) { ancestors.delete(value); continue; }
+    if (leaving) {
+      ancestors.delete(value);
+      checkedDepth.set(value, depth);
+      continue;
+    }
     if (depth > limit) stop('resource_limit', 1, null);
     if (ancestors.has(value)) stop('invalid_operand', 2, null);
+    // Completed shared subtrees only need another visit at a greater depth.
+    // Check active ancestors first so memoization cannot hide a cycle.
+    if ((checkedDepth.get(value) ?? 0) >= depth) continue;
     ancestors.add(value);
     stack.push([value, depth, true]);
     for (const child of Object.values(value)) stack.push([child, depth + 1, false]);
