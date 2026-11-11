@@ -49,6 +49,6 @@ test('reordering retains the same child occurrence while moving it out makes the
 test('mutation rejects identity strings and forged exact ASTs before identity access',()=>{
  const {namespace,calls}=adapter();for(const target of ['$.\\group1\\',{type:'SansaAddress',root:{kind:'absolute',type:'root'},selectors:[{type:'childIdentity',identity:'group1'}],canonical:'$.group',isExact:true}])assert.equal(planMutation({op:'remove',target},namespace).ok,false);assert.equal(calls(),0);
 });
-test('Query does not acquire identity admission through shared Resolve',()=>{
- const {namespace,calls}=adapter();const result=evaluateQuery('from $.\\group1\\\nselect .',namespace);assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');assert.equal(calls(),0);
+test('Query explicitly admits identity selection and retains original bindings',()=>{
+ const {namespace,nodes}=adapter();const result=evaluateQuery('from $.\\group1\\\nselect .',namespace);assert.equal(result.ok,true);assert.equal(result.results[0].binding,nodes.get('$.group'));
 });

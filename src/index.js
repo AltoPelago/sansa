@@ -1,6 +1,7 @@
 import { parseDotSelectorFromCursor, parsePositionSelectorFromCursor, validatePositionIndex } from './selector-cursor.js';
 const CHILD_IDENTITY_RE = /^[A-Za-z0-9_-]+$/;
 const DENY_CHILD_IDENTITY = Symbol('consumer identity admission');
+const QUERY_IDENTITY_BUDGET = Symbol('query identity inspections');
 const DEFAULT_IDENTITY_INSPECTIONS = 10_000;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
@@ -434,6 +435,7 @@ export function evaluateQuery(input, namespace, options = {}) {
   options = {
     ...options,
     valueSemantics: valueSemanticsProfile,
+    [QUERY_IDENTITY_BUDGET]: { inspected: 0 },
   };
   const parsed = typeof input === 'string' ? parseQuery(input, options.parse) : { ok: true, query: input };
   if (!parsed.ok) {
@@ -2747,7 +2749,9 @@ export function resolveAddress(input, namespace, options = {}) {
       return { ok: false, bindings: [], errors: [resolveError(code, 'Child identity selection is not supported by this consumer or namespace', selectorIndex, { identity })] };
     }
   }
-  const identityBudget = hasIdentity ? { limit: maxIdentityInspections, inspected: 0 } : undefined;
+  const identityBudget = hasIdentity
+    ? (options[QUERY_IDENTITY_BUDGET] ?? { inspected: 0 })
+    : undefined;
 
   if (maxBindings === 0 && parsed.address.selectors.length === 0) {
     return {
@@ -2771,6 +2775,7 @@ export function resolveAddress(input, namespace, options = {}) {
         failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
         maxBindings,
         identityBudget,
+        maxIdentityInspections,
       },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
@@ -3633,9 +3638,16 @@ function isBindingObject(value) {
   return value !== null && typeof value === 'object';
 }
 
+function resolveQueryAddress(address, namespace, options, resolveOptions = options.resolve) {
+  const budget = options[QUERY_IDENTITY_BUDGET];
+  return budget === undefined
+    ? resolveConsumerAddress(address, namespace, resolveOptions)
+    : resolveAddress(address, namespace, { ...resolveOptions, [QUERY_IDENTITY_BUDGET]: budget });
+}
+
 function evaluateQueryFromClause(from, namespace, options) {
   if (from.source !== 'expression') {
-    return resolveConsumerAddress(from.address, namespace, options.resolve);
+    return resolveQueryAddress(from.address, namespace, options);
   }
 
   const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
@@ -3706,7 +3718,7 @@ function evaluateResolutionExpression(expression, currentBinding, namespace, opt
     ...(['current', 'contextual'].includes(expression.scope) ? { contextualRoot: currentBinding } : {}),
     ...(expression.scope === 'current' ? { allowParentFromEffectiveRoot: true } : {}),
   };
-  const resolved = resolveConsumerAddress(expression.address, namespace, resolveOptions);
+  const resolved = resolveQueryAddress(expression.address, namespace, options, resolveOptions);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
   return {
     ok: true,
@@ -6684,7 +6696,7 @@ function selectChildIdentity(namespace, bindings, selector, selectorIndex, polic
     const children = typeof namespace.children === 'function' ? namespace.children(binding) ?? [] : binding.children ?? [];
     for (const child of children) {
       const budget = policy.identityBudget;
-      if (budget.inspected >= budget.limit) return { ok: false, error: resolveError('SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED', 'Identity inspection limit exceeded', selectorIndex, { limit: budget.limit, observed: budget.inspected + 1 }) };
+      if (budget.inspected >= policy.maxIdentityInspections) return { ok: false, error: resolveError('SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED', 'Identity inspection limit exceeded', selectorIndex, { limit: policy.maxIdentityInspections, observed: budget.inspected + 1 }) };
       budget.inspected += 1;
       const identity = namespace.identity(child);
       if (identity !== undefined && (typeof identity !== 'string' || !CHILD_IDENTITY_RE.test(identity))) return { ok: false, error: resolveError('SANSA_RESOLVE_INVALID_IDENTITY', 'Adapter returned an invalid structural identity', selectorIndex) };

@@ -43,8 +43,9 @@ modules. Documents are evaluated in the browser.
 - **SANSA Composer:** offers both structural child steps and declared child IDs.
   **AEON Composer:** preserves ordinary binding/list/attribute identities while
   editing its supported source forms; use the source editor for other AEON forms.
-- **Query:** exercises the existing Query engine over the SDK namespace. The
-  separate identity-in-Query example shows its explicit unsupported diagnostic.
+- **Query:** exercises the Query engine over the SDK namespace. The
+  identity-in-Query example selects through an identity chain and shows structural
+  provenance. Its inspection limit is shared across the entire Query call.
 
 Edits re-evaluate after a short debounce. Use **Run** or **Cmd/Ctrl+Enter** for an
 immediate evaluation. Results show canonical structural paths and available IDs;
@@ -53,7 +54,8 @@ does not produce partial resolved results.
 
 The UI uses the real `resolveAddress` and `createAeonNamespace` APIs, replacing the
 website's custom path matcher. This adds a developer playground adapter, not
-production browser/AEOS/Query/activation/mutation/SO admission. Child identities
+production browser/AEOS/activation/mutation/SO admission. Query identity support
+is explicitly integrated in the source evaluator. Child identities
 remain non-exact, recursive extensions are unchanged, and AEON clone/pointer
 references remain structural paths. Pushing this source branch creates no npm,
 crates.io or GitHub release.

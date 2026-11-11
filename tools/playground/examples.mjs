@@ -18,8 +18,7 @@ const examples = {
   expansion: {label: 'List expansion', source: inventory, address: '$.inventory.items.*.sku'},
   attributes: {label: 'Attribute identity', source: String.raw`reading@{unit\unit1\ = "cm"}:number = 42`, address: "$.reading.@.\\unit1\\"},
   query: {label: 'Query', source: inventory, address: '$.inventory.items', view: 'query', query: 'from $.inventory.items.*\nwhere .qty >= 6\nselect .name'},
-  queryIdentity: {label: 'Query identity remains closed', source: inventory, address: '$.inventory.items', view: 'query', query: String.raw`from $.inventory.items.\item1\
-select .name`},
+  queryIdentity: {label: 'Query child identities', source: inventory, address: '$.inventory.items', view: 'query', query: "from $.inventory.items.\\item1\\\nselect .\\name1\\"},
 };
 window.SansaPlaygroundExamples = Object.fromEntries(Object.entries(examples).map(([key, value]) => [key, {
   mode: 'transport', view: 'resolve', scope: '$', inspections: 10000, query: '', addressKind: 'selector', ...value,

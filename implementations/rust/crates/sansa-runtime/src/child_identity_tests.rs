@@ -15,7 +15,9 @@ impl Fixture {
         let mut n = Self {
             rows: Vec::new(),
             parents: Vec::new(),
-            supported: f["supportsIdentity"].as_bool().unwrap(),
+            supported: f["supportsIdentity"]
+                .as_bool()
+                .expect("valid child identity fixture"),
             calls: Cell::new(0),
         };
         n.add(&f["root"], None);
@@ -43,7 +45,7 @@ impl Fixture {
         self.rows
             .iter()
             .position(|r| r["address"] == v["address"])
-            .unwrap()
+            .expect("valid child identity fixture")
     }
 }
 impl Namespace for Fixture {
@@ -82,6 +84,14 @@ impl Namespace for Fixture {
             Navigation::Missing
         }
     }
+    fn binding_address(&self, b: &usize) -> Option<String> {
+        self.rows[*b]["address"].as_str().map(str::to_owned)
+    }
+    fn value(&self, b: &usize) -> Option<crate::value_semantics::Value> {
+        self.rows[*b]["value"]
+            .as_str()
+            .map(|s| crate::value_semantics::Value::String(s.into()))
+    }
     fn supports_structural_identity(&self) -> bool {
         self.supported
     }
@@ -94,20 +104,35 @@ fn suite() -> J {
     serde_json::from_str(include_str!(
         "../tests/fixtures/child-identity/13-child-identity-resolve.json"
     ))
-    .unwrap()
+    .expect("valid child identity fixture")
 }
 #[test]
 fn parser_candidate_vectors() {
     let suite: J = serde_json::from_str(include_str!(
         "../tests/fixtures/child-identity/12-child-identity-parser.json"
     ))
-    .unwrap();
-    assert_eq!(suite["tests"].as_array().unwrap().len(), 20);
-    for case in suite["tests"].as_array().unwrap() {
-        let got = parse_address(case["input"]["source"].as_str().unwrap());
+    .expect("valid child identity fixture");
+    assert_eq!(
+        suite["tests"]
+            .as_array()
+            .expect("valid child identity fixture")
+            .len(),
+        20
+    );
+    for case in suite["tests"]
+        .as_array()
+        .expect("valid child identity fixture")
+    {
+        let got = parse_address(
+            case["input"]["source"]
+                .as_str()
+                .expect("valid child identity fixture"),
+        );
         assert_eq!(
             got.is_ok(),
-            case["expected"]["ok"].as_bool().unwrap(),
+            case["expected"]["ok"]
+                .as_bool()
+                .expect("valid child identity fixture"),
             "{}: {got:?}",
             case["id"]
         );
@@ -120,9 +145,17 @@ fn parser_candidate_vectors() {
             }
         }
         if let Ok(got) = got {
-            assert_eq!(got.is_exact, case["expected"]["exact"].as_bool().unwrap());
+            assert_eq!(
+                got.is_exact,
+                case["expected"]["exact"]
+                    .as_bool()
+                    .expect("valid child identity fixture")
+            );
             assert_eq!(render_address(&got), case["expected"]["canonical"]);
-            assert_eq!(parse_address(&got.canonical).unwrap(), got);
+            assert_eq!(
+                parse_address(&got.canonical).expect("valid child identity fixture"),
+                got
+            );
         }
     }
 }
@@ -130,7 +163,10 @@ fn parser_candidate_vectors() {
 fn resolve_candidate_vectors() {
     let suite = suite();
     let mut count = 0;
-    for case in suite["tests"].as_array().unwrap() {
+    for case in suite["tests"]
+        .as_array()
+        .expect("valid child identity fixture")
+    {
         let input = &case["input"];
         if input
             .get("maxIdentityInspections")
@@ -144,23 +180,34 @@ fn resolve_candidate_vectors() {
         count += 1;
         let f = suite["fixtures"]["namespaces"]
             .as_array()
-            .unwrap()
+            .expect("valid child identity fixture")
             .iter()
             .find(|f| f["id"] == input["namespace"])
-            .unwrap();
+            .expect("valid child identity fixture");
         let ns = Fixture::build(f);
         let mut options = ResolveOptions::default();
         if let Some(n) = input["maxIdentityInspections"].as_u64() {
             options.max_identity_inspections = n as usize;
         }
         options.max_bindings = input["maxBindings"].as_u64().map(|n| n as usize);
-        options.contextual_root = input["contextualRoot"]
-            .as_str()
-            .map(|s| ns.rows.iter().position(|r| r["address"] == s).unwrap());
-        let got = resolve_address(input["source"].as_str().unwrap(), &ns, &options);
+        options.contextual_root = input["contextualRoot"].as_str().map(|s| {
+            ns.rows
+                .iter()
+                .position(|r| r["address"] == s)
+                .expect("valid child identity fixture")
+        });
+        let got = resolve_address(
+            input["source"]
+                .as_str()
+                .expect("valid child identity fixture"),
+            &ns,
+            &options,
+        );
         assert_eq!(
             got.is_ok(),
-            case["expected"]["ok"].as_bool().unwrap(),
+            case["expected"]["ok"]
+                .as_bool()
+                .expect("valid child identity fixture"),
             "{}: {got:?}",
             case["id"]
         );
@@ -193,7 +240,9 @@ fn resolve_candidate_vectors() {
         }
         assert_eq!(
             ns.calls.get(),
-            case["expected"]["identityCalls"].as_u64().unwrap() as usize,
+            case["expected"]["identityCalls"]
+                .as_u64()
+                .expect("valid child identity fixture") as usize,
             "{}",
             case["id"]
         );
@@ -204,7 +253,7 @@ fn resolve_candidate_vectors() {
 fn forged_ast_and_consumer_denial() {
     let s = suite();
     let ns = Fixture::build(&s["fixtures"]["namespaces"][0]);
-    let mut a = parse_address("$.\\group1\\").unwrap();
+    let mut a = parse_address("$.\\group1\\").expect("valid child identity fixture");
     a.is_exact = true;
     a.canonical = "$.other".into();
     assert_eq!(
@@ -220,13 +269,18 @@ fn forged_ast_and_consumer_denial() {
         "SANSA_RESOLVE_INVALID_ADDRESS"
     );
     assert_eq!(ns.calls.get(), calls);
-    let out = crate::evaluate::evaluate_query(
-        "from $.\\group1\\\nselect .",
+    let expression =
+        crate::query::parse_expression("$.\\group1\\").expect("valid child identity fixture");
+    let out = crate::evaluate::evaluate_expression(
+        &expression,
+        &0,
         &ns,
         &crate::evaluate::EvaluateOptions::default(),
     );
-    assert!(!out.errors.is_empty());
-    assert_eq!(out.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+    assert_eq!(
+        out.expect_err("identity guard rejects the expression").code,
+        "SANSA_RESOLVE_UNSUPPORTED_SELECTOR"
+    );
     assert_eq!(ns.calls.get(), calls);
 }
 #[test]
@@ -332,7 +386,7 @@ fn default_inspection_limit_and_mutation_ast_denial() {
     let suite = suite();
     let ns = Fixture::build(&suite["fixtures"]["namespaces"][0]);
     for payload in ["group1", "x\\.other"] {
-        let mut ast = parse_address("$.\\group1\\").unwrap();
+        let mut ast = parse_address("$.\\group1\\").expect("valid child identity fixture");
         ast.is_exact = true;
         ast.canonical = "$.other".into();
         ast.selectors = vec![Selector::ChildIdentity {
@@ -361,7 +415,7 @@ fn default_inspection_limit_and_mutation_ast_denial() {
 fn caller_ast_bounds_fail_before_metadata_or_recursive_rendering() {
     let s = suite();
     let ns = Fixture::build(&s["fixtures"]["namespaces"][0]);
-    let mut a = parse_address("$.\\group1\\").unwrap();
+    let mut a = parse_address("$.\\group1\\").expect("valid child identity fixture");
     a.selectors.resize(
         1025,
         Selector::ChildIdentity {
@@ -372,7 +426,7 @@ fn caller_ast_bounds_fail_before_metadata_or_recursive_rendering() {
         resolve_parsed_address(&a, &ns, &ResolveOptions::default()).errors[0].code,
         "SANSA_RESOLVE_INVALID_ADDRESS"
     );
-    let mut a = parse_address("$.\\group1\\").unwrap();
+    let mut a = parse_address("$.\\group1\\").expect("valid child identity fixture");
     let mut t = crate::address::QualifierTerm {
         name: "x".into(),
         parameter_groups: vec![],
@@ -391,4 +445,157 @@ fn caller_ast_bounds_fail_before_metadata_or_recursive_rendering() {
         "SANSA_RESOLVE_INVALID_ADDRESS"
     );
     assert_eq!(ns.calls.get(), 0);
+}
+
+#[test]
+fn query_identity_shared_vectors() {
+    use crate::evaluate::{EvaluateOptions, EvaluatedValue, QueryPolicy, evaluate_query};
+    let suite: J = serde_json::from_str(include_str!(
+        "../tests/fixtures/child-identity/query-admission.json"
+    ))
+    .expect("valid child identity fixture");
+    assert_eq!(
+        suite["tests"]
+            .as_array()
+            .expect("valid child identity fixture")
+            .len(),
+        23
+    );
+    for case in suite["tests"]
+        .as_array()
+        .expect("valid child identity fixture")
+    {
+        let mut fixture = suite["namespace"].clone();
+        match case["change"].as_str() {
+            Some("unsupported") => fixture["supportsIdentity"] = json!(false),
+            Some("tie") => {
+                fixture["root"]["children"][0]["children"][0]["children"][0]["value"] = json!("A")
+            }
+            Some("duplicate") => {
+                fixture["root"]["children"][0]["children"][1]["identity"] = json!("first")
+            }
+            Some("invalid") => {
+                fixture["root"]["children"][0]["children"][1]["identity"] = json!("bad!")
+            }
+            _ => {}
+        }
+        let ns = Fixture::build(&fixture);
+        let mut options = EvaluateOptions::default();
+        let input = &case["options"];
+        if let Some(n) = input["resolve"]["maxIdentityInspections"].as_u64() {
+            options.resolve.max_identity_inspections = n as usize;
+        }
+        options.resolve.max_bindings = input["resolve"]["maxBindings"].as_u64().map(|n| n as usize);
+        options.budget.max_result_records = input["budget"]["maxResultRecords"]
+            .as_u64()
+            .map(|n| n as usize);
+        if input["policy"] == "validation" {
+            options.policy = QueryPolicy::Validation;
+        }
+        let original = options.clone();
+        let out = evaluate_query(
+            case["query"]
+                .as_str()
+                .expect("valid child identity fixture"),
+            &ns,
+            &options,
+        );
+        let expected = &case["expected"];
+        assert_eq!(
+            out.is_ok(),
+            expected["ok"]
+                .as_bool()
+                .expect("valid child identity fixture"),
+            "{}: {out:?}",
+            case["id"]
+        );
+        assert_eq!(
+            ns.calls.get(),
+            expected["identityCalls"]
+                .as_u64()
+                .expect("valid child identity fixture") as usize,
+            "{}",
+            case["id"]
+        );
+        assert_eq!(options, original);
+        if out.is_ok() {
+            let candidates: Vec<_> = out
+                .results
+                .iter()
+                .map(|r| ns.rows[r.candidate]["address"].clone())
+                .collect();
+            assert_eq!(json!(candidates), expected["candidates"], "{}", case["id"]);
+            let selected: Vec<Vec<_>> = out
+                .results
+                .iter()
+                .map(|r| match &r.value {
+                    EvaluatedValue::Bindings(bs) => {
+                        bs.iter().map(|b| ns.rows[*b]["address"].clone()).collect()
+                    }
+                    _ => panic!("expected original binding handles"),
+                })
+                .collect();
+            assert_eq!(json!(selected), expected["selected"], "{}", case["id"]);
+        } else {
+            assert!(out.results.is_empty());
+            let e = &out.errors[0];
+            let got = json!({"error":e.code,"phase":e.phase.map(|p| format!("{p:?}").to_lowercase()),"candidateAddress":e.candidate_address,"limit":e.limit,"observed":e.observed,"selectorIndex":e.selector_index,"identity":e.identity});
+            for field in [
+                "error",
+                "phase",
+                "candidateAddress",
+                "limit",
+                "observed",
+                "selectorIndex",
+                "identity",
+            ] {
+                if let Some(v) = expected.get(field) {
+                    assert_eq!(&got[field], v, "{}: {field}", case["id"]);
+                }
+            }
+        }
+    }
+}
+#[test]
+fn query_identity_budget_is_per_invocation_and_activation_stays_denied() {
+    use crate::evaluate::{AddressActivation, EvaluateOptions, evaluate_query};
+    let s = suite();
+    let ns = Fixture::build(&s["fixtures"]["namespaces"][0]);
+    let mut options = EvaluateOptions::default();
+    options.resolve.max_identity_inspections = 2;
+    let q = crate::query::parse_query("from $.\\group1\\\nselect .")
+        .expect("valid child identity fixture");
+    for _ in 0..2 {
+        assert!(crate::evaluate::evaluate_parsed_query(&q, &ns, &options).is_ok());
+    }
+    // Even trusted activation cannot acquire the new capability.
+    struct Activation<'a>(&'a Fixture);
+    impl Namespace for Activation<'_> {
+        type Binding = usize;
+        fn root(&self) -> Option<usize> {
+            Some(0)
+        }
+        fn children(&self, b: &usize) -> Vec<usize> {
+            self.0.children(b)
+        }
+        fn name(&self, b: &usize) -> Option<String> {
+            self.0.name(b)
+        }
+        fn supports_structural_identity(&self) -> bool {
+            true
+        }
+        fn structural_identity(&self, b: &usize) -> Option<String> {
+            self.0.structural_identity(b)
+        }
+        fn value(&self, _: &usize) -> Option<crate::value_semantics::Value> {
+            Some(crate::value_semantics::Value::SansaAddress(
+                "$.\\group1\\".into(),
+            ))
+        }
+    }
+    let before = ns.calls.get();
+    options.address_activation = AddressActivation::Trusted;
+    let out = evaluate_query("from $\nselect path(.)", &Activation(&ns), &options);
+    assert_eq!(out.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+    assert_eq!(ns.calls.get(), before);
 }

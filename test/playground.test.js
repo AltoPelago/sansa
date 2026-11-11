@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseAddress, resolveAddress} from '../src/index.js';
+import {parseAddress, parseQuery, resolveAddress} from '../src/index.js';
 import {rowsFromNamespace, scopedNamespace, selectionRows} from '../tools/playground/namespace.mjs';
 import {playgroundImports} from '../scripts/playground.mjs';
 import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync} from 'node:fs';
@@ -89,4 +89,15 @@ test('website source composer keeps structural IDs on member, list and attribute
   assert.equal(rows.find(r => r.path === '$.group').identity, 'group1');
   assert.equal(rows.find(r => r.path === '$.group.items[0]').identity, 'item1');
   assert.equal(rows.find(r => r.identity === 'unit1')?.identity, 'unit1');
+});
+
+test('shipped playground examples load and have valid address and Query expressions', () => {
+  const context = vm.createContext({window: {}, document: {querySelector: () => ({innerHTML: ''})}});
+  vm.runInContext(readFileSync(new URL('../tools/playground/examples.mjs', import.meta.url), 'utf8'), context);
+  const examples = Object.values(context.window.SansaPlaygroundExamples);
+  assert.equal(examples.length, 11);
+  for (const example of examples) {
+    assert.equal(parseAddress(example.address).ok, true, example.label);
+    if (example.view === 'query') assert.equal(parseQuery(example.query).ok, true, example.label);
+  }
 });

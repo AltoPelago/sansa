@@ -1,0 +1,425 @@
+{
+  "description": "Local Query admission vectors; not a promoted CTS suite. Reused identity across different parents is legal.",
+  "namespace": {
+    "supportsIdentity": true,
+    "root": {
+      "address": "$",
+      "identity": "rootId",
+      "children": [
+        {
+          "address": "$.items",
+          "name": "items",
+          "identity": "itemsId",
+          "children": [
+            {
+              "address": "$.items[0]",
+              "index": 0,
+              "identity": "first",
+              "children": [
+                {
+                  "address": "$.items[0].name",
+                  "name": "name",
+                  "identity": "label",
+                  "value": "B",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "address": "$.items[1]",
+              "index": 1,
+              "identity": "second",
+              "children": [
+                {
+                  "address": "$.items[1].name",
+                  "name": "name",
+                  "identity": "label",
+                  "value": "A",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "tests": [
+    {
+      "id": "source-chain",
+      "query": "from $.\\itemsId\\.\\first\\\nselect .\\label\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 4,
+        "candidates": [
+          "$.items[0]"
+        ],
+        "selected": [
+          [
+            "$.items[0].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "selection-order",
+      "query": "from $.items.*\nselect .\\label\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[0]",
+          "$.items[1]"
+        ],
+        "selected": [
+          [
+            "$.items[0].name"
+          ],
+          [
+            "$.items[1].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "absolute-expression",
+      "query": "from $.items[1]\nselect $.items.\\first\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[1]"
+        ],
+        "selected": [
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "contextual-expression",
+      "query": "from $.items.*\nselect ?.\\label\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[0]",
+          "$.items[1]"
+        ],
+        "selected": [
+          [
+            "$.items[0].name"
+          ],
+          [
+            "$.items[1].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "where-order-select",
+      "query": "from $.items.*\nwhere exists(.\\label\\)\norder by .\\label\\ asc\nselect .\\label\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 6,
+        "candidates": [
+          "$.items[1]",
+          "$.items[0]"
+        ],
+        "selected": [
+          [
+            "$.items[1].name"
+          ],
+          [
+            "$.items[0].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "stable-tied-order",
+      "query": "from $.items.*\norder by .\\label\\ asc\nselect .",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[0]",
+          "$.items[1]"
+        ],
+        "selected": [
+          [
+            "$.items[0]"
+          ],
+          [
+            "$.items[1]"
+          ]
+        ]
+      },
+      "change": "tie"
+    },
+    {
+      "id": "missing-source",
+      "query": "from $.items.\\missing\\\nselect .",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [],
+        "selected": []
+      }
+    },
+    {
+      "id": "missing-value",
+      "query": "from $.items.*\nselect .\\missing\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[0]",
+          "$.items[1]"
+        ],
+        "selected": [
+          [],
+          []
+        ]
+      }
+    },
+    {
+      "id": "root-excluded",
+      "query": "from $.\\rootId\\\nselect .",
+      "expected": {
+        "ok": true,
+        "identityCalls": 1,
+        "candidates": [],
+        "selected": []
+      }
+    },
+    {
+      "id": "empty-zero",
+      "query": "from $.items[0].name.\\missing\\\nselect .",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 0
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 0,
+        "candidates": [],
+        "selected": []
+      }
+    },
+    {
+      "id": "source-budget",
+      "query": "from $.items.\\first\\\nselect .",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 1,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "from",
+        "limit": 1,
+        "observed": 2,
+        "selectorIndex": 1
+      }
+    },
+    {
+      "id": "from-select-shared-budget",
+      "query": "from $.items.\\first\\\nselect .\\label\\",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 2
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "select",
+        "candidateAddress": "$.items[0]",
+        "limit": 2,
+        "observed": 3,
+        "selectorIndex": 0
+      }
+    },
+    {
+      "id": "all-phases-shared-budget",
+      "query": "from $.items.*\nwhere exists(.\\label\\)\norder by .\\label\\ asc\nselect .\\label\\",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 5
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 5,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "select",
+        "candidateAddress": "$.items[0]",
+        "limit": 5,
+        "observed": 6
+      }
+    },
+    {
+      "id": "where-shared-budget",
+      "query": "from $.items.*\nwhere exists(.\\label\\)\nselect .",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 1,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "where",
+        "candidateAddress": "$.items[1]",
+        "limit": 1,
+        "observed": 2
+      }
+    },
+    {
+      "id": "order-shared-budget",
+      "query": "from $.items.*\norder by .\\label\\ asc\nselect .",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 1,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "order",
+        "candidateAddress": "$.items[1]",
+        "limit": 1,
+        "observed": 2
+      }
+    },
+    {
+      "id": "repeated-expression-charged",
+      "query": "from $.items[0]\nselect { x = .\\label\\ y = .\\label\\ }",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 1,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "select",
+        "limit": 1,
+        "observed": 2
+      }
+    },
+    {
+      "id": "zero-inspection",
+      "query": "from $.items.*\nselect .\\label\\",
+      "options": {
+        "resolve": {
+          "maxIdentityInspections": 0
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "phase": "select",
+        "limit": 0,
+        "observed": 1
+      }
+    },
+    {
+      "id": "duplicate",
+      "query": "from $.items.\\first\\\nselect .",
+      "change": "duplicate",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_RESOLVE_AMBIGUOUS_IDENTITY",
+        "phase": "from",
+        "identity": "first"
+      }
+    },
+    {
+      "id": "invalid-metadata",
+      "query": "from $.items.\\first\\\nselect .",
+      "change": "invalid",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_RESOLVE_INVALID_IDENTITY",
+        "phase": "from"
+      }
+    },
+    {
+      "id": "unsupported",
+      "query": "from $.items.\\first\\\nselect .",
+      "change": "unsupported",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_UNSUPPORTED_IDENTITY",
+        "phase": "from"
+      }
+    },
+    {
+      "id": "validation-policy",
+      "query": "from $.items.\\first\\\nselect .",
+      "options": {
+        "policy": "validation"
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "candidates": [
+          "$.items[0]"
+        ],
+        "selected": [
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "binding-budget",
+      "query": "from $.items.\\first\\\nselect .",
+      "options": {
+        "resolve": {
+          "maxBindings": 0
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED",
+        "phase": "from",
+        "limit": 0,
+        "observed": 1
+      }
+    },
+    {
+      "id": "result-budget",
+      "query": "from $.items.\\first\\\nselect .",
+      "options": {
+        "budget": {
+          "maxResultRecords": 0
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_QUERY_BUDGET_EXCEEDED",
+        "phase": "select",
+        "limit": 0,
+        "observed": 1
+      }
+    }
+  ]
+}

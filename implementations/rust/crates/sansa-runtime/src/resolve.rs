@@ -166,7 +166,7 @@ pub fn resolve_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
 ) -> ResolveOutput<N::Binding> {
     match parse_address(input) {
-        Ok(address) => resolve_valid_address(&address, namespace, options),
+        Ok(address) => resolve_valid_address(&address, namespace, options, &mut 0),
         Err(error) => {
             let mut diagnostic = Diagnostic::new(error.code, error.message);
             diagnostic.phase = Some(DiagnosticPhase::Parse);
@@ -180,6 +180,16 @@ pub fn resolve_parsed_address<N: Namespace>(
     address: &Address,
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
+) -> ResolveOutput<N::Binding> {
+    resolve_parsed_address_with_inspections(address, namespace, options, &mut 0)
+}
+
+/// Share logical inspection accounting only within an admitted operation.
+pub(crate) fn resolve_parsed_address_with_inspections<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
 ) -> ResolveOutput<N::Binding> {
     let normalized;
     let has_identity = address
@@ -208,12 +218,13 @@ pub fn resolve_parsed_address<N: Namespace>(
     } else {
         address
     };
-    resolve_valid_address(address, namespace, options)
+    resolve_valid_address(address, namespace, options, inspected)
 }
 fn resolve_valid_address<N: Namespace>(
     address: &Address,
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
 ) -> ResolveOutput<N::Binding> {
     let has_identity = address
         .selectors
@@ -272,7 +283,6 @@ fn resolve_valid_address<N: Namespace>(
             None,
         ));
     }
-    let mut inspected = 0usize;
     if options.max_bindings == Some(0) && address.selectors.is_empty() {
         return ResolveOutput::failure(binding_limit_error(0, 1, None));
     }
@@ -286,7 +296,7 @@ fn resolve_valid_address<N: Namespace>(
             selector_index,
             &root,
             options,
-            &mut inspected,
+            inspected,
         ) {
             Ok(bindings) => bindings,
             Err(error) => return ResolveOutput::failure(*error),
@@ -365,12 +375,11 @@ fn apply_selector<N: Namespace>(
                 if let Some(child) = selected {
                     output.push(child);
                 }
-                if options
-                    .max_bindings
-                    .is_some_and(|limit| output.len() > limit)
+                if let Some(limit) = options.max_bindings
+                    && output.len() > limit
                 {
                     return Err(Box::new(binding_limit_error(
-                        options.max_bindings.unwrap(),
+                        limit,
                         output.len(),
                         Some(selector_index),
                     )));
@@ -720,6 +729,97 @@ fn binding_limit_error(limit: usize, observed: usize, selector_index: Option<usi
     diagnostic
 }
 
+fn valid_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
+}
+fn identity_ast_bounded(address: &Address) -> bool {
+    if address.selectors.len() > 1024 {
+        return false;
+    }
+    let mut bytes = 0usize;
+    for selector in &address.selectors {
+        let s = match selector {
+            Selector::ChildIdentity { identity } => {
+                if !valid_identity(identity) {
+                    return false;
+                }
+                identity
+            }
+            Selector::Member { name, .. }
+            | Selector::LocalSpace { name }
+            | Selector::SemanticTypeFilter { name }
+            | Selector::RepresentationKindFilter { name } => name,
+            Selector::NamePattern { pattern } => pattern,
+            _ => continue,
+        };
+        bytes = bytes.saturating_add(s.len());
+        if bytes > 65536 {
+            return false;
+        }
+    }
+    let mut stack = Vec::new();
+    if let Some(q) = &address.qualifier_expression {
+        if q.terms.len() > 1024 {
+            return false;
+        }
+        for t in &q.terms {
+            stack.push((t, 0));
+        }
+    }
+    let mut count = 0usize;
+    while let Some((term, depth)) = stack.pop() {
+        count = count
+            .saturating_add(1)
+            .saturating_add(term.arguments.len())
+            .saturating_add(term.parameter_groups.len());
+        if count > 1024 || depth > 64 {
+            return false;
+        }
+        if term.arguments.len() > 1024 || term.parameter_groups.len() > 1024 {
+            return false;
+        }
+        bytes = bytes.saturating_add(term.name.len());
+        for a in &term.arguments {
+            bytes = bytes.saturating_add(match a {
+                crate::address::QualifierArgument::Number(s)
+                | crate::address::QualifierArgument::Quoted(s) => s.len(),
+            });
+        }
+        if bytes > 65536 {
+            return false;
+        }
+        for group in &term.parameter_groups {
+            if stack.len().saturating_add(group.len()) > 1024 {
+                return false;
+            }
+            for t in group {
+                stack.push((t, depth + 1));
+            }
+        }
+    }
+    true
+}
+
+/// Internal-consumer admission boundary; standalone Resolve remains enabled.
+#[allow(clippy::result_large_err)] // Preserve the shared inline diagnostic envelope.
+pub(crate) fn deny_child_identity(address: &Address) -> Result<(), Diagnostic> {
+    if let Some(index) = address
+        .selectors
+        .iter()
+        .position(|s| matches!(s, Selector::ChildIdentity { .. }))
+    {
+        return Err(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Child identity selection is not admitted by this consumer",
+            Some(index),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -808,94 +908,4 @@ mod tests {
         assert!(glob_matches(r"a\\b", r"a\b"));
         assert!(!glob_matches(r"a\*b", "axxb"));
     }
-}
-
-fn valid_identity(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
-}
-fn identity_ast_bounded(address: &Address) -> bool {
-    if address.selectors.len() > 1024 {
-        return false;
-    }
-    let mut bytes = 0usize;
-    for selector in &address.selectors {
-        let s = match selector {
-            Selector::ChildIdentity { identity } => {
-                if !valid_identity(identity) {
-                    return false;
-                }
-                identity
-            }
-            Selector::Member { name, .. }
-            | Selector::LocalSpace { name }
-            | Selector::SemanticTypeFilter { name }
-            | Selector::RepresentationKindFilter { name } => name,
-            Selector::NamePattern { pattern } => pattern,
-            _ => continue,
-        };
-        bytes = bytes.saturating_add(s.len());
-        if bytes > 65536 {
-            return false;
-        }
-    }
-    let mut stack = Vec::new();
-    if let Some(q) = &address.qualifier_expression {
-        if q.terms.len() > 1024 {
-            return false;
-        }
-        for t in &q.terms {
-            stack.push((t, 0));
-        }
-    }
-    let mut count = 0usize;
-    while let Some((term, depth)) = stack.pop() {
-        count = count
-            .saturating_add(1)
-            .saturating_add(term.arguments.len())
-            .saturating_add(term.parameter_groups.len());
-        if count > 1024 || depth > 64 {
-            return false;
-        }
-        if term.arguments.len() > 1024 || term.parameter_groups.len() > 1024 {
-            return false;
-        }
-        bytes = bytes.saturating_add(term.name.len());
-        for a in &term.arguments {
-            bytes = bytes.saturating_add(match a {
-                crate::address::QualifierArgument::Number(s)
-                | crate::address::QualifierArgument::Quoted(s) => s.len(),
-            });
-        }
-        if bytes > 65536 {
-            return false;
-        }
-        for group in &term.parameter_groups {
-            if stack.len().saturating_add(group.len()) > 1024 {
-                return false;
-            }
-            for t in group {
-                stack.push((t, depth + 1));
-            }
-        }
-    }
-    true
-}
-
-/// Internal-consumer admission boundary; standalone Resolve remains enabled.
-pub(crate) fn deny_child_identity(address: &Address) -> Result<(), Diagnostic> {
-    if let Some(index) = address
-        .selectors
-        .iter()
-        .position(|s| matches!(s, Selector::ChildIdentity { .. }))
-    {
-        return Err(resolve_error(
-            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
-            "Child identity selection is not admitted by this consumer",
-            Some(index),
-        ));
-    }
-    Ok(())
 }

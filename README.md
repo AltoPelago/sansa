@@ -72,6 +72,13 @@ provides the document runtime and SDK adapter; sibling checkouts are detected
 automatically. No SANSA bundle, package release or PHP server is needed. Edit
 `src/index.js` and reload to test changes. See [playground setup and scope](tools/playground/README.md).
 
+Child identities are also admitted explicitly in read-only Query sources and
+address expressions. For example, `from $.items.\first\` followed by
+`select .\label\` returns the original bindings with structural candidate/value
+paths. `resolve.maxIdentityInspections` is shared across the entire Query call.
+Dynamic address activation, references, Instruction, mutation and SO retain their
+separate admission boundaries. See [candidate semantics](docs/child-identity-candidate.md).
+
 ## Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against

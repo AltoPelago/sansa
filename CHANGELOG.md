@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Admit read-only child identity selectors in JavaScript and shared Rust Query sources/expressions with one inspection budget per invocation; retain activation, reference and mutation guards.
+
 ### Added
 
 - Repository source playground based on the website UI, with direct SANSA imports, the SDK identity namespace, scoped roots, inspection budgets and identity/reorder examples. Run `npm run playground` with a built AEON checkout. No official release is created by source pushes.

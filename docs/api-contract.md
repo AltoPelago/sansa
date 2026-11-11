@@ -1480,3 +1480,17 @@ Run the experimental candidates explicitly with `npm run cts:address:child-ident
 
 
 The child-identity candidate exposes optional `SansaResolveDiagnostic.identity` for authored selector context on identity-related Resolve failures. Read-only rollout preparation may proceed with the unresolved JavaScript heap qualification explicitly deferred; this is not a released support or cost-pass claim. See [candidate delivery status](child-identity-candidate.md).
+
+## Candidate Query identity admission
+
+Query source addresses and resolution expressions support direct child identity
+selection over explicitly capable namespaces. Candidate/value addresses remain
+canonical structural paths; selected bindings are original namespace handles.
+The existing `resolve.maxIdentityInspections` option is a whole-Query budget
+(default 10,000), shared across every clause, candidate and repeated read. Each
+invocation owns fresh private state; caller options are never mutated or used as
+a session. Any failure returns no records. Binding/result limits remain separate.
+Dynamic `path(...)` activation, reference following, graph traversal, Instruction
+and mutation retain their own guards. Public Rust `evaluate_expression` remains
+closed for mutation-precondition consumers; only Query entry points admit IDs.
+No public struct, session, codec or serialization format is added by this slice.

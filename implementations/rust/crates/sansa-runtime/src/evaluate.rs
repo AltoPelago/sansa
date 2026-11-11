@@ -5,7 +5,9 @@
 // and allocation on every propagated failure path.
 #![allow(clippy::result_large_err)]
 
+use std::cell::Cell;
 use std::cmp::Ordering;
+use std::ops::Deref;
 
 use crate::address::{Address, Root, Selector, parse_address};
 use crate::query::{
@@ -91,6 +93,20 @@ impl<Binding> Default for EvaluateOptions<Binding> {
     }
 }
 
+// Per-invocation state never escapes through caller options or public structs.
+struct EvaluationContext<'a, Binding> {
+    options: &'a EvaluateOptions<Binding>,
+    identity_inspections: Cell<usize>,
+    admit_child_identity: bool,
+}
+
+impl<Binding> Deref for EvaluationContext<'_, Binding> {
+    type Target = EvaluateOptions<Binding>;
+    fn deref(&self) -> &Self::Target {
+        self.options
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvaluatedValue<Binding> {
     Scalar(Value),
@@ -153,6 +169,12 @@ pub fn evaluate_parsed_query<N: Namespace>(
     namespace: &N,
     options: &EvaluateOptions<N::Binding>,
 ) -> QueryOutput<N::Binding> {
+    let context = EvaluationContext {
+        options,
+        identity_inspections: Cell::new(0),
+        admit_child_identity: true,
+    };
+    let options = &context;
     if let Err(error) = enforce_policy(query, options.policy) {
         return QueryOutput::failure(error);
     }
@@ -184,7 +206,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
         }
         let mut filtered = Vec::new();
         for binding in bindings {
-            match evaluate_expression(&clause.ast, &binding, namespace, options)
+            match evaluate_expression_inner(&clause.ast, &binding, namespace, options)
                 .and_then(|value| expect_boolean(value, namespace))
             {
                 Ok(true) => filtered.push(binding),
@@ -215,7 +237,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
         for (ordinal, binding) in bindings.into_iter().enumerate() {
             let mut keys = Vec::with_capacity(order.keys.len());
             for key in &order.keys {
-                let value = match evaluate_expression(&key.ast, &binding, namespace, options)
+                let value = match evaluate_expression_inner(&key.ast, &binding, namespace, options)
                     .and_then(|value| expect_scalar(value, namespace))
                 {
                     Ok(value) => value,
@@ -294,7 +316,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
 
     let mut results = Vec::with_capacity(bindings.len());
     for binding in bindings {
-        match evaluate_expression(&query.select.ast, &binding, namespace, options) {
+        match evaluate_expression_inner(&query.select.ast, &binding, namespace, options) {
             Ok(value) => results.push(QueryRecord {
                 candidate: binding,
                 value,
@@ -315,10 +337,12 @@ pub fn evaluate_parsed_query<N: Namespace>(
 fn evaluate_from<N: Namespace>(
     from: &FromClause,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<Vec<N::Binding>> {
     match from {
-        FromClause::Address(address) => resolve(address, namespace, &options.resolve),
+        FromClause::Address(address) => {
+            resolve_query(address, namespace, &options.resolve, options)
+        }
         FromClause::Path(expression) => {
             let root = namespace.root().ok_or_else(|| {
                 diagnostic(
@@ -327,7 +351,7 @@ fn evaluate_from<N: Namespace>(
                     DiagnosticPhase::From,
                 )
             })?;
-            match evaluate_expression(expression, &root, namespace, options)? {
+            match evaluate_expression_inner(expression, &root, namespace, options)? {
                 EvaluatedValue::Bindings(bindings) => Ok(bindings),
                 _ => Err(evaluate_error(
                     "SANSA_QUERY_EVALUATE_INVALID_FROM_SOURCE",
@@ -349,6 +373,24 @@ pub fn evaluate_expression<N: Namespace>(
     namespace: &N,
     options: &EvaluateOptions<N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+    evaluate_expression_inner(
+        expression,
+        current,
+        namespace,
+        &EvaluationContext {
+            options,
+            identity_inspections: Cell::new(0),
+            admit_child_identity: false,
+        },
+    )
+}
+
+fn evaluate_expression_inner<N: Namespace>(
+    expression: &Expression,
+    current: &N::Binding,
+    namespace: &N,
+    options: &EvaluationContext<'_, N::Binding>,
+) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     match expression {
         Expression::Literal(literal) => Ok(EvaluatedValue::Scalar(literal_value(literal)?)),
         Expression::CurrentBinding => Ok(EvaluatedValue::Bindings(vec![current.clone()])),
@@ -360,14 +402,15 @@ pub fn evaluate_expression<N: Namespace>(
             if matches!(scope, crate::query::ResolutionScope::Current) {
                 resolve_options.allow_parent_from_effective_root = true;
             }
-            resolve(address, namespace, &resolve_options).map(EvaluatedValue::Bindings)
+            resolve_query(address, namespace, &resolve_options, options)
+                .map(EvaluatedValue::Bindings)
         }
-        Expression::Group(inner) => evaluate_expression(inner, current, namespace, options),
+        Expression::Group(inner) => evaluate_expression_inner(inner, current, namespace, options),
         Expression::Unary {
             operator: UnaryOperator::Not,
             argument,
         } => {
-            let value = evaluate_expression(argument, current, namespace, options)?;
+            let value = evaluate_expression_inner(argument, current, namespace, options)?;
             Ok(EvaluatedValue::Scalar(Value::Boolean(!expect_boolean(
                 value, namespace,
             )?)))
@@ -406,7 +449,7 @@ pub fn evaluate_expression<N: Namespace>(
             for field in fields {
                 output.push((
                     field.name.clone(),
-                    evaluate_expression(&field.expression, current, namespace, options)?,
+                    evaluate_expression_inner(&field.expression, current, namespace, options)?,
                 ));
             }
             Ok(EvaluatedValue::Object(output))
@@ -420,10 +463,10 @@ fn evaluate_binary<N: Namespace>(
     right: &Expression,
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
-    let left = evaluate_expression(left, current, namespace, options)?;
-    let right = evaluate_expression(right, current, namespace, options)?;
+    let left = evaluate_expression_inner(left, current, namespace, options)?;
+    let right = evaluate_expression_inner(right, current, namespace, options)?;
     if operator == BinaryOperator::In {
         let left = expect_scalar(left, namespace)?;
         let EvaluatedValue::Bindings(bindings) = right else {
@@ -466,7 +509,7 @@ fn evaluate_logical<N: Namespace>(
     expression: &Expression,
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     enum Task<'a> {
         Evaluate(&'a Expression),
@@ -487,7 +530,7 @@ fn evaluate_logical<N: Namespace>(
                 tasks.push(Task::Evaluate(left));
             }
             Task::Evaluate(expression) => values.push(expect_boolean(
-                evaluate_expression(expression, current, namespace, options)?,
+                evaluate_expression_inner(expression, current, namespace, options)?,
                 namespace,
             )?),
             Task::Left(operator, right) => {
@@ -516,7 +559,7 @@ fn evaluate_cardinality<N: Namespace>(
     expression: &Expression,
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<Vec<bool>> {
     if let Expression::Group(inner) = expression {
         return evaluate_cardinality(inner, current, namespace, options);
@@ -541,8 +584,8 @@ fn evaluate_cardinality<N: Namespace>(
     } = expression
         && !matches!(operator, BinaryOperator::And | BinaryOperator::Or)
     {
-        let left_value = evaluate_expression(left, current, namespace, options)?;
-        let right_value = evaluate_expression(right, current, namespace, options)?;
+        let left_value = evaluate_expression_inner(left, current, namespace, options)?;
+        let right_value = evaluate_expression_inner(right, current, namespace, options)?;
         return map_cardinality_binary(
             *operator,
             left_value,
@@ -554,7 +597,7 @@ fn evaluate_cardinality<N: Namespace>(
     if let Expression::FunctionCall { name, arguments } = expression {
         let evaluated = arguments
             .iter()
-            .map(|argument| evaluate_expression(argument, current, namespace, options))
+            .map(|argument| evaluate_expression_inner(argument, current, namespace, options))
             .collect::<Result<Vec<_>, _>>()?;
         let binding_sets = evaluated
             .iter()
@@ -633,7 +676,7 @@ fn evaluate_function<N: Namespace>(
     arguments: &[Expression],
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     match name {
         "path" => evaluate_path(arguments, current, namespace, options),
@@ -641,7 +684,7 @@ fn evaluate_function<N: Namespace>(
         "resolveChild" => evaluate_resolve_child(arguments, current, namespace, options),
         "follow" => evaluate_follow(arguments, current, namespace, options),
         "isValue" if arguments.len() == 1 => {
-            let evaluated = evaluate_expression(&arguments[0], current, namespace, options)?;
+            let evaluated = evaluate_expression_inner(&arguments[0], current, namespace, options)?;
             let value = match evaluated {
                 EvaluatedValue::Bindings(bindings) if bindings.is_empty() => false,
                 EvaluatedValue::Bindings(bindings) if bindings.len() > 1 => {
@@ -666,7 +709,7 @@ fn evaluate_function<N: Namespace>(
             let values = arguments
                 .iter()
                 .map(|argument| {
-                    evaluate_expression(argument, current, namespace, options)
+                    evaluate_expression_inner(argument, current, namespace, options)
                         .and_then(|value| expect_scalar(value, namespace))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -789,12 +832,12 @@ fn evaluate_fallback<N: Namespace>(
     arguments: &[Expression],
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     if arguments.len() != 2 {
         return Err(invalid_function("fallback", 2));
     }
-    match evaluate_expression(&arguments[0], current, namespace, options) {
+    match evaluate_expression_inner(&arguments[0], current, namespace, options) {
         Ok(EvaluatedValue::Bindings(bindings)) if bindings.is_empty() => {}
         Ok(EvaluatedValue::Bindings(bindings)) if bindings.len() > 1 => {
             return Err(cardinality("Function 'fallback' expected one binding"));
@@ -808,7 +851,7 @@ fn evaluate_fallback<N: Namespace>(
         Err(error) if error.code == "SANSA_QUERY_EVALUATE_MISSING_SCALAR" => {}
         Err(error) => return Err(error),
     }
-    let replacement = evaluate_expression(&arguments[1], current, namespace, options)?;
+    let replacement = evaluate_expression_inner(&arguments[1], current, namespace, options)?;
     match replacement {
         EvaluatedValue::Bindings(bindings) if bindings.is_empty() => Err(missing_scalar(
             "Function 'fallback' replacement resolved no scalar value",
@@ -828,7 +871,7 @@ fn evaluate_resolve_child<N: Namespace>(
     arguments: &[Expression],
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     if arguments.len() != 2 || unwrap_resolution(&arguments[0]).is_none() {
         return Err(invalid_function("resolveChild", 2));
@@ -843,7 +886,7 @@ fn evaluate_resolve_child<N: Namespace>(
         ));
     }
     let key = expect_scalar(
-        evaluate_expression(&arguments[1], current, namespace, options)?,
+        evaluate_expression_inner(&arguments[1], current, namespace, options)?,
         namespace,
     )?;
     let children = namespace.children(&base[0]);
@@ -879,13 +922,13 @@ fn evaluate_follow<N: Namespace>(
     arguments: &[Expression],
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     if arguments.len() != 1 {
         return Err(invalid_function("follow", 1));
     }
     let value = expect_scalar(
-        evaluate_expression(&arguments[0], current, namespace, options)?,
+        evaluate_expression_inner(&arguments[0], current, namespace, options)?,
         namespace,
     )?;
     let Value::ReferenceForm { target, .. } = value else {
@@ -917,13 +960,13 @@ fn evaluate_path<N: Namespace>(
     arguments: &[Expression],
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
     if arguments.len() != 1 {
         return Err(invalid_function("path", 1));
     }
     let value = expect_scalar(
-        evaluate_expression(&arguments[0], current, namespace, options)?,
+        evaluate_expression_inner(&arguments[0], current, namespace, options)?,
         namespace,
     )?;
     let Value::SansaAddress(source) = value else {
@@ -1076,7 +1119,7 @@ fn evaluate_resolution_argument<N: Namespace>(
     expression: &Expression,
     current: &N::Binding,
     namespace: &N,
-    options: &EvaluateOptions<N::Binding>,
+    options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<Vec<N::Binding>> {
     let expression = unwrap_resolution(expression).ok_or_else(|| {
         evaluate_error(
@@ -1084,7 +1127,7 @@ fn evaluate_resolution_argument<N: Namespace>(
             "Expected a resolution expression",
         )
     })?;
-    match evaluate_expression(expression, current, namespace, options)? {
+    match evaluate_expression_inner(expression, current, namespace, options)? {
         EvaluatedValue::Bindings(bindings) => Ok(bindings),
         _ => unreachable!(),
     }
@@ -1196,12 +1239,36 @@ fn compare_values(
     result.map_err(|error| invalid_comparison(error.message))
 }
 
+fn resolve_query<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    resolve_options: &ResolveOptions<N::Binding>,
+    context: &EvaluationContext<'_, N::Binding>,
+) -> EvaluationResult<Vec<N::Binding>> {
+    if !context.admit_child_identity {
+        return resolve(address, namespace, resolve_options);
+    }
+    let mut inspected = context.identity_inspections.get();
+    let output = crate::resolve::resolve_parsed_address_with_inspections(
+        address,
+        namespace,
+        resolve_options,
+        &mut inspected,
+    );
+    context.identity_inspections.set(inspected);
+    output
+        .errors
+        .into_iter()
+        .next()
+        .map_or_else(|| Ok(output.bindings), Err)
+}
+
 fn resolve<N: Namespace>(
     address: &Address,
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
 ) -> EvaluationResult<Vec<N::Binding>> {
-    crate::resolve::deny_child_identity(&address)?;
+    crate::resolve::deny_child_identity(address)?;
     let output = resolve_parsed_address(address, namespace, options);
     output
         .errors

@@ -476,7 +476,8 @@ export type SansaGraphSequenceResult<TBinding extends object = SansaResolveBindi
     };
 
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
-  /** Whole-call logical child inspections; default 10000, including misses. */
+  /** Logical child inspections; default 10000, including misses.
+   * For evaluateQuery, shared across all clauses/candidates in one invocation. */
   readonly maxIdentityInspections?: number;
   readonly parse?: SansaParseOptions;
   readonly contextualRoot?: TBinding;

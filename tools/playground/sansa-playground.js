@@ -647,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderComposerOptions();
 
       if (state.view === "query") {
-        const evaluation = evaluateQuery(query.value.trim(), state.namespace, { addressActivation: "trusted" });
+        const evaluation = evaluateQuery(query.value.trim(), state.namespace, { addressActivation: "trusted", resolve: resolveOptions() });
         renderQueryResults(evaluation);
         renderDiagnostics(runtimeResult.meta, [], lineOffset, evaluation.ok ? [] : evaluation.errors);
         return;
