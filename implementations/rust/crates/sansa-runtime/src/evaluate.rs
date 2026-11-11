@@ -938,6 +938,7 @@ fn evaluate_path<N: Namespace>(
             "Function 'path' received an invalid SANSA Address Literal",
         )
     })?;
+    crate::resolve::deny_child_identity(&address)?;
     let grant = authorize_path(&address, current, namespace, &options.address_activation)?;
     let mut resolve_options = options.resolve.clone();
     if address.root == Root::Contextual {
@@ -948,6 +949,7 @@ fn evaluate_path<N: Namespace>(
         (grant, host) => grant.or(host),
     };
     resolve_options.allow_parent_from_effective_root = grant.allow_parent_from_effective_root;
+    crate::resolve::deny_child_identity(&address)?;
     let output = resolve_parsed_address(&address, namespace, &resolve_options);
     if let Some(error) = output.errors.into_iter().next() {
         if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" {
@@ -970,6 +972,7 @@ fn authorize_path<N: Namespace>(
     namespace: &N,
     activation: &AddressActivation,
 ) -> EvaluationResult<ActivationGrant> {
+    crate::resolve::deny_child_identity(address)?;
     let AddressActivation::Constrained(policy) = activation else {
         return match activation {
             AddressActivation::Trusted => Ok(ActivationGrant {
@@ -1006,9 +1009,7 @@ fn authorize_path<N: Namespace>(
         ));
     }
     if address.selectors.iter().any(|selector| {
-        !policy
-            .allowed_selectors
-            .contains(&activation_selector(selector))
+        activation_selector(selector).is_none_or(|kind| !policy.allowed_selectors.contains(&kind))
     }) {
         return Err(path_denied("Activated address selector is not permitted"));
     }
@@ -1200,6 +1201,7 @@ fn resolve<N: Namespace>(
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
 ) -> EvaluationResult<Vec<N::Binding>> {
+    crate::resolve::deny_child_identity(&address)?;
     let output = resolve_parsed_address(address, namespace, options);
     output
         .errors
@@ -1247,8 +1249,9 @@ fn check_budget(
     Err(error)
 }
 
-fn activation_selector(selector: &Selector) -> ActivationSelector {
-    match selector {
+fn activation_selector(selector: &Selector) -> Option<ActivationSelector> {
+    Some(match selector {
+        Selector::ChildIdentity { .. } => return None,
         Selector::Member { .. } => ActivationSelector::Member,
         Selector::Position { .. } => ActivationSelector::Position,
         Selector::PositionRange { .. } => ActivationSelector::Range,
@@ -1260,7 +1263,7 @@ fn activation_selector(selector: &Selector) -> ActivationSelector {
         Selector::NamePattern { .. } => ActivationSelector::NamePattern,
         Selector::SemanticTypeFilter { .. } => ActivationSelector::SemanticType,
         Selector::RepresentationKindFilter { .. } => ActivationSelector::RepresentationKind,
-    }
+    })
 }
 
 fn address_has_prefix(address: &Address, root: &Address) -> bool {

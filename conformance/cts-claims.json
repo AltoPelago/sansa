@@ -2,7 +2,7 @@
   "claim_format": "aeonite.cts-claims.v1",
   "repository": "AltoPelago/sansa",
   "implementation": "@altopelago/sansa",
-  "implementation_version": "0.14.2",
+  "implementation_version": "0.15.0-rc.1",
   "cts_repository": "aeonite-org/aeonite-cts",
   "cts_protocol": "cts.protocol.v1",
   "claims": [
@@ -55,6 +55,20 @@
       "snapshot_id": "sansa-mutate-cts-v1-snapshot-0.1",
       "status": "experimental",
       "command": "npm run cts:mutate"
+    },
+    {
+      "surface": "sansa-child-identity-parser",
+      "snapshot_id": "sansa-child-identity-parser-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "command": "npm run cts:address:child-identity",
+      "notes": "Mutable experimental candidate; JavaScript only, excluded from default CTS/released coverage."
+    },
+    {
+      "surface": "sansa-child-identity-resolve",
+      "snapshot_id": "sansa-child-identity-resolve-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "command": "npm run cts:resolve:child-identity",
+      "notes": "Mutable experimental candidate; JavaScript only, excluded from default CTS/released coverage."
     }
   ]
 }

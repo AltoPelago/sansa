@@ -9,7 +9,7 @@ const root = resolve(here, '..');
 const ctsRoot = process.env.AEONITE_CTS_ROOT
   ? resolve(process.env.AEONITE_CTS_ROOT)
   : resolve(root, '..', '..', 'aeonite-org', 'aeonite-cts', 'cts');
-const manifestPath = readArg('--cts') ?? resolve(ctsRoot, 'sansa', 'v1', 'sansa-resolve-cts.v1.json');
+const manifestPath = readArg('--cts') ?? resolve(ctsRoot, 'sansa', 'v1', process.argv.includes('--child-identity') ? 'sansa-child-identity-resolve-cts.v1.next.json' : 'sansa-resolve-cts.v1.json');
 
 const manifest = readJson(manifestPath);
 let pass = 0;
@@ -69,7 +69,12 @@ function runTest(test, namespaces) {
     options.maxBindings = test.input.maxBindings;
   }
 
+  if (Object.hasOwn(test.input ?? {}, 'maxIdentityInspections')) options.maxIdentityInspections = test.input.maxIdentityInspections;
+  fixture.resetIdentityCalls();
   const result = resolveAddress(source, fixture.namespace, options);
+  if (Number.isSafeInteger(expected.identityCalls) && fixture.identityCalls() !== expected.identityCalls) {
+    failures.push(`identityCalls mismatch: expected ${expected.identityCalls}, got ${fixture.identityCalls()}`);
+  }
 
   if (result.ok !== Boolean(expected.ok)) {
     failures.push(`ok mismatch: expected ${Boolean(expected.ok)}, got ${result.ok}`);
@@ -88,6 +93,9 @@ function runTest(test, namespaces) {
       if (actualSelectorIndex !== expected.selectorIndex) {
         failures.push(`selectorIndex mismatch: expected ${expected.selectorIndex}, got ${actualSelectorIndex ?? null}`);
       }
+    }
+    if (typeof expected.identity === 'string' && result.errors?.[0]?.identity !== expected.identity) {
+      failures.push(`identity mismatch: expected ${expected.identity}, got ${result.errors?.[0]?.identity ?? null}`);
     }
     if (Number.isSafeInteger(expected.limit) && result.errors?.[0]?.limit !== expected.limit) {
       failures.push(`limit mismatch: expected ${expected.limit}, got ${result.errors?.[0]?.limit ?? null}`);
@@ -111,10 +119,16 @@ function buildNamespaces(entries) {
     const byAddress = new Map();
     const parents = new Map();
     indexBindingTree(entry.root, byAddress, parents);
+    let identityCalls = 0;
     output.set(entry.id, {
       byAddress,
+      identityCalls: () => identityCalls,
+      resetIdentityCalls: () => { identityCalls = 0; },
       namespace: {
         root: entry.root,
+        ...(entry.supportsIdentity === true
+          ? { identity: (binding) => { identityCalls += 1; return binding.identity; } }
+          : {}),
         children: (binding) => binding.children ?? [],
         attributeSpace: (binding) => binding.attributeSpace,
         ...(entry.supportsParentTraversal === true

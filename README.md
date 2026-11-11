@@ -59,6 +59,19 @@ The default Query CTS lane runs core conformance and skips experimental extensio
 The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base and cross-base radix numeric profiles. Pass `--cts <manifest>` to run an older compatibility target explicitly.
 The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy plan-filter cases.
 
+## Source playground
+
+Run the website-derived playground directly against this checkout's SANSA source:
+
+```bash
+npm run playground -- --aeon-root /path/to/aeon
+```
+
+Open `http://127.0.0.1:4174/tools/playground/`. A matching, built AEON checkout
+provides the document runtime and SDK adapter; sibling checkouts are detected
+automatically. No SANSA bundle, package release or PHP server is needed. Edit
+`src/index.js` and reload to test changes. See [playground setup and scope](tools/playground/README.md).
+
 ## Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against

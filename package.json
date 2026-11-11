@@ -1,6 +1,6 @@
 {
   "name": "@altopelago/sansa",
-  "version": "0.14.2",
+  "version": "0.15.0-rc.1",
   "description": "Semantic Address NameSpace Abstraction parser, resolver, and query toolkit.",
   "license": "MIT",
   "type": "module",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.d.ts",
       "import": "./src/index.js"
+    },
+    "./parsing/selector-cursor": {
+      "types": "./src/selector-cursor.d.ts",
+      "import": "./src/selector-cursor.js"
     }
   },
   "bin": {
@@ -66,7 +70,10 @@
     "version:recover": "node scripts/version.mjs recover",
     "validate:cts-claims": "node scripts/validate-cts-claims.mjs",
     "test": "node --test test/*.test.js",
-    "test:rust": "cargo fmt --all --check --manifest-path implementations/rust/Cargo.toml && cargo clippy --locked --workspace --all-features --all-targets --manifest-path implementations/rust/Cargo.toml -- -D warnings && cargo test --locked --workspace --all-features --all-targets --manifest-path implementations/rust/Cargo.toml"
+    "test:rust": "cargo fmt --all --check --manifest-path implementations/rust/Cargo.toml && cargo clippy --locked --workspace --all-features --all-targets --manifest-path implementations/rust/Cargo.toml -- -D warnings && cargo test --locked --workspace --all-features --all-targets --manifest-path implementations/rust/Cargo.toml",
+    "cts:address:child-identity": "node scripts/cts-address.mjs --child-identity",
+    "cts:resolve:child-identity": "node scripts/cts-resolve.mjs --child-identity",
+    "playground": "node scripts/playground.mjs"
   },
   "keywords": [
     "sansa",

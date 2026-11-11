@@ -9,7 +9,7 @@ const root = resolve(here, '..');
 const ctsRoot = process.env.AEONITE_CTS_ROOT
   ? resolve(process.env.AEONITE_CTS_ROOT)
   : resolve(root, '..', '..', 'aeonite-org', 'aeonite-cts', 'cts');
-const manifestPath = readArg('--cts') ?? resolve(ctsRoot, 'sansa', 'v1', 'sansa-address-parser-cts.v1.json');
+const manifestPath = readArg('--cts') ?? resolve(ctsRoot, 'sansa', 'v1', process.argv.includes('--child-identity') ? 'sansa-child-identity-parser-cts.v1.next.json' : 'sansa-address-parser-cts.v1.json');
 
 const manifest = readJson(manifestPath);
 let pass = 0;
@@ -55,6 +55,9 @@ function runTest(test) {
       if (actualCode !== expectedCode) {
         failures.push(`error mismatch: expected ${expectedCode}, got ${actualCode}`);
       }
+    }
+    if (Number.isInteger(expected.index) && result.errors?.[0]?.index !== expected.index) {
+      failures.push(`index mismatch: expected ${expected.index}, got ${result.errors?.[0]?.index ?? null}`);
     }
     return failures;
   }

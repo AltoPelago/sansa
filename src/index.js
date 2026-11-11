@@ -1,3 +1,7 @@
+import { parseDotSelectorFromCursor, parsePositionSelectorFromCursor, validatePositionIndex } from './selector-cursor.js';
+const CHILD_IDENTITY_RE = /^[A-Za-z0-9_-]+$/;
+const DENY_CHILD_IDENTITY = Symbol('consumer identity admission');
+const DEFAULT_IDENTITY_INSPECTIONS = 10_000;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
 export const SANSA_MAX_POSITION_INDEX = 999_999;
@@ -1386,7 +1390,7 @@ function resolveMutationExactTarget(input, role, operationIndex, namespace, opti
     };
   }
 
-  const resolved = resolveAddress(parsed.address, namespace, options.resolve);
+  const resolved = resolveConsumerAddress(parsed.address, namespace, options.resolve);
   if (!resolved.ok) {
     return {
       ok: false,
@@ -1477,7 +1481,7 @@ function verifyMutationOperationStability(operation, operationIndex, namespace, 
 }
 
 function verifyMutationTargetStability(target, operationIndex, namespace, options) {
-  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  const resolved = resolveConsumerAddress(target.address, namespace, options.resolve);
   if (!resolved.ok || resolved.bindings.length !== 1) {
     return {
       ok: false,
@@ -2701,9 +2705,28 @@ function findExpression(expression, predicate) {
   }
 }
 
+function resolveConsumerAddress(input, namespace, options = {}) {
+  return resolveAddress(input, namespace, { ...options, [DENY_CHILD_IDENTITY]: true });
+}
+
 export function resolveAddress(input, namespace, options = {}) {
-  const parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  let parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
+  const hasIdentity = !(typeof input === 'string' && parsed.address.isExact)
+    && Array.isArray(parsed.address?.selectors) && parsed.address.selectors.some(s => s?.type === 'childIdentity');
+  if (hasIdentity && typeof input !== 'string') {
+    try {
+      if (input.type !== 'SansaAddress' || input.root?.type !== 'root' || !['absolute', 'contextual'].includes(input.root.kind)) throw new Error('invalid root');
+      parsed = parseAddress(renderAddress(input), options.parse);
+      if (!parsed.ok) throw new Error('invalid selectors');
+    } catch {
+      return { ok: false, bindings: [], errors: [resolveError('SANSA_RESOLVE_INVALID_ADDRESS', 'Invalid identity address AST')] };
+    }
+  }
+  const maxIdentityInspections = options.maxIdentityInspections === undefined ? DEFAULT_IDENTITY_INSPECTIONS : options.maxIdentityInspections;
+  if (!Number.isSafeInteger(maxIdentityInspections) || maxIdentityInspections < 0) {
+    return { ok: false, bindings: [], errors: [resolveError('SANSA_RESOLVE_INVALID_IDENTITY_LIMIT', 'Identity inspection limit must be a non-negative safe integer')] };
+  }
 
   const maxBindings = options.maxBindings;
   if (maxBindings !== undefined && (!Number.isSafeInteger(maxBindings) || maxBindings < 0)) {
@@ -2716,6 +2739,15 @@ export function resolveAddress(input, namespace, options = {}) {
 
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+  if (hasIdentity) {
+    const selectorIndex = parsed.address.selectors.findIndex(s => s.type === 'childIdentity');
+    const identity = parsed.address.selectors[selectorIndex].identity;
+    if (options[DENY_CHILD_IDENTITY] || typeof namespace.identity !== 'function') {
+      const code = options[DENY_CHILD_IDENTITY] ? 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR' : 'SANSA_RESOLVE_UNSUPPORTED_IDENTITY';
+      return { ok: false, bindings: [], errors: [resolveError(code, 'Child identity selection is not supported by this consumer or namespace', selectorIndex, { identity })] };
+    }
+  }
+  const identityBudget = hasIdentity ? { limit: maxIdentityInspections, inspected: 0 } : undefined;
 
   if (maxBindings === 0 && parsed.address.selectors.length === 0) {
     return {
@@ -2738,6 +2770,7 @@ export function resolveAddress(input, namespace, options = {}) {
         parentTraversal: options.parentTraversal,
         failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
         maxBindings,
+        identityBudget,
       },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
@@ -2796,7 +2829,7 @@ export function traverseGraph(starts, namespace, declarations, options = {}) {
           startAddress,
         });
       }
-      const edges = resolveAddress(declaration.edgeAddress, namespace, {
+      const edges = resolveConsumerAddress(declaration.edgeAddress, namespace, {
         contextualRoot: start,
         maxBindings: options.budget.maxVisitedEdges,
       });
@@ -2834,7 +2867,7 @@ export function traverseGraph(starts, namespace, declarations, options = {}) {
             edgeAddress,
           });
         }
-        const target = resolveAddress(targetAddress, namespace, { maxBindings: 2 });
+        const target = resolveConsumerAddress(targetAddress, namespace, { maxBindings: 2 });
         if (!target.ok) return { ok: false, bindings: [], paths: [], errors: target.errors };
         if (target.bindings.length === 0) {
           if (declaration.danglingTarget === 'error') {
@@ -3145,7 +3178,7 @@ export function renderAddress(address) {
         output += `%${selector.name}`;
         break;
       default:
-        throw new Error(`Unknown selector type: ${selector.type}`);
+        output += renderExtendedSelector(selector);
     }
   }
 
@@ -3154,6 +3187,12 @@ export function renderAddress(address) {
   }
 
   return output;
+}
+
+function renderExtendedSelector(selector) {
+  if (selector.type !== 'childIdentity') throw new Error(`Unknown selector type: ${selector.type}`);
+  if (typeof selector.identity !== 'string' || !CHILD_IDENTITY_RE.test(selector.identity)) throw new Error('Invalid child identity');
+  return `.\\${selector.identity}\\`;
 }
 
 export function renderQuery(query) {
@@ -3360,7 +3399,7 @@ function resolveInstructionFromCandidates(instruction, namespace, options) {
     return [root.binding];
   }
 
-  const resolved = resolveAddress(instruction.from.address, namespace, options.resolve);
+  const resolved = resolveConsumerAddress(instruction.from.address, namespace, options.resolve);
   if (!resolved.ok) {
     throw new SansaInstructionLowerError(instructionLowerError(
       'SANSA_INSTRUCTION_CANDIDATE_RESOLUTION_FAILED',
@@ -3452,7 +3491,7 @@ function resolveInstructionExactAddress(instructionAddress, candidate, namespace
     ));
   }
 
-  const resolved = resolveAddress(address, namespace, {
+  const resolved = resolveConsumerAddress(address, namespace, {
     ...(options.resolve ?? {}),
     ...(address.root.kind === 'contextual' ? { contextualRoot: candidate, allowParentFromEffectiveRoot: true } : {}),
   });
@@ -3596,7 +3635,7 @@ function isBindingObject(value) {
 
 function evaluateQueryFromClause(from, namespace, options) {
   if (from.source !== 'expression') {
-    return resolveAddress(from.address, namespace, options.resolve);
+    return resolveConsumerAddress(from.address, namespace, options.resolve);
   }
 
   const rootResult = resolveRoot({ kind: 'absolute' }, namespace, options.resolve ?? {});
@@ -3667,7 +3706,7 @@ function evaluateResolutionExpression(expression, currentBinding, namespace, opt
     ...(['current', 'contextual'].includes(expression.scope) ? { contextualRoot: currentBinding } : {}),
     ...(expression.scope === 'current' ? { allowParentFromEffectiveRoot: true } : {}),
   };
-  const resolved = resolveAddress(expression.address, namespace, resolveOptions);
+  const resolved = resolveConsumerAddress(expression.address, namespace, resolveOptions);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
   return {
     ok: true,
@@ -4034,7 +4073,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   );
   if (!activation.ok) return activation;
 
-  const resolved = resolveAddress(activated.address, namespace, {
+  const resolved = resolveConsumerAddress(activated.address, namespace, {
     ...(options.resolve ?? {}),
     contextualRoot: currentBinding,
     ...(activation.allowParentFromEffectiveRoot ? { allowParentFromEffectiveRoot: true } : {}),
@@ -4471,7 +4510,7 @@ function evaluateFollowExpression(expression, currentBinding, namespace, options
     };
   }
 
-  const resolved = resolveAddress(target.address, namespace, options.resolve);
+  const resolved = resolveConsumerAddress(target.address, namespace, options.resolve);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
   if (resolved.bindings.length === 0) {
     return {
@@ -6593,6 +6632,8 @@ function scalarMetadataFromInfo(info) {
 
 function applyResolveSelector(selector, bindings, namespace, selectorIndex, policy = {}) {
   switch (selector.type) {
+    case 'childIdentity':
+      return selectChildIdentity(namespace, bindings, selector, selectorIndex, policy);
     case 'member':
       return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateMembers(namespace, binding, selector.name), policy.maxBindings) };
     case 'position':
@@ -6634,6 +6675,30 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex, poli
         ),
       };
   }
+}
+
+function selectChildIdentity(namespace, bindings, selector, selectorIndex, policy) {
+  const output = [];
+  for (const binding of bindings) {
+    let match;
+    const children = typeof namespace.children === 'function' ? namespace.children(binding) ?? [] : binding.children ?? [];
+    for (const child of children) {
+      const budget = policy.identityBudget;
+      if (budget.inspected >= budget.limit) return { ok: false, error: resolveError('SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED', 'Identity inspection limit exceeded', selectorIndex, { limit: budget.limit, observed: budget.inspected + 1 }) };
+      budget.inspected += 1;
+      const identity = namespace.identity(child);
+      if (identity !== undefined && (typeof identity !== 'string' || !CHILD_IDENTITY_RE.test(identity))) return { ok: false, error: resolveError('SANSA_RESOLVE_INVALID_IDENTITY', 'Adapter returned an invalid structural identity', selectorIndex) };
+      if (identity === selector.identity) {
+        if (match !== undefined) return { ok: false, error: resolveError('SANSA_RESOLVE_AMBIGUOUS_IDENTITY', 'Multiple children have the selected identity', selectorIndex, { identity }) };
+        match = child;
+      }
+    }
+    if (match !== undefined) {
+      if (policy.maxBindings !== undefined && output.length >= policy.maxBindings) return { ok: false, error: resolveBindingLimitError(policy.maxBindings, output.length + 1, selectorIndex) };
+      output.push(match);
+    }
+  }
+  return { ok: true, bindings: output };
 }
 
 function selectMember(namespace, binding, name) {
@@ -6946,50 +7011,25 @@ class AddressParser {
     return address;
   }
 
-  parseDotSelector() {
-    this.consume('.');
-    if (this.match('@')) return { type: 'attributeSpace' };
-    if (this.match('^')) return { type: 'parent' };
-    if (this.match('*')) {
-      if (this.match('*')) return { type: 'descendantExpansion' };
-      return { type: 'directExpansion' };
+  peekSyntax() { return this.peek(); }
+  parseDotSelector() { return parseDotSelectorFromCursor(this); }
+  parseChildIdentity() {
+    this.index += 1;
+    const start = this.index;
+    while (!this.atEnd() && this.peek() !== '\\') {
+      if (!/^[A-Za-z0-9_-]$/.test(this.peek())) this.fail('Expected structural identity name', 'SANSA_EXPECTED_IDENTITY');
+      this.index += 1;
     }
-    if (this.match('[')) {
-      const name = this.parseQuotedPayload();
-      if (name.length === 0) this.fail('Quoted member names must not be empty', 'SANSA_EMPTY_MEMBER_NAME');
-      this.consume(']');
-      return { type: 'member', name, quoted: true };
-    }
-    if (this.match('<')) {
-      const name = this.parseQuotedPayload();
-      if (name.length === 0) this.fail('Local address-space names must not be empty', 'SANSA_EMPTY_LOCAL_SPACE_NAME');
-      this.consume('>');
-      return { type: 'localSpace', name };
-    }
-    if (this.match('(')) {
-      const pattern = this.parseQuotedPayload();
-      this.consume(')');
-      return { type: 'namePattern', pattern };
-    }
-    return { type: 'member', name: this.parseIdentifier('member selector'), quoted: false };
+    if (this.atEnd()) this.fail('Unterminated structural identity selector', 'SANSA_UNTERMINATED_IDENTITY');
+    if (this.index === start) this.fail('Expected structural identity name', 'SANSA_EXPECTED_IDENTITY');
+    const identity = this.input.slice(start, this.index++);
+    return { type: 'childIdentity', identity };
   }
-
-  parsePositionSelector() {
-    this.consume('[');
-    const selectorStart = this.index;
-    const start = this.parseOptionalPositionIndex();
-    if (this.input.startsWith('..', this.index)) {
-      this.index += 2;
-      const end = this.parseOptionalPositionIndex();
-      if (start === null && end === null) {
-        this.fail('Position ranges must include a start or end index', 'SANSA_EMPTY_POSITION_RANGE', selectorStart);
-      }
-      this.consume(']');
-      return { type: 'positionRange', start, end };
-    }
-    if (start === null) this.fail('Expected positional index', 'SANSA_EXPECTED_INDEX');
-    this.consume(']');
-    return { type: 'position', index: start };
+  parsePositionSelector() { return parsePositionSelectorFromCursor(this); }
+  matchRangeSeparator() {
+    if (!this.input.startsWith('..', this.index)) return false;
+    this.index += 2;
+    return true;
   }
 
   parseOptionalPositionIndex() {
@@ -6997,24 +7037,8 @@ class AddressParser {
     while (isDigit(this.peek())) this.index += 1;
     if (this.index === start) return null;
     const raw = this.input.slice(start, this.index);
-    if (raw.length > 1 && raw.startsWith('0')) {
-      this.fail('Positional indexes must not contain leading zeroes', 'SANSA_LEADING_ZERO_INDEX', start);
-    }
-    if (exceedsUnsignedDecimal(raw, this.maxPositionIndex)) {
-      this.fail(
-        `Position indexes must be less than or equal to ${this.maxPositionIndex}`,
-        'SANSA_POSITION_INDEX_LIMIT_EXCEEDED',
-        start,
-      );
-    }
-    const value = Number(raw);
-    if (!Number.isSafeInteger(value)) {
-      this.fail(
-        `Position indexes must be less than or equal to ${this.maxPositionIndex}`,
-        'SANSA_POSITION_INDEX_LIMIT_EXCEEDED',
-        start,
-      );
-    }
+    const value = validatePositionIndex(raw, this.maxPositionIndex,
+      (message, code) => this.fail(message, code, start));
     if (value > SANSA_MAX_POSITION_INDEX) {
       this.warn(
         `Position index ${value} exceeds the SANSA v1 portable index ceiling ${SANSA_MAX_POSITION_INDEX}`,

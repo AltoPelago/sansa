@@ -7,6 +7,20 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Added
+
+- Repository source playground based on the website UI, with direct SANSA imports, the SDK identity namespace, scoped roots, inspection budgets and identity/reorder examples. Run `npm run playground` with a built AEON checkout. No official release is created by source pushes.
+
+- TypeScript Resolve diagnostics now declare optional `identity`, matching runtime identity-related failures and allowing typed SDK consumers to inspect the selected identity.
+
+- Local experimental Rust child-identity Address/Resolve candidate with default-off structural metadata capabilities, lazy identity-child iteration, a 10,000 default inspection budget and caller-AST validation. Core/SDK integration and 464 Rust cost controls are verified locally; final registry/version and native platform qualification remain release work. Python/bridge support is tracked separately by AEON. Query, activation and mutation do not gain identity admission.
+
+## 0.15.0-rc.1 - 2026-10-19
+
+### Added
+
+- Supported `@altopelago/sansa/parsing/selector-cursor` for synchronous host-token adapters. Native SANSA and AEON share step grammar and original-spelling positional-index validation; cursor transport does not grant reference eligibility.
+
 ## 0.14.2 - 2026-10-16
 
 ### Fixed
