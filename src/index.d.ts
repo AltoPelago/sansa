@@ -1,3 +1,5 @@
+export * from './aeonic-comparison.js';
+
 export type SansaParseErrorCode =
   | 'SANSA_EMPTY_ADDRESS'
   | 'SANSA_EXPECTED_ROOT'

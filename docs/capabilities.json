@@ -2,6 +2,8 @@
   "implementation": "@altopelago/sansa",
   "version": "0.14.2",
   "profiles": [
+    "aeonic.operations.comparison.baseline.v1",
+    "aeonic.operations.string.codepoint.v1",
     "value-semantics-minimum-consumer",
     "aeon.value.default.v1",
     "aeon.value.string.codepoint.v1",
@@ -15,6 +17,7 @@
     "instruction"
   ],
   "capabilities": [
+    "Aeonic.Operations.Comparison",
     "AEON.ValueSemantics",
     "SANSA.Addressing",
     "SANSA.Resolve",
@@ -33,6 +36,18 @@
     "mutate": false
   },
   "experimentalCapabilities": [
+    {
+      "id": "aeonic.operations.comparison.baseline.v1",
+      "capability": "Aeonic.Operations.Comparison",
+      "category": "scalar-comparison",
+      "maturity": "experimental",
+      "implementation": "javascript",
+      "entryPoints": ["evaluateAeonicComparison", "evaluateAeonicComparisonText"],
+      "snapshotId": "aeonic-operations-cts-v1-snapshot-0.1",
+      "capabilitySet": "baseline",
+      "declaredOrder": false,
+      "semantics": ["exact finite numerical text", "symbolic results", "staged fail-closed diagnostics", "independent string and symbol profiles"]
+    },
     {
       "id": "sansa.graph.structured.one-hop.v1",
       "capability": "SANSA.Graph",

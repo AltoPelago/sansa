@@ -7,6 +7,20 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+### Fixed
+
+- Bounded typed Aeonic comparison admission on shared object graphs while
+  preserving deeper-path limits, cycle rejection and diagnostic precedence.
+
+### Added
+
+- Added JavaScript `evaluateAeonicComparison` and `evaluateAeonicComparisonText`
+  entry points for frozen Aeonic comparison snapshot 0.1's baseline. Exact
+  numerical text, strings, Booleans and symbols receive symbolic results, policy
+  metadata and staged fail-closed diagnostics. Declared symbol order reports the
+  prescribed unavailable-profile diagnostic. Historical value-semantics profiles
+  and Query semantics retain their contracts.
+
 ## 0.14.2 - 2026-10-16
 
 ### Fixed

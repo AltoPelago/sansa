@@ -271,6 +271,13 @@ Budget exhaustion returns `SANSA_QUERY_BUDGET_EXCEEDED` with `phase`, `budget`, 
 
 The standalone query CLI exposes these budgets as `--max-from-bindings`, `--max-where-candidates`, `--max-order-candidates`, and `--max-result-records`. The browser workbench exposes the same four limits as optional evaluation budget fields.
 
+The separate JavaScript `evaluateAeonicComparison` and
+`evaluateAeonicComparisonText` entry points implement the frozen Aeonic comparison
+baseline with symbolic outcomes, strict operands, policy metadata and staged
+diagnostics. See [Aeonic comparison](aeonic-comparison.md) for their request,
+capability and admission contract. They do not change the historical API below
+or Query's predicate behavior.
+
 `evaluateValueSemanticsOperation` evaluates the Shared AEON Value Semantics minimum consumer operation shape used by the CTS scaffold:
 
 ```js
