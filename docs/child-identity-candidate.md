@@ -54,3 +54,7 @@ Ordinary native queries retain their existing adapter semantics.
 
 See [editor/tooling integration](child-identity-tooling.md) for unpublished lexical
 scopes, descriptive service hovers and explicit candidate server-bundle limits.
+
+See [read-only reorder/subtree workflows](child-identity-workflows.md) for shared
+snapshot examples, real consumer checks, root/activation boundaries and ID-reuse
+limits. These do not admit mutation/SO or identity references.

@@ -66,3 +66,7 @@ crates.io or GitHub release.
 The source editor distinguishes structural identity annotations and embedded
 SANSA address literals. Coloring is a lexical aid; actual parsers and consuming
 APIs still determine validity and admission. See [tooling scope](../../docs/child-identity-tooling.md).
+
+For complete original/reordered/moved/replacement examples, paste the linked
+[source snapshots](../../fixtures/child-identity-workflows/README.md) into the
+source editor and follow the [workflow guide](../../docs/child-identity-workflows.md).
