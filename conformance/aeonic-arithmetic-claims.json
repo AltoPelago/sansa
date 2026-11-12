@@ -1,0 +1,54 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-operations-arithmetic",
+      "snapshot_id": "aeonic-arithmetic-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Arithmetic.Exact",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-arithmetic",
+      "notes": "Verified frozen compatibility target; proposal lifecycle. Complete finite add/subtract/multiply/materialize with exact-result chaining and history; no Query, Rust or published-package claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-13",
+    "node": "v24.22.2",
+    "specification_commit": "be4597cba2909d9756297047ec5bf34ec6cf8eea",
+    "cts_commit": "321022560b477f238c69d3853c89d3aa135def2a",
+    "specification_snapshot_id": "aeonic-arithmetic-specs-v1-snapshot-0.1",
+    "profile": "aeonic.operations.arithmetic.exact.v1",
+    "manifest_sha256": "85dd20323744cae7ecae9ebcef5999af68570e6ab719393b55e66cda26bc7dbf",
+    "runner_sha256": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+    "boundary_recipes_sha256": "f4cf4af9b683d3370e2cd8b2b18385f460b1ec3b221c1fd82f3c4697ec8e9e1c",
+    "test_resource_limits": {
+      "maxRequestBytes": 4194304,
+      "maxRequestDepth": 32,
+      "maxNumericCharacters": 65536,
+      "maxCoefficientDigits": 65536,
+      "maxExponentMagnitude": 1000000,
+      "maxWorkspaceDigits": 131072,
+      "maxOutputCharacters": 65536
+    },
+    "report": "results/aeonic-arithmetic-snapshot-0.1.json",
+    "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
+    "implementation_files_sha256": {
+      "src/index.js": "275b874f393da5fab96cd9286e0a0eb878e4bbfcc4ba97b918657ca18484bc4b",
+      "src/index.d.ts": "37f32c17a55f73c151523c267245117995d3e8da4af77f319bf14409dda2c3b2",
+      "src/aeonic-arithmetic.js": "65e4195ab6421a498157657d00452b459640a98e7e421a2b873282fd43a2ac9c",
+      "src/aeonic-arithmetic.d.ts": "e03421a44d0f8164165bd37603b91809e0a5131d560d12054a78baa6963f4df6",
+      "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
+      "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "scripts/cts-aeonic-arithmetic-adapter.mjs": "7c0f4829b5ddb5c637e57cee9ea3eb7d28ca32e88721c2c1f0a34c4736fbed28",
+      "scripts/cts-aeonic-arithmetic.mjs": "d456c8652acd49316d1c5d44b573ab4d094c73e42417816002ff70babdb1a1d3"
+    },
+    "limits": [
+      "The CTS supplies explicit baseline and per-boundary companion settings; no Cartesian machine-capacity guarantee.",
+      "Native graph hardening and optional work budgets are separate implementation evidence.",
+      "Conformance applies to JavaScript source, not Rust or a package release."
+    ]
+  }
+}

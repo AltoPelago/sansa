@@ -15,6 +15,10 @@ symbolic outcomes and staged fail-closed diagnostics, with a separate
 [comparison claim](conformance/aeonic-comparison-claims.json). Historical
 value-semantics profiles and Query behavior retain their existing contracts.
 
+The separate unreleased JavaScript [Aeonic arithmetic API](docs/aeonic-arithmetic.md)
+adds exact finite-number operations and explicit materialization against arithmetic
+snapshot 0.1. It returns exact value/history bundles and fail-closed diagnostics.
+
 ## Current Scope
 
 - root selectors: `$`, `?`
