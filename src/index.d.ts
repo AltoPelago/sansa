@@ -1,3 +1,4 @@
+export * from './aeonic-arithmetic.js';
 export * from './aeonic-comparison.js';
 
 export type SansaParseErrorCode =

@@ -1,4 +1,11 @@
 export {
+  evaluateAeonicArithmetic,
+  evaluateAeonicArithmeticText,
+  AEONIC_ARITHMETIC_PROFILE,
+  AEONIC_ARITHMETIC_DEFAULT_RESOURCE_LIMITS,
+} from './aeonic-arithmetic.js';
+
+export {
   evaluateAeonicComparison,
   evaluateAeonicComparisonText,
   AEONIC_COMPARISON_BASELINE_PROFILE,

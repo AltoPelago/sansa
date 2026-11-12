@@ -2,6 +2,7 @@
   "implementation": "@altopelago/sansa",
   "version": "0.14.2",
   "profiles": [
+    "aeonic.operations.arithmetic.exact.v1",
     "aeonic.operations.comparison.baseline.v1",
     "aeonic.operations.string.codepoint.v1",
     "value-semantics-minimum-consumer",
@@ -17,6 +18,7 @@
     "instruction"
   ],
   "capabilities": [
+    "Aeonic.Operations.Arithmetic.Exact",
     "Aeonic.Operations.Comparison",
     "AEON.ValueSemantics",
     "SANSA.Addressing",
@@ -36,6 +38,25 @@
     "mutate": false
   },
   "experimentalCapabilities": [
+    {
+      "id": "aeonic.operations.arithmetic.exact.v1",
+      "capability": "Aeonic.Operations.Arithmetic.Exact",
+      "category": "finite-exact-arithmetic",
+      "maturity": "experimental",
+      "implementation": "javascript",
+      "entryPoints": [
+        "evaluateAeonicArithmetic",
+        "evaluateAeonicArithmeticText"
+      ],
+      "snapshotId": "aeonic-arithmetic-cts-v1-snapshot-0.1",
+      "semantics": [
+        "exact add/subtract/multiply",
+        "direct normalized-result chaining",
+        "explicit output family at materialization",
+        "declared approximation-history propagation",
+        "staged fail-closed diagnostics"
+      ]
+    },
     {
       "id": "aeonic.operations.comparison.baseline.v1",
       "capability": "Aeonic.Operations.Comparison",

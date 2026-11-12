@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "target": "aeonic-arithmetic-cts-v1-snapshot-0.1",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "boundary_recipes_sha256": "f4cf4af9b683d3370e2cd8b2b18385f460b1ec3b221c1fd82f3c4697ec8e9e1c",
+  "manifest_sha256": "85dd20323744cae7ecae9ebcef5999af68570e6ab719393b55e66cda26bc7dbf",
+  "specification_source_sha256": "fd94c575ef0e78c420711e24df86c4f7eebd602a15824cda4de0c7ab6137e11f",
+  "specification_schema_sha256": "6ff119bfefbb83e7a3df1048514fbcedde8be024feaec4294f4d7fac7961c798",
+  "resource_limits": {
+    "maxRequestBytes": 4194304,
+    "maxRequestDepth": 32,
+    "maxNumericCharacters": 65536,
+    "maxCoefficientDigits": 65536,
+    "maxExponentMagnitude": 1000000,
+    "maxWorkspaceDigits": 131072,
+    "maxOutputCharacters": 65536
+  },
+  "sut": "node scripts/cts-aeonic-arithmetic-adapter.mjs",
+  "cwd": ".",
+  "operation_cases": 69,
+  "chains": 2,
+  "resource_boundaries": 16,
+  "law_groups": 1,
+  "sut_executions": 339,
+  "arithmetic_assertions": 366,
+  "failures": []
+}

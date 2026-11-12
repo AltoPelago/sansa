@@ -278,6 +278,13 @@ diagnostics. See [Aeonic comparison](aeonic-comparison.md) for their request,
 capability and admission contract. They do not change the historical API below
 or Query's predicate behavior.
 
+The separate JavaScript `evaluateAeonicArithmetic` and
+`evaluateAeonicArithmeticText` entry points implement exact addition, subtraction,
+multiplication, direct result chaining and explicit-family materialization. See
+[Aeonic arithmetic](aeonic-arithmetic.md) for value/history bundles and snapshot
+0.1 admission rules. This consumer capability does not add Query expression
+syntax or a Rust arithmetic claim.
+
 `evaluateValueSemanticsOperation` evaluates the Shared AEON Value Semantics minimum consumer operation shape used by the CTS scaffold:
 
 ```js
