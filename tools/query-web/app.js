@@ -278,6 +278,10 @@ function queryPolicy() {
 function queryBudget() {
   const budget = {};
   for (const input of budgetInputs) {
+    if (input.id === 'maxIdentityInspections' && input.value.trim()) {
+      budget[input.id] = Number(input.value);
+      continue;
+    }
     const value = parseBudgetInput(input.value);
     if (value !== undefined) budget[input.id] = value;
   }

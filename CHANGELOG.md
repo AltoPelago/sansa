@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Integrate declared identities in the Query workbench's AEON/Telex/Film adapters with whole-query inspection limits; preserve opaque JSON identity and trusted activation guards. Document the separate website candidate and AEOS composer integration.
+
 - Document the separate Titonic child identity dispatcher integration, per-call inspections, binding/head metadata and live proxy/path boundaries.
 
 - Document the separate AEON AEOS selector integration, validation-local inspection budget/cache and retained structural path boundary.

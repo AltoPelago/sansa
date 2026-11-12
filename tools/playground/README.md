@@ -3,7 +3,8 @@
 This is the AEON website's SANSA playground UI adapted to run inside this repo.
 It keeps the source highlighter, Resolve/Query panels, example dialog and both
 composers. [website-origin.json](website-origin.json) records the original revision
-and asset digests. The website is not modified.
+and asset digests. The original extraction left the website unchanged; its later
+identity-aware browser integration is maintained and verified separately.
 
 ## Run
 
@@ -53,8 +54,10 @@ diagnostics show actual codes and identity/limit context. Invalid AEON source
 does not produce partial resolved results.
 
 The UI uses the real `resolveAddress` and `createAeonNamespace` APIs, replacing the
-website's custom path matcher. This adds a developer playground adapter, not
-production browser/AEOS/activation/mutation/SO admission. Query identity support
+website's custom path matcher. This is a developer source adapter. The matching
+website candidate now has separate SDK-backed Resolve/Query and AEOS composer
+verification; deployment remains held. Trusted identity activation, mutation and
+SO stay guarded. Query identity support
 is explicitly integrated in the source evaluator. Child identities
 remain non-exact, recursive extensions are unchanged, and AEON clone/pointer
 references remain structural paths. Pushing this source branch creates no npm,

@@ -1,6 +1,6 @@
 # Child identity selector candidate
 
-Local experimental parser/render/read-only Resolve implementation, not a released capability. Scoped Rust, TypeScript/JavaScript and native Python candidates have local functional/artifact evidence; each package advertises only its verified APIs. Read-only Query now explicitly admits child identities in JavaScript and shared Rust; constrained identity activation is now explicitly available under its own feature and scope checks. AEOS selector admission is now implemented in the AEON TypeScript/Rust/pure-Python validation adapters; schema path fields remain structural. Titonic read-only selection is separately integrated in its local candidate. Other custom matchers, Instruction, mutation and SO remain separately unadmitted. Final versions, registry locks, immutable spec/CTS references and platform verification remain release work.
+Local experimental parser/render/read-only Resolve implementation, not a released capability. Scoped Rust, TypeScript/JavaScript and native Python candidates have local functional/artifact evidence; each package advertises only its verified APIs. Read-only Query now explicitly admits child identities in JavaScript and shared Rust; constrained identity activation is now explicitly available under its own feature and scope checks. AEOS selector admission is now implemented in the AEON TypeScript/Rust/pure-Python validation adapters; schema path fields remain structural. Titonic read-only selection is separately integrated in its local candidate. The selected website/workbench surfaces are separately integrated in their local candidates; other consumers, Instruction, mutation and SO remain gated. Final versions, registry locks, immutable spec/CTS references and platform verification remain release work.
 
 The 12 November 2026 delivery decision defers unresolved JavaScript process-heap qualification so the implemented read-only roster can proceed toward rollout. This is an explicit qualification exception, not a memory-budget pass. Original results, baselines and 1.15× latency / 1.20× memory targets remain preserved; correctness, inspection budgets and other release gates remain mandatory.
 
@@ -34,5 +34,20 @@ results retain structural paths and existing live pointer/clone proxy behavior.
 Attribute/local spaces and qualified identity expressions remain unsupported.
 Workspace-layout artifacts are locally verified; this does not qualify a
 standalone registry install or the broader Tonics build, which retains unrelated
-mode-converter value-kind exhaustiveness gaps. Browser/custom matchers,
-Instruction, mutation and SO still require their own admission.
+mode-converter value-kind exhaustiveness gaps. Other custom consumers, Instruction, mutation and SO still require their own admission. The website
+candidate and Query workbench now have their separate read-only integration
+described below.
+
+The website SANSA candidate uses the SDK namespace and actual Resolve/Query,
+preserving scoped structural paths, composer IDs and shared inspection budgets.
+Default released bundles retain ordinary matching and reject unsupported identity
+selection. A local opt-in candidate import map includes SDK and selector-cursor
+modules; this does not deploy or change released version pins. AEOS composer
+identity rules retain their full selector/constraints and resource policy on
+apply; those rules are edited in schema source. Path-field guards remain closed.
+
+The [Query workbench](../tools/query-web/IDENTITY_SELECTORS.md) admits declared
+identities from AEON identity-query portable projection and Telex/Film records.
+JSON fixture IDs remain opaque; trusted activation and mutation remain guarded.
+Its new inspection input forwards to the existing whole-query Resolve allowance.
+Ordinary native queries retain their existing adapter semantics.
