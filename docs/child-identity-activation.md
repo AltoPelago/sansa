@@ -80,8 +80,10 @@ inspections in those cases.
 
 Public Rust standalone expression evaluation and JavaScript mutation/Instruction
 preconditions remain guarded even if passed a constrained identity feature.
-Graph/reference/storage/AEOS selectors, SO and the deployed website/custom
-matchers retain their separate admission work. AEON clone/pointer references
+Graph/reference/storage consumers, SO and the deployed website/custom matchers
+retain their separate admission work. AEOS selectors are independently integrated
+in the AEON candidate with their own validation-local budget/cache; AEOS path
+fields still reject identities. AEON clone/pointer references
 remain structural paths. Recursive/root-matching extensions are not introduced.
 
 The source playground's existing trusted activation mode also stays closed;

@@ -7,6 +7,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Document the separate AEON AEOS selector integration, validation-local inspection budget/cache and retained structural path boundary.
+
 - Add explicit constrained child identity activation in read-only Query, with pre-inspection canonical scope checks, post-resolution checks and shared inspection budgets. Trusted/default activation and mutation stay guarded.
 
 - Admit read-only child identity selectors in JavaScript and shared Rust Query sources/expressions with one inspection budget per invocation; retain activation, reference and mutation guards.
