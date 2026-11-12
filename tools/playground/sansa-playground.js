@@ -472,6 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function queryValueText(value) {
     if (value?.type === "bindingSet") {
+      if (value.bindings.length === 0) return "(empty Binding Set)";
       return value.bindings.map((binding) => `${binding.address} = ${renderValue(binding.value)}`).join("\n");
     }
     if (value?.type === "object") return JSON.stringify(value.value);
