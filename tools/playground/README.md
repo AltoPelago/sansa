@@ -62,3 +62,7 @@ is explicitly integrated in the source evaluator. Child identities
 remain non-exact, recursive extensions are unchanged, and AEON clone/pointer
 references remain structural paths. Pushing this source branch creates no npm,
 crates.io or GitHub release.
+
+The source editor distinguishes structural identity annotations and embedded
+SANSA address literals. Coloring is a lexical aid; actual parsers and consuming
+APIs still determine validity and admission. See [tooling scope](../../docs/child-identity-tooling.md).

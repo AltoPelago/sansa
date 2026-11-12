@@ -229,6 +229,7 @@
       ["node-open", /<[A-Za-z_][A-Za-z0-9_:-]*/y],
       ["attr-open", /@\{/y],
       ["attr-close", /\}/y],
+      ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\\[A-Za-z0-9_-]+\\)/y],
       ["typed-key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\s*:)/y],
       ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\s*(?:@\{|=))/y],
       ["string-template", /`(?:\\.|[^`])*`/y],
@@ -244,6 +245,8 @@
       ["infinity", /[+-]?Infinity\b/y],
       ["bool", /\b(?:true|false)\b/y],
       ["switch", /\b(?:yes|no|on|off)\b/y],
+      ["identity", /\\[A-Za-z0-9_-]+\\/y],
+      ["sansa", /(?<![~A-Za-z0-9_$?])[$?](?:\.(?:\\[A-Za-z0-9_-]+\\|[A-Za-z_][A-Za-z0-9_]*|\*{1,2}|@|\["(?:\\.|[^"\\])*"\]|<"(?:\\.|[^"\\])*">)|\[(?:0|[1-9][0-9]*)\])*(?![A-Za-z0-9_])/y],
       ["number-sigil", /[#%$^][^\s,\])}]+/y],
       ["float", /(?<![A-Za-z0-9_])[+-]?\d[\d_]*\.[\d_]*(?:[eE][+-]?\d[\d_]*)?(?![A-Za-z0-9_])/y],
       ["number", /(?<![A-Za-z0-9_])[+-]?\d[\d_]*(?:[eE][+-]?\d[\d_]*)?(?![A-Za-z0-9_])/y],
@@ -314,6 +317,12 @@
           case "float":
           case "number":
             html += wrap("literal", match[0]);
+            break;
+          case "identity":
+            html += wrap("identity", match[0]);
+            break;
+          case "sansa":
+            html += wrap("sansa", match[0]);
             break;
           case "binding":
             html += wrap("binding", match[0]);

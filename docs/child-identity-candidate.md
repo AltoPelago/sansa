@@ -51,3 +51,6 @@ identities from AEON identity-query portable projection and Telex/Film records.
 JSON fixture IDs remain opaque; trusted activation and mutation remain guarded.
 Its new inspection input forwards to the existing whole-query Resolve allowance.
 Ordinary native queries retain their existing adapter semantics.
+
+See [editor/tooling integration](child-identity-tooling.md) for unpublished lexical
+scopes, descriptive service hovers and explicit candidate server-bundle limits.

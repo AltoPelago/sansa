@@ -3903,3 +3903,7 @@ input[type="reset"],
   border: 1px solid #000;
   font-weight: 500;
 }
+
+/* Structural identity metadata and SANSA literals are distinct from references. */
+.tok-identity { color: #e2c97a; }
+.tok-sansa { color: #7fb2ff; }
