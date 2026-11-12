@@ -1,6 +1,6 @@
 # Child identity selector candidate
 
-Local experimental parser/render/read-only Resolve implementation, not a released capability. Scoped Rust, TypeScript/JavaScript and native Python candidates have local functional/artifact evidence; each package advertises only its verified APIs. Read-only Query now explicitly admits child identities in JavaScript and shared Rust; constrained identity activation is now explicitly available under its own feature and scope checks. AEOS selector admission is now implemented in the AEON TypeScript/Rust/pure-Python validation adapters; schema path fields remain structural. Custom matchers, Instruction, mutation and SO remain separately unadmitted. Final versions, registry locks, immutable spec/CTS references and platform verification remain release work.
+Local experimental parser/render/read-only Resolve implementation, not a released capability. Scoped Rust, TypeScript/JavaScript and native Python candidates have local functional/artifact evidence; each package advertises only its verified APIs. Read-only Query now explicitly admits child identities in JavaScript and shared Rust; constrained identity activation is now explicitly available under its own feature and scope checks. AEOS selector admission is now implemented in the AEON TypeScript/Rust/pure-Python validation adapters; schema path fields remain structural. Titonic read-only selection is separately integrated in its local candidate. Other custom matchers, Instruction, mutation and SO remain separately unadmitted. Final versions, registry locks, immutable spec/CTS references and platform verification remain release work.
 
 The 12 November 2026 delivery decision defers unresolved JavaScript process-heap qualification so the implemented read-only roster can proceed toward rollout. This is an explicit qualification exception, not a memory-budget pass. Original results, baselines and 1.15× latency / 1.20× memory targets remain preserved; correctness, inspection budgets and other release gates remain mandatory.
 
@@ -26,3 +26,13 @@ These are local Rust candidate results, not an extension of the existing JavaScr
 See [constrained identity activation](child-identity-activation.md) for policy examples, canonical scope/AST rules, no-parent constraints and the Rust/Pytonic feature names.
 
 AEOS validation owns a separate default 10,000-inspection budget (`max_identity_inspections`) and per-invocation identity-selector cache shared by expansion and closed-world allowance. This consumer integration is in the AEON candidate; SANSA parser support alone does not certify an older AEOS adapter.
+
+Titonic's local candidate explicitly integrates child identities in its read-only
+dispatcher using SANSA scans. Its `maxIdentityInspections` option defaults to
+10,000 and spans the full call. Binding/alias IDs and NodeHead IDs remain distinct;
+results retain structural paths and existing live pointer/clone proxy behavior.
+Attribute/local spaces and qualified identity expressions remain unsupported.
+Workspace-layout artifacts are locally verified; this does not qualify a
+standalone registry install or the broader Tonics build, which retains unrelated
+mode-converter value-kind exhaustiveness gaps. Browser/custom matchers,
+Instruction, mutation and SO still require their own admission.
