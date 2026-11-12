@@ -159,6 +159,12 @@ impl<Binding> ResolveOutput<Binding> {
     }
 }
 
+pub(crate) type IdentityGuard<'a, B> = dyn Fn(&B) -> Result<(), Diagnostic> + 'a;
+struct IdentityInspection<'a, B> {
+    inspected: &'a mut usize,
+    guard: Option<&'a IdentityGuard<'a, B>>,
+}
+
 #[must_use]
 pub fn resolve_address<N: Namespace>(
     input: &str,
@@ -166,7 +172,15 @@ pub fn resolve_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
 ) -> ResolveOutput<N::Binding> {
     match parse_address(input) {
-        Ok(address) => resolve_valid_address(&address, namespace, options, &mut 0),
+        Ok(address) => resolve_valid_address(
+            &address,
+            namespace,
+            options,
+            &mut IdentityInspection {
+                inspected: &mut 0,
+                guard: None,
+            },
+        ),
         Err(error) => {
             let mut diagnostic = Diagnostic::new(error.code, error.message);
             diagnostic.phase = Some(DiagnosticPhase::Parse);
@@ -190,6 +204,16 @@ pub(crate) fn resolve_parsed_address_with_inspections<N: Namespace>(
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
     inspected: &mut usize,
+) -> ResolveOutput<N::Binding> {
+    resolve_parsed_address_with_guard(address, namespace, options, inspected, None)
+}
+
+pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
+    guard: Option<&IdentityGuard<'_, N::Binding>>,
 ) -> ResolveOutput<N::Binding> {
     let normalized;
     let has_identity = address
@@ -218,13 +242,18 @@ pub(crate) fn resolve_parsed_address_with_inspections<N: Namespace>(
     } else {
         address
     };
-    resolve_valid_address(address, namespace, options, inspected)
+    resolve_valid_address(
+        address,
+        namespace,
+        options,
+        &mut IdentityInspection { inspected, guard },
+    )
 }
 fn resolve_valid_address<N: Namespace>(
     address: &Address,
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
-    inspected: &mut usize,
+    inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> ResolveOutput<N::Binding> {
     let has_identity = address
         .selectors
@@ -296,7 +325,7 @@ fn resolve_valid_address<N: Namespace>(
             selector_index,
             &root,
             options,
-            inspected,
+            inspection,
         ) {
             Ok(bindings) => bindings,
             Err(error) => return ResolveOutput::failure(*error),
@@ -332,25 +361,31 @@ fn apply_selector<N: Namespace>(
     selector_index: usize,
     effective_root: &N::Binding,
     options: &ResolveOptions<N::Binding>,
-    inspected: &mut usize,
+    inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> Result<Vec<N::Binding>, Box<Diagnostic>> {
     match selector {
         Selector::ChildIdentity { identity } => {
             let mut output = Vec::new();
             for parent in bindings {
+                if let Some(guard) = inspection.guard {
+                    guard(parent).map_err(Box::new)?;
+                }
                 let mut selected = None;
                 for child in namespace.identity_children(parent) {
-                    if *inspected >= options.max_identity_inspections {
+                    if *inspection.inspected >= options.max_identity_inspections {
                         let mut e = resolve_error(
                             "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
                             "Identity inspection limit exceeded",
                             Some(selector_index),
                         );
                         e.limit = Some(options.max_identity_inspections);
-                        e.observed = Some(inspected.saturating_add(1));
+                        e.observed = Some(inspection.inspected.saturating_add(1));
                         return Err(Box::new(e));
                     }
-                    *inspected += 1;
+                    if let Some(guard) = inspection.guard {
+                        guard(&child).map_err(Box::new)?;
+                    }
+                    *inspection.inspected += 1;
                     let actual = namespace.structural_identity(&child);
                     if actual.as_deref().is_some_and(|s| !valid_identity(s)) {
                         return Err(Box::new(resolve_error(
@@ -735,7 +770,7 @@ fn valid_identity(value: &str) -> bool {
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
 }
-fn identity_ast_bounded(address: &Address) -> bool {
+pub(crate) fn identity_ast_bounded(address: &Address) -> bool {
     if address.selectors.len() > 1024 {
         return false;
     }

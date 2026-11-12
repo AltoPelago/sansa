@@ -1,0 +1,984 @@
+{
+  "description": "P4-03 constrained identity activation candidate; local fixtures, not a promoted CTS suite. Per-engine legacy denial diagnostics are explicit.",
+  "namespace": {
+    "supportsIdentity": true,
+    "root": {
+      "address": "$",
+      "identity": "rootId",
+      "children": [
+        {
+          "address": "$.items",
+          "name": "items",
+          "identity": "itemsId",
+          "children": [
+            {
+              "address": "$.items[0]",
+              "index": 0,
+              "identity": "first",
+              "children": [
+                {
+                  "address": "$.items[0].name",
+                  "name": "name",
+                  "identity": "label",
+                  "value": "B",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "address": "$.items[1]",
+              "index": 1,
+              "identity": "second",
+              "children": [
+                {
+                  "address": "$.items[1].name",
+                  "name": "name",
+                  "identity": "label",
+                  "value": "A",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "address": "$.selector",
+          "name": "selector",
+          "children": []
+        }
+      ]
+    }
+  },
+  "tests": [
+    {
+      "id": "explicit-child",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "selected": [
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "chain",
+      "path": "$.items.\\first\\.\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 3,
+        "selected": [
+          [
+            "$.items[0].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "from-activation",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "query": "from path($.selector)\nselect .\\label\\",
+      "expected": {
+        "ok": true,
+        "identityCalls": 3,
+        "selected": [
+          [
+            "$.items[0].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "missing",
+      "path": "$.items.\\missing\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "selected": [
+          []
+        ]
+      }
+    },
+    {
+      "id": "trusted-stays-closed",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": "trusted"
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_UNSUPPORTED_SELECTOR"
+      }
+    },
+    {
+      "id": "default-stays-closed",
+      "path": "$.items.\\first\\",
+      "options": {},
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_POLICY_REQUIRED",
+        "rustError": "SANSA_RESOLVE_UNSUPPORTED_SELECTOR"
+      }
+    },
+    {
+      "id": "missing-feature",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED",
+        "rustError": "SANSA_RESOLVE_UNSUPPORTED_SELECTOR"
+      }
+    },
+    {
+      "id": "child-root-cannot-authorize-sibling-scan",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items[0]"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "other-root",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.other"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "parent-after-identity",
+      "path": "$.items.\\first\\.^",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "childIdentity",
+            "parent"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "parent-before-identity",
+      "path": "$.other.^.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "childIdentity",
+            "parent"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "qualified",
+      "path": "$.items.\\first\\:redact",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "contextual",
+      "path": "?.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": true
+        }
+      },
+      "source": "$.items",
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "selected": [
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "contextual-denied",
+      "path": "?.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "source": "$.items",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "contextual-child-grant",
+      "path": "?.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items[0]"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": true
+        }
+      },
+      "source": "$.items",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "contextual-no-canonical-path",
+      "path": "?.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": true
+        }
+      },
+      "source": "$.items",
+      "change": "current-no-address",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "root-excluded",
+      "path": "$.items.\\itemsId\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "selected": [
+          []
+        ]
+      }
+    },
+    {
+      "id": "depth",
+      "path": "$.items.\\first\\.\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false,
+          "maxAddressDepth": 2
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "inspection-limit",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        },
+        "resolve": {
+          "maxIdentityInspections": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 1,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "limit": 1,
+        "observed": 2
+      }
+    },
+    {
+      "id": "zero-budget",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        },
+        "resolve": {
+          "maxIdentityInspections": 0
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "limit": 0,
+        "observed": 1
+      }
+    },
+    {
+      "id": "shared-reads",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        },
+        "resolve": {
+          "maxIdentityInspections": 3
+        }
+      },
+      "query": "from $\nselect { x = isValue($.items.\\first\\.name) y = path($.selector) }",
+      "expected": {
+        "ok": false,
+        "identityCalls": 3,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "limit": 3,
+        "observed": 4
+      }
+    },
+    {
+      "id": "shared-candidates",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        },
+        "resolve": {
+          "maxIdentityInspections": 4
+        }
+      },
+      "source": "$.items.*",
+      "expected": {
+        "ok": true,
+        "identityCalls": 4,
+        "selected": [
+          [
+            "$.items[0]"
+          ],
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "shared-candidates-limit",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        },
+        "resolve": {
+          "maxIdentityInspections": 3
+        }
+      },
+      "source": "$.items.*",
+      "expected": {
+        "ok": false,
+        "identityCalls": 3,
+        "error": "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+        "candidateAddress": "$.items[1]",
+        "limit": 3,
+        "observed": 4
+      }
+    },
+    {
+      "id": "binding-limit",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false,
+          "maxBindings": 0
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED",
+        "limit": 0,
+        "observed": 1
+      }
+    },
+    {
+      "id": "stricter-host-limit",
+      "path": "$.items.*.\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "wildcard",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false,
+          "maxBindings": 2
+        },
+        "resolve": {
+          "maxBindings": 1
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED",
+        "limit": 1,
+        "observed": 2
+      }
+    },
+    {
+      "id": "duplicate",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "duplicate",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_RESOLVE_AMBIGUOUS_IDENTITY"
+      }
+    },
+    {
+      "id": "invalid-metadata",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "invalid",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_RESOLVE_INVALID_IDENTITY"
+      }
+    },
+    {
+      "id": "unsupported-namespace",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "unsupported",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_RESOLVE_UNSUPPORTED_IDENTITY"
+      }
+    },
+    {
+      "id": "scan-parent-outside",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "parent-outside",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "candidate-outside-before-inspection",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "child-outside",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "post-resolution-outside",
+      "path": "$.items.\\first\\.name",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "value-outside",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "post-resolution-nonexact",
+      "path": "$.items.\\first\\.name",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "value-selector",
+      "expected": {
+        "ok": false,
+        "identityCalls": 2,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "scope-root-no-path",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "root-no-address",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "rooted-at-items",
+      "path": "$.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "rebase-items",
+      "expected": {
+        "ok": true,
+        "identityCalls": 3,
+        "selected": [
+          [
+            "$.items[0]"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "rebased-root-literal-policy-mismatch",
+      "path": "$.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$[0]"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "change": "rebase-items",
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "unqualified-root-contract",
+      "path": "$.items.\\first\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items:redact"
+          ],
+          "allowedSelectors": [
+            "member",
+            "position",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY"
+      }
+    },
+    {
+      "id": "wildcard-prefix",
+      "path": "$.items.*.\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "wildcard",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 2,
+        "selected": [
+          [
+            "$.items[0].name",
+            "$.items[1].name"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "wildcard-child-root-denied",
+      "path": "$.items.*.\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items[0]"
+          ],
+          "allowedSelectors": [
+            "member",
+            "wildcard",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": false,
+        "identityCalls": 0,
+        "error": "SANSA_QUERY_PATH_ACTIVATION_DENIED"
+      }
+    },
+    {
+      "id": "open-range-prefix",
+      "path": "$.items[..0].\\label\\",
+      "options": {
+        "addressActivation": {
+          "allowedRoots": [
+            "$.items"
+          ],
+          "allowedSelectors": [
+            "member",
+            "range",
+            "childIdentity"
+          ],
+          "allowContextualRoot": false
+        }
+      },
+      "expected": {
+        "ok": true,
+        "identityCalls": 1,
+        "selected": [
+          [
+            "$.items[0].name"
+          ]
+        ]
+      }
+    }
+  ]
+}

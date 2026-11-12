@@ -2,6 +2,7 @@ import { parseDotSelectorFromCursor, parsePositionSelectorFromCursor, validatePo
 const CHILD_IDENTITY_RE = /^[A-Za-z0-9_-]+$/;
 const DENY_CHILD_IDENTITY = Symbol('consumer identity admission');
 const QUERY_IDENTITY_BUDGET = Symbol('query identity inspections');
+const IDENTITY_ACTIVATION_GUARD = Symbol('identity activation scope');
 const DEFAULT_IDENTITY_INSPECTIONS = 10_000;
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIER_NUMBER_RE = /^[+-]?(?:(?:0|[1-9][0-9]*)(?:\.[0-9]+)?|\.[0-9]+)$/;
@@ -2776,6 +2777,7 @@ export function resolveAddress(input, namespace, options = {}) {
         maxBindings,
         identityBudget,
         maxIdentityInspections,
+        identityActivationGuard: options[IDENTITY_ACTIVATION_GUARD],
       },
     );
     if (!selected.ok) return { ok: false, bindings: [], errors: [selected.error] };
@@ -4074,23 +4076,51 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
     };
   }
 
-  const activated = activateAddressLiteral(scalar.value, options.parse?.address);
+  let activated = activateAddressLiteral(scalar.value, options.parse?.address);
   if (!activated.ok) return activated;
+  if (!Array.isArray(activated.address?.selectors) || !['absolute', 'contextual'].includes(activated.address.root?.kind)) {
+    return {ok: false, error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', 'Invalid activated address AST')};
+  }
+  const hasIdentity = activated.address.selectors.some(s => s?.type === 'childIdentity');
+  if (hasIdentity) {
+    const address = normalizeActivationAst(activated.address, options.parse?.address, false);
+    if (!address) return deniedAddressActivation('Cannot establish a bounded unqualified identity activation address');
+    activated = {ok: true, address};
+  }
 
   const activation = authorizeAddressActivation(
     activated.address,
     currentBinding,
     options.addressActivation,
     options.parse?.address,
+    namespace,
   );
   if (!activation.ok) return activation;
 
-  const resolved = resolveConsumerAddress(activated.address, namespace, {
+  const identityRoots = activation.identityRoots;
+  const guard = identityRoots === undefined ? undefined : binding => {
+    const address = canonicalActivationPath(getBindingAddress(binding), options.parse?.address);
+    return address && identityRoots.some(root => addressHasStructuralPrefix(address, root))
+      ? undefined
+      : deniedAddressActivation('Identity activation binding has no permitted canonical structural path').error;
+  };
+  const hostLimit = options.resolve?.maxBindings;
+  const activationLimit = activation.maxBindings;
+  if (hasIdentity && hostLimit !== undefined && (!Number.isSafeInteger(hostLimit) || hostLimit < 0)) {
+    return {ok: false, error: resolveError('SANSA_RESOLVE_INVALID_BINDING_LIMIT', 'Resolve maxBindings must be a non-negative safe integer')};
+  }
+  const maxBindings = hasIdentity && hostLimit !== undefined && activationLimit !== undefined
+    ? Math.min(hostLimit, activationLimit) : (activationLimit ?? hostLimit);
+  const resolveOptions = {
     ...(options.resolve ?? {}),
     contextualRoot: currentBinding,
-    ...(activation.allowParentFromEffectiveRoot ? { allowParentFromEffectiveRoot: true } : {}),
-    ...(activation.maxBindings === undefined ? {} : { maxBindings: activation.maxBindings }),
-  });
+    ...(activation.allowParentFromEffectiveRoot ? {allowParentFromEffectiveRoot: true} : {}),
+    ...(maxBindings === undefined ? {} : {maxBindings}),
+    ...(guard ? {[IDENTITY_ACTIVATION_GUARD]: guard} : {}),
+  };
+  const resolved = guard
+    ? resolveQueryAddress(activated.address, namespace, options, resolveOptions)
+    : resolveConsumerAddress(activated.address, namespace, resolveOptions);
   if (!resolved.ok) {
     const error = resolved.errors[0];
     if (error.code === 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED') {
@@ -4104,6 +4134,12 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
       };
     }
     return { ok: false, error };
+  }
+  if (guard) {
+    for (const binding of resolved.bindings) {
+      const error = guard(binding);
+      if (error) return {ok: false, error};
+    }
   }
   if (activation.maxBindings !== undefined && resolved.bindings.length > activation.maxBindings) {
     return {
@@ -4128,6 +4164,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
 }
 
 const ADDRESS_ACTIVATION_SELECTOR_FEATURE = new Map([
+  ['childIdentity', 'childIdentity'],
   ['member', 'member'],
   ['position', 'position'],
   ['positionRange', 'range'],
@@ -4141,7 +4178,7 @@ const ADDRESS_ACTIVATION_SELECTOR_FEATURE = new Map([
   ['parent', 'parent'],
 ]);
 
-function authorizeAddressActivation(address, currentBinding, policy, parseOptions) {
+function authorizeAddressActivation(address, currentBinding, policy, parseOptions, namespace) {
   if (policy === 'trusted' || policy?.mode === 'trusted') {
     return { ok: true };
   }
@@ -4188,6 +4225,24 @@ function authorizeAddressActivation(address, currentBinding, policy, parseOption
 
   if (address.root.kind === 'contextual' && policy.allowContextualRoot !== true) {
     return deniedAddressActivation('Contextual-root address activation is not permitted');
+  }
+
+  if (address.selectors.some(s => s.type === 'childIdentity')) {
+    if (address.selectors.some(s => s.type === 'parent') || address.qualifierExpression) {
+      return deniedAddressActivation('Identity activation does not admit parent traversal or qualifiers');
+    }
+    const roots = normalizeAddressActivationRoots(policy.allowedRoots, parseOptions);
+    if (!roots.ok) return roots;
+    const binding = address.root.kind === 'contextual' ? currentBinding
+      : (typeof namespace.root === 'function' ? namespace.root() : namespace.root);
+    const base = canonicalActivationPath(getBindingAddress(binding), parseOptions);
+    if (!base) return deniedAddressActivation('Identity activation requires a canonical structural scope root');
+    const firstIdentity = address.selectors.findIndex(s => s.type === 'childIdentity');
+    const prefix = {...base, selectors: [...base.selectors, ...address.selectors.slice(0, firstIdentity)]};
+    if (!roots.roots.some(root => addressHasStructuralPrefix(prefix, root))) {
+      return deniedAddressActivation('Identity scan parent is outside every permitted root');
+    }
+    return {ok: true, maxBindings: maxBindings.value, identityRoots: roots.roots};
   }
 
   const effective = effectiveActivatedAddress(address, currentBinding, parseOptions);
@@ -4238,7 +4293,8 @@ function normalizeAddressActivationRoots(input, parseOptions) {
   }
   const roots = [];
   for (const root of input) {
-    const parsed = typeof root === 'string' ? parseAddress(root, parseOptions) : { ok: true, address: root };
+    const address = typeof root === 'string' ? canonicalActivationPath(root, parseOptions) : normalizeActivationAst(root, parseOptions, true);
+    const parsed = {ok: address !== undefined, address};
     if (!parsed.ok || !parsed.address || parsed.address.type !== 'SansaAddress') {
       return invalidAddressActivationPolicy('Address-activation roots must be valid SANSA addresses');
     }
@@ -4248,6 +4304,41 @@ function normalizeAddressActivationRoots(input, parseOptions) {
     roots.push(parsed.address);
   }
   return { ok: true, roots };
+}
+
+// Bounded scalar-only AST projection before policy decisions. Caller flags carry no authority.
+function normalizeActivationAst(input, parseOptions, exactOnly) {
+  if (input?.type !== 'SansaAddress' || input.root?.type !== 'root'
+      || !['absolute', 'contextual'].includes(input.root.kind) || input.qualifierExpression
+      || !Array.isArray(input.selectors) || input.selectors.length > 1024) return undefined;
+  let characters = 0;
+  for (const s of input.selectors) {
+    if (!s || exactOnly && !isExactSelector(s)) return undefined;
+    const text = ['member', 'localSpace', 'semanticTypeFilter', 'representationKindFilter'].includes(s.type) ? s.name
+      : s.type === 'childIdentity' ? s.identity : s.type === 'namePattern' ? s.pattern : undefined;
+    if (text !== undefined) {
+      if (typeof text !== 'string') return undefined;
+      characters += text.length;
+    } else if (['member', 'localSpace', 'semanticTypeFilter', 'representationKindFilter', 'childIdentity', 'namePattern'].includes(s.type)) return undefined;
+    if (characters > 65536) return undefined;
+    if (s.type === 'position' && (!Number.isSafeInteger(s.index) || s.index < 0)) return undefined;
+    if (s.type === 'positionRange' && ![s.start, s.end].every(v => v == null || Number.isSafeInteger(v) && v >= 0)) return undefined;
+  }
+  try {
+    const source = renderAddress(input);
+    if (source.length > 65536) return undefined;
+    const parsed = parseAddress(source, parseOptions);
+    return parsed.ok && (!exactOnly || parsed.address.root.kind === 'absolute' && parsed.address.isExact)
+      ? parsed.address : undefined;
+  } catch { return undefined; }
+}
+
+function canonicalActivationPath(source, parseOptions) {
+  if (typeof source !== 'string' || source.length > 65536) return undefined;
+  const parsed = parseAddress(source, parseOptions);
+  return parsed.ok && parsed.address.root.kind === 'absolute' && parsed.address.isExact
+    && !parsed.address.qualifierExpression && parsed.address.selectors.length <= 1024
+    ? parsed.address : undefined;
 }
 
 function effectiveActivatedAddress(address, currentBinding, parseOptions) {
@@ -6693,10 +6784,19 @@ function selectChildIdentity(namespace, bindings, selector, selectorIndex, polic
   const output = [];
   for (const binding of bindings) {
     let match;
+    const guard = policy.identityActivationGuard;
+    if (guard) {
+      const error = guard(binding);
+      if (error) return {ok: false, error};
+    }
     const children = typeof namespace.children === 'function' ? namespace.children(binding) ?? [] : binding.children ?? [];
     for (const child of children) {
       const budget = policy.identityBudget;
       if (budget.inspected >= policy.maxIdentityInspections) return { ok: false, error: resolveError('SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED', 'Identity inspection limit exceeded', selectorIndex, { limit: policy.maxIdentityInspections, observed: budget.inspected + 1 }) };
+      if (guard) {
+        const error = guard(child);
+        if (error) return {ok: false, error};
+      }
       budget.inspected += 1;
       const identity = namespace.identity(child);
       if (identity !== undefined && (typeof identity !== 'string' || !CHILD_IDENTITY_RE.test(identity))) return { ok: false, error: resolveError('SANSA_RESOLVE_INVALID_IDENTITY', 'Adapter returned an invalid structural identity', selectorIndex) };

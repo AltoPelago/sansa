@@ -1490,7 +1490,8 @@ The existing `resolve.maxIdentityInspections` option is a whole-Query budget
 (default 10,000), shared across every clause, candidate and repeated read. Each
 invocation owns fresh private state; caller options are never mutated or used as
 a session. Any failure returns no records. Binding/result limits remain separate.
-Dynamic `path(...)` activation, reference following, graph traversal, Instruction
-and mutation retain their own guards. Public Rust `evaluate_expression` remains
+Dynamic `path(...)` identity activation now has its own [constrained feature and
+scope contract](child-identity-activation.md). Trusted/default activation, reference
+following, graph traversal, Instruction and mutation retain their guards. Public Rust `evaluate_expression` remains
 closed for mutation-precondition consumers; only Query entry points admit IDs.
 No public struct, session, codec or serialization format is added by this slice.

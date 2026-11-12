@@ -155,8 +155,9 @@ is one logical inspection budget for the entire Query invocation, including
 A miss still costs inspections; a failure returns no partial records. Enumeration
 and metadata costs depend on the host adapter. Calls have independent budgets.
 
-This admission does not enable child identities in dynamic `path(...)`
-activation, references, Instruction or mutation. Pure Python exposes Address/Resolve without a Query evaluator. The existing
+Dynamic `path(...)` identity activation requires the separate explicit constrained
+feature and scope contract in [identity activation](child-identity-activation.md).
+Trusted/default activation, references, Instruction and mutation stay guarded. Pure Python exposes Address/Resolve without a Query evaluator. The existing
 native Pytonic `Document.query` facade uses the shared Rust Query engine and
 its default 10,000-inspection budget; it adds no new method or keyword argument.
 

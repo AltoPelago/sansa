@@ -512,6 +512,7 @@ export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolv
 }
 
 export type SansaAddressActivationSelectorCapability =
+  | 'childIdentity'
   | 'member'
   | 'position'
   | 'range'
@@ -526,7 +527,9 @@ export type SansaAddressActivationSelectorCapability =
 
 export interface SansaAddressActivationPolicy {
   readonly mode?: 'constrained' | 'trusted';
+  /** For childIdentity, canonical structural binding paths; scope is proven before scanning. */
   readonly allowedRoots?: readonly (string | SansaAddress)[];
+  /** childIdentity requires constrained mode; trusted mode does not enable it. */
   readonly allowedSelectors?: readonly SansaAddressActivationSelectorCapability[];
   readonly allowContextualRoot?: boolean;
   readonly maxAddressDepth?: number;

@@ -34,6 +34,7 @@ pub struct QueryBudget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationSelector {
+    ChildIdentity,
     Member,
     Position,
     Range,
@@ -66,8 +67,9 @@ pub enum AddressActivation {
 
 type EvaluationResult<T> = Result<T, Diagnostic>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ActivationGrant {
+    identity_roots: Option<Vec<Address>>,
     max_bindings: Option<usize>,
     allow_parent_from_effective_root: bool,
 }
@@ -981,7 +983,9 @@ fn evaluate_path<N: Namespace>(
             "Function 'path' received an invalid SANSA Address Literal",
         )
     })?;
-    crate::resolve::deny_child_identity(&address)?;
+    if !options.admit_child_identity {
+        crate::resolve::deny_child_identity(&address)?;
+    }
     let grant = authorize_path(&address, current, namespace, &options.address_activation)?;
     let mut resolve_options = options.resolve.clone();
     if address.root == Root::Contextual {
@@ -992,8 +996,35 @@ fn evaluate_path<N: Namespace>(
         (grant, host) => grant.or(host),
     };
     resolve_options.allow_parent_from_effective_root = grant.allow_parent_from_effective_root;
-    crate::resolve::deny_child_identity(&address)?;
-    let output = resolve_parsed_address(&address, namespace, &resolve_options);
+    let guard = |binding: &N::Binding| -> EvaluationResult<()> {
+        let path = namespace
+            .binding_address(binding)
+            .and_then(|s| canonical_activation_path(&s));
+        if path.is_some_and(|p| {
+            grant
+                .identity_roots
+                .as_ref()
+                .is_some_and(|roots| roots.iter().any(|r| address_has_prefix(&p, r)))
+        }) {
+            Ok(())
+        } else {
+            Err(path_denied(
+                "Identity activation binding has no permitted canonical structural path",
+            ))
+        }
+    };
+    let mut inspected = options.identity_inspections.get();
+    let output = crate::resolve::resolve_parsed_address_with_guard(
+        &address,
+        namespace,
+        &resolve_options,
+        &mut inspected,
+        grant
+            .identity_roots
+            .as_ref()
+            .map(|_| &guard as &crate::resolve::IdentityGuard<'_, N::Binding>),
+    );
+    options.identity_inspections.set(inspected);
     if let Some(error) = output.errors.into_iter().next() {
         if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" {
             let mut mapped = evaluate_error(
@@ -1006,6 +1037,11 @@ fn evaluate_path<N: Namespace>(
         }
         return Err(error);
     }
+    if grant.identity_roots.is_some() {
+        for binding in &output.bindings {
+            guard(binding)?;
+        }
+    }
     Ok(EvaluatedValue::Bindings(output.bindings))
 }
 
@@ -1015,10 +1051,19 @@ fn authorize_path<N: Namespace>(
     namespace: &N,
     activation: &AddressActivation,
 ) -> EvaluationResult<ActivationGrant> {
-    crate::resolve::deny_child_identity(address)?;
+    let has_identity = address
+        .selectors
+        .iter()
+        .any(|s| matches!(s, Selector::ChildIdentity { .. }));
+    if has_identity
+        && !matches!(activation, AddressActivation::Constrained(p) if p.allowed_selectors.contains(&ActivationSelector::ChildIdentity))
+    {
+        crate::resolve::deny_child_identity(address)?;
+    }
     let AddressActivation::Constrained(policy) = activation else {
         return match activation {
             AddressActivation::Trusted => Ok(ActivationGrant {
+                identity_roots: None,
                 max_bindings: None,
                 allow_parent_from_effective_root: true,
             }),
@@ -1029,13 +1074,27 @@ fn authorize_path<N: Namespace>(
             AddressActivation::Constrained(_) => unreachable!(),
         };
     };
-    if policy.allowed_roots.is_empty()
-        || policy.allowed_roots.iter().any(|root| {
-            root.root != Root::Absolute || !root.is_exact || root.qualifier_expression.is_some()
+    let roots = policy
+        .allowed_roots
+        .iter()
+        .map(|r| {
+            if !crate::resolve::identity_ast_bounded(r)
+                || r.root != Root::Absolute
+                || r.qualifier_expression.is_some()
+                || r.selectors.len() > 1024
+                || r.selectors.iter().any(|s| !is_exact_selector(s))
+            {
+                return Err(path_invalid_policy(
+                    "Constrained address activation requires exact, unqualified absolute roots",
+                ));
+            }
+            canonical_activation_path(&crate::address::render_address(r))
+                .ok_or_else(|| path_invalid_policy("Invalid activation root"))
         })
-    {
+        .collect::<EvaluationResult<Vec<_>>>()?;
+    if roots.is_empty() {
         return Err(path_invalid_policy(
-            "Constrained address activation requires exact, unqualified absolute roots",
+            "Constrained address activation requires at least one root",
         ));
     }
     if address.root == Root::Contextual && !policy.allow_contextual_root {
@@ -1056,6 +1115,40 @@ fn authorize_path<N: Namespace>(
     }) {
         return Err(path_denied("Activated address selector is not permitted"));
     }
+    if has_identity {
+        if address.qualifier_expression.is_some() || address.selectors.contains(&Selector::Parent) {
+            return Err(path_denied(
+                "Identity activation does not admit parent traversal or qualifiers",
+            ));
+        }
+        let binding = if address.root == Root::Contextual {
+            Some(current.clone())
+        } else {
+            namespace.root()
+        };
+        let mut prefix = binding
+            .as_ref()
+            .and_then(|b| namespace.binding_address(b))
+            .and_then(|s| canonical_activation_path(&s))
+            .ok_or_else(|| {
+                path_denied("Identity activation requires a canonical structural scope root")
+            })?;
+        let before_identity = address
+            .selectors
+            .iter()
+            .take_while(|s| !matches!(s, Selector::ChildIdentity { .. }));
+        prefix.selectors.extend(before_identity.cloned());
+        if !roots.iter().any(|root| address_has_prefix(&prefix, root)) {
+            return Err(path_denied(
+                "Identity scan parent is outside every permitted root",
+            ));
+        }
+        return Ok(ActivationGrant {
+            identity_roots: Some(roots),
+            max_bindings: policy.max_bindings,
+            allow_parent_from_effective_root: false,
+        });
+    }
     let effective = effective_address(address, current, namespace)?;
     if !policy
         .allowed_roots
@@ -1067,10 +1160,23 @@ fn authorize_path<N: Namespace>(
         ));
     }
     Ok(ActivationGrant {
+        identity_roots: None,
         max_bindings: policy.max_bindings,
         allow_parent_from_effective_root: policy
             .allowed_selectors
             .contains(&ActivationSelector::Parent),
+    })
+}
+
+fn canonical_activation_path(source: &str) -> Option<Address> {
+    if source.len() > 65536 {
+        return None;
+    }
+    parse_address(source).ok().filter(|a| {
+        a.root == Root::Absolute
+            && a.is_exact
+            && a.qualifier_expression.is_none()
+            && a.selectors.len() <= 1024
     })
 }
 
@@ -1318,7 +1424,7 @@ fn check_budget(
 
 fn activation_selector(selector: &Selector) -> Option<ActivationSelector> {
     Some(match selector {
-        Selector::ChildIdentity { .. } => return None,
+        Selector::ChildIdentity { .. } => ActivationSelector::ChildIdentity,
         Selector::Member { .. } => ActivationSelector::Member,
         Selector::Position { .. } => ActivationSelector::Position,
         Selector::PositionRange { .. } => ActivationSelector::Range,

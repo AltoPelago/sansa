@@ -76,8 +76,8 @@ Child identities are also admitted explicitly in read-only Query sources and
 address expressions. For example, `from $.items.\first\` followed by
 `select .\label\` returns the original bindings with structural candidate/value
 paths. `resolve.maxIdentityInspections` is shared across the entire Query call.
-Dynamic address activation, references, Instruction, mutation and SO retain their
-separate admission boundaries. See [candidate semantics](docs/child-identity-candidate.md).
+Dynamic identity activation requires its own explicit constrained policy;
+references, Instruction, mutation and SO retain their separate boundaries. See [candidate semantics](docs/child-identity-candidate.md).
 
 ## Query Tool
 
@@ -167,7 +167,8 @@ Library use of Query `path(...)` requires explicit dynamic-address authority.
 Use `addressActivation: "trusted"` only when the caller already controls the
 query, Address values, and exposed namespace. Cross-boundary consumers should
 provide constrained structural roots, selector capabilities, and result bounds;
-reading an Address value does not authorize resolving it.
+reading an Address value does not authorize resolving it. Child identities require
+the explicit constrained `childIdentity` feature and [scope checks](docs/child-identity-activation.md); trusted mode does not enable them.
 
 ## Instruction Tool
 

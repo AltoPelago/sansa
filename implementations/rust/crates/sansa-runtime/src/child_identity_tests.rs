@@ -88,6 +88,11 @@ impl Namespace for Fixture {
         self.rows[*b]["address"].as_str().map(str::to_owned)
     }
     fn value(&self, b: &usize) -> Option<crate::value_semantics::Value> {
+        if self.rows[*b]["value"]["type"] == "SansaAddressLiteral" {
+            return self.rows[*b]["value"]["address"]
+                .as_str()
+                .map(|s| crate::value_semantics::Value::SansaAddress(s.into()));
+        }
         self.rows[*b]["value"]
             .as_str()
             .map(|s| crate::value_semantics::Value::String(s.into()))
@@ -598,4 +603,219 @@ fn query_identity_budget_is_per_invocation_and_activation_stays_denied() {
     let out = evaluate_query("from $\nselect path(.)", &Activation(&ns), &options);
     assert_eq!(out.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
     assert_eq!(ns.calls.get(), before);
+}
+
+#[test]
+fn constrained_identity_activation_shared_vectors() {
+    use crate::evaluate::{
+        ActivationSelector, AddressActivation, AddressActivationPolicy, EvaluateOptions,
+        EvaluatedValue, evaluate_query,
+    };
+    let suite: J = serde_json::from_str(include_str!(
+        "../tests/fixtures/child-identity/activation-admission.json"
+    ))
+    .expect("valid activation fixture");
+    assert_eq!(suite["tests"].as_array().expect("test roster").len(), 39);
+    for case in suite["tests"].as_array().expect("test roster") {
+        let mut fixture = suite["namespace"].clone();
+        fixture["root"]["children"][1]["value"] =
+            json!({"type":"SansaAddressLiteral","address":case["path"]});
+        match case["change"].as_str() {
+            Some("duplicate") => {
+                fixture["root"]["children"][0]["children"][1]["identity"] = json!("first")
+            }
+            Some("invalid") => {
+                fixture["root"]["children"][0]["children"][1]["identity"] = json!("bad!")
+            }
+            Some("unsupported") => fixture["supportsIdentity"] = json!(false),
+            Some("current-no-address") => {
+                fixture["root"]["children"][0]
+                    .as_object_mut()
+                    .expect("object")
+                    .remove("address");
+            }
+            Some("parent-outside") => {
+                fixture["root"]["children"][0]["address"] = json!("$.outside")
+            }
+            Some("child-outside") => {
+                fixture["root"]["children"][0]["children"][0]["address"] = json!("$.outside[0]")
+            }
+            Some("value-outside") => {
+                fixture["root"]["children"][0]["children"][0]["children"][0]["address"] =
+                    json!("$.outside.name")
+            }
+            Some("value-selector") => {
+                fixture["root"]["children"][0]["children"][0]["children"][0]["address"] =
+                    json!("$.items.*.name")
+            }
+            Some("root-no-address") => {
+                fixture["root"]
+                    .as_object_mut()
+                    .expect("root")
+                    .remove("address");
+            }
+            Some("rebase-items") => {
+                let mut items = fixture["root"]["children"][0].clone();
+                let mut param = fixture["root"]["children"][1].clone();
+                param["address"] = json!("$.items.selector");
+                items["children"]
+                    .as_array_mut()
+                    .expect("children")
+                    .push(param);
+                fixture["root"] = items;
+            }
+            _ => {}
+        }
+        let ns = Fixture::build(&fixture);
+        let mut options = EvaluateOptions::default();
+        let p = &case["options"]["addressActivation"];
+        if p == "trusted" {
+            options.address_activation = AddressActivation::Trusted;
+        } else if p.is_object() {
+            let roots = p["allowedRoots"]
+                .as_array()
+                .expect("roots")
+                .iter()
+                .map(|r| parse_address(r.as_str().expect("root string")).expect("root parses"))
+                .collect();
+            let selectors = p["allowedSelectors"]
+                .as_array()
+                .expect("features")
+                .iter()
+                .map(|s| match s.as_str().expect("feature") {
+                    "member" => ActivationSelector::Member,
+                    "position" => ActivationSelector::Position,
+                    "parent" => ActivationSelector::Parent,
+                    "childIdentity" => ActivationSelector::ChildIdentity,
+                    "wildcard" => ActivationSelector::DirectExpansion,
+                    "range" => ActivationSelector::Range,
+                    _ => panic!("unexpected feature"),
+                })
+                .collect();
+            options.address_activation = AddressActivation::Constrained(AddressActivationPolicy {
+                allowed_roots: roots,
+                allowed_selectors: selectors,
+                allow_contextual_root: p["allowContextualRoot"].as_bool().unwrap_or(false),
+                max_address_depth: p["maxAddressDepth"].as_u64().map(|n| n as usize),
+                max_bindings: p["maxBindings"].as_u64().map(|n| n as usize),
+            });
+        }
+        let r = &case["options"]["resolve"];
+        if let Some(n) = r["maxIdentityInspections"].as_u64() {
+            options.resolve.max_identity_inspections = n as usize;
+        }
+        options.resolve.max_bindings = r["maxBindings"].as_u64().map(|n| n as usize);
+        let source = case["query"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                format!(
+                    "from {}\nselect path($.selector)",
+                    case["source"].as_str().unwrap_or("$")
+                )
+            });
+        let before = options.clone();
+        let out = evaluate_query(&source, &ns, &options);
+        let e = &case["expected"];
+        assert_eq!(
+            out.is_ok(),
+            e["ok"].as_bool().expect("expected status"),
+            "{}: {out:?}",
+            case["id"]
+        );
+        assert_eq!(
+            ns.calls.get(),
+            e["identityCalls"].as_u64().expect("calls") as usize,
+            "{}: {out:?}",
+            case["id"]
+        );
+        assert_eq!(options, before);
+        if out.is_ok() {
+            let selected: Vec<Vec<_>> = out
+                .results
+                .iter()
+                .map(|r| match &r.value {
+                    EvaluatedValue::Bindings(bs) => {
+                        bs.iter().map(|b| ns.rows[*b]["address"].clone()).collect()
+                    }
+                    _ => panic!("expected bindings"),
+                })
+                .collect();
+            assert_eq!(json!(selected), e["selected"], "{}", case["id"]);
+        } else {
+            assert!(out.results.is_empty());
+            let d = &out.errors[0];
+            assert_eq!(
+                d.code,
+                e.get("rustError")
+                    .unwrap_or(&e["error"])
+                    .as_str()
+                    .expect("expected code"),
+                "{}",
+                case["id"]
+            );
+            let actual = json!({"phase":d.phase.map(|p|format!("{p:?}").to_lowercase()),"candidateAddress":d.candidate_address,"limit":d.limit,"observed":d.observed,"selectorIndex":d.selector_index});
+            for field in [
+                "phase",
+                "candidateAddress",
+                "limit",
+                "observed",
+                "selectorIndex",
+            ] {
+                if let Some(v) = e.get(field) {
+                    assert_eq!(&actual[field], v, "{}: {field}", case["id"]);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn identity_activation_keeps_forged_roots_and_standalone_expression_closed() {
+    use crate::evaluate::{
+        ActivationSelector, AddressActivation, AddressActivationPolicy, EvaluateOptions,
+        evaluate_expression, evaluate_query,
+    };
+    let s: J = serde_json::from_str(include_str!(
+        "../tests/fixtures/child-identity/activation-admission.json"
+    ))
+    .expect("fixture");
+    let mut f = s["namespace"].clone();
+    f["root"]["children"][1]["value"] =
+        json!({"type":"SansaAddressLiteral","address":"$.items.\\first\\"});
+    let ns = Fixture::build(&f);
+    let mut root = parse_address("$.items.\\first\\").expect("root");
+    root.is_exact = true;
+    root.canonical = "$.items".into();
+    let mut options = EvaluateOptions {
+        address_activation: AddressActivation::Constrained(AddressActivationPolicy {
+            allowed_roots: vec![root],
+            allowed_selectors: vec![
+                ActivationSelector::Member,
+                ActivationSelector::ChildIdentity,
+            ],
+            allow_contextual_root: false,
+            max_address_depth: None,
+            max_bindings: None,
+        }),
+        ..EvaluateOptions::default()
+    };
+    let r = evaluate_query("from $\nselect path($.selector)", &ns, &options);
+    assert_eq!(
+        r.errors[0].code,
+        "SANSA_QUERY_PATH_ACTIVATION_INVALID_POLICY"
+    );
+    assert_eq!(ns.calls.get(), 0);
+    if let AddressActivation::Constrained(p) = &mut options.address_activation {
+        p.allowed_roots = vec![parse_address("$.items").expect("root")];
+    }
+    let expression = crate::query::parse_expression("path($.selector)").expect("expression");
+    let r =
+        evaluate_expression(&expression, &0, &ns, &options).expect_err("standalone stays closed");
+    assert_eq!(r.code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+    assert_eq!(ns.calls.get(), 0);
+    options.resolve.max_identity_inspections = 2;
+    for _ in 0..2 {
+        assert!(evaluate_query("from $\nselect path($.selector)", &ns, &options).is_ok());
+    }
 }
