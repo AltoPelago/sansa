@@ -46,6 +46,14 @@ test('many same-line comment and template tokens do not exhaust the stack', () =
   }
 });
 
+test('an unterminated escaped-quote run is consumed once as display text', () => {
+  for (const n of [256, 512]) {
+    const source = '"' + '\\"'.repeat(n);
+    assert.equal(highlightAeon(source), '<span class="tok-string">' + source + '</span>');
+    assert.equal(highlightJson(source), source);
+  }
+});
+
 test('unterminated escaped quotes complete within an isolated execution deadline', () => {
   const script = `import {readFileSync} from 'node:fs';
     import vm from 'node:vm';

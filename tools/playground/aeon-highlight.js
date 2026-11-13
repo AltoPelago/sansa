@@ -276,8 +276,13 @@
       }
 
       if (!matched) {
-        html += escapeHtml(line[index]);
-        index += 1;
+        // A failed quoted token is incomplete. Do not retry every escaped
+        // interior quote against the remaining suffix.
+        if (line[index] === '"' || line[index] === "'") {
+          html += wrap("string", line.slice(index));
+          break;
+        }
+        html += escapeHtml(line[index++]);
       }
     }
 
@@ -355,12 +360,21 @@
   }
 
   function highlightJson(source) {
-    const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/g;
+    const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/y;
     let html = "";
     let index = 0;
-    for (const token of source.matchAll(pattern)) {
+    while (index < source.length) {
+      pattern.lastIndex = index;
+      const token = pattern.exec(source);
+      if (!token) {
+        if (source[index] === '"') {
+          html += escapeHtml(source.slice(index));
+          break;
+        }
+        html += escapeHtml(source[index++]);
+        continue;
+      }
       const [match, str, colon, bool, num, punct] = token;
-      html += escapeHtml(source.slice(index, token.index));
       if (str) {
         html += colon
           ? `<span class="json-key">${escapeHtml(str)}</span>${escapeHtml(colon)}`
@@ -369,9 +383,9 @@
       else if (match === "null") html += '<span class="json-null">null</span>';
       else if (num) html += `<span class="json-number">${match}</span>`;
       else if (punct) html += `<span class="json-punct">${match}</span>`;
-      index = token.index + match.length;
+      index = pattern.lastIndex;
     }
-    return html + escapeHtml(source.slice(index));
+    return html;
   }
 
   function attachHighlightEditor(textarea, backdrop) {
