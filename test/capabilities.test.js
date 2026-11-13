@@ -42,3 +42,14 @@ test('capability manifest exposes structured one-hop Graph as experimental', () 
   assert.ok(graph.boundaries.includes('traversal conveys location, never authorization'));
   assert.ok(graph.boundaries.includes('Graph authorization does not authorize composed Query reads'));
 });
+
+test('child identity capability is explicitly read-only and JavaScript-only', () => {
+  const identity = experimentalCapability('sansa.resolve.child-identity.candidate.v1');
+  assert.ok(identity);
+  assert.equal(identity.maturity, 'experimental');
+  assert.deepEqual(identity.runtimes, ['javascript']);
+  assert.equal(identity.defaultMaxIdentityInspections, 10000);
+  assert.deepEqual(identity.entryPoints, ['parseAddress', 'renderAddress', 'resolveAddress']);
+  assert.ok(identity.boundaries.includes('no identity references or recursive selector extension'));
+  assert.ok(identity.boundaries.includes('other runtime API evidence is separately qualified; this package claim is JavaScript-only'));
+});

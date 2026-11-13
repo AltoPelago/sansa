@@ -1,0 +1,10 @@
+west:object = {}
+east:object = {
+  renamed\stock1\:object = {
+    items:list<object> = [
+      \item2\ = { name\name2\:string = "Bracket" }
+      \item1\ = { name\name1\:string = "Replacement" }
+    ]
+  }
+}
+selection:sansa = $.east.\stock1\.items.\item1\.\name1\

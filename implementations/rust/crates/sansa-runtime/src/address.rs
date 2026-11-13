@@ -53,6 +53,9 @@ pub enum Root {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selector {
+    ChildIdentity {
+        identity: String,
+    },
     Member {
         name: String,
         quoted: bool,
@@ -86,6 +89,7 @@ impl Selector {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
+            Self::ChildIdentity { .. } => "childIdentity",
             Self::Member { .. } => "member",
             Self::Position { .. } => "position",
             Self::PositionRange { .. } => "positionRange",
@@ -158,6 +162,11 @@ pub fn render_address(address: &Address) -> String {
     };
     for selector in &address.selectors {
         match selector {
+            Selector::ChildIdentity { identity } => {
+                output.push_str(".\\");
+                output.push_str(identity);
+                output.push('\\');
+            }
             Selector::Member { name, .. } if is_identifier(name) => {
                 output.push('.');
                 output.push_str(name);
@@ -350,6 +359,9 @@ impl<'a> Parser<'a> {
 
     fn parse_dot_selector(&mut self) -> Result<Selector, ParseError> {
         self.consume('.')?;
+        if self.match_char('\\') {
+            return self.parse_child_identity();
+        }
         if self.match_char('@') {
             return Ok(Selector::AttributeSpace);
         }
@@ -394,6 +406,37 @@ impl<'a> Parser<'a> {
             name: self.parse_identifier("member selector")?,
             quoted: false,
         })
+    }
+
+    fn parse_child_identity(&mut self) -> Result<Selector, ParseError> {
+        let start = self.index;
+        while let Some(ch) = self.peek() {
+            if ch == '\\' {
+                if self.index == start {
+                    return Err(ParseError::new(
+                        "Expected structural identity name",
+                        self.index,
+                        "SANSA_EXPECTED_IDENTITY",
+                    ));
+                }
+                let identity = self.input[start..self.index].to_owned();
+                self.advance();
+                return Ok(Selector::ChildIdentity { identity });
+            }
+            if !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')) {
+                return Err(ParseError::new(
+                    "Expected structural identity name",
+                    self.index,
+                    "SANSA_EXPECTED_IDENTITY",
+                ));
+            }
+            self.advance();
+        }
+        Err(ParseError::new(
+            "Unterminated structural identity selector",
+            self.index,
+            "SANSA_UNTERMINATED_IDENTITY",
+        ))
     }
 
     fn parse_position_selector(&mut self) -> Result<Selector, ParseError> {

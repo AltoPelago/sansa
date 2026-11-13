@@ -2,6 +2,8 @@ export * from './aeonic-arithmetic.js';
 export * from './aeonic-comparison.js';
 
 export type SansaParseErrorCode =
+  | 'SANSA_EXPECTED_IDENTITY'
+  | 'SANSA_UNTERMINATED_IDENTITY'
   | 'SANSA_EMPTY_ADDRESS'
   | 'SANSA_EXPECTED_ROOT'
   | 'SANSA_EXPECTED_TOKEN'
@@ -132,6 +134,12 @@ export type SansaInstructionParseResult =
   | { readonly ok: false; readonly errors: readonly SansaDiagnostic[] };
 
 export type SansaResolveErrorCode =
+  | 'SANSA_RESOLVE_INVALID_ADDRESS'
+  | 'SANSA_RESOLVE_UNSUPPORTED_IDENTITY'
+  | 'SANSA_RESOLVE_INVALID_IDENTITY'
+  | 'SANSA_RESOLVE_AMBIGUOUS_IDENTITY'
+  | 'SANSA_RESOLVE_INVALID_IDENTITY_LIMIT'
+  | 'SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED'
   | 'SANSA_RESOLVE_EXPECTED_NAMESPACE'
   | 'SANSA_RESOLVE_MISSING_ROOT'
   | 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT'
@@ -227,6 +235,8 @@ export interface SansaResolveDiagnostic {
   readonly message: string;
   readonly index?: number;
   readonly selectorIndex?: number;
+  /** Authored identity selected by an identity-related resolution failure. */
+  readonly identity?: string;
   readonly limit?: number;
   readonly observed?: number;
 }
@@ -326,6 +336,8 @@ export interface SansaResolveNamespace<TBinding extends object = SansaResolveBin
   readonly position?: (binding: TBinding, index: number) => TBinding | undefined;
   readonly attributeSpace?: (binding: TBinding) => TBinding | undefined;
   readonly localSpace?: (binding: TBinding, name: string) => TBinding | undefined;
+  /** Presence explicitly supports authored structural identity inspection. */
+  readonly identity?: (binding: TBinding) => string | undefined;
   readonly name?: (binding: TBinding) => string | undefined;
   readonly index?: (binding: TBinding) => number | undefined;
   readonly semanticType?: (binding: TBinding) => string | undefined;
@@ -467,6 +479,9 @@ export type SansaGraphSequenceResult<TBinding extends object = SansaResolveBindi
     };
 
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
+  /** Logical child inspections; default 10000, including misses.
+   * For evaluateQuery, shared across all clauses/candidates in one invocation. */
+  readonly maxIdentityInspections?: number;
   readonly parse?: SansaParseOptions;
   readonly contextualRoot?: TBinding;
   readonly allowParentFromEffectiveRoot?: boolean;
@@ -500,6 +515,7 @@ export interface SansaQueryEvaluateOptions<TBinding extends object = SansaResolv
 }
 
 export type SansaAddressActivationSelectorCapability =
+  | 'childIdentity'
   | 'member'
   | 'position'
   | 'range'
@@ -514,7 +530,9 @@ export type SansaAddressActivationSelectorCapability =
 
 export interface SansaAddressActivationPolicy {
   readonly mode?: 'constrained' | 'trusted';
+  /** For childIdentity, canonical structural binding paths; scope is proven before scanning. */
   readonly allowedRoots?: readonly (string | SansaAddress)[];
+  /** childIdentity requires constrained mode; trusted mode does not enable it. */
   readonly allowedSelectors?: readonly SansaAddressActivationSelectorCapability[];
   readonly allowContextualRoot?: boolean;
   readonly maxAddressDepth?: number;
@@ -1462,7 +1480,13 @@ export interface RootSelector {
   readonly kind: 'absolute' | 'contextual';
 }
 
+export interface ChildIdentitySelector {
+  readonly type: 'childIdentity';
+  readonly identity: string;
+}
+
 export type SansaSelector =
+  | ChildIdentitySelector
   | MemberSelector
   | PositionSelector
   | PositionRangeSelector

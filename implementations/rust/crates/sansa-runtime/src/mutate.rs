@@ -986,6 +986,13 @@ fn resolve_exact_target<N: Namespace>(
             (source.clone(), parsed.address, warnings)
         }
         MutationAddressInput::Parsed(address) => {
+            if crate::resolve::deny_child_identity(address).is_err() {
+                return Err(operation_error(
+                    "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+                    "Child identity selection is not admitted by mutation planning",
+                    operation_index,
+                ));
+            }
             let source = render_address(address);
             let parsed = parse_address_with_options(&source, parse_options).map_err(|error| {
                 operation_error(
@@ -1005,6 +1012,13 @@ fn resolve_exact_target<N: Namespace>(
             (source, parsed.address, warnings)
         }
     };
+    if crate::resolve::deny_child_identity(&address).is_err() {
+        return Err(operation_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Child identity selection is not admitted by mutation planning",
+            operation_index,
+        ));
+    }
     if !address.is_exact {
         return Err(operation_error(
             "SANSA_MUTATE_NON_EXACT_TARGET",

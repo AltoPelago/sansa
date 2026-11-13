@@ -1,0 +1,10 @@
+west:object = {
+  stock\stock1\:object = {
+    items:list<object> = [
+      \item2\ = { name\name2\:string = "Bracket" }
+      \item1\ = { name\name1\:string = "Widget" }
+    ]
+  }
+}
+east:object = {}
+selection:sansa = $.west.\stock1\.items.\item1\.\name1\

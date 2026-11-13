@@ -70,6 +70,26 @@ The default Query CTS lane runs core conformance and skips experimental extensio
 The value-semantics runner targets the mutable `value-semantics-cts-v1-snapshot-0.2` development manifest, including the explicit same-base and cross-base radix numeric profiles. Pass `--cts <manifest>` to run an older compatibility target explicitly.
 The Instruction and Mutate CTS lanes are experimental and are not included in `npm run cts` while SANSA.Instruction and SANSA.Mutate remain proposal-stage. The Mutate lane includes structured planning, apply, target-surface, and experimental policy plan-filter cases.
 
+## Source playground
+
+Run the website-derived playground directly against this checkout's SANSA source:
+
+```bash
+npm run playground -- --aeon-root /path/to/aeon
+```
+
+Open `http://127.0.0.1:4174/tools/playground/`. A matching, built AEON checkout
+provides the document runtime and SDK adapter; sibling checkouts are detected
+automatically. No SANSA bundle, package release or PHP server is needed. Edit
+`src/index.js` and reload to test changes. See [playground setup and scope](tools/playground/README.md).
+
+Child identities are also admitted explicitly in read-only Query sources and
+address expressions. For example, `from $.items.\first\` followed by
+`select .\label\` returns the original bindings with structural candidate/value
+paths. `resolve.maxIdentityInspections` is shared across the entire Query call.
+Dynamic identity activation requires its own explicit constrained policy;
+references, Instruction, mutation and SO retain their separate boundaries. See [candidate semantics](docs/child-identity-candidate.md).
+
 ## Query Tool
 
 The package includes a standalone query tool for exercising SANSA.Query against
@@ -158,7 +178,8 @@ Library use of Query `path(...)` requires explicit dynamic-address authority.
 Use `addressActivation: "trusted"` only when the caller already controls the
 query, Address values, and exposed namespace. Cross-boundary consumers should
 provide constrained structural roots, selector capabilities, and result bounds;
-reading an Address value does not authorize resolving it.
+reading an Address value does not authorize resolving it. Child identities require
+the explicit constrained `childIdentity` feature and [scope checks](docs/child-identity-activation.md); trusted mode does not enable them.
 
 ## Instruction Tool
 

@@ -21,6 +21,30 @@ versions may still include breaking changes when the SANSA specifications move.
   prescribed unavailable-profile diagnostic. Historical value-semantics profiles
   and Query semantics retain their contracts.
 
+- Integrate declared identities in the Query workbench's AEON/Telex/Film adapters with whole-query inspection limits; preserve opaque JSON identity and trusted activation guards. Document the separate website candidate and AEOS composer integration.
+
+- Document the separate Titonic child identity dispatcher integration, per-call inspections, binding/head metadata and live proxy/path boundaries.
+
+- Document the separate AEON AEOS selector integration, validation-local inspection budget/cache and retained structural path boundary.
+
+- Add explicit constrained child identity activation in read-only Query, with pre-inspection canonical scope checks, post-resolution checks and shared inspection budgets. Trusted/default activation and mutation stay guarded.
+
+- Admit read-only child identity selectors in JavaScript and shared Rust Query sources/expressions with one inspection budget per invocation; retain activation, reference and mutation guards.
+
+### Added
+
+- Repository source playground based on the website UI, with direct SANSA imports, the SDK identity namespace, scoped roots, inspection budgets and identity/reorder examples. Run `npm run playground` with a built AEON checkout. No official release is created by source pushes.
+
+- TypeScript Resolve diagnostics now declare optional `identity`, matching runtime identity-related failures and allowing typed SDK consumers to inspect the selected identity.
+
+- Local experimental Rust child-identity Address/Resolve candidate with default-off structural metadata capabilities, lazy identity-child iteration, a 10,000 default inspection budget and caller-AST validation. Core/SDK integration and 464 Rust cost controls are verified locally; final registry/version and native platform qualification remain release work. Python/bridge support is tracked separately by AEON. Query, activation and mutation do not gain identity admission.
+
+## 0.15.0-rc.1 - 2026-10-19
+
+### Added
+
+- Supported `@altopelago/sansa/parsing/selector-cursor` for synchronous host-token adapters. Native SANSA and AEON share step grammar and original-spelling positional-index validation; cursor transport does not grant reference eligibility.
+
 ## 0.14.2 - 2026-10-16
 
 ### Fixed

@@ -1,0 +1,16 @@
+{
+  "sourceRepository": "AltoPelago/aeon-website",
+  "revision": "632d2fb2785bb16a03182d1281a165e1e4b55e78",
+  "sourceFiles": {
+    "html/assets/css/site.css": "6777f2970518e18580ae58168519f4ecd7c00b6efdcd05654ebb15f8021a5a60",
+    "html/assets/js/aeon-highlight.js": "20406247bcdff481d6e680daacdcc35733d4870e4cbae3661da0d9a8c25da299",
+    "html/assets/js/walkthrough.js": "70f55344ca77f29b44172ee5baa3917f2b75782090fa843be3e4f437ae2c7448",
+    "html/assets/js/aeon-source-composer.js": "c0875592af952f6ae13a707dafacc55a68dcc9964f4df25f7ffb519b35c71509",
+    "html/assets/js/sansa-playground.js": "465421d851826f79f7f52242d05f9fd0ff4c0ce4836e0bee1c4c32138edd17b2",
+    "html/sansa-playground.php": "179c9c65e89ae01a40fcc39bb7bad47c141c064367183ca9de1bc82f458ce693",
+    "content/sansa-playground.aeon": "242de737de0afb7cda46d3e18f321294adcbda20ee8d053fdc20fac430ffc707",
+    "html/assets/js/site.js": "5853e68ab5983b10e822c91156e3d65608df5b20cb86234054824e072a29c49f"
+  },
+  "adaptation": "Static HTML shell, direct SANSA source import, shared SDK namespace/Resolve, local examples and scope/budget controls. Website source remains unchanged.",
+  "accessibilityExtraction": "Modal focus state/functions and keyboard trap only; website search/navigation code excluded."
+}

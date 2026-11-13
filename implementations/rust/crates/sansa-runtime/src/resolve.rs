@@ -1,6 +1,6 @@
 //! Host-neutral SANSA Address resolution over opaque binding handles.
 
-use crate::address::{Address, Root, Selector, parse_address};
+use crate::address::{Address, Root, Selector, parse_address, render_address};
 use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
 
@@ -24,6 +24,25 @@ pub trait Namespace {
 
     fn root(&self) -> Option<Self::Binding>;
     fn children(&self, binding: &Self::Binding) -> Vec<Self::Binding>;
+
+    /// Explicit structural-identity capability; opaque occurrence IDs are unrelated.
+    fn supports_structural_identity(&self) -> bool {
+        false
+    }
+    fn structural_identity_scope(&self, _binding: &Self::Binding) -> bool {
+        true
+    }
+    fn structural_identity(&self, _binding: &Self::Binding) -> Option<String> {
+        None
+    }
+    /// Identity scans count logical metadata inspections, not adapter allocation.
+    /// Override to stream children without constructing the default Vec first.
+    fn identity_children<'a>(
+        &'a self,
+        binding: &'a Self::Binding,
+    ) -> Box<dyn Iterator<Item = Self::Binding> + 'a> {
+        Box::new(self.children(binding).into_iter())
+    }
 
     fn contextual_root(&self) -> Option<Self::Binding> {
         None
@@ -94,6 +113,7 @@ pub struct ResolveOptions<Binding> {
     pub fail_on_parent_from_effective_root: bool,
     pub allow_parent_from_effective_root: bool,
     pub max_bindings: Option<usize>,
+    pub max_identity_inspections: usize,
 }
 
 impl<Binding> Default for ResolveOptions<Binding> {
@@ -104,6 +124,7 @@ impl<Binding> Default for ResolveOptions<Binding> {
             fail_on_parent_from_effective_root: false,
             allow_parent_from_effective_root: false,
             max_bindings: None,
+            max_identity_inspections: 10_000,
         }
     }
 }
@@ -138,6 +159,12 @@ impl<Binding> ResolveOutput<Binding> {
     }
 }
 
+pub(crate) type IdentityGuard<'a, B> = dyn Fn(&B) -> Result<(), Diagnostic> + 'a;
+struct IdentityInspection<'a, B> {
+    inspected: &'a mut usize,
+    guard: Option<&'a IdentityGuard<'a, B>>,
+}
+
 #[must_use]
 pub fn resolve_address<N: Namespace>(
     input: &str,
@@ -145,7 +172,15 @@ pub fn resolve_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
 ) -> ResolveOutput<N::Binding> {
     match parse_address(input) {
-        Ok(address) => resolve_parsed_address(&address, namespace, options),
+        Ok(address) => resolve_valid_address(
+            &address,
+            namespace,
+            options,
+            &mut IdentityInspection {
+                inspected: &mut 0,
+                guard: None,
+            },
+        ),
         Err(error) => {
             let mut diagnostic = Diagnostic::new(error.code, error.message);
             diagnostic.phase = Some(DiagnosticPhase::Parse);
@@ -160,6 +195,70 @@ pub fn resolve_parsed_address<N: Namespace>(
     namespace: &N,
     options: &ResolveOptions<N::Binding>,
 ) -> ResolveOutput<N::Binding> {
+    resolve_parsed_address_with_inspections(address, namespace, options, &mut 0)
+}
+
+/// Share logical inspection accounting only within an admitted operation.
+pub(crate) fn resolve_parsed_address_with_inspections<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
+) -> ResolveOutput<N::Binding> {
+    resolve_parsed_address_with_guard(address, namespace, options, inspected, None)
+}
+
+pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
+    guard: Option<&IdentityGuard<'_, N::Binding>>,
+) -> ResolveOutput<N::Binding> {
+    let normalized;
+    let has_identity = address
+        .selectors
+        .iter()
+        .any(|s| matches!(s, Selector::ChildIdentity { .. }));
+    let address = if has_identity {
+        if !identity_ast_bounded(address) {
+            return ResolveOutput::failure(resolve_error(
+                "SANSA_RESOLVE_INVALID_ADDRESS",
+                "Invalid identity address AST",
+                None,
+            ));
+        }
+        normalized = match parse_address(&render_address(address)) {
+            Ok(address) => address,
+            Err(_) => {
+                return ResolveOutput::failure(resolve_error(
+                    "SANSA_RESOLVE_INVALID_ADDRESS",
+                    "Invalid identity address AST",
+                    None,
+                ));
+            }
+        };
+        &normalized
+    } else {
+        address
+    };
+    resolve_valid_address(
+        address,
+        namespace,
+        options,
+        &mut IdentityInspection { inspected, guard },
+    )
+}
+fn resolve_valid_address<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspection: &mut IdentityInspection<'_, N::Binding>,
+) -> ResolveOutput<N::Binding> {
+    let has_identity = address
+        .selectors
+        .iter()
+        .any(|s| matches!(s, Selector::ChildIdentity { .. }));
     let root = match address.root {
         Root::Absolute => namespace.root().ok_or_else(|| {
             resolve_error(
@@ -185,6 +284,34 @@ pub fn resolve_parsed_address<N: Namespace>(
         Err(error) => return ResolveOutput::failure(error),
     };
 
+    if has_identity && !namespace.supports_structural_identity() {
+        let (index, identity) = address
+            .selectors
+            .iter()
+            .enumerate()
+            .find_map(|(index, selector)| {
+                if let Selector::ChildIdentity { identity } = selector {
+                    Some((index, identity))
+                } else {
+                    None
+                }
+            })
+            .expect("has_identity guarantees an identity selector");
+        let mut error = resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_IDENTITY",
+            "Namespace does not expose structural identity inspection",
+            Some(index),
+        );
+        error.identity = Some(identity.clone());
+        return ResolveOutput::failure(error);
+    }
+    if has_identity && !namespace.structural_identity_scope(&root) {
+        return ResolveOutput::failure(resolve_error(
+            "SANSA_RESOLVE_IDENTITY_SCOPE_MISMATCH",
+            "Identity root belongs to another namespace snapshot or scope",
+            None,
+        ));
+    }
     if options.max_bindings == Some(0) && address.selectors.is_empty() {
         return ResolveOutput::failure(binding_limit_error(0, 1, None));
     }
@@ -198,6 +325,7 @@ pub fn resolve_parsed_address<N: Namespace>(
             selector_index,
             &root,
             options,
+            inspection,
         ) {
             Ok(bindings) => bindings,
             Err(error) => return ResolveOutput::failure(*error),
@@ -233,8 +361,68 @@ fn apply_selector<N: Namespace>(
     selector_index: usize,
     effective_root: &N::Binding,
     options: &ResolveOptions<N::Binding>,
+    inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> Result<Vec<N::Binding>, Box<Diagnostic>> {
     match selector {
+        Selector::ChildIdentity { identity } => {
+            let mut output = Vec::new();
+            for parent in bindings {
+                if let Some(guard) = inspection.guard {
+                    guard(parent).map_err(Box::new)?;
+                }
+                let mut selected = None;
+                for child in namespace.identity_children(parent) {
+                    if *inspection.inspected >= options.max_identity_inspections {
+                        let mut e = resolve_error(
+                            "SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED",
+                            "Identity inspection limit exceeded",
+                            Some(selector_index),
+                        );
+                        e.limit = Some(options.max_identity_inspections);
+                        e.observed = Some(inspection.inspected.saturating_add(1));
+                        return Err(Box::new(e));
+                    }
+                    if let Some(guard) = inspection.guard {
+                        guard(&child).map_err(Box::new)?;
+                    }
+                    *inspection.inspected += 1;
+                    let actual = namespace.structural_identity(&child);
+                    if actual.as_deref().is_some_and(|s| !valid_identity(s)) {
+                        return Err(Box::new(resolve_error(
+                            "SANSA_RESOLVE_INVALID_IDENTITY",
+                            "Adapter returned an invalid structural identity",
+                            Some(selector_index),
+                        )));
+                    }
+                    if actual.as_deref() == Some(identity) {
+                        if selected.is_some() {
+                            let mut error = resolve_error(
+                                "SANSA_RESOLVE_AMBIGUOUS_IDENTITY",
+                                "Multiple children have the selected identity",
+                                Some(selector_index),
+                            );
+                            error.identity = Some(identity.clone());
+                            return Err(Box::new(error));
+                        }
+                        selected = Some(child);
+                    }
+                }
+                if let Some(child) = selected {
+                    output.push(child);
+                }
+                if let Some(limit) = options.max_bindings
+                    && output.len() > limit
+                {
+                    return Err(Box::new(binding_limit_error(
+                        limit,
+                        output.len(),
+                        Some(selector_index),
+                    )));
+                }
+            }
+            Ok(output)
+        }
+
         Selector::Member { name, .. } => {
             Ok(collect_bounded(bindings, options.max_bindings, |binding| {
                 namespace
@@ -574,6 +762,97 @@ fn binding_limit_error(limit: usize, observed: usize, selector_index: Option<usi
     diagnostic.limit = Some(limit);
     diagnostic.observed = Some(observed);
     diagnostic
+}
+
+fn valid_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
+}
+pub(crate) fn identity_ast_bounded(address: &Address) -> bool {
+    if address.selectors.len() > 1024 {
+        return false;
+    }
+    let mut bytes = 0usize;
+    for selector in &address.selectors {
+        let s = match selector {
+            Selector::ChildIdentity { identity } => {
+                if !valid_identity(identity) {
+                    return false;
+                }
+                identity
+            }
+            Selector::Member { name, .. }
+            | Selector::LocalSpace { name }
+            | Selector::SemanticTypeFilter { name }
+            | Selector::RepresentationKindFilter { name } => name,
+            Selector::NamePattern { pattern } => pattern,
+            _ => continue,
+        };
+        bytes = bytes.saturating_add(s.len());
+        if bytes > 65536 {
+            return false;
+        }
+    }
+    let mut stack = Vec::new();
+    if let Some(q) = &address.qualifier_expression {
+        if q.terms.len() > 1024 {
+            return false;
+        }
+        for t in &q.terms {
+            stack.push((t, 0));
+        }
+    }
+    let mut count = 0usize;
+    while let Some((term, depth)) = stack.pop() {
+        count = count
+            .saturating_add(1)
+            .saturating_add(term.arguments.len())
+            .saturating_add(term.parameter_groups.len());
+        if count > 1024 || depth > 64 {
+            return false;
+        }
+        if term.arguments.len() > 1024 || term.parameter_groups.len() > 1024 {
+            return false;
+        }
+        bytes = bytes.saturating_add(term.name.len());
+        for a in &term.arguments {
+            bytes = bytes.saturating_add(match a {
+                crate::address::QualifierArgument::Number(s)
+                | crate::address::QualifierArgument::Quoted(s) => s.len(),
+            });
+        }
+        if bytes > 65536 {
+            return false;
+        }
+        for group in &term.parameter_groups {
+            if stack.len().saturating_add(group.len()) > 1024 {
+                return false;
+            }
+            for t in group {
+                stack.push((t, depth + 1));
+            }
+        }
+    }
+    true
+}
+
+/// Internal-consumer admission boundary; standalone Resolve remains enabled.
+#[allow(clippy::result_large_err)] // Preserve the shared inline diagnostic envelope.
+pub(crate) fn deny_child_identity(address: &Address) -> Result<(), Diagnostic> {
+    if let Some(index) = address
+        .selectors
+        .iter()
+        .position(|s| matches!(s, Selector::ChildIdentity { .. }))
+    {
+        return Err(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Child identity selection is not admitted by this consumer",
+            Some(index),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
