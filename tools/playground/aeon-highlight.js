@@ -119,128 +119,24 @@
       .join('\n');
   }
 
-  function findBlockCommentStart(line) {
-    let match = null;
-    for (const candidate of BLOCK_COMMENT_TYPES) {
-      const index = line.indexOf(candidate.begin);
-      if (index === -1) continue;
-      if (!match || index < match.index) {
-        match = { index, ...candidate };
-      }
-    }
-    return match;
-  }
-
   function tokenizeLine(line, state) {
-    if (state.blockString) {
-      const endIndex = line.indexOf("`");
-      if (endIndex === -1) {
-        return {
-          html: wrap("string", line),
-          state
-        };
-      }
-
-      state.blockString = false;
-      return {
-        html: wrap("string", line.slice(0, endIndex + 1)) + tokenizeLine(line.slice(endIndex + 1), state).html,
-        state
-      };
-    }
-
-    if (state.blockComment) {
-      const endIndex = line.indexOf(state.blockComment.end);
-      if (endIndex === -1) {
-        return {
-          html: state.blockComment.type === "comment-doc" ? renderDocComment(line) : wrap(state.blockComment.type, line),
-          state
-        };
-      }
-
-      const current = state.blockComment;
-      state.blockComment = null;
-      return {
-        html:
-          (current.type === "comment-doc"
-            ? renderDocComment(line.slice(0, endIndex + current.end.length))
-            : wrap(current.type, line.slice(0, endIndex + current.end.length))) +
-          tokenizeLine(line.slice(endIndex + current.end.length), state).html,
-        state
-      };
-    }
-
-    if (/^\s*\/\/#/.test(line)) return { html: renderDocComment(line), state };
-    if (/^\s*\/\/@/.test(line)) return { html: wrap("comment-annotation", line), state };
-    if (/^\s*\/\/\?/.test(line)) return { html: wrap("comment-hint", line), state };
-    if (/^\s*\/\/!/.test(line)) return { html: wrap("comment-host", line), state };
-    if (/^\s*\/\/\{/.test(line)) return { html: wrap("comment-structure", line), state };
-    if (/^\s*\/\/\[/.test(line)) return { html: wrap("comment-profile", line), state };
-    if (/^\s*\/\/\(/.test(line)) return { html: wrap("comment-future", line), state };
-    if (/^\s*\/\//.test(line)) return { html: wrap("comment", line), state };
-
-    const backtickIndex = line.indexOf("`");
-    if (backtickIndex !== -1) {
-      const before = tokenizeLine(line.slice(0, backtickIndex), state).html;
-      const after = line.slice(backtickIndex);
-      const endIndex = after.indexOf("`", 1);
-
-      if (endIndex === -1) {
-        state.blockString = true;
-        return {
-          html: before + wrap("string", after),
-          state
-        };
-      }
-
-      return {
-        html: before + wrap("string", after.slice(0, endIndex + 1)) + tokenizeLine(after.slice(endIndex + 1), state).html,
-        state
-      };
-    }
-
-    const blockComment = findBlockCommentStart(line);
-    if (blockComment) {
-      const before = tokenizeLine(line.slice(0, blockComment.index), state).html;
-      const after = line.slice(blockComment.index);
-      const endIndex = after.indexOf(blockComment.end);
-
-      if (endIndex === -1) {
-        state.blockComment = blockComment;
-        return {
-          html: before + (blockComment.type === "comment-doc" ? renderDocComment(after) : wrap(blockComment.type, after)),
-          state
-        };
-      }
-
-      return {
-        html:
-          before +
-          (blockComment.type === "comment-doc"
-            ? renderDocComment(after.slice(0, endIndex + blockComment.end.length))
-            : wrap(blockComment.type, after.slice(0, endIndex + blockComment.end.length))) +
-          tokenizeLine(after.slice(endIndex + blockComment.end.length), state).html,
-        state
-      };
-    }
-
     const patterns = [
       ["space", /\s+/y],
       ["directive", /\baeon:[A-Za-z][A-Za-z0-9_.:-]*\b/y],
       ["node-open", /<[A-Za-z_][A-Za-z0-9_:-]*/y],
       ["attr-open", /@\{/y],
       ["attr-close", /\}/y],
-      ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\\[A-Za-z0-9_-]+\\)/y],
-      ["typed-key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\s*:)/y],
-      ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')(?=\s*(?:@\{|=))/y],
-      ["string-template", /`(?:\\.|[^`])*`/y],
+      ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\\[A-Za-z0-9_-]+\\)/y],
+      ["typed-key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\s*:)/y],
+      ["key", /(?:[A-Za-z_][A-Za-z0-9_:-]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\s*(?:@\{|=))/y],
       ["symbol", /\|(?:\\.|[^|\\\r\n])+\|/y],
-      ["string", /"(?:\\.|[^"])*"|'(?:\\.|[^'])*'/y],
+      ["string", /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/y],
       ["datetime", /\b\d{4}-\d{2}-\d{2}T\d{2}(?::\d{2})?(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?&[A-Za-z0-9_./+-]+\b/y],
       ["datetime", /\b\d{4}-\d{2}-\d{2}T\d{2}(?::\d{2})?(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?\b/y],
       ["time", /\b\d{2}:(?:\d{2})?(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?\b/y],
       ["date", /\b(?:\d{4}-\d{2}-\d{2}|\d{4}-\d{2}|\d{4}-)(?![0-9T-])/y],
       ["wtc", /\b(?:Z&|&)(?:[A-Za-z0-9_./+-]+)\b/y],
-      ["null-reason", /!"(?:\\.|[^"])*"|![A-Za-z_][A-Za-z0-9_]*/y],
+      ["null-reason", /!"(?:\\.|[^"\\])*"|![A-Za-z_][A-Za-z0-9_]*/y],
       ["nan", /[+-]?NaN\b/y],
       ["infinity", /[+-]?Infinity\b/y],
       ["bool", /\b(?:true|false)\b/y],
@@ -250,8 +146,8 @@
       ["number-sigil", /[#%$^][^\s,\])}]+/y],
       ["float", /(?<![A-Za-z0-9_])[+-]?\d[\d_]*\.[\d_]*(?:[eE][+-]?\d[\d_]*)?(?![A-Za-z0-9_])/y],
       ["number", /(?<![A-Za-z0-9_])[+-]?\d[\d_]*(?:[eE][+-]?\d[\d_]*)?(?![A-Za-z0-9_])/y],
-      ["binding", /~>\s*\$?(?:\.?[A-Za-z_][A-Za-z0-9_]*|\[\d+\]|\["(?:\\.|[^"])*"\]|\.@\.(?:[A-Za-z_][A-Za-z0-9_]*|\["(?:\\.|[^"])*"\]))+/y],
-      ["binding", /~\$?(?:\.?[A-Za-z_][A-Za-z0-9_]*|\[\d+\]|\["(?:\\.|[^"])*"\]|\.@\.(?:[A-Za-z_][A-Za-z0-9_]*|\["(?:\\.|[^"])*"\]))+/y],
+      ["binding", /~>\s*\$?(?:\.?[A-Za-z_][A-Za-z0-9_]*|\[\d+\]|\["(?:\\.|[^"\\])*"\]|\.@\.(?:[A-Za-z_][A-Za-z0-9_]*|\["(?:\\.|[^"\\])*"\]))+/y],
+      ["binding", /~\$?(?:\.?[A-Za-z_][A-Za-z0-9_]*|\[\d+\]|\["(?:\\.|[^"\\])*"\]|\.@\.(?:[A-Za-z_][A-Za-z0-9_]*|\["(?:\\.|[^"\\])*"\]))+/y],
       ["operator", /=/y],
       ["punct", /[<>.,()[\]{}]/y],
       ["type", /:[A-Za-z_][A-Za-z0-9_]*(?:<[^>\n]+>|\[[^\]\n]+\])?/y],
@@ -262,7 +158,47 @@
     let html = "";
     let index = 0;
 
+    // Consume each token once. Splitting and recursively rescanning suffixes
+    // both exhausts the stack and repeats searches on many inline comments.
     while (index < line.length) {
+      if (state.blockString) {
+        const end = line.indexOf("`", index);
+        if (end === -1) { html += wrap("string", line.slice(index)); break; }
+        html += wrap("string", line.slice(index, end + 1));
+        state.blockString = false;
+        index = end + 1;
+        continue;
+      }
+      if (state.blockComment) {
+        const current = state.blockComment;
+        const end = line.indexOf(current.end, index);
+        const next = end === -1 ? line.length : end + current.end.length;
+        const text = line.slice(index, next);
+        html += current.type === "comment-doc" ? renderDocComment(text) : wrap(current.type, text);
+        index = next;
+        if (end === -1) break;
+        state.blockComment = null;
+        continue;
+      }
+      if (line.startsWith("//", index)) {
+        const types = [["//#", "comment-doc"], ["//@", "comment-annotation"],
+          ["//?", "comment-hint"], ["//!", "comment-host"], ["//{", "comment-structure"],
+          ["//[", "comment-profile"], ["//(", "comment-future"]];
+        const type = types.find(([begin]) => line.startsWith(begin, index))?.[1] ?? "comment";
+        const text = line.slice(index);
+        html += type === "comment-doc" ? renderDocComment(text) : wrap(type, text);
+        break;
+      }
+      if (line[index] === "`") {
+        const end = line.indexOf("`", index + 1);
+        const next = end === -1 ? line.length : end + 1;
+        html += wrap("string", line.slice(index, next));
+        index = next;
+        state.blockString = end === -1;
+        continue;
+      }
+      const comment = BLOCK_COMMENT_TYPES.find(({begin}) => line.startsWith(begin, index));
+      if (comment) { state.blockComment = comment; continue; }
       let matched = false;
 
       for (const [type, re] of patterns) {
@@ -419,21 +355,23 @@
   }
 
   function highlightJson(source) {
-    return source.replace(
-      /("(?:\\.|[^"])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/g,
-      (match, str, colon, bool, num, punct) => {
-        if (str) {
-          return colon
-            ? `<span class="json-key">${escapeHtml(str)}</span>${escapeHtml(colon)}`
-            : `<span class="json-string">${escapeHtml(str)}</span>`;
-        }
-        if (bool) return `<span class="json-bool">${match}</span>`;
-        if (match === "null") return '<span class="json-null">null</span>';
-        if (num) return `<span class="json-number">${match}</span>`;
-        if (punct) return `<span class="json-punct">${match}</span>`;
-        return escapeHtml(match);
-      }
-    );
+    const pattern = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}[\],:])/g;
+    let html = "";
+    let index = 0;
+    for (const token of source.matchAll(pattern)) {
+      const [match, str, colon, bool, num, punct] = token;
+      html += escapeHtml(source.slice(index, token.index));
+      if (str) {
+        html += colon
+          ? `<span class="json-key">${escapeHtml(str)}</span>${escapeHtml(colon)}`
+          : `<span class="json-string">${escapeHtml(str)}</span>`;
+      } else if (bool) html += `<span class="json-bool">${match}</span>`;
+      else if (match === "null") html += '<span class="json-null">null</span>';
+      else if (num) html += `<span class="json-number">${match}</span>`;
+      else if (punct) html += `<span class="json-punct">${match}</span>`;
+      index = token.index + match.length;
+    }
+    return html + escapeHtml(source.slice(index));
   }
 
   function attachHighlightEditor(textarea, backdrop) {

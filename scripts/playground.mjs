@@ -58,7 +58,7 @@ export function createPlaygroundServer({aeonRoot}) {
       let root, relative;
       if (pathname === '/' || pathname === '/tools/playground/' || pathname === '/tools/playground/index.html') {
         const html = (await readFile(resolve(repo, 'tools/playground/index.html'), 'utf8'))
-          .replace('__PLAYGROUND_IMPORTS__', imports);
+          .replace('__PLAYGROUND_IMPORTS__', () => imports);
         response.writeHead(200, {'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store'});
         return response.end(request.method === 'HEAD' ? undefined : html);
       }

@@ -1,6 +1,9 @@
 //! Host-neutral SANSA Address resolution over opaque binding handles.
 
-use crate::address::{Address, Root, Selector, parse_address, render_address};
+use crate::address::{
+    Address, ParseOptions, Root, Selector, parse_address, parse_address_with_options,
+    render_address,
+};
 use crate::address::{is_identifier, is_number_literal};
 use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
@@ -229,8 +232,16 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
                 None,
             ));
         }
-        normalized = match parse_address(&render_address(address)) {
-            Ok(address) => address,
+        // Native AST indexes have already been represented as usize. Reparse
+        // syntax and recompute flags without reinstating the text parser's
+        // portable default over a caller's explicitly accepted native profile.
+        normalized = match parse_address_with_options(
+            &render_address(address),
+            ParseOptions {
+                max_position_index: usize::MAX,
+            },
+        ) {
+            Ok(parsed) => parsed.address,
             Err(_) => {
                 return ResolveOutput::failure(resolve_error(
                     "SANSA_RESOLVE_INVALID_ADDRESS",

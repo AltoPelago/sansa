@@ -3266,8 +3266,7 @@ function validIdentityAddressAst(address) {
       if (!arg) return false;
       if (arg.kind === 'quoted') { if (!text(arg.value)) return false; }
       else if (arg.kind === 'number') {
-        if (typeof arg.value !== 'number' || !Number.isFinite(arg.value)
-            || !QUALIFIER_NUMBER_RE.test(String(arg.value))) return false;
+        if (typeof arg.value !== 'number' || !Number.isFinite(arg.value)) return false;
       } else if (arg.kind === 'token') {
         if (!text(arg.value) || !QUALIFIER_NUMBER_RE.test(arg.value)) return false;
       } else return false;
@@ -7136,8 +7135,25 @@ export function renderQualifierTerm(term) {
 
 function renderQualifierArgument(argument) {
   if (argument.kind === 'token') return argument.value;
-  if (argument.kind === 'number') return String(argument.value);
+  if (argument.kind === 'number') return renderQualifierNumber(argument.value);
   return quotePayload(argument.value);
+}
+
+// Number's shortest spelling can use an exponent, which qualifier syntax does
+// not admit. Expand that spelling without changing the represented value.
+function renderQualifierNumber(value) {
+  const text = String(value);
+  if (typeof value !== 'number' || !Number.isFinite(value)) return text;
+  if (!text.includes('e')) return text;
+  const [mantissa, exponent] = text.split('e');
+  const sign = mantissa.startsWith('-') ? '-' : '';
+  const unsigned = sign ? mantissa.slice(1) : mantissa;
+  const [integer, fraction = ''] = unsigned.split('.');
+  const digits = integer + fraction;
+  const point = integer.length + Number(exponent);
+  if (point <= 0) return sign + '0.' + '0'.repeat(-point) + digits;
+  if (point >= digits.length) return sign + digits + '0'.repeat(point - digits.length);
+  return sign + digits.slice(0, point) + '.' + digits.slice(point);
 }
 
 class AddressParser {
@@ -7305,7 +7321,8 @@ class AddressParser {
     if (this.index === start) this.fail('Expected qualifier argument', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
     const value = this.input.slice(start, this.index);
     if (!QUALIFIER_NUMBER_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
-    return { kind: 'number', value: Number(value) };
+    const number = Number(value);
+    return Number.isFinite(number) ? { kind: 'number', value: number } : { kind: 'token', value };
   }
 
   parseIdentifier(context) {

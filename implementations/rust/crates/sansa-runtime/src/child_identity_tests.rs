@@ -853,3 +853,37 @@ fn malformed_identity_ast_filter_and_qualifier_payloads_fail_before_namespace_ac
     let result = resolve_parsed_address(&address, &Unread, &ResolveOptions::default());
     assert_eq!(result.errors[0].code, "SANSA_RESOLVE_INVALID_ADDRESS");
 }
+
+#[test]
+fn identity_ast_normalization_preserves_explicit_native_position_limits() {
+    use crate::address::{ParseOptions, parse_address_with_options};
+    let namespace = Fixture::build(&json!({
+        "supportsIdentity": true,
+        "root": {"address": "$", "children": [{
+            "address": "$[1000000]", "index": 1000000, "children": [{
+                "address": "$[1000000].leaf", "name": "leaf", "identity": "leaf"
+            }]
+        }]}
+    }));
+    for (source, warnings) in [
+        ("$[1000000].\\leaf\\", 1),
+        ("$[1000000..1000000].\\leaf\\", 2),
+    ] {
+        assert!(
+            parse_address(source).is_err(),
+            "portable limit remains enforced"
+        );
+        let parsed = parse_address_with_options(
+            source,
+            ParseOptions {
+                max_position_index: 1_000_000,
+            },
+        )
+        .expect("explicit native limit accepts this address");
+        assert_eq!(parsed.warnings.len(), warnings);
+        let result =
+            resolve_parsed_address(&parsed.address, &namespace, &ResolveOptions::default());
+        assert!(result.errors.is_empty(), "{result:?}");
+        assert_eq!(result.bindings, vec![2], "return the original leaf handle");
+    }
+}
