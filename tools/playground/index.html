@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<base href="/tools/playground/">
+<title>SANSA source playground</title><link rel="stylesheet" href="./site.css"><link rel="stylesheet" href="./local.css">
+<script type="importmap">__PLAYGROUND_IMPORTS__</script>
+</head><body>
+<header class="local-header"><strong>SANSA <span>Playground</span></strong><span class="local-source-badge">Local source · read-only identity selection</span><nav><a href="/src/index.js" target="_blank" rel="noopener">Source ↗</a><a href="https://github.com/AltoPelago/sansa" target="_blank" rel="noopener">Repository ↗</a></nav></header>
+<main class="page page--playground page--sansa-playground">
+    <section class="sansa-playground-shell reveal-item" data-sansa-playground>
+        <h1 class="visually-hidden">SANSA Playground</h1>
+        <div class="playground-toolbar sansa-playground-toolbar">
+            <div class="playground-toolbar-groups playground-toolbar-primary">
+                <button class="playground-examples-button" type="button" data-sansa-examples-open aria-controls="sansa-examples-modal" aria-expanded="false">Examples</button>
+                <button class="playground-examples-button playground-composer-button" type="button" data-source-builder-open aria-controls="source-builder-modal" aria-expanded="false"><span class="playground-composer-icon" aria-hidden="true">&#9998;</span><span>AEON Composer</span></button>
+                <button class="playground-examples-button playground-composer-button" type="button" data-sansa-composer-open aria-controls="sansa-composer-modal" aria-expanded="false"><span class="playground-composer-icon" aria-hidden="true">&#9998;</span><span>SANSA Composer</span></button>
+                <div class="playground-toggle-group" role="group" aria-label="SANSA operation">
+                    <button class="playground-toggle is-active" type="button" data-sansa-view="resolve" aria-pressed="true">Resolve</button>
+                    <button class="playground-toggle" type="button" data-sansa-view="query" aria-pressed="false">Query</button>
+                </div>
+            </div>
+            <div class="playground-toggle-group" role="group" aria-label="AEON validation mode">
+                <button class="playground-toggle is-active" type="button" data-sansa-mode="transport" aria-pressed="true">Transport</button>
+                <button class="playground-toggle" type="button" data-sansa-mode="custom" aria-pressed="false">Custom</button>
+                <button class="playground-toggle" type="button" data-sansa-mode="strict" aria-pressed="false">Strict</button>
+            </div>
+        </div>
+        <div class="playground-local-options">
+          <label>Scope root <input data-sansa-scope value="$" spellcheck="false" aria-label="Scope root"></label>
+          <label>Identity inspections <input data-sansa-inspections type="number" value="10000" min="0" step="1" aria-label="Identity inspections"></label>
+          <button class="playground-examples-button" data-sansa-run type="button">Run <kbd>⌘/Ctrl ↵</kbd></button>
+        </div>
+        <section class="panel playground-pane sansa-source-pane">
+            <div class="panel-head">
+                <h2 id="sansa-source-title">AEON source</h2>
+            </div>
+            <div class="highlight-editor walkthrough-editor" data-aeon-editor>
+                <pre class="highlight-backdrop" aria-hidden="true"><code></code></pre>
+                <textarea spellcheck="false" data-sansa-source aria-labelledby="sansa-source-title">items = [
+  \item1\ = { name\name1\ = &quot;Widget&quot;, qty = 12 }
+  \item2\ = { name\name2\ = &quot;Bracket&quot;, qty = 5 }
+]</textarea>
+            </div>
+        </section>
+        <section class="panel playground-pane sansa-address-pane">
+            <div class="panel-head">
+                <h2 id="sansa-address-title"><span data-sansa-input-title>SANSA address</span> <span class="playground-loading" data-sansa-loading hidden>Resolving...</span></h2>
+            </div>
+            <div class="sansa-address-editor">
+                <textarea spellcheck="false" data-sansa-address aria-labelledby="sansa-address-title">$.items.\item1\.\name1\</textarea>
+                <textarea spellcheck="false" data-sansa-query aria-labelledby="sansa-address-title" hidden>from $.items.*
+select .name</textarea>
+            </div>
+        </section>
+        <section class="panel playground-pane sansa-result-pane">
+            <div class="panel-head">
+                <h2 id="sansa-result-title" data-sansa-result-title>Resolve result</h2>
+            </div>
+            <div class="sansa-result" data-sansa-result role="region" aria-labelledby="sansa-result-title" tabindex="0"></div>
+        </section>
+        <section class="panel playground-pane sansa-diagnostics-pane">
+            <div class="panel-head">
+                <h2 id="sansa-diagnostics-title">Diagnostics</h2>
+            </div>
+            <pre class="playground-errors" data-sansa-diagnostics role="status" aria-live="polite" aria-atomic="true" aria-labelledby="sansa-diagnostics-title">Waiting for source.</pre>
+        </section>
+        <div class="playground-modal" id="sansa-examples-modal" data-sansa-examples-modal hidden>
+            <button class="playground-modal-backdrop" type="button" data-sansa-examples-close aria-label="Close examples"></button>
+            <section class="playground-modal-panel" role="dialog" aria-modal="true" aria-labelledby="sansa-examples-title" tabindex="-1">
+                <div class="playground-modal-head">
+                    <h2 id="sansa-examples-title">Examples</h2>
+                    <button class="playground-modal-close" type="button" data-sansa-examples-close aria-label="Close examples"></button>
+                </div>
+                <div class="playground-example-tabs" role="group" aria-label="SANSA example">
+                    <div data-example-tabs></div>
+                </div>
+                <div class="sansa-example-preview">
+                    <div class="walkthrough-code-frame playground-example-frame">
+                        <pre class="walkthrough-code"><code data-sansa-example-source></code></pre>
+                    </div>
+                    <div class="walkthrough-code-frame playground-example-frame">
+                        <pre class="walkthrough-code"><code data-sansa-example-expression></code></pre>
+                    </div>
+                </div>
+                <div class="playground-modal-actions">
+                    <button class="button-link button-link-primary" type="button" data-sansa-example-load>Load example</button>
+                    <button class="button-link" type="button" data-sansa-examples-close>Close</button>
+                </div>
+            </section>
+        </div>
+        <div class="playground-modal sansa-composer-modal" id="sansa-composer-modal" data-sansa-composer-modal hidden>
+            <button class="playground-modal-backdrop" type="button" data-sansa-composer-close aria-label="Close SANSA Composer"></button>
+            <section class="playground-modal-panel sansa-composer-panel" role="dialog" aria-modal="true" aria-labelledby="sansa-composer-title" tabindex="-1">
+                <div class="playground-modal-head">
+                    <h2 id="sansa-composer-title" data-sansa-composer-title>SANSA Resolve Composer</h2>
+                    <button class="playground-modal-close" type="button" data-sansa-composer-close aria-label="Close SANSA Composer"></button>
+                </div>
+                <div class="sansa-composer-body" data-sansa-resolve-composer>
+                    <label class="sansa-composer-input">
+                        <span>Address</span>
+                        <input type="text" spellcheck="false" data-sansa-composer-input>
+                    </label>
+                    <div class="sansa-composer-options" data-sansa-composer-options></div>
+                </div>
+                <div class="sansa-query-composer" data-sansa-query-composer hidden>
+                    <nav class="sansa-query-clause-list" aria-label="Query clauses">
+                        <button type="button" data-sansa-query-clause="from" aria-pressed="true"><span>From</span><small>Required</small></button>
+                        <button type="button" data-sansa-query-clause="where" aria-pressed="false"><span>Where</span><small>Optional</small></button>
+                        <button type="button" data-sansa-query-clause="order" aria-pressed="false"><span>Order by</span><small>Optional</small></button>
+                        <button type="button" data-sansa-query-clause="offset" aria-pressed="false"><span>Offset</span><small>Optional</small></button>
+                        <button type="button" data-sansa-query-clause="limit" aria-pressed="false"><span>Limit</span><small>Optional</small></button>
+                        <button type="button" data-sansa-query-clause="select" aria-pressed="false"><span>Select</span><small>Required</small></button>
+                    </nav>
+                    <section class="sansa-query-clause-panel">
+                        <div class="sansa-query-clause-head">
+                            <div>
+                                <h3 data-sansa-query-clause-title>From</h3>
+                                <p data-sansa-query-clause-help>Choose the source bindings evaluated by the query.</p>
+                            </div>
+                            <span data-sansa-query-clause-requirement>Required</span>
+                        </div>
+                        <label class="sansa-composer-input sansa-query-clause-input">
+                            <span data-sansa-query-clause-label>Source address</span>
+                            <textarea rows="2" spellcheck="false" data-sansa-query-clause-input></textarea>
+                        </label>
+                        <div class="sansa-query-clause-options" data-sansa-query-clause-options></div>
+                        <div class="sansa-query-preview">
+                            <span>Query preview</span>
+                            <pre data-sansa-query-preview></pre>
+                            <p data-sansa-query-validation role="status"></p>
+                        </div>
+                    </section>
+                </div>
+                <div class="playground-modal-actions">
+                    <button class="button-link button-link-primary" type="button" data-sansa-composer-apply><span data-sansa-composer-apply-label>Apply address</span></button>
+                    <button class="button-link" type="button" data-sansa-composer-close>Close</button>
+                </div>
+            </section>
+        </div>
+        <div class="playground-modal source-builder-modal" id="source-builder-modal" data-source-builder-modal hidden>
+            <button class="playground-modal-backdrop" type="button" data-source-builder-close aria-label="Close AEON Composer"></button>
+            <section class="playground-modal-panel source-builder-panel" role="dialog" aria-modal="true" aria-labelledby="source-builder-title" tabindex="-1">
+                <div class="playground-modal-head">
+                    <h2 id="source-builder-title">AEON Composer</h2>
+                    <button class="playground-modal-close" type="button" data-source-builder-close aria-label="Close AEON Composer"></button>
+                </div>
+                <div class="source-builder-actions">
+                    <button class="button-link" type="button" data-source-builder-add-peer>Add peer</button>
+                    <button class="button-link" type="button" data-source-builder-add-child>Add child</button>
+                    <button class="button-link" type="button" data-source-builder-add-attribute>Add attribute</button>
+                    <button class="button-link" type="button" data-source-builder-add-comment>Add comment</button>
+                    <button class="button-link" type="button" data-source-builder-remove>Remove binding</button>
+                    <button class="button-link" type="button" data-source-builder-reload>Reload from source</button>
+                </div>
+                <div class="source-builder-workspace">
+                    <div class="source-builder-tree" data-source-builder-tree></div>
+                    <form class="source-builder-detail" data-source-builder-detail></form>
+                </div>
+                <div class="playground-modal-actions">
+                    <button class="button-link button-link-primary" type="button" data-source-builder-apply>Apply source</button>
+                    <button class="button-link" type="button" data-source-builder-close>Close</button>
+                </div>
+            </section>
+        </div>
+    </section>
+</main>
+<script type="module" src="./examples.mjs"></script>
+<script defer src="./accessibility.js"></script>
+<script defer src="./aeon-highlight.js"></script>
+<script defer src="./walkthrough.js"></script>
+<script defer src="./aeon-source-composer.js"></script>
+<script defer src="./sansa-playground.js"></script>
+</body></html>

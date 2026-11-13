@@ -41,6 +41,9 @@ export async function evaluateQueryForWorkbench({
   valueSemantics = '',
   budget = {},
 }) {
+  // Keep the legacy native adapter for ordinary queries. Identity expressions
+  // opt into complete portable occurrence topology, including NodeHead levels.
+  const identityAware = queryUsesChildIdentity(query);
   let namespaceResult;
   if (sourceKind === 'json') {
     namespaceResult = namespaceFromJsonSource(source);
@@ -49,14 +52,14 @@ export async function evaluateQueryForWorkbench({
   } else if (sourceKind === 'film') {
     namespaceResult = await namespaceFromFilmSource(source);
   } else {
-    namespaceResult = await namespaceFromAeonSource(source);
+    namespaceResult = await namespaceFromAeonSource(source, { identityAware });
   }
 
   if (!namespaceResult.ok) {
     return namespaceResult;
   }
 
-  const mounted = await mountParamsLocalSpace(namespaceResult.namespace, paramsSource);
+  const mounted = await mountParamsLocalSpace(namespaceResult.namespace, paramsSource, { identityAware });
   if (!mounted.ok) {
     return {
       ...mounted,
@@ -139,7 +142,7 @@ export function namespaceFromJsonSource(source) {
   }
 }
 
-export async function namespaceFromAeonSource(source) {
+export async function namespaceFromAeonSource(source, { identityAware = false } = {}) {
   const loaded = await loadAeonCore();
   if (!loaded.ok) {
     const errors = [{
@@ -173,6 +176,15 @@ export async function namespaceFromAeonSource(source) {
     };
   }
 
+  if (identityAware) {
+    try {
+      if (typeof aeonCore.projectPortableEvents !== 'function') throw new Error('The selected AEON runtime does not expose complete portable projection.');
+      return { ok: true, namespace: buildNamespaceFromPortableRecords(aeonCore.projectPortableEvents(compiled.events)), diagnostics: [] };
+    } catch (error) {
+      const errors = [{ code: 'SANSA_QUERY_WORKBENCH_IDENTITY_ADAPTER_UNAVAILABLE', message: error.message }];
+      return { ok: false, mode: 'evaluate', sourceKind: 'aeon', errors, text: renderDiagnosticText(errors) };
+    }
+  }
   return {
     ok: true,
     namespace: buildNamespaceFromEvents(compiled.events, aeonCore.formatPath),
@@ -381,7 +393,7 @@ export async function namespaceFromFilmSource(source) {
   }
 }
 
-async function mountParamsLocalSpace(namespace, paramsSource) {
+async function mountParamsLocalSpace(namespace, paramsSource, { identityAware = false } = {}) {
   if (String(paramsSource).trim().length === 0) {
     return { ok: true, namespace, diagnostics: [] };
   }
@@ -420,8 +432,18 @@ async function mountParamsLocalSpace(namespace, paramsSource) {
     };
   }
 
-  const paramsNamespace = buildNamespaceFromEvents(compiled.events, aeonCore.formatPath);
-  const paramsBinding = remapLocalSpaceBinding(paramsNamespace.root, '$.<"params">');
+  let paramsNamespace;
+  try {
+    paramsNamespace = identityAware
+      ? buildNamespaceFromPortableRecords(aeonCore.projectPortableEvents(compiled.events))
+      : buildNamespaceFromEvents(compiled.events, aeonCore.formatPath);
+  } catch (error) {
+    const errors = [{ code: 'SANSA_QUERY_WORKBENCH_IDENTITY_ADAPTER_UNAVAILABLE', message: error.message }];
+    return { ok: false, mode: 'evaluate', errors, text: renderDiagnosticText(errors) };
+  }
+  const paramsIdentity = paramsNamespace.identity;
+  const paramsOrigins = typeof paramsIdentity === 'function' ? new WeakMap() : undefined;
+  const paramsBinding = remapLocalSpaceBinding(paramsNamespace.root, '$.<"params">', paramsOrigins);
   const root = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
   if (!root) {
     const errors = [{
@@ -441,11 +463,19 @@ async function mountParamsLocalSpace(namespace, paramsSource) {
     params: paramsBinding,
   };
   const localSpace = namespace.localSpace;
+  const sourceIdentity = namespace.identity;
 
   return {
     ok: true,
     namespace: {
       ...namespace,
+      ...(paramsOrigins ? {
+        identity: (binding) => {
+          const original = paramsOrigins.get(binding);
+          if (original !== undefined) return paramsIdentity.call(paramsNamespace, original);
+          return typeof sourceIdentity === 'function' ? sourceIdentity.call(namespace, binding) : undefined;
+        },
+      } : {}),
       localSpace: (binding, name) => {
         if (binding === root && name === 'params') return root.localSpaces?.params;
         return localSpace?.(binding, name) ?? binding.localSpaces?.[name];
@@ -648,27 +678,27 @@ function caughtErrorMessage(error) {
   }
 }
 
-function remapLocalSpaceBinding(binding, targetAddress) {
-  return remapBindingTree({
-    ...binding,
-    address: '$',
-    representationKind: binding.representationKind ?? 'object',
-  }, '$', targetAddress);
+function remapLocalSpaceBinding(binding, targetAddress, origins) {
+  const output = remapBindingTree(binding, '$', targetAddress, origins);
+  output.address = targetAddress;
+  output.representationKind ??= 'object';
+  return output;
 }
 
-function remapBindingTree(binding, sourceBase, targetBase) {
+function remapBindingTree(binding, sourceBase, targetBase, origins) {
   const address = remapAddress(binding.address, sourceBase, targetBase);
   const output = {
     ...binding,
     address,
-    children: (binding.children ?? []).map((child) => remapBindingTree(child, sourceBase, targetBase)),
+    children: (binding.children ?? []).map((child) => remapBindingTree(child, sourceBase, targetBase, origins)),
   };
+  origins?.set(output, binding);
   if (binding.attributeSpace) {
-    output.attributeSpace = remapBindingTree(binding.attributeSpace, sourceBase, targetBase);
+    output.attributeSpace = remapBindingTree(binding.attributeSpace, sourceBase, targetBase, origins);
   }
   if (binding.localSpaces) {
     output.localSpaces = Object.fromEntries(Object.entries(binding.localSpaces).map(([name, localSpace]) => (
-      [name, remapBindingTree(localSpace, sourceBase, targetBase)]
+      [name, remapBindingTree(localSpace, sourceBase, targetBase, origins)]
     )));
   }
   return output;
@@ -857,6 +887,9 @@ function buildNamespaceFromPortableRecords(records) {
 
   return {
     root,
+    // Portable record.identity is declared structural metadata. JSON fixture
+    // identity fields remain opaque and do not acquire this capability.
+    identity: (binding) => binding.identity,
     children: (binding) => binding.children ?? [],
     attributeSpace: (binding) => binding.attributeSpace,
     localSpace: (binding, name) => binding.localSpaces?.[name],
@@ -1518,6 +1551,7 @@ function normalizeDiagnostics(errors) {
     ...(Number.isSafeInteger(error.observed) ? { observed: error.observed } : {}),
     ...(Number.isInteger(error.index) ? { index: error.index } : {}),
     ...(Number.isInteger(error.selectorIndex) ? { selectorIndex: error.selectorIndex } : {}),
+    ...(typeof error.identity === 'string' ? { identity: error.identity } : {}),
   }));
 }
 
@@ -1528,7 +1562,24 @@ function queryBudgetOption(value) {
     const limit = value[key];
     if (Number.isSafeInteger(limit) && limit >= 0) budget[key] = limit;
   }
-  return Object.keys(budget).length === 0 ? {} : { budget };
+  return {
+    ...(Object.keys(budget).length === 0 ? {} : { budget }),
+    ...(Object.hasOwn(value, 'maxIdentityInspections')
+      ? { resolve: { maxIdentityInspections: value.maxIdentityInspections } } : {}),
+  };
+}
+
+function queryUsesChildIdentity(source) {
+  const parsed = parseQuery(source);
+  if (!parsed.ok) return false;
+  const pending = [parsed.query];
+  while (pending.length) {
+    const value = pending.pop();
+    if (!value || typeof value !== 'object') continue;
+    if (value.type === 'SansaAddress' && value.selectors?.some(selector => selector.type === 'childIdentity')) return true;
+    pending.push(...Object.values(value));
+  }
+  return false;
 }
 
 function normalizeAeonError(error) {

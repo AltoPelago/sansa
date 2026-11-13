@@ -138,6 +138,29 @@ The browser UI renders the grouped example menu from that catalog, and the
 runtime tests execute the same examples against the default `.aeon` fixture
 when an AEON runtime is available.
 
+## Child identity selectors (candidate)
+
+Read-only Query sources and address expressions accept child identity selectors
+when the namespace explicitly exposes identity inspection:
+
+```sansa
+from $.items.\first\
+select .\label\
+```
+
+The selected candidate and value retain their canonical structural paths and
+original binding handles. `resolve.maxIdentityInspections` (default 10,000)
+is one logical inspection budget for the entire Query invocation, including
+`from`, `where`, ordering, projection fields, all candidates and repeated reads.
+A miss still costs inspections; a failure returns no partial records. Enumeration
+and metadata costs depend on the host adapter. Calls have independent budgets.
+
+Dynamic `path(...)` identity activation requires the separate explicit constrained
+feature and scope contract in [identity activation](child-identity-activation.md).
+Trusted/default activation, references, Instruction and mutation stay guarded. Pure Python exposes Address/Resolve without a Query evaluator. The existing
+native Pytonic `Document.query` facade uses the shared Rust Query engine and
+its default 10,000-inspection budget; it adds no new method or keyword argument.
+
 ## Query Semantics
 
 Boolean context accepts explicit Boolean scalar values and single resolved

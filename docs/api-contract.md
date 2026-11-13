@@ -1481,3 +1481,31 @@ Evaluation diagnostics may also include context fields such as `phase`, `candida
 - `SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN`
 - `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`
 - `SANSA_RESOLVE_UNSUPPORTED_SELECTOR`
+
+## Host-token step parsing
+
+The supported [selector cursor subpath](selector-cursor.md) shares native grammar with token-based hosts. It does not broaden reference eligibility or the root exports.
+
+## Experimental child identity candidate
+
+The implementation-local `sansa.resolve.child-identity.candidate.v1` metadata advertises JavaScript standalone parser/render/Resolve only. See [candidate contract](child-identity-candidate.md). It is not a new normative registry allocation, a released feature claim, or Rust/Python parity. Query, activation, AEOS rules, Instruction, mutation, SO, identity references and recursive extensions remain unadmitted.
+
+Run the experimental candidates explicitly with `npm run cts:address:child-identity` and `npm run cts:resolve:child-identity`, setting `AEONITE_CTS_ROOT` to the owning CTS directory when needed. Default CTS commands retain their existing targets. The Resolve fixture adapter exposes an identity accessor only for `supportsIdentity: true` and verifies actual accessor-call counts; metadata fields alone do not grant capability.
+
+
+The child-identity candidate exposes optional `SansaResolveDiagnostic.identity` for authored selector context on identity-related Resolve failures. Read-only rollout preparation may proceed with the unresolved JavaScript heap qualification explicitly deferred; this is not a released support or cost-pass claim. See [candidate delivery status](child-identity-candidate.md).
+
+## Candidate Query identity admission
+
+Query source addresses and resolution expressions support direct child identity
+selection over explicitly capable namespaces. Candidate/value addresses remain
+canonical structural paths; selected bindings are original namespace handles.
+The existing `resolve.maxIdentityInspections` option is a whole-Query budget
+(default 10,000), shared across every clause, candidate and repeated read. Each
+invocation owns fresh private state; caller options are never mutated or used as
+a session. Any failure returns no records. Binding/result limits remain separate.
+Dynamic `path(...)` identity activation now has its own [constrained feature and
+scope contract](child-identity-activation.md). Trusted/default activation, reference
+following, graph traversal, Instruction and mutation retain their guards. Public Rust `evaluate_expression` remains
+closed for mutation-precondition consumers; only Query entry points admit IDs.
+No public struct, session, codec or serialization format is added by this slice.

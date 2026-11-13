@@ -1,0 +1,89 @@
+{
+  "status": "unpublished-candidate",
+  "description": "Independently compiled snapshots; no mutation/continuity claim. Original expectation helpers are not replaced.",
+  "scopedSelector": "$.items.\\item1\\.\\name1\\",
+  "contextualSelector": "?.items.\\item1\\.\\name1\\",
+  "scopedSelf": "$.\\stock1\\",
+  "snapshots": [
+    {
+      "id": "original",
+      "source": "original.aeon",
+      "subtree": "$.west.stock",
+      "parent": "$.west",
+      "selector": "$.west.\\stock1\\.items.\\item1\\.\\name1\\",
+      "namePath": "$.west.stock.items[0].name",
+      "itemPath": "$.west.stock.items[0]",
+      "nameValue": "Widget",
+      "itemOrder": [
+        "item1",
+        "item2"
+      ],
+      "projected": [
+        [
+          "$.west.stock.items[0].name"
+        ],
+        []
+      ]
+    },
+    {
+      "id": "reordered",
+      "source": "reordered.aeon",
+      "subtree": "$.west.stock",
+      "parent": "$.west",
+      "selector": "$.west.\\stock1\\.items.\\item1\\.\\name1\\",
+      "namePath": "$.west.stock.items[1].name",
+      "itemPath": "$.west.stock.items[1]",
+      "nameValue": "Widget",
+      "itemOrder": [
+        "item2",
+        "item1"
+      ],
+      "projected": [
+        [],
+        [
+          "$.west.stock.items[1].name"
+        ]
+      ]
+    },
+    {
+      "id": "moved",
+      "source": "moved.aeon",
+      "subtree": "$.east.renamed",
+      "parent": "$.east",
+      "selector": "$.east.\\stock1\\.items.\\item1\\.\\name1\\",
+      "namePath": "$.east.renamed.items[1].name",
+      "itemPath": "$.east.renamed.items[1]",
+      "nameValue": "Widget",
+      "itemOrder": [
+        "item2",
+        "item1"
+      ],
+      "projected": [
+        [],
+        [
+          "$.east.renamed.items[1].name"
+        ]
+      ]
+    },
+    {
+      "id": "replacement",
+      "source": "replacement.aeon",
+      "subtree": "$.east.renamed",
+      "parent": "$.east",
+      "selector": "$.east.\\stock1\\.items.\\item1\\.\\name1\\",
+      "namePath": "$.east.renamed.items[1].name",
+      "itemPath": "$.east.renamed.items[1]",
+      "nameValue": "Replacement",
+      "itemOrder": [
+        "item2",
+        "item1"
+      ],
+      "projected": [
+        [],
+        [
+          "$.east.renamed.items[1].name"
+        ]
+      ]
+    }
+  ]
+}

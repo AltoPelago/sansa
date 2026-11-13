@@ -1,6 +1,6 @@
 {
   "implementation": "@altopelago/sansa",
-  "version": "0.14.2",
+  "version": "0.15.0-rc.1",
   "profiles": [
     "aeonic.operations.arithmetic.exact.v1",
     "aeonic.operations.comparison.baseline.v1",
@@ -74,7 +74,10 @@
       "capability": "SANSA.Graph",
       "category": "declared-relationship-traversal",
       "maturity": "experimental",
-      "entryPoints": ["traverseGraph", "traverseGraphSequence"],
+      "entryPoints": [
+        "traverseGraph",
+        "traverseGraphSequence"
+      ],
       "semantics": [
         "structured declarations only",
         "one-hop directed traversal",
@@ -217,6 +220,41 @@
         "unsupported policy fields fail closed instead of being ignored",
         "policy remains outside SANSA.Mutate core conformance"
       ]
+    },
+    {
+      "id": "sansa.resolve.child-identity.candidate.v1",
+      "capability": "SANSA.Resolve",
+      "category": "direct-child-identity-selection",
+      "maturity": "experimental",
+      "runtimes": [
+        "javascript"
+      ],
+      "entryPoints": [
+        "parseAddress",
+        "renderAddress",
+        "resolveAddress"
+      ],
+      "defaultMaxIdentityInspections": 10000,
+      "semantics": [
+        "direct exposed children only",
+        "explicit namespace identity accessor",
+        "non-exact expressions and structural result paths",
+        "ambiguity failure without partial results",
+        "whole-call inspection budget",
+        "read-only"
+      ],
+      "boundaries": [
+        "no implicit Query or activation admission",
+        "no Instruction, mutation or SO admission",
+        "no AEOS path or selector admission",
+        "no identity references or recursive selector extension",
+        "other runtime API evidence is separately qualified; this package claim is JavaScript-only"
+      ],
+      "cts": {
+        "parser": "sansa-child-identity-parser-cts-v1-snapshot-0.1",
+        "resolve": "sansa-child-identity-resolve-cts-v1-snapshot-0.1"
+      },
+      "notes": "Implementation-local candidate identifier; not a new normative capability registry allocation or a released roster-wide claim."
     }
   ],
   "policies": [

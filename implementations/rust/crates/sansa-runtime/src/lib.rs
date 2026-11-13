@@ -155,7 +155,7 @@ pub enum DiagnosticPhase {
 }
 
 /// Host-neutral diagnostic envelope shared by future runtime surfaces.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Stable SANSA or value-semantics diagnostic code.
     pub code: String,
@@ -165,6 +165,8 @@ pub struct Diagnostic {
     pub phase: Option<DiagnosticPhase>,
     /// Selector index associated with Address or Resolve failure.
     pub selector_index: Option<usize>,
+    /// Selected structural identity for unsupported or ambiguous identity selection.
+    pub identity: Option<String>,
     /// Candidate binding address associated with Query failure.
     pub candidate_address: Option<String>,
     /// Budget name associated with resource exhaustion.
@@ -173,6 +175,25 @@ pub struct Diagnostic {
     pub limit: Option<usize>,
     /// Observed value that exceeded the ceiling.
     pub observed: Option<usize>,
+}
+
+// Keep ordinary diagnostic Debug observations stable when optional identity context is absent.
+impl std::fmt::Debug for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out = f.debug_struct("Diagnostic");
+        out.field("code", &self.code);
+        out.field("message", &self.message);
+        out.field("phase", &self.phase);
+        out.field("selector_index", &self.selector_index);
+        out.field("candidate_address", &self.candidate_address);
+        out.field("budget", &self.budget);
+        out.field("limit", &self.limit);
+        out.field("observed", &self.observed);
+        if self.identity.is_some() {
+            out.field("identity", &self.identity);
+        }
+        out.finish()
+    }
 }
 
 impl Diagnostic {
@@ -184,6 +205,7 @@ impl Diagnostic {
             message: message.into(),
             phase: None,
             selector_index: None,
+            identity: None,
             candidate_address: None,
             budget: None,
             limit: None,
@@ -233,3 +255,6 @@ mod tests {
         assert_eq!(diagnostic.observed, None);
     }
 }
+
+#[cfg(test)]
+mod child_identity_tests;
