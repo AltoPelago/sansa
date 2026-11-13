@@ -838,13 +838,18 @@ fn malformed_identity_ast_filter_and_qualifier_payloads_fail_before_namespace_ac
             name: "ObjectLiteral.*".into(),
         },
     ] {
-        let mut address = parse_address("$.\\target\\").unwrap();
+        let mut address = parse_address("$.\\target\\").expect("valid regression fixture");
         address.selectors.push(selector);
         let result = resolve_parsed_address(&address, &Unread, &ResolveOptions::default());
         assert_eq!(result.errors[0].code, "SANSA_RESOLVE_INVALID_ADDRESS");
     }
-    let mut address = parse_address("$.\\target\\:Q[1]").unwrap();
-    address.qualifier_expression.as_mut().unwrap().terms[0].name = "Q|Other".into();
+    let mut address = parse_address("$.\\target\\:Q[1]").expect("valid regression fixture");
+    address
+        .qualifier_expression
+        .as_mut()
+        .expect("valid regression fixture")
+        .terms[0]
+        .name = "Q|Other".into();
     let result = resolve_parsed_address(&address, &Unread, &ResolveOptions::default());
     assert_eq!(result.errors[0].code, "SANSA_RESOLVE_INVALID_ADDRESS");
 }
