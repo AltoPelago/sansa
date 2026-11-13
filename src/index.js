@@ -3159,6 +3159,8 @@ function graphError(code, message, details = {}) {
 }
 
 export function renderAddress(address) {
+  if (Array.isArray(address?.selectors) && address.selectors.some(s => s?.type === 'childIdentity')
+      && !validIdentityAddressAst(address)) throw new Error('Invalid identity address AST');
   let output = address.root.kind === 'absolute' ? '$' : '?';
 
   for (const selector of address.selectors) {
@@ -3208,6 +3210,70 @@ export function renderAddress(address) {
   }
 
   return output;
+}
+
+// Validate caller data before rendering can turn unquoted payloads into syntax.
+// The ordinary parsed-address rendering path retains its existing contract.
+function validIdentityAddressAst(address) {
+  if (address.type !== 'SansaAddress' || address.root?.type !== 'root'
+      || !['absolute', 'contextual'].includes(address.root.kind)) return false;
+  const text = value => typeof value === 'string';
+  const index = value => Number.isSafeInteger(value) && value >= 0;
+  for (const s of address.selectors) {
+    if (!s) return false;
+    switch (s.type) {
+      case 'childIdentity':
+        if (!text(s.identity) || !CHILD_IDENTITY_RE.test(s.identity)) return false;
+        break;
+      case 'member': case 'localSpace':
+        if (!text(s.name)) return false;
+        break;
+      case 'namePattern':
+        if (!text(s.pattern)) return false;
+        break;
+      case 'semanticTypeFilter': case 'representationKindFilter':
+        if (!text(s.name) || !IDENTIFIER_RE.test(s.name)) return false;
+        break;
+      case 'position':
+        if (!index(s.index)) return false;
+        break;
+      case 'positionRange':
+        if (![s.start, s.end].every(v => v == null || index(v))) return false;
+        break;
+      case 'parent': case 'attributeSpace': case 'directExpansion': case 'descendantExpansion': break;
+      default: return false;
+    }
+  }
+  if (!address.qualifierExpression) return true;
+  const terms = address.qualifierExpression.terms;
+  if (!Array.isArray(terms) || terms.length === 0) return false;
+  const stack = terms.map(term => [term, false]);
+  const ancestors = new Set();
+  while (stack.length) {
+    const [term, leaving] = stack.pop();
+    if (leaving) { ancestors.delete(term); continue; }
+    if (!term || ancestors.has(term) || !text(term.name) || !IDENTIFIER_RE.test(term.name)
+        || !Array.isArray(term.arguments)) return false;
+    ancestors.add(term);
+    stack.push([term, true]);
+    const groups = term.parameterGroups ?? (Array.isArray(term.parameters) && term.parameters.length ? [term.parameters] : []);
+    if (!Array.isArray(groups)) return false;
+    for (const group of groups) {
+      if (!Array.isArray(group) || group.length === 0) return false;
+      for (const child of group) stack.push([child, false]);
+    }
+    for (const arg of term.arguments) {
+      if (!arg) return false;
+      if (arg.kind === 'quoted') { if (!text(arg.value)) return false; }
+      else if (arg.kind === 'number') {
+        if (typeof arg.value !== 'number' || !Number.isFinite(arg.value)
+            || !QUALIFIER_NUMBER_RE.test(String(arg.value))) return false;
+      } else if (arg.kind === 'token') {
+        if (!text(arg.value) || !QUALIFIER_NUMBER_RE.test(arg.value)) return false;
+      } else return false;
+    }
+  }
+  return true;
 }
 
 function renderExtendedSelector(selector) {

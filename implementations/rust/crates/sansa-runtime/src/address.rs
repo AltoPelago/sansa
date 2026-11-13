@@ -752,7 +752,7 @@ fn exceeds_index_limit(raw: &str, limit: usize) -> bool {
     let max = limit.to_string();
     raw.len() > max.len() || (raw.len() == max.len() && raw > max.as_str())
 }
-fn is_identifier(value: &str) -> bool {
+pub(crate) fn is_identifier(value: &str) -> bool {
     let mut chars = value.chars();
     chars.next().is_some_and(is_identifier_start) && chars.all(is_identifier_continue)
 }
@@ -766,7 +766,7 @@ fn is_layout(ch: char) -> bool {
     matches!(ch, ' ' | '\t' | '\n' | '\r')
 }
 
-fn is_number_literal(value: &str) -> bool {
+pub(crate) fn is_number_literal(value: &str) -> bool {
     let rest = value.strip_prefix(['+', '-']).unwrap_or(value);
     if rest.is_empty() {
         return false;

@@ -1,6 +1,7 @@
 //! Host-neutral SANSA Address resolution over opaque binding handles.
 
 use crate::address::{Address, Root, Selector, parse_address, render_address};
+use crate::address::{is_identifier, is_number_literal};
 use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
 
@@ -783,10 +784,13 @@ pub(crate) fn identity_ast_bounded(address: &Address) -> bool {
                 }
                 identity
             }
-            Selector::Member { name, .. }
-            | Selector::LocalSpace { name }
-            | Selector::SemanticTypeFilter { name }
-            | Selector::RepresentationKindFilter { name } => name,
+            Selector::SemanticTypeFilter { name } | Selector::RepresentationKindFilter { name } => {
+                if !is_identifier(name) {
+                    return false;
+                }
+                name
+            }
+            Selector::Member { name, .. } | Selector::LocalSpace { name } => name,
             Selector::NamePattern { pattern } => pattern,
             _ => continue,
         };
@@ -816,8 +820,14 @@ pub(crate) fn identity_ast_bounded(address: &Address) -> bool {
         if term.arguments.len() > 1024 || term.parameter_groups.len() > 1024 {
             return false;
         }
+        if !is_identifier(&term.name) {
+            return false;
+        }
         bytes = bytes.saturating_add(term.name.len());
         for a in &term.arguments {
+            if matches!(a, crate::address::QualifierArgument::Number(s) if !is_number_literal(s)) {
+                return false;
+            }
             bytes = bytes.saturating_add(match a {
                 crate::address::QualifierArgument::Number(s)
                 | crate::address::QualifierArgument::Quoted(s) => s.len(),

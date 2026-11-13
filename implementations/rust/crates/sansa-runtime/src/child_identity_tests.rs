@@ -819,3 +819,32 @@ fn identity_activation_keeps_forged_roots_and_standalone_expression_closed() {
         assert!(evaluate_query("from $\nselect path($.selector)", &ns, &options).is_ok());
     }
 }
+
+#[test]
+fn malformed_identity_ast_filter_and_qualifier_payloads_fail_before_namespace_access() {
+    struct Unread;
+    impl Namespace for Unread {
+        type Binding = usize;
+        fn root(&self) -> Option<usize> {
+            panic!("namespace accessed")
+        }
+        fn children(&self, _: &usize) -> Vec<usize> {
+            panic!("namespace accessed")
+        }
+    }
+    for selector in [
+        Selector::SemanticTypeFilter { name: "T.*".into() },
+        Selector::RepresentationKindFilter {
+            name: "ObjectLiteral.*".into(),
+        },
+    ] {
+        let mut address = parse_address("$.\\target\\").unwrap();
+        address.selectors.push(selector);
+        let result = resolve_parsed_address(&address, &Unread, &ResolveOptions::default());
+        assert_eq!(result.errors[0].code, "SANSA_RESOLVE_INVALID_ADDRESS");
+    }
+    let mut address = parse_address("$.\\target\\:Q[1]").unwrap();
+    address.qualifier_expression.as_mut().unwrap().terms[0].name = "Q|Other".into();
+    let result = resolve_parsed_address(&address, &Unread, &ResolveOptions::default());
+    assert_eq!(result.errors[0].code, "SANSA_RESOLVE_INVALID_ADDRESS");
+}

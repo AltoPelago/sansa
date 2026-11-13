@@ -52,3 +52,21 @@ test('mutation rejects identity strings and forged exact ASTs before identity ac
 test('Query explicitly admits identity selection and retains original bindings',()=>{
  const {namespace,nodes}=adapter();const result=evaluateQuery('from $.\\group1\\\nselect .',namespace);assert.equal(result.ok,true);assert.equal(result.results[0].binding,nodes.get('$.group'));
 });
+
+test('caller identity AST rejects syntax in filter and qualifier payloads before namespace access', () => {
+ const base=parseAddress('$.\\target\\').address;
+ for(const type of ['semanticTypeFilter','representationKindFilter']) {
+  const address={...base,selectors:[...base.selectors,{type,name:'T.\\leaf\\'}]};
+  const namespace={get root(){throw new Error('namespace accessed');}};
+  assert.equal(resolveAddress(address,namespace).errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');
+  assert.throws(()=>renderAddress(address),/Invalid identity address AST/);
+ }
+ const q=parseAddress('$.\\target\\:Q[1]').address;
+ for(const change of [term=>term.name='Q|Other',term=>term.arguments[0]={kind:'token',value:'1]|Other[2'}]) {
+  const address=structuredClone(q);change(address.qualifierExpression.terms[0]);
+  assert.equal(resolveAddress(address,{get root(){throw new Error('namespace accessed');}}).errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');
+ }
+ const name='x'.repeat(65537);
+ const large=parseAddress(`$.\\${name}\\`).address;
+ assert.equal(renderAddress(large),`$.\\${name}\\`);
+});
