@@ -26,12 +26,26 @@
 
   function renderAndInline(value) {
     const parts = [];
-    const pattern = /(\\[\[\]|\\]|\[\*[\s\S]*?\]|\[\/[\s\S]*?\]|\[\$[\s\S]*?\]|\[@[\s\S]*?\]|\[(?: |x|=|\.|_|<)[^\]]*\]|\|)/g;
     let index = 0;
+    let start = 0;
+    let noClosingBracket = false;
 
-    for (const match of value.matchAll(pattern)) {
-      const token = match[0];
-      const start = match.index ?? 0;
+    while (start < value.length) {
+      let token;
+      const next = value[start + 1];
+      if (value[start] === '\\' && next !== undefined && '[]|\\'.includes(next)) {
+        token = value.slice(start, start + 2);
+      } else if (value[start] === '|') {
+        token = '|';
+      } else if (value[start] === '[' && next !== undefined
+          && '*/$@ x=._<'.includes(next) && !noClosingBracket) {
+        const end = value.indexOf(']', start + 2);
+        // A failed search proves there is no closer for any later opener.
+        // Complete tokens consume their whole searched interval.
+        if (end === -1) noClosingBracket = true;
+        else token = value.slice(start, end + 1);
+      }
+      if (token === undefined) { start += 1; continue; }
       if (start > index) {
         parts.push(escapeHtml(value.slice(index, start)));
       }
@@ -62,6 +76,7 @@
         }
       }
       index = start + token.length;
+      start = index;
     }
 
     if (index < value.length) {

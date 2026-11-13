@@ -441,7 +441,9 @@ async function mountParamsLocalSpace(namespace, paramsSource, { identityAware = 
     const errors = [{ code: 'SANSA_QUERY_WORKBENCH_IDENTITY_ADAPTER_UNAVAILABLE', message: error.message }];
     return { ok: false, mode: 'evaluate', errors, text: renderDiagnosticText(errors) };
   }
-  const paramsBinding = remapLocalSpaceBinding(paramsNamespace.root, '$.<"params">');
+  const paramsIdentity = paramsNamespace.identity;
+  const paramsOrigins = typeof paramsIdentity === 'function' ? new WeakMap() : undefined;
+  const paramsBinding = remapLocalSpaceBinding(paramsNamespace.root, '$.<"params">', paramsOrigins);
   const root = typeof namespace.root === 'function' ? namespace.root() : namespace.root;
   if (!root) {
     const errors = [{
@@ -461,11 +463,19 @@ async function mountParamsLocalSpace(namespace, paramsSource, { identityAware = 
     params: paramsBinding,
   };
   const localSpace = namespace.localSpace;
+  const sourceIdentity = namespace.identity;
 
   return {
     ok: true,
     namespace: {
       ...namespace,
+      ...(paramsOrigins ? {
+        identity: (binding) => {
+          const original = paramsOrigins.get(binding);
+          if (original !== undefined) return paramsIdentity.call(paramsNamespace, original);
+          return typeof sourceIdentity === 'function' ? sourceIdentity.call(namespace, binding) : undefined;
+        },
+      } : {}),
       localSpace: (binding, name) => {
         if (binding === root && name === 'params') return root.localSpaces?.params;
         return localSpace?.(binding, name) ?? binding.localSpaces?.[name];
@@ -668,27 +678,27 @@ function caughtErrorMessage(error) {
   }
 }
 
-function remapLocalSpaceBinding(binding, targetAddress) {
-  return remapBindingTree({
-    ...binding,
-    address: '$',
-    representationKind: binding.representationKind ?? 'object',
-  }, '$', targetAddress);
+function remapLocalSpaceBinding(binding, targetAddress, origins) {
+  const output = remapBindingTree(binding, '$', targetAddress, origins);
+  output.address = targetAddress;
+  output.representationKind ??= 'object';
+  return output;
 }
 
-function remapBindingTree(binding, sourceBase, targetBase) {
+function remapBindingTree(binding, sourceBase, targetBase, origins) {
   const address = remapAddress(binding.address, sourceBase, targetBase);
   const output = {
     ...binding,
     address,
-    children: (binding.children ?? []).map((child) => remapBindingTree(child, sourceBase, targetBase)),
+    children: (binding.children ?? []).map((child) => remapBindingTree(child, sourceBase, targetBase, origins)),
   };
+  origins?.set(output, binding);
   if (binding.attributeSpace) {
-    output.attributeSpace = remapBindingTree(binding.attributeSpace, sourceBase, targetBase);
+    output.attributeSpace = remapBindingTree(binding.attributeSpace, sourceBase, targetBase, origins);
   }
   if (binding.localSpaces) {
     output.localSpaces = Object.fromEntries(Object.entries(binding.localSpaces).map(([name, localSpace]) => (
-      [name, remapBindingTree(localSpace, sourceBase, targetBase)]
+      [name, remapBindingTree(localSpace, sourceBase, targetBase, origins)]
     )));
   }
   return output;

@@ -10,7 +10,10 @@ export function rowsFromNamespace(namespace) {
       datatype: binding.semanticType ?? '', value: binding.value,
       identity: binding.identity, binding});
     if (binding.attributeSpace) stack.push(binding.attributeSpace);
-    stack.push(...[...(binding.children ?? [])].reverse());
+    const children = Array.from(binding.children ?? []);
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]);
+    }
   }
   return rows;
 }

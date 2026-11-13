@@ -81,6 +81,43 @@ test('workbench identity access extends to declared params with the same query b
   assert.equal(failed.ok, false); assert.equal(failed.errors[0].code, 'SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED');
 });
 
+test('JSON source can select declared params identities without inspecting JSON identity fields', async t => {
+  if (!await available(t)) return;
+  const input = {
+    sourceKind: 'json',
+    source: JSON.stringify({root: {address: '$', children: [
+      {address: '$.opaque', name: 'opaque', identity: 'p', value: 'opaque'},
+    ]}}),
+    paramsSource: 'setting\\p\\:string="configured"',
+  };
+  const result = await evaluateQueryForWorkbench({...input,
+    query: 'from $ select $.<"params">.\\p\\', budget: {maxIdentityInspections: 1}});
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.results[0].value.bindings[0].address, '$.<"params">.setting');
+  assert.equal(result.results[0].value.bindings[0].value, 'configured');
+  const opaque = await evaluateQueryForWorkbench({...input, query: 'from $ select .\\p\\'});
+  assert.equal(opaque.ok, true, JSON.stringify(opaque.errors));
+  assert.deepEqual(opaque.results[0].value.bindings, []);
+  const limited = await evaluateQueryForWorkbench({...input,
+    query: 'from $ select $.<"params">.\\p\\', budget: {maxIdentityInspections: 0}});
+  assert.equal(limited.ok, false);
+  assert.equal(limited.errors[0].code, 'SANSA_RESOLVE_IDENTITY_LIMIT_EXCEEDED');
+  assert.equal(limited.errors[0].observed, 1);
+  assert.equal(limited.results, undefined);
+});
+
+test('mixed JSON/AEON params identities retain nested attribute paths', async t => {
+  if (!await available(t)) return;
+  const result = await evaluateQueryForWorkbench({
+    sourceKind: 'json', source: '{"address":"$","children":[]}',
+    paramsSource: 'group\\g\\:object={setting\\p\\@{unit\\u\\:string="cm"}:string="configured"}',
+    query: 'from $ select $.<"params">.\\g\\.\\p\\.@.\\u\\',
+  });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.results[0].value.bindings[0].address, '$.<"params">.group.setting.@.unit');
+  assert.equal(result.results[0].value.bindings[0].value, 'cm');
+});
+
 test('workbench excludes header identities from the payload root', async t => {
   if (!await available(t)) return;
   const result = await aeon("from $.\\headerId\\ select .", {
