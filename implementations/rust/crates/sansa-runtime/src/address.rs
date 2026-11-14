@@ -377,12 +377,6 @@ impl<'a> Parser<'a> {
         }
         if self.match_char('[') {
             let name = self.parse_quoted_payload()?;
-            if name.is_empty() {
-                return self.fail(
-                    "Quoted member names must not be empty",
-                    "SANSA_EMPTY_MEMBER_NAME",
-                );
-            }
             self.consume(']')?;
             return Ok(Selector::Member { name, quoted: true });
         }

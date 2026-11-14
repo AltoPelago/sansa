@@ -7,6 +7,9 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Empty quoted members such as `$.[""]` are accepted by JavaScript and Rust addressing and mutation planning. Empty create names and nested AEON property/attribute payload keys are representable; empty local-space names remain invalid. Authority CTS transition and released-provider qualification remain pending.
+
+
 ### Fixed
 
 - Name-pattern wildcards now include LF, CR, U+2028 and U+2029 under code-point semantics, with full-name matching. Shared Unicode regression data covers exact identities, default/explicit locale profiles and provider limits; no normalization or reference admission changes.

@@ -74,3 +74,6 @@ $.key:string<int><int>
 $.items[999999]
 ---
 $.items[0..999999]
+---
+// Ordinary empty property is a child, distinct from the scope root.
+$.[""]

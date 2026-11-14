@@ -22,7 +22,8 @@ for (const suiteRef of manifest.suites ?? []) {
   const suite = readJson(suitePath);
   console.log(`\n--- Suite: ${suite.title} ---`);
 
-  for (const test of suite.tests ?? []) {
+  const excluded = new Set(suiteRef.exclude_tests ?? []);
+  for (const test of (suite.tests ?? []).filter(test => !excluded.has(test.id))) {
     const failures = runTest(test);
     if (failures.length > 0) {
       fail += 1;

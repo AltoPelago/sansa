@@ -716,7 +716,7 @@ export const mutateExamples = [
     group: 'Instruction Diagnostics',
     variants: {
       instruction: {
-        request: 'create "" with "x"',
+        request: 'create "x" extra with "x"',
       },
     },
   },

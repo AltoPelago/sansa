@@ -23,7 +23,8 @@ for (const suiteRef of manifest.suites ?? []) {
   const suite = readJson(suitePath);
   console.log(`\n--- Suite: ${suite.title} ---`);
 
-  for (const test of suite.tests ?? []) {
+  const excluded = new Set(suiteRef.exclude_tests ?? []);
+  for (const test of (suite.tests ?? []).filter(test => !excluded.has(test.id))) {
     const namespaces = buildNamespaces(suite.fixtures?.namespaces ?? []);
     const failures = runTest(test, namespaces);
     if (failures.length > 0) {

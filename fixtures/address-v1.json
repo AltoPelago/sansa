@@ -253,10 +253,11 @@
       "error": "SANSA_POSITION_INDEX_LIMIT_EXCEEDED"
     },
     {
-      "id": "reject-empty-quoted-member",
+      "id": "empty-quoted-member",
       "source": "$.[\"\"]",
-      "valid": false,
-      "error": "SANSA_EMPTY_MEMBER_NAME"
+      "valid": true,
+      "canonical": "$.[\"\"]",
+      "exact": true
     },
     {
       "id": "reject-empty-local-space",

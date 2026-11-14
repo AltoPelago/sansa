@@ -678,3 +678,42 @@ fn quoted_member_text_is_distinct_from_attribute_selectors() {
         );
     }
 }
+
+#[test]
+fn empty_create_names_and_nested_aeon_properties_are_representable() {
+    let namespace = TestNamespace {
+        container_kind: "object",
+        first_child_kind: "string",
+    };
+    let request = MutationRequest {
+        operations: vec![RequestedMutationOperation::Create(
+            RequestedCreateOperation {
+                parent: "$.items".into(),
+                name: String::new(),
+                value: MutationValueIntent {
+                    value: MutationValue::Object(vec![(
+                        String::new(),
+                        MutationValue::Scalar(
+                            Value::String(String::new())
+                                .try_into()
+                                .expect("string scalar"),
+                        ),
+                    )]),
+                    datatype: Some("object".into()),
+                    kind: None,
+                },
+                provenance: None,
+            },
+        )],
+        preconditions: vec![],
+        provenance: None,
+    };
+    let result = plan_mutation(&request, &namespace, &PlanMutationOptions::default());
+    let PlanMutationResult::Planned(plan) = result else {
+        panic!("{result:?}");
+    };
+    assert!(matches!(
+        validate_mutation_plan_target(&plan, "aeon"),
+        ValidateMutationPlanTargetResult::Validated { .. }
+    ));
+}

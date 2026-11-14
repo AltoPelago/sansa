@@ -70,3 +70,7 @@ serde_json = "1.0.150"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "empty_keys"
+path = "tests/empty_keys.rs"
