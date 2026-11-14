@@ -201,6 +201,8 @@ Full details live in [docs/instruction-tool.md](docs/instruction-tool.md).
 ## Release Notes
 
 Release history lives in [CHANGELOG.md](CHANGELOG.md).
+The [release process](RELEASING.md) uses betas while work lands and RCs after
+scope completion, coordinated through the shared AEON 0.17.0 checklist.
 
 ## API
 
