@@ -55,6 +55,7 @@ function runTest(test, namespaces) {
 
   if (mode === 'target') {
     if (!result.ok) {
+      if (expected.ok) failures.push('instruction rejected before expected successful target validation');
       compareError(expected, result, failures);
       return failures;
     }
