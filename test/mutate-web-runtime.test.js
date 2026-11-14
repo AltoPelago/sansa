@@ -1356,7 +1356,7 @@ testAeonRuntime('mutate web runtime policy anchor matchers require anchored plac
   assert.equal(unanchored.errors[0].operationIndex, 0);
 });
 
-testAeonRuntime('mutate web runtime rejects AEON-invalid container member names', async () => {
+testAeonRuntime('mutate web runtime accepts empty container member names', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const result = await runMutationForWorkbench({
     source,
@@ -1370,15 +1370,9 @@ testAeonRuntime('mutate web runtime rejects AEON-invalid container member names'
     }),
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.phase, 'target');
+  assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
   assert.equal(result.targetProfile.id, 'aeon');
-  assert.equal(result.targetProfile.boundary, 'representability');
-  assert.equal(result.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(result.errors[0].targetFormat, 'aeon');
-  assert.match(result.text, /target-surface: plan produced; selected target cannot represent the planned intent for target 'aeon'/);
-  assert.match(result.text, /Keys must not be empty/);
-  assert.doesNotMatch(result.source, /settings:object/);
+
 });
 
 testAeonRuntime('mutate web runtime rejects datatypes outside the AEON target surface', async () => {
@@ -1543,4 +1537,19 @@ testAeonRuntime('mutate web runtime applies JSON-compatible target surface check
   assert.equal(reference.errors[0].targetFormat, 'json');
   assert.equal(reference.errors[0].datatype, 'cloneReference');
   assert.match(reference.text, /Target 'json' does not support kind 'cloneReference'/);
+});
+
+testAeonRuntime('mutate web runtime applies empty member creation, replacement and removal', async () => {
+  let source = 'container:object = {}';
+  for (const request of [
+    { op: 'create', parent: '$.container', name: '', value: { '': '' } },
+    { op: 'replace', target: '$.container.[""].[""]', value: 'updated' },
+    { op: 'remove', target: '$.container.[""]' },
+  ]) {
+    const result = await runMutationForWorkbench({ source, mode: 'apply', requestSource: JSON.stringify(request) });
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    source = result.source;
+    assert.equal((await namespaceFromAeonSource(source)).ok, true);
+  }
+  assert.doesNotMatch(source, /""/);
 });

@@ -450,14 +450,6 @@ fn validate_aeon_value(
         MutationValue::Object(fields) => {
             for (name, value) in fields {
                 let path = format!("{path}{}", value_path_segment(name));
-                if name.is_empty() {
-                    return Err(invalid_aeon_value(
-                        "Keys must not be empty",
-                        &path,
-                        operation_index,
-                        None,
-                    ));
-                }
                 validate_aeon_value(value, None, None, &path, operation_index)?;
             }
         }
@@ -526,14 +518,6 @@ fn validate_aeon_node_value(
                 };
                 for (name, value) in attributes {
                     let path = format!("{path}.attributes{}", value_path_segment(name));
-                    if name.is_empty() {
-                        return Err(invalid_aeon_value(
-                            "Keys must not be empty",
-                            &path,
-                            operation_index,
-                            None,
-                        ));
-                    }
                     validate_aeon_value(value, None, None, &path, operation_index)?;
                 }
             }

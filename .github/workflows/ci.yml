@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aeonite-org/aeonite-cts
-          ref: 928341c90028787e8eeb21fbc7e2f755df539d4b
+          ref: 9beb3e93cba8bf20fbb39461561216820ff83994
           path: aeonite-cts
 
       - name: Setup Rust
@@ -34,7 +34,7 @@ jobs:
           toolchain: 1.93.1
           components: rustfmt, clippy
 
-      - name: Rust runtime and stable CTS lanes
+      - name: Rust runtime and selected CTS lanes
         run: npm run test:rust
 
       - name: Rust package dry-run
@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aeonite-org/aeonite-cts
-          ref: 928341c90028787e8eeb21fbc7e2f755df539d4b
+          ref: 9beb3e93cba8bf20fbb39461561216820ff83994
           path: aeonite-cts
 
       - name: Setup Node

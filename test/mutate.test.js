@@ -296,10 +296,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     value: { settings: { '': 'active' } },
   }, namespace);
   const aeonNestedEmptyKeyResult = validateMutationPlanTarget(aeonNestedEmptyKey, 'aeon');
-  assert.equal(aeonNestedEmptyKeyResult.ok, false);
-  assert.equal(aeonNestedEmptyKeyResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonNestedEmptyKeyResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonNestedEmptyKeyResult.errors[0].valuePath, 'operations[0].value.settings[""]');
+  assert.equal(aeonNestedEmptyKeyResult.ok, true);
 
   const aeonNestedQuotedKeyPath = planOk({
     op: 'create',
@@ -309,10 +306,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     value: { 'bad.key': { '': 'active' } },
   }, namespace);
   const aeonNestedQuotedKeyPathResult = validateMutationPlanTarget(aeonNestedQuotedKeyPath, 'aeon');
-  assert.equal(aeonNestedQuotedKeyPathResult.ok, false);
-  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonNestedQuotedKeyPathResult.errors[0].valuePath, 'operations[0].value["bad.key"][""]');
+  assert.equal(aeonNestedQuotedKeyPathResult.ok, true);
 
   const aeonInvalidNodeTag = planOk({
     op: 'create',
