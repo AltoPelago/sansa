@@ -9,6 +9,7 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Fixed
 
+- Name-pattern wildcards now include LF, CR, U+2028 and U+2029 under code-point semantics, with full-name matching. Shared Unicode regression data covers exact identities, default/explicit locale profiles and provider limits; no normalization or reference admission changes.
 - Bounded typed Aeonic comparison admission on shared object graphs while
   preserving deeper-path limits, cycle rejection and diagnostic precedence.
 
