@@ -14,7 +14,7 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-13",
+    "verified_on": "2026-11-14",
     "node": "v24.22.2",
     "specification_commit": "be4597cba2909d9756297047ec5bf34ec6cf8eea",
     "cts_commit": "321022560b477f238c69d3853c89d3aa135def2a",
@@ -35,8 +35,8 @@
     "report": "results/aeonic-arithmetic-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
     "implementation_files_sha256": {
-      "src/index.js": "275b874f393da5fab96cd9286e0a0eb878e4bbfcc4ba97b918657ca18484bc4b",
-      "src/index.d.ts": "37f32c17a55f73c151523c267245117995d3e8da4af77f319bf14409dda2c3b2",
+      "src/index.js": "a81e951dbfe90c85bdfa7b268f312d4c6708716cbbbc1c172bc5b584864a3a73",
+      "src/index.d.ts": "315257d52213d53ea9548efe0915048e6e235218bef16ed08a3139d2eec12be1",
       "src/aeonic-arithmetic.js": "65e4195ab6421a498157657d00452b459640a98e7e421a2b873282fd43a2ac9c",
       "src/aeonic-arithmetic.d.ts": "e03421a44d0f8164165bd37603b91809e0a5131d560d12054a78baa6963f4df6",
       "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",

@@ -19,6 +19,15 @@ The separate unreleased JavaScript [Aeonic arithmetic API](docs/aeonic-arithmeti
 adds exact finite-number operations and explicit materialization against arithmetic
 snapshot 0.1. It returns exact value/history bundles and fail-closed diagnostics.
 
+The separately selected [rational arithmetic API](docs/aeonic-rational-arithmetic.md)
+adds exact division, rational chaining, seven explicit quantization modes and
+snapshot 0.2 conformance. Finite/rational convenience helpers can calculate and
+materialize in one call with explicit policies and per-step metadata. Try the
+linked [arithmetic playground](tools/playground/arithmetic.html) from the source
+playground. These are unreleased JavaScript APIs; Query and Rust retain their
+own capability boundaries.
+
+
 ## Current Scope
 
 - root selectors: `$`, `?`

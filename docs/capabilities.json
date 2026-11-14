@@ -2,6 +2,7 @@
   "implementation": "@altopelago/sansa",
   "version": "0.15.0-rc.1",
   "profiles": [
+    "aeonic.operations.arithmetic.rational.v1",
     "aeonic.operations.arithmetic.exact.v1",
     "aeonic.operations.comparison.baseline.v1",
     "aeonic.operations.string.codepoint.v1",
@@ -18,6 +19,7 @@
     "instruction"
   ],
   "capabilities": [
+    "Aeonic.Operations.Arithmetic.Rational",
     "Aeonic.Operations.Arithmetic.Exact",
     "Aeonic.Operations.Comparison",
     "AEON.ValueSemantics",
@@ -38,6 +40,26 @@
     "mutate": false
   },
   "experimentalCapabilities": [
+    {
+      "id": "aeonic.operations.arithmetic.rational.v1",
+      "capability": "Aeonic.Operations.Arithmetic.Rational",
+      "category": "rational-exact-arithmetic",
+      "maturity": "experimental",
+      "implementation": "javascript",
+      "entryPoints": [
+        "evaluateAeonicRationalArithmetic",
+        "evaluateAeonicRationalArithmeticText"
+      ],
+      "snapshotId": "aeonic-rational-arithmetic-cts-v1-snapshot-0.2",
+      "semantics": [
+        "exact add/subtract/multiply/divide over authored/derived operands",
+        "canonical decimal/rational-result chaining",
+        "seven explicitly selected grid-rounding modes",
+        "current evaluation separate from approximation history",
+        "exact explicit-family materialization",
+        "staged fail-closed diagnostics"
+      ]
+    },
     {
       "id": "aeonic.operations.arithmetic.exact.v1",
       "capability": "Aeonic.Operations.Arithmetic.Exact",
@@ -63,11 +85,19 @@
       "category": "scalar-comparison",
       "maturity": "experimental",
       "implementation": "javascript",
-      "entryPoints": ["evaluateAeonicComparison", "evaluateAeonicComparisonText"],
+      "entryPoints": [
+        "evaluateAeonicComparison",
+        "evaluateAeonicComparisonText"
+      ],
       "snapshotId": "aeonic-operations-cts-v1-snapshot-0.1",
       "capabilitySet": "baseline",
       "declaredOrder": false,
-      "semantics": ["exact finite numerical text", "symbolic results", "staged fail-closed diagnostics", "independent string and symbol profiles"]
+      "semantics": [
+        "exact finite numerical text",
+        "symbolic results",
+        "staged fail-closed diagnostics",
+        "independent string and symbol profiles"
+      ]
     },
     {
       "id": "sansa.graph.structured.one-hop.v1",

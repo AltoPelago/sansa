@@ -70,3 +70,21 @@ APIs still determine validity and admission. See [tooling scope](../../docs/chil
 For complete original/reordered/moved/replacement examples, paste the linked
 [source snapshots](../../fixtures/child-identity-workflows/README.md) into the
 source editor and follow the [workflow guide](../../docs/child-identity-workflows.md).
+
+## Arithmetic
+
+Choose **Arithmetic** to open `arithmetic.html`. This linked page calls SANSA's
+finite snapshot 0.1 and rational snapshot 0.2 text APIs, with eleven examples,
+verbatim logical JSON and a separate combined-output-policy editor. Exact thirds
+can feed multiplication, explicit quantization or materialization; continuations
+copy the real returned value/history bundle. Editing or changing capability
+clears reusable values. Errors never supply partial values.
+
+Each run uses a fresh browser module worker, terminated on completion, cancellation,
+input changes or four-second timeout. Input plus output policy is limited to
+256 KiB, policy to 16 KiB/depth 8, and result to 1 MiB. Engine defaults still apply
+independently; these controls do not promise a general browser-memory sandbox.
+No trusted resource settings or arbitrary code are accepted by the page. Arithmetic
+imports this checkout's source and needs no document projection, external service
+or Python execution. The shared launcher still loads the built AEON dependency
+for its Resolve/Query page. [API and conformance details](../../docs/aeonic-rational-arithmetic.md).

@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "target": "aeonic-rational-arithmetic-cts-v1-snapshot-0.2",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "semantic_execution": true,
+  "operation_cases": 351,
+  "chains": 3,
+  "law_groups": 1,
+  "sut_executions": 514,
+  "assertions": 606,
+  "manifest_sha256": "1165459e1151e5cca325bc86c7d1e92de97c2b4ec115c02b10a30c59d4bc57a7",
+  "runner_sha256": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+  "specification_source_sha256": "4ade60b0c75ae6e21356ba92d338b36b66c5993065abfc977e2a4cf4a004d268",
+  "specification_schema_sha256": "02f08ef6e58752b9d0799515c9b42190c795827f72c3f29ef4d15c54bad4fc07",
+  "shared_runner_sha256": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+  "resource_limits": {
+    "maxRequestBytes": 16384,
+    "maxRequestDepth": 32,
+    "maxNumericCharacters": 1024,
+    "maxCoefficientDigits": 512,
+    "maxDenominatorDigits": 512,
+    "maxExponentMagnitude": 1000000,
+    "maxWorkspaceDigits": 4096,
+    "maxOutputCharacters": 1024
+  },
+  "sut": "node scripts/cts-aeonic-rational-arithmetic-adapter.mjs",
+  "cwd": ".",
+  "failures": []
+}

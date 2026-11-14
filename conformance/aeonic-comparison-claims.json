@@ -13,13 +13,13 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-13",
+    "verified_on": "2026-11-14",
     "node": "v24.22.2",
     "manifest_sha256": "8e7a42fe340ec2b9c5f4612e8818a9cbce9e3250a5b6d9971e22eed992fc7d69",
     "report": "results/aeonic-comparison-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; other shared-runner fields are retained",
     "implementation_files_sha256": {
-      "src/index.js": "275b874f393da5fab96cd9286e0a0eb878e4bbfcc4ba97b918657ca18484bc4b",
+      "src/index.js": "a81e951dbfe90c85bdfa7b268f312d4c6708716cbbbc1c172bc5b584864a3a73",
       "src/aeonic-comparison.js": "4eb31b7f452b248c4ee189d99e880b73fe20c88ded2d77872f528a9331ae60db",
       "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
