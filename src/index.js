@@ -9751,7 +9751,9 @@ function globPatternToRegExp(pattern) {
       source += escapeRegExp(char);
     }
   }
-  return new RegExp(`${source}$`, 'u');
+  // Dot-all retains code-point matching for line terminators; the final
+  // assertion requires the actual end rather than JavaScript's pre-newline $.
+  return new RegExp(`${source}(?!.)`, 'su');
 }
 
 function escapeRegExp(value) {

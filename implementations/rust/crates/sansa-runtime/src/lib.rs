@@ -258,3 +258,108 @@ mod tests {
 
 #[cfg(test)]
 mod child_identity_tests;
+
+#[cfg(test)]
+mod unicode_hardening_regressions {
+    use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_query};
+    use crate::resolve::{Namespace, ResolveOptions, resolve_address};
+    use crate::value_semantics::{Profile, Value};
+    use serde_json::{Value as Json, json};
+
+    struct Names(Vec<String>);
+    impl Namespace for Names {
+        type Binding = usize;
+        fn root(&self) -> Option<usize> {
+            Some(0)
+        }
+        fn children(&self, b: &usize) -> Vec<usize> {
+            if *b == 0 {
+                (1..=self.0.len()).collect()
+            } else {
+                vec![]
+            }
+        }
+        fn name(&self, b: &usize) -> Option<String> {
+            b.checked_sub(1).and_then(|i| self.0.get(i)).cloned()
+        }
+    }
+    fn fixtures() -> Json {
+        serde_json::from_str(include_str!("../tests/fixtures/unicode-hardening-v1.json"))
+            .expect("unicode fixtures")
+    }
+    #[test]
+    fn unicode_globs_cover_line_terminators_by_codepoint() {
+        let names = Names(
+            fixtures()["wildcard_names"]
+                .as_array()
+                .expect("names")
+                .iter()
+                .map(|v| v.as_str().expect("name").to_owned())
+                .collect(),
+        );
+        for pattern in ["?", "*", "plain", "plain?", "*\n"] {
+            let expected = names
+                .0
+                .iter()
+                .enumerate()
+                .filter(|(_, n)| match pattern {
+                    "?" => n.chars().count() == 1,
+                    "*" => true,
+                    "plain" => n.as_str() == "plain",
+                    "plain?" => n.as_str() == "plain\n",
+                    _ => n.ends_with('\n'),
+                })
+                .map(|(i, _)| i + 1)
+                .collect::<Vec<_>>();
+            let address = format!("$.({})", json!(pattern));
+            let result = resolve_address(&address, &names, &ResolveOptions::default());
+            assert!(result.errors.is_empty(), "{:?}", result.errors);
+            assert_eq!(result.bindings, expected, "{pattern}");
+        }
+    }
+    #[test]
+    fn unicode_default_casing_and_exact_identity_keep_native_profile_boundary() {
+        let ns = Names(vec![]);
+        for case in fixtures()["mapping_cases"]
+            .as_array()
+            .expect("mapping cases")
+        {
+            if case["locale"] != "default" {
+                continue;
+            }
+            let query = format!(
+                "from $\nselect {}({})",
+                case["operation"].as_str().expect("op"),
+                case["input"]
+            );
+            let result = evaluate_query(&query, &ns, &EvaluateOptions::default());
+            assert!(result.is_ok(), "{:?}", result.errors);
+            assert_eq!(
+                result.results[0].value,
+                EvaluatedValue::Scalar(Value::String(
+                    case["expected"].as_str().expect("expected").to_owned()
+                )),
+                "{}",
+                case["id"]
+            );
+        }
+        for pair in fixtures()["identity_pairs"]
+            .as_array()
+            .expect("identity pairs")
+        {
+            assert!(
+                !crate::value_semantics::equal(
+                    &Value::String(pair["left"].as_str().expect("left").to_owned()),
+                    &Value::String(pair["right"].as_str().expect("right").to_owned()),
+                    Profile::Default
+                )
+                .expect("equality")
+            );
+        }
+        for id in ["tr", "az", "aeon.value.string.intl.tr.v1"] {
+            let error = Profile::from_id(id)
+                .expect_err("native locale profiles must not silently fall back");
+            assert_eq!(error.reason, "unsupported_profile");
+        }
+    }
+}
