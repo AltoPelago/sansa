@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SANSA arithmetic playground</title><link rel="stylesheet" href="./arithmetic.css">
+<script type="module" src="./arithmetic.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to operation</a>
+<header><a href="./">SANSA Playground</a><span>Local source</span><nav><a href="./">Resolve &amp; Query</a><a href="https://github.com/AltoPelago/sansa">Repository ↗</a></nav></header>
+<main>
+<section class="intro"><div><p class="eyebrow">AEONIC ARITHMETIC IN SANSA</p><h1>Exact values. Explicit decisions.</h1><p>Keep an exact result, choose how to round it, or produce a Number in one call.</p></div><label>Capability<select id="lane"><option value="finite">Finite arithmetic · snapshot 0.1</option><option value="rational">Rational &amp; rounding · snapshot 0.2</option></select></label></section>
+<div class="workspace" id="workspace">
+<aside><h2>Starting points</h2><div id="examples"></div><p class="aside-note">Calculate an exact value first. Materialization selects an AEON Number representation. Quantization runs only when explicitly requested.</p></aside>
+<section class="panel" aria-labelledby="input-title"><h2 id="input-title">Your operation</h2><p id="description"></p>
+<label>Result mode<select id="result-mode"><option value="exact">Exact result · separate materialization</option><option value="combined">Calculate and materialize · one call</option></select></label>
+<label>Logical request JSON<textarea id="request" spellcheck="false" maxlength="262144" aria-describedby="request-help"></textarea></label><p class="help" id="request-help">Sent verbatim to the selected text API. Number operands use exact numerical text; duplicate keys remain visible to validation.</p>
+<div id="output-editor" hidden><label>Combined output policy JSON<textarea id="output-policy" spellcheck="false" maxlength="16384"></textarea></label><p class="help">Select an output family. Rational quantization also requires an increment and rounding mode.</p></div>
+<div class="actions"><button id="run" type="button">Run operation <kbd>⌘/Ctrl ↵</kbd></button><button id="cancel" type="button" hidden>Cancel</button><span id="run-state" role="status" aria-live="polite">Ready</span></div>
+<details><summary>Capability profile</summary><code id="profile"></code></details>
+</section>
+<section class="panel result" aria-labelledby="result-title"><h2 id="result-title">Result</h2><p id="result-state" role="status" aria-live="polite">Run an operation to see its value or diagnostic.</p><div id="result"></div>
+<div id="continue" hidden><p class="help">Continue with the returned value/history bundle</p><div class="continuations"><button type="button" data-continue="multiply">Multiply by 3</button><button type="button" data-continue="quantize">Quantize result</button><button type="button" data-continue="materialize">Materialize result</button></div></div>
+<details id="raw-result" hidden><summary>Complete API response</summary><pre id="response"></pre></details>
+<p class="help">Diagnostics produce no value. Saving only the Number discards its separate history metadata.</p>
+</section></div>
+<footer>JavaScript from this SANSA checkout · 256 KiB input · 4s per run · source API defaults</footer>
+</main>
+</body></html>

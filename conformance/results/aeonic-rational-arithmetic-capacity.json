@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "checks": 17,
+  "sut": "node scripts/cts-aeonic-rational-arithmetic-adapter.mjs",
+  "cases": [
+    {
+      "name": "coefficient-at-512",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "coefficient-over-512",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "denominator-at-512",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "denominator-over-512",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "numeric-text-at-1024",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "numeric-text-over-1024",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "exponent-at-million",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "exponent-over-million",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "result-exponent-over-million",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "workspace-at-4096",
+      "status": "passed",
+      "companion_limits": {
+        "maxCoefficientDigits": 4096,
+        "maxNumericCharacters": 2048
+      }
+    },
+    {
+      "name": "workspace-below-4096",
+      "status": "passed",
+      "companion_limits": {
+        "maxCoefficientDigits": 4096,
+        "maxNumericCharacters": 2048,
+        "maxWorkspaceDigits": 4095
+      }
+    },
+    {
+      "name": "output-at-1024",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "output-over-1024",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "bytes-at-16384",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "bytes-over-16384",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "depth-32",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "depth-33",
+      "status": "passed",
+      "companion_limits": {}
+    }
+  ],
+  "limits": "Independent capacities with explicit workspace companion limits; no Cartesian-product or machine-resource guarantee."
+}

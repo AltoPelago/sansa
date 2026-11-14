@@ -45,4 +45,14 @@ test('HTML aliases retain safe import-map data and resolve the same local assets
       assert.equal((await request(path)).status, 200, path);
     }
   }
+  const arithmetic = await request('/tools/playground/arithmetic.html');
+  assert.equal(arithmetic.status, 200);
+  assert.match(arithmetic.headers['content-type'], /text\/html/);
+  assert.match(arithmetic.body, /SANSA arithmetic playground/);
+  assert.equal((await request('/tools/playground/arithmetic.html', 'HEAD')).body, undefined);
+  for (const [, asset] of arithmetic.body.matchAll(/(?:src|href)="([^\"]+\.(?:js|mjs|css))"/g)) {
+    const path = new URL(asset, 'http://localhost/tools/playground/').pathname;
+    assert.equal((await request(path)).status, 200, path);
+  }
+  assert.equal((await request('/tools/playground/unknown.html')).status, 404);
 });

@@ -75,7 +75,9 @@
     "cts:aeonic-arithmetic": "node scripts/cts-aeonic-arithmetic.mjs",
     "cts:address:child-identity": "node scripts/cts-address.mjs --child-identity",
     "cts:resolve:child-identity": "node scripts/cts-resolve.mjs --child-identity",
-    "playground": "node scripts/playground.mjs"
+    "playground": "node scripts/playground.mjs",
+    "cts:aeonic-rational-arithmetic": "node scripts/cts-aeonic-rational-arithmetic.mjs",
+    "cts:aeonic-rational-arithmetic:capacity": "python3 scripts/calibrate-aeonic-rational-capacity.py --sut 'node scripts/cts-aeonic-rational-arithmetic-adapter.mjs'"
   },
   "keywords": [
     "sansa",

@@ -62,6 +62,11 @@ export function createPlaygroundServer({aeonRoot}) {
         response.writeHead(200, {'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store'});
         return response.end(request.method === 'HEAD' ? undefined : html);
       }
+      if (pathname === '/tools/playground/arithmetic.html') {
+        const html = await readFile(resolve(repo, 'tools/playground/arithmetic.html'), 'utf8');
+        response.writeHead(200, {'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store'});
+        return response.end(request.method === 'HEAD' ? undefined : html);
+      }
       if (pathname.startsWith('/src/')) {
         root = resolve(repo, 'src'); relative = pathname.slice(5);
       } else if (pathname.startsWith('/tools/playground/')) {

@@ -1,0 +1,66 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-operations-rational-arithmetic",
+      "snapshot_id": "aeonic-rational-arithmetic-cts-v1-snapshot-0.2",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Arithmetic.Rational",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-rational-arithmetic",
+      "notes": "Verified frozen compatibility target; proposal lifecycle. Complete exact rational arithmetic, explicit grid quantization/materialization, history and fail-closed diagnostics. No Query, Rust, convenience-envelope or package-release conformance claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-14",
+    "node": "v24.22.2",
+    "specification_commit": "d4801c7e4814af1ef6e51951c0af3f3d429f04fb",
+    "cts_commit": "2ee51c88ad944a0f1c0951d5e39b298561c00c35",
+    "specification_snapshot_id": "aeonic-rational-arithmetic-specs-v1-snapshot-0.2",
+    "profile": "aeonic.operations.arithmetic.rational.v1",
+    "manifest_sha256": "1165459e1151e5cca325bc86c7d1e92de97c2b4ec115c02b10a30c59d4bc57a7",
+    "runner_sha256": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+    "shared_runner_sha256": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+    "specification_source_sha256": "4ade60b0c75ae6e21356ba92d338b36b66c5993065abfc977e2a4cf4a004d268",
+    "specification_schema_sha256": "02f08ef6e58752b9d0799515c9b42190c795827f72c3f29ef4d15c54bad4fc07",
+    "test_resource_limits": {
+      "maxRequestBytes": 16384,
+      "maxRequestDepth": 32,
+      "maxNumericCharacters": 1024,
+      "maxCoefficientDigits": 512,
+      "maxDenominatorDigits": 512,
+      "maxExponentMagnitude": 1000000,
+      "maxWorkspaceDigits": 4096,
+      "maxOutputCharacters": 1024
+    },
+    "report": "results/aeonic-rational-arithmetic-snapshot-0.2.json",
+    "capacity_report": "results/aeonic-rational-arithmetic-capacity.json",
+    "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
+    "adapted_from": {
+      "repository": "AltoPelago/aeonic",
+      "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
+    },
+    "implementation_files_sha256": {
+      "src/index.js": "a81e951dbfe90c85bdfa7b268f312d4c6708716cbbbc1c172bc5b584864a3a73",
+      "src/index.d.ts": "315257d52213d53ea9548efe0915048e6e235218bef16ed08a3139d2eec12be1",
+      "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
+      "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",
+      "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
+      "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
+      "scripts/cts-aeonic-rational-arithmetic-adapter.mjs": "5f17b0ec52bb607b0d5f6247cb3160a0a6be13354ac34191aa4db90664812870",
+      "scripts/cts-aeonic-rational-arithmetic.mjs": "4bd1a4fd0f3359c4d42a1f72a0b2fc4196543ceffe10ee65c2f2a04ebf602e0c",
+      "scripts/calibrate-aeonic-rational-capacity.py": "68601eace94f6d601c3ba569f80c1fc90480f7beff72ca071aa7a4c488a77551"
+    },
+    "limits": [
+      "Complete six-operation logical JSON capability; actual frozen run passes 514 executions/606 assertions. No per-operation semantic opt-outs.",
+      "The CTS supplies explicit baseline and companion limits. Seventeen independent native default-capacity probes are separate evidence, not Cartesian or machine-time/memory guarantees.",
+      "Native getters/proxies/custom subclasses, object-key enumeration, outer CTS transport and whole-chain budgets remain separate from logical JSON conformance.",
+      "Convenience composition has its own step metadata/result shape and tests; it does not widen this frozen operation result contract.",
+      "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3."
+    ]
+  }
+}

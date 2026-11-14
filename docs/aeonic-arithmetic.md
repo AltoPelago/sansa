@@ -49,6 +49,10 @@ automatically produce null or other values. Recognized deferred domains return
 The only supported semantic profile is `aeonic.operations.arithmetic.exact.v1`.
 Policy/context overrides and unknown-field validation follow the frozen contract.
 
+For exact division and explicit quantization, select the separate
+[rational API](aeonic-rational-arithmetic.md). That page also describes both
+finite and rational calculate-and-materialize convenience helpers.
+
 ## Ingress and resource settings
 
 `evaluateAeonicArithmetic(request, options)` accepts typed logical operands.

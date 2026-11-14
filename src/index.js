@@ -1,4 +1,17 @@
 export {
+  evaluateAeonicRationalArithmetic,
+  evaluateAeonicRationalArithmeticText,
+  AEONIC_RATIONAL_ARITHMETIC_PROFILE,
+  AEONIC_RATIONAL_ARITHMETIC_DEFAULT_RESOURCE_LIMITS,
+} from './aeonic-rational-arithmetic.js';
+export {
+  evaluateAeonicArithmeticAndMaterialize,
+  evaluateAeonicArithmeticAndMaterializeText,
+  evaluateAeonicRationalArithmeticAndMaterialize,
+  evaluateAeonicRationalArithmeticAndMaterializeText,
+} from './aeonic-convenience.js';
+
+export {
   evaluateAeonicArithmetic,
   evaluateAeonicArithmeticText,
   AEONIC_ARITHMETIC_PROFILE,
