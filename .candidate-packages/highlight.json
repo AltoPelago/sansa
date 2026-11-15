@@ -1,10 +1,10 @@
 {
   "sourceRepository": "AltoPelago/aeon",
-  "sourceCommit": "03b0d13eac94bf2d340de5a7bc7dab9eb810f5be",
+  "sourceCommit": "561a363390b2958dd6385779cbcee4abeebf3be2",
   "packages": {
     "highlight": {
-      "file": "altopelago-aeon-highlight-0.17.0-rc.1-338d9f5fe54f.tgz",
-      "sha256": "338d9f5fe54fb67776a46f90d302a7908ef4de5dbe027862eefb983d29ac8f6e",
+      "file": "altopelago-aeon-highlight-0.17.0-rc.1-3b1c408c104a.tgz",
+      "sha256": "3b1c408c104a6ed95b028301e1e85ca495cf042629ba7f8432cfefd9f6927a6c",
       "package": "@altopelago/aeon-highlight",
       "version": "0.17.0-rc.1"
     },
