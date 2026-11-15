@@ -62,6 +62,7 @@ test('browser import map handles conditional package exports and source cursor s
   const root = mkdtempSync(join(tmpdir(), 'sansa-playground-map-'));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   for (const [dir, pkg] of Object.entries({
+    highlight: {name: '@altopelago/aeon-highlight', exports: {'.': './dist/index.js', './element': './dist/element.js'}},
     runtime: {name: '@altopelago/aeon-runtime', exports: {types: './dist/runtime.d.ts', import: './dist/runtime.js'}},
     sdk: {name: '@altopelago/aeon-sdk', exports: {'.': {import: './dist/index.js'}, './sansa': {import: './dist/sansa.js'}}},
   })) {
@@ -70,6 +71,8 @@ test('browser import map handles conditional package exports and source cursor s
     writeFileSync(join(target, 'package.json'), JSON.stringify(pkg));
   }
   const {imports} = playgroundImports(root);
+  assert.equal(imports['@altopelago/aeon-highlight'], '/aeon/highlight/index.js');
+  assert.equal(imports['@altopelago/aeon-highlight/element'], '/aeon/highlight/element.js');
   assert.equal(imports['@aeon/runtime'], '/aeon/runtime/runtime.js');
   assert.equal(imports['@altopelago/aeon-sdk/sansa'], '/aeon/sdk/sansa.js');
   assert.equal(imports['@altopelago/sansa'], '/src/index.js');

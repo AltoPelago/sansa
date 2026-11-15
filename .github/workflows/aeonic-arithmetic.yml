@@ -44,6 +44,8 @@ jobs:
         run: node scripts/validate-cts-claims.mjs --claims conformance/aeonic-arithmetic-claims.json
       - name: Verify complete exact arithmetic snapshot 0.1
         run: npm run cts:aeonic-arithmetic
+      - name: Install locked development dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: API and ingress regressions
         run: npm test
       - name: TypeScript consumer contract

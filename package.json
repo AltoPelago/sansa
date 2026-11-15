@@ -90,5 +90,9 @@
     "resolve",
     "query",
     "parser"
-  ]
+  ],
+  "devDependencies": {
+    "@altopelago/aeon-highlight": "file:.candidate-packages/altopelago-aeon-highlight-0.17.0-rc.1-338d9f5fe54f.tgz",
+    "@altopelago/aeon-lexer": "file:.candidate-packages/altopelago-aeon-lexer-0.17.0-rc.1-ac967ffcab16.tgz"
+  }
 }

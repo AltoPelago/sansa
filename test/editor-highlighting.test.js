@@ -1,11 +1,10 @@
+import {loadHighlighter} from './helpers/load-highlighter.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {parseAddress} from '../src/index.js';
 
-const context = vm.createContext({window: {}, document: {querySelectorAll: () => []}});
-vm.runInContext(readFileSync(new URL('../tools/playground/aeon-highlight.js', import.meta.url), 'utf8'), context);
+const context = {window:{AeonWebHighlight:loadHighlighter()}};
 const highlight = context.window.AeonWebHighlight.highlightAeon;
 
 test('source editor highlights declared IDs and embedded chained selectors while preserving text', () => {
