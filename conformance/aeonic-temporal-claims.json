@@ -74,7 +74,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "7c0efbf7d00951170e37badbd9f77a523d303ff68929586e7141b12355021504",
+      "src/index.js": "5bd559841b3a190491c60122da92a2612bbc15f51795d7aa81f7b7e946269e5c",
       "src/index.d.ts": "7edb3df195a9a1e18e3d99ca35f8ad9908d95f02723fd534eff8dc070789234e",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
@@ -91,6 +91,7 @@
       "Logical JSON and text guarantees exclude arbitrary native accessors/proxies/container subclasses and eager key enumeration; full STDIO envelope/process/transport budgets are separate.",
       "Source APIs explicitly select profile/policy and preserve precise sets, origin and sticky history. A containing display never becomes authored period coverage.",
       "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation."
-    ]
+    ],
+    "source_base_commit": "bd98c72c91585afc3058207167aba621bf57ba65"
   }
 }

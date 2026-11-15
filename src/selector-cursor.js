@@ -35,7 +35,6 @@ function expansion(cursor) {
 function quotedMember(cursor, member) {
   cursor.consume('[');
   const name = cursor.parseQuotedPayload();
-  if (!name.length) cursor.fail('Quoted member names must not be empty', 'SANSA_EMPTY_MEMBER_NAME');
   cursor.consume(']');
   return member(name, true);
 }

@@ -1103,10 +1103,7 @@ test('validates instruction plans against target surfaces after planning', () =>
 
   const aeonEmptyQuotedObjectField = planOk('create $.inventory.badEmptyField with :object, { "" = "x" }', namespace);
   const aeonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'aeon');
-  assert.equal(aeonEmptyQuotedObjectFieldTarget.ok, false);
-  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE');
-  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonEmptyQuotedObjectFieldTarget.errors[0].valuePath, 'operations[0].value[""]');
+  assert.equal(aeonEmptyQuotedObjectFieldTarget.ok, true);
   const jsonEmptyQuotedObjectFieldTarget = validateMutationPlanTarget(aeonEmptyQuotedObjectField.plan, 'json');
   assert.equal(jsonEmptyQuotedObjectFieldTarget.ok, true, JSON.stringify(jsonEmptyQuotedObjectFieldTarget.errors ?? []));
 
@@ -1272,7 +1269,6 @@ test('rejects invalid instruction parse seeds', () => {
   parseBad('replace $.qty with 1 /* unterminated', 'SANSA_INSTRUCTION_UNTERMINATED_BLOCK_COMMENT');
   parseBad('create $.x with :int32 344,', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :int32,, 344', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
-  parseBad('create "" with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
   parseBad('create "display" extra with "x"', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION');
   parseBad('create $.x with :object, { enabled = true', 'SANSA_INSTRUCTION_INVALID_VALUE_LITERAL');
   parseBad('create $.x with :object, { enabled = true enabled = false }', 'SANSA_INSTRUCTION_DUPLICATE_OBJECT_FIELD');

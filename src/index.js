@@ -1219,10 +1219,10 @@ function planCreateOperation(requested, operationIndex, namespace, options) {
       ),
     };
   }
-  if (typeof requested.name !== 'string' || requested.name.length === 0) {
+  if (typeof requested.name !== 'string') {
     return {
       ok: false,
-      error: mutationError('SANSA_MUTATE_INVALID_NAME', 'Create requires a non-empty string name', { operationIndex }),
+      error: mutationError('SANSA_MUTATE_INVALID_NAME', 'Create requires a string name', { operationIndex }),
     };
   }
   const datatype = mutationDatatype(requested, operationIndex);
@@ -2104,7 +2104,6 @@ function validateAeonTargetValue(value, hints, path, operationIndex) {
   if (value && typeof value === 'object') {
     for (const [key, entry] of Object.entries(value)) {
       const entryPath = `${path}${renderMutationValuePathSegment(key)}`;
-      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
       const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }
@@ -2136,7 +2135,6 @@ function validateAeonTargetNodeValue(value, path, operationIndex) {
     }
     for (const [key, entry] of Object.entries(value.attributes)) {
       const entryPath = `${path}.attributes${renderMutationValuePathSegment(key)}`;
-      if (key.length === 0) return invalidAeonTargetValue('Keys must not be empty', entryPath, operationIndex);
       const result = validateAeonTargetValue(entry, {}, entryPath, operationIndex);
       if (!result.ok) return result;
     }
@@ -7745,9 +7743,6 @@ class InstructionParser {
         this.fail('Unexpected token after quoted create member name', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION', offset + parser.index);
       }
       this.warnings.push(...parser.warnings);
-      if (name.length === 0) {
-        this.fail('Create member name must not be empty', 'SANSA_INSTRUCTION_INVALID_CREATE_DESTINATION', offset);
-      }
       return { type: 'createDestination', kind: 'member', name, canonical: quotePayload(name) };
     }
     const address = this.parseAddress(source, offset);

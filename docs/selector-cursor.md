@@ -17,7 +17,10 @@ protocol is involved.
 `index` is the current host offset. `peekSyntax()` exposes actual punctuation,
 not the decoded contents of a quoted token. `consume` must consume or throw;
 `match` consumes only on a match. `matchRangeSeparator` handles `..`. Identifier
-and quoted-payload methods return decoded text; quoted names must be nonempty.
+and quoted-payload methods return decoded text. A quoted member or attribute
+name may be an empty string; it remains a present property selector, distinct
+from the root or an omitted token. Identifier roles retain their own validity
+rules, including the nonempty requirement for local-space names.
 `parseOptionalPositionIndex` returns a validated index or null for an omitted
 range endpoint, and must not consume the closing bracket. Hosts may adapt token
 consumption internally while presenting these semantics.
