@@ -60,3 +60,10 @@ The source playground resolves the chained identity example to its existing
 structural binding in a browser. No new native-runtime qualification or performance
 measurement is claimed. Compatibility and target-preservation checks and budgets
 remain unchanged. Releases and deployment stay held.
+
+Colour follow-up: numeric/radix literals use the shared `tok-number` role and
+temporal values `tok-temporal`. Dark colours are cyan `#7dd3fc` / light yellow
+`#f5e6a8`, with light-theme equivalents `#006b80` / `#806500`. SANSA address
+literals share the symbol colour. The development highlighter archive is
+repinned with SHA-256 provenance; parsers, target checks and budgets are unchanged.
+Releases and deployment remain held.
