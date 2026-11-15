@@ -10,6 +10,7 @@ test('HTML aliases retain safe import-map data and resolve the same local assets
   t.after(() => rmSync(root, {recursive: true, force: true}));
   const hostile = '</script><img src=x onerror=alert(1)>$&$\'$`';
   for (const [dir, pkg] of Object.entries({
+    highlight: {name: '@altopelago/aeon-highlight', exports: {'.': './dist/index.js', './element': './dist/element.js'}},
     runtime: {name: '@altopelago/aeon-runtime', exports: './dist/index.js'},
     sdk: {name: '@altopelago/aeon-sdk', exports: {'.': './dist/index.js', './sansa': './dist/sansa.js'}},
     untrusted: {name: hostile, exports: './dist/index.js'},

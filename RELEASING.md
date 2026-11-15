@@ -45,3 +45,18 @@ native feature delivery or publication.
 
 Unfinished features may be documented in a beta, but required publication,
 security, package and existing conformance checks are not optional.
+
+## Shared browser highlighter candidate
+
+The playground's AEON panel delegates to `@altopelago/aeon-highlight` from the
+selected AEON source checkout. Build that checkout's highlight package alongside
+its SDK/runtime before starting the SANSA playground. SANSA syntax highlighting
+and runtime dependencies are unchanged. Root development archives are only for
+the adapter tests; their hashes and producer commit are recorded in
+`.candidate-packages/highlight.json`.
+
+Local verification: 548 JavaScript tests pass, with 92 optional runtime skips.
+The source playground resolves the chained identity example to its existing
+structural binding in a browser. No new native-runtime qualification or performance
+measurement is claimed. Compatibility and target-preservation checks and budgets
+remain unchanged. Releases and deployment stay held.

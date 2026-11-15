@@ -38,8 +38,8 @@ export function playgroundImports(aeonRoot) {
     }
   }
   imports['@aeon/runtime'] = imports['@altopelago/aeon-runtime'];
-  if (!imports['@aeon/runtime'] || !imports['@altopelago/aeon-sdk/sansa']) {
-    throw new Error('AEON runtime and SDK browser entry points are missing from the selected checkout.');
+  if (!imports['@aeon/runtime'] || !imports['@altopelago/aeon-sdk/sansa'] || !imports['@altopelago/aeon-highlight']) {
+    throw new Error('AEON runtime, SDK and highlight browser entry points are missing from the selected checkout.');
   }
   return {imports};
 }
