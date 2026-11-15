@@ -363,3 +363,6 @@ mod unicode_hardening_regressions {
         }
     }
 }
+
+#[cfg(test)]
+mod property_address_tests;

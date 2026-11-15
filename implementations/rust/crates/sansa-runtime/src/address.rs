@@ -53,6 +53,10 @@ pub enum Root {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Selector {
+    PropertyFilter {
+        property: PropertyName,
+        value: String,
+    },
     ChildIdentity {
         identity: String,
     },
@@ -85,10 +89,26 @@ pub enum Selector {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropertyName {
+    Key,
+    Tag,
+}
+impl PropertyName {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Key => "key",
+            Self::Tag => "tag",
+        }
+    }
+}
+
 impl Selector {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
+            Self::PropertyFilter { .. } => "propertyFilter",
             Self::ChildIdentity { .. } => "childIdentity",
             Self::Member { .. } => "member",
             Self::Position { .. } => "position",
@@ -128,6 +148,9 @@ pub struct ParseError {
     pub code: String,
     pub message: String,
     pub index: usize,
+    pub limit_kind: Option<&'static str>,
+    pub limit: Option<usize>,
+    pub observed: Option<usize>,
 }
 
 impl ParseError {
@@ -136,6 +159,9 @@ impl ParseError {
             code: code.into(),
             message: message.into(),
             index,
+            limit_kind: None,
+            limit: None,
+            observed: None,
         }
     }
 }
@@ -162,6 +188,13 @@ pub fn render_address(address: &Address) -> String {
     };
     for selector in &address.selectors {
         match selector {
+            Selector::PropertyFilter { property, value } => {
+                output.push('&');
+                output.push_str(property.as_str());
+                output.push('(');
+                output.push_str(&quote(value));
+                output.push(')');
+            }
             Selector::ChildIdentity { identity } => {
                 output.push_str(".\\");
                 output.push_str(identity);
@@ -234,34 +267,63 @@ pub fn render_qualifier_expression(expression: &QualifierExpression) -> String {
 }
 
 fn render_qualifier_term(term: &QualifierTerm) -> String {
-    let mut output = term.name.clone();
-    for group in &term.parameter_groups {
-        output.push('<');
-        output.push_str(
-            &group
-                .iter()
-                .map(render_qualifier_term)
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        output.push('>');
+    enum Part<'a> {
+        Term(&'a QualifierTerm),
+        Text(&'a str),
+        Argument(&'a QualifierArgument),
     }
-    if !term.arguments.is_empty() {
-        output.push('[');
-        output.push_str(
-            &term
-                .arguments
-                .iter()
-                .map(|argument| match argument {
-                    QualifierArgument::Number(value) => value.clone(),
-                    QualifierArgument::Quoted(value) => quote(value),
-                })
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        output.push(']');
+    let mut output = String::new();
+    let mut stack = vec![Part::Term(term)];
+    while let Some(part) = stack.pop() {
+        match part {
+            Part::Text(text) => output.push_str(text),
+            Part::Argument(argument) => match argument {
+                QualifierArgument::Number(value) => output.push_str(value),
+                QualifierArgument::Quoted(value) => output.push_str(&quote(value)),
+            },
+            Part::Term(term) => {
+                output.push_str(&term.name);
+                if !term.arguments.is_empty() {
+                    stack.push(Part::Text("]"));
+                    for (index, argument) in term.arguments.iter().enumerate().rev() {
+                        stack.push(Part::Argument(argument));
+                        if index > 0 {
+                            stack.push(Part::Text(","));
+                        }
+                    }
+                    stack.push(Part::Text("["));
+                }
+                for group in term.parameter_groups.iter().rev() {
+                    stack.push(Part::Text(">"));
+                    for (index, child) in group.iter().enumerate().rev() {
+                        stack.push(Part::Term(child));
+                        if index > 0 {
+                            stack.push(Part::Text(","));
+                        }
+                    }
+                    stack.push(Part::Text("<"));
+                }
+            }
+        }
     }
     output
+}
+
+// Drop deeply nested plain qualifier data without consuming the host stack.
+impl Drop for QualifierTerm {
+    fn drop(&mut self) {
+        let mut stack: Vec<_> = std::mem::take(&mut self.parameter_groups)
+            .into_iter()
+            .flatten()
+            .collect();
+        while let Some(mut term) = stack.pop() {
+            stack.extend(
+                std::mem::take(&mut term.parameter_groups)
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+    }
 }
 
 struct Parser<'a> {
@@ -269,15 +331,19 @@ struct Parser<'a> {
     index: usize,
     options: ParseOptions,
     warnings: Vec<ParseWarning>,
+    properties: bool,
+    property_work: usize,
 }
 
 impl<'a> Parser<'a> {
-    const fn new(input: &'a str, options: ParseOptions) -> Self {
+    fn new(input: &'a str, options: ParseOptions) -> Self {
         Self {
             input,
             index: 0,
             options,
             warnings: Vec::new(),
+            properties: has_property_syntax(input),
+            property_work: 0,
         }
     }
 
@@ -297,14 +363,22 @@ impl<'a> Parser<'a> {
         let mut selectors = Vec::new();
         let mut qualifier_expression = None;
         while !self.at_end() {
+            if self.properties && self.peek() != Some(':') && selectors.len() >= 256 {
+                return Err(property_limit("selectors", 256, self.index));
+            }
             match self.peek() {
+                Some('&') => selectors.push(self.parse_property()?),
                 Some(':') => {
                     self.advance();
                     if self.at_end() {
                         return self
                             .fail("Expected qualifier expression", "SANSA_EXPECTED_QUALIFIER");
                     }
-                    qualifier_expression = Some(self.parse_qualifier_expression()?);
+                    qualifier_expression = Some(if self.properties {
+                        self.parse_property_qualifiers()?
+                    } else {
+                        self.parse_qualifier_expression()?
+                    });
                     break;
                 }
                 Some('.') => selectors.push(self.parse_dot_selector()?),
@@ -350,11 +424,135 @@ impl<'a> Parser<'a> {
             is_exact,
             canonical: String::new(),
         };
+        if self.properties {
+            property_canonical_bound(&address, self.index)?;
+        }
         address.canonical = render_address(&address);
         Ok(ParseOutput {
             address,
             warnings: std::mem::take(&mut self.warnings),
         })
+    }
+
+    fn charge_property(&mut self, count: usize) -> Result<(), ParseError> {
+        if self.properties {
+            self.property_work = self.property_work.saturating_add(count);
+            if self.property_work > 65536 {
+                return Err(property_limit("canonicalScalars", 65536, self.index));
+            }
+        }
+        Ok(())
+    }
+    fn parse_property(&mut self) -> Result<Selector, ParseError> {
+        self.consume('&')?;
+        let start = self.index;
+        while self.peek().is_some_and(is_identifier_continue) {
+            self.advance();
+        }
+        let property = match &self.input[start..self.index] {
+            "key" => PropertyName::Key,
+            "tag" => PropertyName::Tag,
+            _ => {
+                return self.fail(
+                    "Unknown property selector",
+                    "SANSA_UNKNOWN_PROPERTY_SELECTOR",
+                );
+            }
+        };
+        self.consume('(')?;
+        if self.peek().is_some_and(is_layout) {
+            return self.fail(
+                "Whitespace is not allowed inside a SANSA address",
+                "SANSA_UNEXPECTED_WHITESPACE",
+            );
+        }
+        if self.peek() != Some('"') {
+            return self.fail(
+                "Expected quoted property argument",
+                "SANSA_EXPECTED_PROPERTY_ARGUMENT",
+            );
+        }
+        let value = self.parse_payload_with_limit(4096)?;
+        self.consume(')')?;
+        Ok(Selector::PropertyFilter { property, value })
+    }
+    fn parse_property_qualifiers(&mut self) -> Result<QualifierExpression, ParseError> {
+        struct Frame {
+            term: QualifierTerm,
+            group: Option<Vec<QualifierTerm>>,
+        }
+        let make = |parser: &mut Self| -> Result<Frame, ParseError> {
+            Ok(Frame {
+                term: QualifierTerm {
+                    name: parser.parse_identifier("qualifier type name")?,
+                    parameter_groups: Vec::new(),
+                    arguments: Vec::new(),
+                },
+                group: None,
+            })
+        };
+        let mut terms = Vec::new();
+        let mut stack = vec![make(self)?];
+        while !stack.is_empty() {
+            let in_group = stack.last().is_some_and(|frame| frame.group.is_some());
+            if in_group {
+                if self.peek() == Some('|') {
+                    return self.fail(
+                        "Nested qualifier unions are not supported",
+                        "SANSA_INVALID_QUALIFIER",
+                    );
+                }
+                if self.match_char(',') {
+                    stack.push(make(self)?);
+                    continue;
+                }
+                self.consume('>')?;
+                let frame = stack.last_mut().expect("nonempty");
+                frame
+                    .term
+                    .parameter_groups
+                    .push(frame.group.take().expect("group"));
+                continue;
+            }
+            if self.match_char('<') {
+                stack.last_mut().expect("nonempty").group = Some(Vec::new());
+                stack.push(make(self)?);
+                continue;
+            }
+            if self.match_char('[') {
+                let frame = stack.last_mut().expect("nonempty");
+                frame.term.arguments.push(self.parse_qualifier_argument()?);
+                while self.match_char(',') {
+                    frame.term.arguments.push(self.parse_qualifier_argument()?);
+                }
+                self.consume(']')?;
+                if self.peek() == Some('[') {
+                    return self.fail(
+                        "Qualifier clarifiers must use a single bracketed list",
+                        "SANSA_INVALID_QUALIFIER",
+                    );
+                }
+            }
+            if self
+                .peek()
+                .is_some_and(|next| !matches!(next, '|' | ',' | '>'))
+            {
+                return self.fail(
+                    "Unexpected character in qualifier expression",
+                    "SANSA_INVALID_QUALIFIER",
+                );
+            }
+            let term = stack.pop().expect("nonempty").term;
+            if let Some(frame) = stack.last_mut() {
+                frame.group.as_mut().expect("parent group").push(term);
+            } else {
+                terms.push(term);
+                if self.match_char('|') {
+                    stack.push(make(self)?);
+                }
+            }
+        }
+        Ok(QualifierExpression { terms })
     }
 
     fn parse_dot_selector(&mut self) -> Result<Selector, ParseError> {
@@ -415,6 +613,7 @@ impl<'a> Parser<'a> {
                 }
                 let identity = self.input[start..self.index].to_owned();
                 self.advance();
+                self.charge_property(identity.len())?;
                 return Ok(Selector::ChildIdentity { identity });
             }
             if !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')) {
@@ -573,6 +772,7 @@ impl<'a> Parser<'a> {
                 "SANSA_EXPECTED_QUALIFIER_ARGUMENT",
             );
         }
+        self.charge_property(self.index - start)?;
         let value = &self.input[start..self.index];
         if !is_number_literal(value) {
             return self.fail(
@@ -592,11 +792,17 @@ impl<'a> Parser<'a> {
         while self.peek().is_some_and(is_identifier_continue) {
             self.advance();
         }
+        self.charge_property(self.index - start)?;
         Ok(self.input[start..self.index].into())
     }
 
     fn parse_quoted_payload(&mut self) -> Result<String, ParseError> {
+        self.parse_payload_with_limit(65536)
+    }
+    fn parse_payload_with_limit(&mut self, limit: usize) -> Result<String, ParseError> {
         self.consume('"')?;
+        self.charge_property(1)?;
+        let mut scalars = 0;
         let mut output = String::new();
         while let Some(ch) = self.peek() {
             if ch == '"' {
@@ -608,6 +814,21 @@ impl<'a> Parser<'a> {
                     "Quoted payloads must not contain raw newlines",
                     "SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD",
                 );
+            }
+            if self.properties {
+                scalars += 1;
+                if scalars > limit {
+                    return Err(property_limit(
+                        if limit == 4096 {
+                            "payloadScalars"
+                        } else {
+                            "canonicalScalars"
+                        },
+                        limit,
+                        self.index,
+                    ));
+                }
+                self.charge_property(1)?;
             }
             if ch == '\\' {
                 output.push(self.parse_escape()?);
@@ -812,6 +1033,183 @@ fn quote(value: &str) -> String {
     }
     output.push('"');
     output
+}
+
+fn has_property_syntax(source: &str) -> bool {
+    if !source.contains('&') {
+        return false;
+    }
+    let mut quoted = false;
+    let mut escaped = false;
+    for ch in source.chars() {
+        if quoted && escaped {
+            escaped = false;
+            continue;
+        }
+        if quoted && ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            quoted = !quoted;
+            continue;
+        }
+        if !quoted && ch == ':' {
+            return false;
+        }
+        if !quoted && ch == '&' {
+            return true;
+        }
+    }
+    false
+}
+fn property_limit(kind: &'static str, limit: usize, index: usize) -> ParseError {
+    let mut error = ParseError::new(
+        "Property address preparation bound exceeded",
+        index,
+        "SANSA_PROPERTY_LIMIT_EXCEEDED",
+    );
+    error.limit_kind = Some(kind);
+    error.limit = Some(limit);
+    error.observed = Some(limit + 1);
+    error
+}
+pub(crate) fn validate_property_ast(address: &Address) -> Result<(), ParseError> {
+    if address.selectors.len() > 256 {
+        return Err(property_limit("selectors", 256, 0));
+    }
+    for selector in &address.selectors {
+        let invalid = match selector {
+            Selector::PropertyFilter { value, .. } => {
+                if value.chars().take(4097).count() > 4096 {
+                    return Err(property_limit("payloadScalars", 4096, 0));
+                }
+                false
+            }
+            Selector::SemanticTypeFilter { name } | Selector::RepresentationKindFilter { name } => {
+                !is_identifier(name)
+            }
+            Selector::ChildIdentity { identity } => {
+                identity.is_empty()
+                    || !identity
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-'))
+            }
+            Selector::LocalSpace { name } => name.is_empty(),
+            Selector::PositionRange { start, end } => start.is_none() && end.is_none(),
+            _ => false,
+        };
+        if invalid {
+            return Err(ParseError::new(
+                "Invalid property address AST",
+                0,
+                "SANSA_RESOLVE_INVALID_ADDRESS",
+            ));
+        }
+    }
+    property_canonical_bound(address, 0)?;
+    let mut stack = Vec::new();
+    if let Some(expression) = &address.qualifier_expression {
+        if expression.terms.is_empty() {
+            return Err(ParseError::new(
+                "Empty qualifier",
+                0,
+                "SANSA_RESOLVE_INVALID_ADDRESS",
+            ));
+        }
+        stack.extend(&expression.terms);
+    }
+    while let Some(term) = stack.pop() {
+        if !is_identifier(&term.name)
+            || term
+                .arguments
+                .iter()
+                .any(|a| matches!(a,QualifierArgument::Number(value) if !is_number_literal(value)))
+            || term.parameter_groups.iter().any(Vec::is_empty)
+        {
+            return Err(ParseError::new(
+                "Invalid qualifier",
+                0,
+                "SANSA_RESOLVE_INVALID_ADDRESS",
+            ));
+        }
+        for group in &term.parameter_groups {
+            stack.extend(group);
+        }
+    }
+    Ok(())
+}
+
+fn property_canonical_bound(address: &Address, index: usize) -> Result<(), ParseError> {
+    let mut count = 1usize;
+    let quoted = |value: &str| {
+        2 + value
+            .chars()
+            .map(|ch| {
+                if matches!(ch, '\\' | '"' | '\n' | '\r' | '\t' | '\u{8}' | '\u{c}') {
+                    2
+                } else {
+                    1
+                }
+            })
+            .sum::<usize>()
+    };
+    let mut charge = |amount: usize| -> Result<(), ParseError> {
+        count = count.saturating_add(amount);
+        if count > 65536 {
+            Err(property_limit("canonicalScalars", 65536, index))
+        } else {
+            Ok(())
+        }
+    };
+    for selector in &address.selectors {
+        charge(match selector {
+            Selector::PropertyFilter { property, value } => {
+                3 + property.as_str().len() + quoted(value)
+            }
+            Selector::Member { name, .. } => {
+                if is_identifier(name) {
+                    1 + name.len()
+                } else {
+                    3 + quoted(name)
+                }
+            }
+            Selector::ChildIdentity { identity } => 3 + identity.len(),
+            Selector::Position { index } => 2 + index.to_string().len(),
+            Selector::PositionRange { start, end } => {
+                4 + start.map_or(0, |i| i.to_string().len())
+                    + end.map_or(0, |i| i.to_string().len())
+            }
+            Selector::Parent | Selector::AttributeSpace | Selector::DirectExpansion => 2,
+            Selector::DescendantExpansion => 3,
+            Selector::LocalSpace { name } => 3 + quoted(name),
+            Selector::NamePattern { pattern } => 3 + quoted(pattern),
+            Selector::SemanticTypeFilter { name } | Selector::RepresentationKindFilter { name } => {
+                1 + name.len()
+            }
+        })?;
+    }
+    if let Some(expression) = &address.qualifier_expression {
+        charge(expression.terms.len())?; // Colon plus union separators.
+        let mut stack: Vec<_> = expression.terms.iter().collect();
+        while let Some(term) = stack.pop() {
+            charge(term.name.len())?;
+            if !term.arguments.is_empty() {
+                charge(term.arguments.len() + 1)?;
+            }
+            for argument in &term.arguments {
+                charge(match argument {
+                    QualifierArgument::Quoted(value) => quoted(value),
+                    QualifierArgument::Number(value) => value.len(),
+                })?;
+            }
+            for group in &term.parameter_groups {
+                charge(group.len() + 1)?;
+                stack.extend(group);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

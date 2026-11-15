@@ -1051,6 +1051,12 @@ fn authorize_path<N: Namespace>(
     namespace: &N,
     activation: &AddressActivation,
 ) -> EvaluationResult<ActivationGrant> {
+    if property_address(address) {
+        return Err(evaluate_error(
+            "SANSA_QUERY_PATH_ACTIVATION_DENIED",
+            "Property activation is not admitted",
+        ));
+    }
     let has_identity = address
         .selectors
         .iter()
@@ -1383,7 +1389,63 @@ fn resolve<N: Namespace>(
         .map_or_else(|| Ok(output.bindings), Err)
 }
 
+fn property_address(address: &Address) -> bool {
+    address
+        .selectors
+        .iter()
+        .any(|selector| matches!(selector, Selector::PropertyFilter { .. }))
+}
+fn property_expression(expression: &Expression) -> bool {
+    let mut stack = vec![expression];
+    while let Some(expression) = stack.pop() {
+        match expression {
+            Expression::Resolution { address, .. } => {
+                if property_address(address) {
+                    return true;
+                }
+            }
+            Expression::Group(argument)
+            | Expression::Unary { argument, .. }
+            | Expression::Existence { argument, .. }
+            | Expression::Cardinality { argument, .. } => stack.push(argument),
+            Expression::Binary { left, right, .. } => {
+                stack.push(left);
+                stack.push(right);
+            }
+            Expression::FunctionCall { arguments, .. } => stack.extend(arguments),
+            Expression::Projection { fields } => {
+                stack.extend(fields.iter().map(|field| &field.expression))
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 fn enforce_policy(query: &Query, policy: QueryPolicy) -> EvaluationResult<()> {
+    let mut expressions = Vec::new();
+    let from_property = match &query.from {
+        FromClause::Address(address) => property_address(address),
+        FromClause::Path(expression) => {
+            expressions.push(expression);
+            false
+        }
+    };
+    if let Some(clause) = &query.where_clause {
+        expressions.push(&clause.ast);
+    }
+    if let Some(order) = &query.order_by {
+        expressions.extend(order.keys.iter().map(|key| &key.ast));
+    }
+    expressions.push(&query.select.ast);
+    if from_property || expressions.into_iter().any(property_expression) {
+        return Err(diagnostic(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Property execution is not implemented",
+            DiagnosticPhase::Policy,
+        ));
+    }
+
     if policy == QueryPolicy::General {
         return Ok(());
     }
@@ -1424,6 +1486,7 @@ fn check_budget(
 
 fn activation_selector(selector: &Selector) -> Option<ActivationSelector> {
     Some(match selector {
+        Selector::PropertyFilter { .. } => return None,
         Selector::ChildIdentity { .. } => ActivationSelector::ChildIdentity,
         Selector::Member { .. } => ActivationSelector::Member,
         Selector::Position { .. } => ActivationSelector::Position,

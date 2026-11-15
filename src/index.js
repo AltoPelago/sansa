@@ -1,3 +1,4 @@
+import {PropertyAddressError, hasPropertySyntax, hasPropertyAst, propertyLimit, renderPropertyAddress, parsePropertyQualifiers} from './property-address.js';
 export { evaluateAeonicTemporal, evaluateAeonicTemporalText, AEONIC_TEMPORAL_CIVIL_DATE_PROFILE, AEONIC_TEMPORAL_CIVIL_DATE_DEFAULT_RESOURCE_LIMITS } from './aeonic-temporal-civil-date.js';
 export {
   evaluateAeonicRationalArithmetic,
@@ -96,13 +97,14 @@ export function parseAddress(input, options = {}) {
     const address = parser.parse();
     return { ok: true, address, warnings: parser.warnings };
   } catch (error) {
-    if (error instanceof SansaParseError) {
+    if (error instanceof SansaParseError || error instanceof PropertyAddressError) {
       return {
         ok: false,
         errors: [{
           code: error.code,
           message: error.message,
-          index: error.index,
+          index: error.index ?? 0,
+          ...(error.limitKind === undefined ? {} : {limitKind:error.limitKind, limit:error.limit, observed:error.observed}),
         }],
       };
     }
@@ -221,6 +223,12 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
     };
   }
   try {
+    const instruction = parsed.instruction;
+    const mutation = instruction.mutation;
+    const addresses = [instruction.from?.address, ...['target','source','container','parent','destination'].map(key => mutation[key]?.address), mutation.placement?.anchor?.address];
+    if (addresses.some(address => address && hasPropertyAst(address)) || propertyExpression(instruction.where?.ast)) {
+      return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property instructions are not admitted',{phase:'lower'})]};
+    }
     const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
     const request = lowered.preconditions.length === 0
       ? lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations
@@ -476,6 +484,7 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const query = parsed.query;
+  if (queryHasProperty(query)) return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented'),{phase:'policy'})]};
   const policy = enforceQueryPolicy(query, options);
   if (!policy.ok) {
     return {
@@ -2643,6 +2652,18 @@ function capitalize(value) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function propertyExpression(expression) {
+  return expression && findExpression(expression, entry => entry.type === 'resolutionExpression' && hasPropertyAst(entry.address));
+}
+
+function queryHasProperty(query) {
+  return (query.from.source !== 'expression' && hasPropertyAst(query.from.address))
+    || (query.from.source === 'expression' && propertyExpression(query.from.ast))
+    || propertyExpression(query.where?.ast)
+    || query.orderBy?.keys.some(key => propertyExpression(key.ast))
+    || propertyExpression(query.select.ast);
+}
+
 function enforceQueryPolicy(query, options) {
   if (!isValidationQueryPolicy(options.policy)) return { ok: true };
 
@@ -2739,7 +2760,13 @@ function resolveConsumerAddress(input, namespace, options = {}) {
 }
 
 export function resolveAddress(input, namespace, options = {}) {
-  let parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  let parsed;
+  try {
+    parsed = typeof input === 'string' ? parseAddress(input, options.parse)
+      : hasPropertyAst(input) ? parseAddress(renderAddress(input), options.parse) : {ok:true,address:input};
+  } catch {
+    return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST')]};
+  }
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
   const hasIdentity = !(typeof input === 'string' && parsed.address.isExact)
     && Array.isArray(parsed.address?.selectors) && parsed.address.selectors.some(s => s?.type === 'childIdentity');
@@ -2768,6 +2795,8 @@ export function resolveAddress(input, namespace, options = {}) {
 
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+  const propertyIndex = parsed.address.selectors.findIndex(s => s.type === 'propertyFilter');
+  if (propertyIndex !== -1) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented',propertyIndex)]};
   if (hasIdentity) {
     const selectorIndex = parsed.address.selectors.findIndex(s => s.type === 'childIdentity');
     const identity = parsed.address.selectors[selectorIndex].identity;
@@ -3107,6 +3136,7 @@ function validateGraphInput(starts, namespace, declarations, options) {
       || (declaration.danglingTarget !== 'omit' && declaration.danglingTarget !== 'error')) {
       return graphError('SANSA_GRAPH_INVALID_DECLARATION', 'Graph relationship declaration is invalid');
     }
+    if (hasPropertySyntax(declaration.edgeAddress)) return graphError('SANSA_GRAPH_INVALID_DECLARATION','Property selectors are not admitted by Graph');
     if (ids.has(declaration.id)) {
       return graphError('SANSA_GRAPH_DUPLICATE_DECLARATION', `Graph relationship declaration '${declaration.id}' is duplicated`, {
         declarationId: declaration.id,
@@ -3171,6 +3201,11 @@ function graphError(code, message, details = {}) {
 }
 
 export function renderAddress(address) {
+  if (hasPropertyAst(address)) return renderPropertyAddress(address, quotePayload, renderQualifierNumber);
+  return renderLegacyAddress(address);
+}
+
+function renderLegacyAddress(address) {
   if (Array.isArray(address?.selectors) && address.selectors.some(s => s?.type === 'childIdentity')
       && !validIdentityAddressAst(address)) throw new Error('Invalid identity address AST');
   let output = address.root.kind === 'absolute' ? '$' : '?';
@@ -4172,6 +4207,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   if (!Array.isArray(activated.address?.selectors) || !['absolute', 'contextual'].includes(activated.address.root?.kind)) {
     return {ok: false, error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', 'Invalid activated address AST')};
   }
+  if (activated.address.selectors.some(s => s?.type === 'propertyFilter')) return deniedAddressActivation('Property activation is not admitted');
   const hasIdentity = activated.address.selectors.some(s => s?.type === 'childIdentity');
   if (hasIdentity) {
     const address = normalizeActivationAst(activated.address, options.parse?.address, false);
@@ -7175,6 +7211,8 @@ class AddressParser {
     this.index = 0;
     this.warnings = [];
     this.maxPositionIndex = normalizeMaxPositionIndex(options.maxPositionIndex);
+    this.propertySyntax = hasPropertySyntax(input);
+    this.propertyWork = 0;
   }
 
   parse() {
@@ -7191,10 +7229,12 @@ class AddressParser {
 
     while (!this.atEnd()) {
       const char = this.peek();
+      if (this.propertySyntax && char !== ':' && selectors.length >= 256) propertyLimit('selectors', 256);
+      if (char === '&') { selectors.push(this.parsePropertySelector()); continue; }
       if (char === ':') {
         this.index += 1;
         if (this.atEnd()) this.fail('Expected qualifier expression', 'SANSA_EXPECTED_QUALIFIER');
-        qualifierExpression = this.parseQualifierExpression();
+        qualifierExpression = this.propertySyntax ? parsePropertyQualifiers(this) : this.parseQualifierExpression();
         break;
       }
       if (char === '.') {
@@ -7227,8 +7267,28 @@ class AddressParser {
       qualifierExpression,
       isExact: selectors.every(isExactSelector),
     };
-    address.canonical = renderAddress(address);
+    address.canonical = this.propertySyntax ? renderPropertyAddress(address, quotePayload, renderQualifierNumber) : renderLegacyAddress(address);
     return address;
+  }
+
+  parsePropertySelector() {
+    this.consume('&');
+    const start = this.index;
+    while (isIdentifierContinue(this.peek())) this.index += 1;
+    const property = this.input.slice(start, this.index);
+    if (!['key', 'tag'].includes(property)) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    this.consume('(');
+    if (isLayout(this.peek())) this.fail('Whitespace is not allowed inside a SANSA address', 'SANSA_UNEXPECTED_WHITESPACE');
+    if (this.peek() !== '"') this.fail('Expected quoted property argument', 'SANSA_EXPECTED_PROPERTY_ARGUMENT');
+    const value = this.parseQuotedPayload(4096);
+    this.consume(')');
+    return {type:'propertyFilter', property, value};
+  }
+
+  chargePropertyWork(count) {
+    if (!this.propertySyntax) return;
+    this.propertyWork += count;
+    if (this.propertyWork > 65536) propertyLimit('canonicalScalars', 65536);
   }
 
   peekSyntax() { return this.peek(); }
@@ -7242,6 +7302,7 @@ class AddressParser {
     }
     if (this.atEnd()) this.fail('Unterminated structural identity selector', 'SANSA_UNTERMINATED_IDENTITY');
     if (this.index === start) this.fail('Expected structural identity name', 'SANSA_EXPECTED_IDENTITY');
+    this.chargePropertyWork(this.index - start);
     const identity = this.input.slice(start, this.index++);
     return { type: 'childIdentity', identity };
   }
@@ -7331,6 +7392,7 @@ class AddressParser {
       this.index += 1;
     }
     if (this.index === start) this.fail('Expected qualifier argument', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
+    this.chargePropertyWork(this.index - start);
     const value = this.input.slice(start, this.index);
     if (!QUALIFIER_NUMBER_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
     const number = Number(value);
@@ -7343,12 +7405,15 @@ class AddressParser {
     if (!isIdentifierStart(first)) this.fail(`Expected ${context}`, 'SANSA_EXPECTED_IDENTIFIER');
     this.index += 1;
     while (isIdentifierContinue(this.peek())) this.index += 1;
+    this.chargePropertyWork(this.index - start);
     return this.input.slice(start, this.index);
   }
 
-  parseQuotedPayload() {
+  parseQuotedPayload(limit = 65536) {
     this.consume('"');
     let output = '';
+    let scalars = 0;
+    this.chargePropertyWork(1);
     while (!this.atEnd()) {
       const char = this.peek();
       if (char === '"') {
@@ -7358,12 +7423,21 @@ class AddressParser {
       if (char === '\n' || char === '\r') {
         this.fail('Quoted payloads must not contain raw newlines', 'SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD');
       }
-      if (char === '\\') {
-        output += this.parseEscape();
-        continue;
+      if (!this.propertySyntax) {
+        if (char === '\\') { output += this.parseEscape(); continue; }
+        output += char; this.index += 1; continue;
       }
-      output += char;
-      this.index += 1;
+      let decoded;
+      if (char === '\\') decoded = this.parseEscape();
+      else {
+        decoded = String.fromCodePoint(this.input.codePointAt(this.index));
+        const point = decoded.codePointAt(0);
+        if (point >= 0xd800 && point <= 0xdfff) this.fail('Invalid Unicode scalar', 'SANSA_INVALID_UNICODE_SCALAR');
+        this.index += decoded.length;
+      }
+      if (++scalars > limit) propertyLimit(limit === 4096 ? 'payloadScalars' : 'canonicalScalars', limit);
+      this.chargePropertyWork(1);
+      output += decoded;
     }
     this.fail('Unterminated quoted payload', 'SANSA_UNTERMINATED_QUOTED_PAYLOAD');
   }
