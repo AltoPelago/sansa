@@ -244,6 +244,7 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
       warnings: parsed.warnings ?? [],
     };
   } catch (error) {
+    if (error instanceof PropertyAddressError) return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST',{phase:'lower'})]};
     if (error instanceof SansaInstructionLowerError) {
       return { ok: false, errors: [error.diagnostic] };
     }
@@ -484,7 +485,12 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const query = parsed.query;
-  if (queryHasProperty(query)) return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented'),{phase:'policy'})]};
+  try {
+    if (queryHasProperty(query)) return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented'),{phase:'policy'})]};
+  } catch (error) {
+    if (!(error instanceof PropertyAddressError)) throw error;
+    return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST'),{phase:'policy'})]};
+  }
   const policy = enforceQueryPolicy(query, options);
   if (!policy.ok) {
     return {

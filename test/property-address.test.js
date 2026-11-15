@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {parseAddress,renderAddress,resolveAddress,evaluateQuery,planMutation,planInstruction,traverseGraph} from '../src/index.js';
+import {parseAddress,renderAddress,resolveAddress,evaluateQuery,planMutation,planInstruction,traverseGraph,parseQuery,parseInstruction} from '../src/index.js';
 const suite = JSON.parse(readFileSync(new URL('../fixtures/property-parser-candidate-v1.json',import.meta.url)));
 function generated({kind,count,scalar='x',encoding='raw'}) {
   if(kind === 'payload') return '$&key('+(encoding==='escaped'?'"'+('\\u{'+scalar.codePointAt(0).toString(16)+'}').repeat(count)+'"':JSON.stringify(scalar.repeat(count)))+')';
@@ -66,4 +66,16 @@ test('property literals remain inert and all activation modes deny evaluation',(
     const result=evaluateQuery('from $\nselect path($.param)',host,{addressActivation});
     assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_QUERY_PATH_ACTIVATION_DENIED');
   }
+});
+
+test('malformed caller property ASTs fail through Query and Instruction result envelopes',()=>{
+  let reads=0;
+  const query=parseQuery('from $.missing\nselect $&key("x")').query;
+  Object.defineProperty(query.select.ast.address.selectors[0],'type',{get(){reads++;return 'propertyFilter';}});
+  const result=evaluateQuery(query,{root:{children:[]}});
+  assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');
+  const instruction=parseInstruction('from $.missing\nremove $&key("x")').instruction;
+  Object.defineProperty(instruction.mutation.target.address.selectors[0],'type',{get(){reads++;return 'propertyFilter';}});
+  const lowered=planInstruction(instruction,{root:{children:[]}});
+  assert.equal(lowered.ok,false);assert.equal(lowered.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');assert.equal(reads,0);
 });
