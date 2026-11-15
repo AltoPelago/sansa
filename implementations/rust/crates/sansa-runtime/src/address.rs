@@ -611,9 +611,9 @@ impl<'a> Parser<'a> {
                         "SANSA_EXPECTED_IDENTITY",
                     ));
                 }
+                self.charge_property(self.index - start)?;
                 let identity = self.input[start..self.index].to_owned();
                 self.advance();
-                self.charge_property(identity.len())?;
                 return Ok(Selector::ChildIdentity { identity });
             }
             if !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')) {

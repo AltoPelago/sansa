@@ -7281,6 +7281,7 @@ class AddressParser {
     this.consume('&');
     const start = this.index;
     while (isIdentifierContinue(this.peek())) this.index += 1;
+    if (this.index - start !== 3) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
     const property = this.input.slice(start, this.index);
     if (!['key', 'tag'].includes(property)) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
     this.consume('(');
