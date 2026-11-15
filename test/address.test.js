@@ -184,8 +184,7 @@ test('rejects nested qualifier unions', () => {
   parseBad('$.value:list<string|number>', 'SANSA_INVALID_QUALIFIER');
 });
 
-test('rejects empty quoted member and local-space names', () => {
-  parseBad('$.[""]', 'SANSA_EMPTY_MEMBER_NAME');
+test('rejects empty local-space names', () => {
   parseBad('$.<"">', 'SANSA_EMPTY_LOCAL_SPACE_NAME');
 });
 

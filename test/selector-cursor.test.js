@@ -25,7 +25,7 @@ test('cursor parsing retains native non-reference selector grammar',()=>{
  assert.deepEqual(parsePositionSelectorFromCursor(cursor(['[','1','..','4',']'])),{type:'positionRange',start:1,end:4});
 });
 test('cursor failure preserves host diagnostic identity',()=>{
- assert.throws(()=>parseDotSelectorFromCursor(cursor(['.','[',{quoted:''},']'])),e=>e.code==='SANSA_EMPTY_MEMBER_NAME');
+ assert.deepEqual(parseDotSelectorFromCursor(cursor(['.','[',{quoted:''},']'])),{type:'member',name:'',quoted:true});
  assert.throws(()=>parsePositionSelectorFromCursor(cursor(['[','..',']'])),e=>e.code==='SANSA_EMPTY_POSITION_RANGE');
  assert.throws(()=>validatePositionIndex('1e2',undefined,fail),e=>e.code==='SANSA_EXPECTED_INDEX');
 });

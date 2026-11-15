@@ -678,3 +678,135 @@ fn quoted_member_text_is_distinct_from_attribute_selectors() {
         );
     }
 }
+
+#[test]
+fn empty_create_names_and_nested_aeon_properties_are_representable() {
+    let namespace = TestNamespace {
+        container_kind: "object",
+        first_child_kind: "string",
+    };
+    let request = MutationRequest {
+        operations: vec![RequestedMutationOperation::Create(
+            RequestedCreateOperation {
+                parent: "$.items".into(),
+                name: String::new(),
+                value: MutationValueIntent {
+                    value: MutationValue::Object(vec![(
+                        String::new(),
+                        MutationValue::Scalar(
+                            Value::String(String::new())
+                                .try_into()
+                                .expect("string scalar"),
+                        ),
+                    )]),
+                    datatype: Some("object".into()),
+                    kind: None,
+                },
+                provenance: None,
+            },
+        )],
+        preconditions: vec![],
+        provenance: None,
+    };
+    let result = plan_mutation(&request, &namespace, &PlanMutationOptions::default());
+    let PlanMutationResult::Planned(plan) = result else {
+        panic!("{result:?}");
+    };
+    assert!(matches!(
+        validate_mutation_plan_target(&plan, "aeon"),
+        ValidateMutationPlanTargetResult::Validated { .. }
+    ));
+}
+
+#[test]
+fn native_aeon_payload_names_are_unique_within_each_object_and_attribute_scope() {
+    let scalar =
+        || MutationValue::try_scalar(Value::String("value".into())).expect("string scalar");
+    let object = |names: &[&str]| {
+        MutationValue::Object(
+            names
+                .iter()
+                .map(|name| ((*name).into(), scalar()))
+                .collect(),
+        )
+    };
+    let attributes =
+        |names: &[&str]| MutationValue::Object(vec![("attributes".into(), object(names))]);
+    let namespace = TestNamespace {
+        container_kind: "list",
+        first_child_kind: "string",
+    };
+    let cases = [
+        (object(&["", ""]), None, Some("operations[0].value[\"\"]")),
+        (
+            attributes(&["", ""]),
+            Some("node"),
+            Some("operations[0].value.attributes[\"\"]"),
+        ),
+        (object(&["x", "x"]), None, Some("operations[0].value.x")),
+        (
+            attributes(&["x", "x"]),
+            Some("node"),
+            Some("operations[0].value.attributes.x"),
+        ),
+        (
+            MutationValue::Object(vec![("".into(), object(&["", ""]))]),
+            None,
+            Some("operations[0].value[\"\"][\"\"]"),
+        ),
+        (
+            MutationValue::Object(vec![(
+                "children".into(),
+                MutationValue::Sequence(vec![object(&["", ""])]),
+            )]),
+            Some("node"),
+            Some("operations[0].value.children[0][\"\"]"),
+        ),
+        (object(&[""]), None, None),
+        (attributes(&[""]), Some("node"), None),
+        (object(&["", " ", "x", "X", "é", "e\u{301}"]), None, None),
+        (
+            attributes(&["", " ", "x", "X", "é", "e\u{301}"]),
+            Some("node"),
+            None,
+        ),
+        (
+            MutationValue::Sequence(vec![object(&[""]), object(&[""])]),
+            None,
+            None,
+        ),
+    ];
+    for (value, kind, expected_path) in cases {
+        let request = MutationRequest {
+            operations: vec![RequestedMutationOperation::Replace(
+                RequestedReplaceOperation {
+                    target: "$.items[0]".into(),
+                    value: MutationValueIntent {
+                        value,
+                        datatype: None,
+                        kind: kind.map(str::to_owned),
+                    },
+                    provenance: None,
+                },
+            )],
+            ..Default::default()
+        };
+        let result = plan_mutation(&request, &namespace, &PlanMutationOptions::default());
+        let PlanMutationResult::Planned(plan) = result else {
+            panic!("{result:?}");
+        };
+        match (validate_mutation_plan_target(&plan, "aeon"), expected_path) {
+            (ValidateMutationPlanTargetResult::Validated { .. }, None) => {}
+            (ValidateMutationPlanTargetResult::Rejected(errors), Some(path)) => {
+                assert_eq!(errors.len(), 1);
+                assert_eq!(errors[0].code, "SANSA_MUTATE_TARGET_UNSUPPORTED_VALUE");
+                assert_eq!(errors[0].phase, MutationPhase::Target);
+                assert_eq!(errors[0].operation_index, Some(0));
+                assert_eq!(errors[0].target_format.as_deref(), Some("aeon"));
+                assert_eq!(errors[0].value_path.as_deref(), Some(path));
+                assert!(errors[0].message.contains("unique"));
+            }
+            (actual, expected) => panic!("expected {expected:?}, got {actual:?}"),
+        }
+    }
+}

@@ -15,6 +15,7 @@ use crate::mutate::{
 };
 use crate::query::{LiteralKind, valid_temporal};
 use crate::value_semantics::Value;
+use std::collections::HashSet;
 
 /// Context supplied to one host-neutral target-surface validator invocation.
 #[derive(Debug, Clone, Copy)]
@@ -448,20 +449,32 @@ fn validate_aeon_value(
             }
         }
         MutationValue::Object(fields) => {
-            for (name, value) in fields {
-                let path = format!("{path}{}", value_path_segment(name));
-                if name.is_empty() {
-                    return Err(invalid_aeon_value(
-                        "Keys must not be empty",
-                        &path,
-                        operation_index,
-                        None,
-                    ));
-                }
-                validate_aeon_value(value, None, None, &path, operation_index)?;
-            }
+            validate_aeon_object_fields(fields, path, operation_index)?;
         }
         MutationValue::Null | MutationValue::Scalar(_) => {}
+    }
+    Ok(())
+}
+
+fn validate_aeon_object_fields(
+    fields: &[(String, MutationValue)],
+    path: &str,
+    operation_index: usize,
+) -> Result<(), MutationDiagnostic> {
+    // Native objects preserve duplicates. Borrow the exact decoded names;
+    // neither empty names nor Unicode lookalikes receive special equality rules.
+    let mut names = HashSet::new();
+    for (name, value) in fields {
+        let field_path = format!("{path}{}", value_path_segment(name));
+        if !names.insert(name.as_str()) {
+            return Err(invalid_aeon_value(
+                "Object member names must be unique within their scope",
+                &field_path,
+                operation_index,
+                None,
+            ));
+        }
+        validate_aeon_value(value, None, None, &field_path, operation_index)?;
     }
     Ok(())
 }
@@ -524,18 +537,11 @@ fn validate_aeon_node_value(
                         None,
                     ));
                 };
-                for (name, value) in attributes {
-                    let path = format!("{path}.attributes{}", value_path_segment(name));
-                    if name.is_empty() {
-                        return Err(invalid_aeon_value(
-                            "Keys must not be empty",
-                            &path,
-                            operation_index,
-                            None,
-                        ));
-                    }
-                    validate_aeon_value(value, None, None, &path, operation_index)?;
-                }
+                validate_aeon_object_fields(
+                    attributes,
+                    &format!("{path}.attributes"),
+                    operation_index,
+                )?;
             }
             Ok(())
         }

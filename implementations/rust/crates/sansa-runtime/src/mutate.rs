@@ -738,13 +738,6 @@ fn plan_operation<N: Namespace>(
                     operation_index,
                 ));
             }
-            if requested.name.is_empty() {
-                return Err(operation_error(
-                    "SANSA_MUTATE_INVALID_NAME",
-                    "Create requires a non-empty string name",
-                    operation_index,
-                ));
-            }
             if namespace
                 .children(&parent.binding)
                 .iter()

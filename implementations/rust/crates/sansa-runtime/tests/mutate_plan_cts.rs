@@ -164,13 +164,40 @@ fn passes_every_experimental_target_validation_case() {
             )
         })
         .collect::<BTreeMap<_, _>>();
+    // The development target replaces two historical empty-key rejections.
+    // Keep the historical suite intact and take exclusions from its manifest.
+    let manifest: JsonValue = serde_json::from_str(
+        &fs::read_to_string(cts_root().join("sansa/v1/sansa-mutate-cts.v1.next.json"))
+            .expect("read development manifest"),
+    )
+    .expect("parse development manifest");
+    let selected = manifest["suites"]
+        .as_array()
+        .expect("selected suites")
+        .iter()
+        .find(|entry| entry["file"] == "suites/07-mutate-plan.json")
+        .expect("historical suite selection");
+    let excluded = selected["exclude_tests"]
+        .as_array()
+        .expect("explicit exclusions");
+    assert_eq!(excluded.len(), 2);
+    for id in excluded {
+        assert!(
+            suite["tests"]
+                .as_array()
+                .expect("tests")
+                .iter()
+                .any(|t| &t["id"] == id)
+        );
+    }
     let cases = suite["tests"]
         .as_array()
         .expect("tests")
         .iter()
         .filter(|test| test["input"]["mode"] == "plan" && test["input"].get("target").is_some())
+        .filter(|test| !excluded.contains(&test["id"]))
         .collect::<Vec<_>>();
-    assert_eq!(cases.len(), 36, "{path:?}");
+    assert_eq!(cases.len(), 34, "{path:?}");
 
     let mut failures = Vec::new();
     for test in cases {
@@ -199,6 +226,47 @@ fn passes_every_experimental_target_validation_case() {
             &validate_mutation_plan_target(&plan, input["target"].as_str().expect("target format")),
             &mut failures,
         );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn passes_development_empty_key_mutation_cases() {
+    let path = cts_root().join("sansa/v1/suites/16-empty-key-mutate.json");
+    let suite: JsonValue =
+        serde_json::from_str(&fs::read_to_string(path).expect("read CTS")).expect("parse CTS");
+    let namespaces = suite["fixtures"]["namespaces"]
+        .as_array()
+        .expect("namespaces")
+        .iter()
+        .map(|fixture| {
+            (
+                fixture["id"].as_str().expect("namespace id"),
+                FixtureNamespace::from_root(&fixture["root"]),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let tests = suite["tests"].as_array().expect("tests");
+    assert_eq!(tests.len(), 7);
+    let mut failures = Vec::new();
+    for test in tests {
+        let id = test["id"].as_str().expect("test id");
+        let input = &test["input"];
+        let expected = &test["expected"];
+        let namespace = &namespaces[input["namespace"].as_str().expect("namespace id")];
+        let planned = match request_from_input(input) {
+            Ok(request) => plan_mutation(&request, namespace, &options_from_input(input)),
+            Err(error) => PlanMutationResult::Rejected(vec![error]),
+        };
+        match planned {
+            PlanMutationResult::Planned(plan) => compare_target_result(
+                id,
+                expected,
+                &validate_mutation_plan_target(&plan, input["target"].as_str().expect("target")),
+                &mut failures,
+            ),
+            rejected => compare_result(id, expected, &rejected, &mut failures),
+        }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
@@ -465,7 +533,16 @@ fn operation_from_json(
     Ok(match op {
         "create" => RequestedMutationOperation::Create(RequestedCreateOperation {
             parent: address_field(source, "parent", operation_index)?,
-            name: source["name"].as_str().unwrap_or_default().into(),
+            name: source["name"]
+                .as_str()
+                .ok_or_else(|| {
+                    operation_diagnostic(
+                        "SANSA_MUTATE_INVALID_NAME",
+                        "Create name must be a string",
+                        operation_index,
+                    )
+                })?
+                .into(),
             value: value_intent(source),
             provenance,
         }),
