@@ -15,6 +15,8 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ### Added
 
+- Unreleased JavaScript civil-date snapshot 0.1 APIs with independent Relations/Calendar capability claims, exact range/origin/clamping-history chaining, closed fail-closed diagnostics, typed consumers, pinned CTS/capacity CI and twelve source-playground examples. Query and Rust behavior are unchanged.
+
 - Added JavaScript `evaluateAeonicComparison` and `evaluateAeonicComparisonText`
   entry points for frozen Aeonic comparison snapshot 0.1's baseline. Exact
   numerical text, strings, Booleans and symbols receive symbolic results, policy

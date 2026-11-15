@@ -71,10 +71,10 @@ For complete original/reordered/moved/replacement examples, paste the linked
 [source snapshots](../../fixtures/child-identity-workflows/README.md) into the
 source editor and follow the [workflow guide](../../docs/child-identity-workflows.md).
 
-## Arithmetic
+## Arithmetic and civil dates
 
-Choose **Arithmetic** to open `arithmetic.html`. This linked page calls SANSA's
-finite snapshot 0.1 and rational snapshot 0.2 text APIs, with eleven examples,
+Choose **Arithmetic & civil dates** to open `arithmetic.html`. This linked page calls SANSA's
+finite snapshot 0.1 and rational snapshot 0.2 text APIs, with eleven numerical examples,
 verbatim logical JSON and a separate combined-output-policy editor. Exact thirds
 can feed multiplication, explicit quantization or materialization; continuations
 copy the real returned value/history bundle. Editing or changing capability
@@ -88,3 +88,14 @@ No trusted resource settings or arbitrary code are accepted by the page. Arithme
 imports this checkout's source and needs no document projection, external service
 or Python execution. The shared launcher still loads the built AEON dependency
 for its Resolve/Query page. [API and conformance details](../../docs/aeonic-rational-arithmetic.md).
+
+The **Civil dates · snapshot 0.1** capability adds twelve civil-date examples.
+It calls `evaluateAeonicTemporalText` directly, with explicit profile/calendar
+policy in request JSON. Shift, step and materialize continuations copy the entire
+returned date bundle, including precise ranges, origin and clamping history.
+Symbolic outcomes and diagnostics cannot feed date continuations. Numerical
+combined output policies are not offered in this lane. The live description
+follows current request JSON; historical starting-point prose is labeled
+separately. These controls share the same worker/time/input/output bounds above.
+A containing month/year label never widens coverage. See the [civil-date API and
+frozen claim](../../docs/aeonic-temporal-civil-date.md).

@@ -1,3 +1,4 @@
+export { evaluateAeonicTemporal, evaluateAeonicTemporalText, AEONIC_TEMPORAL_CIVIL_DATE_PROFILE, AEONIC_TEMPORAL_CIVIL_DATE_DEFAULT_RESOURCE_LIMITS } from './aeonic-temporal-civil-date.js';
 export {
   evaluateAeonicRationalArithmetic,
   evaluateAeonicRationalArithmeticText,

@@ -1,5 +1,5 @@
-import { ARITHMETIC_LANES, ARITHMETIC_EXAMPLES, ARITHMETIC_LIMITS,
-  validateArithmeticInput, continueArithmetic, arithmeticDisplay } from './arithmetic-model.mjs';
+import { ARITHMETIC_LANES, VALUE_EXAMPLES, ARITHMETIC_LIMITS,
+  validateArithmeticInput, continueArithmetic, arithmeticDisplay, temporalDisplay, describeArithmeticInput } from './arithmetic-model.mjs';
 const $ = id => document.getElementById(id);
 const state = { worker: null, timer: null, value: null };
 const element = (tag, text) => { const item = document.createElement(tag); item.textContent = text; return item; };
@@ -13,17 +13,24 @@ function clear(message = 'Inputs changed. Run the operation again.') {
   $('response').textContent = ''; $('result').replaceChildren(); $('result-state').textContent = message;
 }
 function controls() {
+  const temporal = $('lane').value === 'temporal';
+  if (temporal) $('result-mode').value = 'exact';
+  $('result-mode-field').hidden = temporal;
   $('output-editor').hidden = $('result-mode').value !== 'combined';
   $('profile').textContent = ARITHMETIC_LANES[$('lane').value].profile;
-  document.querySelector('[data-continue="quantize"]').hidden = $('lane').value !== 'rational';
+  for (const button of document.querySelectorAll('[data-continue]')) {
+    const op = button.dataset.continue;
+    button.hidden = temporal ? !['shift', 'step', 'materialize'].includes(op) : !['multiply', 'materialize', ...($('lane').value === 'rational' ? ['quantize'] : [])].includes(op);
+  }
+  $('description').textContent = describeArithmeticInput($('lane').value, $('request').value);
 }
 function load(example) {
   clear('Run an operation to see its value or diagnostic.');
-  $('lane').value = example.lane; $('description').textContent = example.detail;
+  $('lane').value = example.lane; $('starting-point').textContent = example.detail;
   $('request').value = JSON.stringify(example.request, null, 2);
   $('result-mode').value = example.output ? 'combined' : 'exact';
   $('output-policy').value = JSON.stringify(example.output ?? { family: 'decimal' }, null, 2);
-  $('examples').replaceChildren(...ARITHMETIC_EXAMPLES.filter(item => item.lane === example.lane).map(item => {
+  $('examples').replaceChildren(...VALUE_EXAMPLES.filter(item => item.lane === example.lane).map(item => {
     const button = element('button', item.title); button.type = 'button'; button.className = 'example';
     button.setAttribute('aria-pressed', String(item.id === example.id)); button.addEventListener('click', () => load(item)); return button;
   }));
@@ -44,14 +51,16 @@ function render(result) {
     box.append(facts([...(result.step ? [['Failed step', result.step]] : []), ['Stage', String(result.context.stage)], ['Path', result.context.path ?? 'Operation root']]));
     return;
   }
-  state.value = result.value;
-  const display = arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
+  const temporal = $('lane').value === 'temporal';
+  const symbol = result.value.category === 'symbol';
+  state.value = symbol ? null : result.value;
+  const display = temporal ? temporalDisplay(result.value) : arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
   number.className = 'number'; box.append(number);
-  const kind = element('p', { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
+  const kind = element('p', temporal ? (symbol ? 'Symbolic date-set outcome' : 'Exact civil-date bundle') : { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
   const steps = result.metadata.steps;
-  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ['Approximation history', result.value.history]]));
+  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ...(temporal ? [['Current clamping', result.metadata.clamping], ...(symbol ? [['Left history', result.metadata.operandHistory.left], ['Right history', result.metadata.operandHistory.right]] : [['Origin granularity', result.value.originGranularity], ['Clamping history', result.value.history]])] : [['Approximation history', result.value.history]])]));
   const details = document.createElement('details'); details.append(element('summary', steps ? 'Step policies & evaluation' : 'Effective policy'), element('pre', JSON.stringify(steps ?? result.metadata.effectivePolicy, null, 2))); box.append(details);
-  $('continue').hidden = false;
+  $('continue').hidden = symbol;
 }
 function run() {
   clear('Running the selected source API…'); $('run-state').textContent = 'Running…';
@@ -74,7 +83,7 @@ function run() {
   } catch (error) { clear(error instanceof Error ? error.message : String(error)); $('run-state').textContent = 'Playground input error'; }
 }
 for (const id of ['request', 'output-policy', 'result-mode']) $(id).addEventListener('input', () => { clear(); controls(); $('run-state').textContent = 'Ready · inputs changed'; });
-$('lane').addEventListener('change', () => load(ARITHMETIC_EXAMPLES.find(item => item.lane === $('lane').value)));
+$('lane').addEventListener('change', () => load(VALUE_EXAMPLES.find(item => item.lane === $('lane').value)));
 $('run').addEventListener('click', run);
 $('cancel').addEventListener('click', () => { clear('Cancelled. No value retained.'); $('run-state').textContent = 'Cancelled'; });
 for (const button of document.querySelectorAll('[data-continue]')) button.addEventListener('click', () => {
@@ -84,4 +93,4 @@ for (const button of document.querySelectorAll('[data-continue]')) button.addEve
   $('result-mode').value = 'exact'; controls(); $('run-state').textContent = 'Ready · using returned bundle'; $('request').focus();
 });
 document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); if (!state.worker) run(); } });
-load(ARITHMETIC_EXAMPLES.find(item => item.id === 'third'));
+load(VALUE_EXAMPLES.find(item => item.id === 'third'));
