@@ -29,6 +29,14 @@ npm run cts:instruction
 npm run cts:mutate
 ```
 
+## Prepared property API, not current support
+
+[#51's candidate property contract](property-selectors-contract.md) and the
+adjacent TypeScript/Rust/Python declaration sketches prepare optional authorized
+key/tag access, scope frames, diagnostics and inspection accounting. They do not
+change the current entry points, declarations, capability manifest or released CTS
+claims. Runtime implementation and owning consumer admission remain separate.
+
 ## Entry Points
 
 ```js
