@@ -48,7 +48,7 @@ test('HTML aliases retain safe import-map data and resolve the same local assets
   const arithmetic = await request('/tools/playground/arithmetic.html');
   assert.equal(arithmetic.status, 200);
   assert.match(arithmetic.headers['content-type'], /text\/html/);
-  assert.match(arithmetic.body, /SANSA arithmetic playground/);
+  assert.match(arithmetic.body, /SANSA value operations playground/);
   assert.equal((await request('/tools/playground/arithmetic.html', 'HEAD')).body, undefined);
   for (const [, asset] of arithmetic.body.matchAll(/(?:src|href)="([^\"]+\.(?:js|mjs|css))"/g)) {
     const path = new URL(asset, 'http://localhost/tools/playground/').pathname;

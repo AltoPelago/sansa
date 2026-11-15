@@ -1,0 +1,97 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-temporal-civil-date-relations",
+      "snapshot_id": "aeonic-temporal-civil-date-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Temporal.CivilDate.Relations",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-temporal -- --capability-set relations",
+      "notes": "Verified immutable snapshot0.1 complete capability. Proposal lifecycle; no Query, Rust, timezone/WTC resolver or package release claim."
+    },
+    {
+      "surface": "aeonic-temporal-civil-date-calendar",
+      "snapshot_id": "aeonic-temporal-civil-date-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Temporal.CivilDate.Calendar",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-temporal -- --capability-set calendar",
+      "notes": "Verified immutable snapshot0.1 complete capability. Proposal lifecycle; no Query, Rust, timezone/WTC resolver or package release claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-15",
+    "node": "v24.22.2",
+    "specification_commit": "d0e89eb3b092bde56c04b1a5c9836373f5e8748e",
+    "cts_commit": "ff3308837c3848b1596e76f0c997f8565edc2a45",
+    "specification_snapshot_id": "aeonic-temporal-civil-date-specs-v1-snapshot-0.1",
+    "profile": "aeonic.operations.temporal.civil-date.v1",
+    "artifact_sha256": {
+      "manifest_sha256": "a4492f02990fe915cbf6eacf571c85cd5c79412e52ee97cef532904c616c47f3",
+      "runner_sha256": "51365d57a3060357fcfabdc9345a96188659d5acdd96e72410b066ca00ba18cd",
+      "specification_source_sha256": "3bd2ddebc945fc0ddc2f2fcc9f993d7b88ba0ec8cf55f78ac34036ab8c1fbfc8",
+      "specification_schema_sha256": "34f516c6a131c886f9482bf703020b193ed205de6eb7f66136e22d3447a7fd93"
+    },
+    "helper_sha256": {
+      "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+      "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+      "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489"
+    },
+    "test_resource_limits": {
+      "maxRequestBytes": 16384,
+      "maxRequestDepth": 32,
+      "maxInputRanges": 128,
+      "maxCountCharacters": 32,
+      "maxOutputRanges": 128,
+      "maxCalendarWork": 4096,
+      "maxOutputCharacters": 10,
+      "maxResultBytes": 16384
+    },
+    "reports": {
+      "all": "results/aeonic-temporal-all-snapshot-0.1.json",
+      "relations": "results/aeonic-temporal-relations-snapshot-0.1.json",
+      "calendar": "results/aeonic-temporal-calendar-snapshot-0.1.json"
+    },
+    "capacity_report": "results/aeonic-temporal-capacity.json",
+    "report_normalization": "cwd recorded as .; verdicts, outcomes, metadata, limits, target hashes and counts unchanged",
+    "adapted_from": {
+      "repository": "AltoPelago/aeonic",
+      "commit": "627219ac90fdd09d17bfd0a3c25db717305d1d0f",
+      "files_sha256": {
+        "src/temporal-civil-date.js": "69fe28bc4ce2922739a4a7362652832be58e5399e592cc2f5e62549e0d5b897f",
+        "src/json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+        "src/rational-json.js": "d0d094c3e4df3992f996cf3452879c8c342a10368e064109d6e4a7b86b6c909a",
+        "scripts/temporal-civil-date-cts-adapter.mjs": "0af7d1f53d5af4643553b15bc4398b36dc2f87d8b45635e010ca33cd2eb096f7",
+        "scripts/calibrate-temporal-civil-date-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76"
+      },
+      "adaptations": [
+        "Local imports, SANSA public names and MIT provenance header.",
+        "Bounded scalar UTF-8 counter replaces Node Buffer byte length for browser execution; staged limits and operation semantics retained.",
+        "Reuses existing SANSA strict JSON and raw-numerical-token envelope helpers; CTS adapter binds provider capability independently of claim selection."
+      ]
+    },
+    "implementation_files_sha256": {
+      "src/index.js": "5bd559841b3a190491c60122da92a2612bbc15f51795d7aa81f7b7e946269e5c",
+      "src/index.d.ts": "7edb3df195a9a1e18e3d99ca35f8ad9908d95f02723fd534eff8dc070789234e",
+      "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
+      "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
+      "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
+      "scripts/cts-aeonic-temporal-civil-date-adapter.mjs": "2b97c037527a02171a6e9cd9bed214a2183e6203e6eae2c83193ba51745bca5a",
+      "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
+      "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76"
+    },
+    "limits": [
+      "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",
+      "18independent default-capacity probes retain companion limits and do not promise a Cartesian product, heap/time/process bounds or whole-chain budgets.",
+      "Logical JSON and text guarantees exclude arbitrary native accessors/proxies/container subclasses and eager key enumeration; full STDIO envelope/process/transport budgets are separate.",
+      "Source APIs explicitly select profile/policy and preserve precise sets, origin and sticky history. A containing display never becomes authored period coverage.",
+      "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation."
+    ],
+    "source_base_commit": "bd98c72c91585afc3058207167aba621bf57ba65"
+  }
+}

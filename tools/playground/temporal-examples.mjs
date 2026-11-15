@@ -1,0 +1,20 @@
+const civil = value => ({ temporal: { category: 'civilDate', value } });
+const dates = ranges => ({ temporal: { category: 'civilDateSet', ranges: ranges.map(([start, end]) => ({ start, end })) }, originGranularity: 'month', history: 'none-declared' });
+const temporalRequest = (operation, left, right, policy) => ({ operation, input: {
+  ...(['shift', 'step', 'materialize'].includes(operation) ? { value: left } : { left, right }),
+  context: { profile: 'aeonic.operations.temporal.civil-date.v1' }, ...(policy ? { policy } : {}),
+} });
+export const TEMPORAL_EXAMPLES = [
+  { id: 'date-month-shift', lane: 'temporal', title: 'Shift February’s dates', detail: 'February 2024 shifted by one calendar month covers March 1–29. Reuse this precise bundle to shift again or compare it.', request: temporalRequest('shift', civil('2024-02'), undefined, { unit: 'month', count: '1' }) },
+  { id: 'date-month-step', lane: 'temporal', title: 'Step the month period', detail: 'Stepping the complete February period gives all of March. This intentionally differs from a date-wise shift.', request: temporalRequest('step', civil('2024-02'), undefined, { granularity: 'month', count: '1' }) },
+  { id: 'date-month-day', lane: 'temporal', title: 'Same day next month', detail: 'February 28 plus one calendar month is March 28.', request: temporalRequest('shift', civil('2024-02-28'), undefined, { unit: 'month', count: '1' }) },
+  { id: 'date-eom', lane: 'temporal', title: 'Distance from month-end', detail: 'February 27, 2023 is one day before month-end. One EOM shift gives March 30.', request: temporalRequest('shift', civil('2023-02-27'), undefined, { unit: 'eom', count: '1' }) },
+  { id: 'date-eoy', lane: 'temporal', title: 'Distance from year-end', detail: 'One EOY shift maps February 28, 2023 to February 29, 2024. An ordinary year shift would give February 28.', request: temporalRequest('shift', civil('2023-02-28'), undefined, { unit: 'eoy', count: '1' }) },
+  { id: 'date-clamping', lane: 'temporal', title: 'Clamp and retain history', detail: 'January 31 shifts to February 28. Shift the result again: current clamping changes, while the earlier marker remains.', request: temporalRequest('shift', civil('2023-01-31'), undefined, { unit: 'month', count: '1' }) },
+  { id: 'date-direct', lane: 'temporal', title: 'Two months, one clamp', detail: 'A direct two-month shift gives March 31. Two separate one-month shifts give March 28.', request: temporalRequest('shift', civil('2023-01-31'), undefined, { unit: 'month', count: '2' }) },
+  { id: 'date-materialize', lane: 'temporal', title: 'Materialize an exact month', detail: 'A complete March range can materialize as 2024-03. Its declared origin and clamping history remain separate.', request: temporalRequest('materialize', dates([['2024-03-01', '2024-03-31']]), undefined, { granularity: 'month' }) },
+  { id: 'date-partial-output', lane: 'temporal', title: 'A containing label loses dates', detail: 'March 1–29 cannot materialize as the whole month. The diagnostic produces no value; the exact input bundle remains available.', request: temporalRequest('materialize', dates([['2024-03-01', '2024-03-29']]), undefined, { granularity: 'month' }) },
+  { id: 'date-containment', lane: 'temporal', title: 'A year contains a day', detail: '2024- contains January 1, 2024. They are different exact sets and do not compare equal.', request: temporalRequest('relate', civil('2024-'), civil('2024-01-01')) },
+  { id: 'date-indeterminate', lane: 'temporal', title: 'Chronology can be indeterminate', detail: 'March and March 15 overlap. Whole-set chronology returns |indeterminate|; relate returns |contains|.', request: temporalRequest('compare', civil('2024-03'), civil('2024-03-15')) },
+  { id: 'date-disjoint-gaps', lane: 'temporal', title: 'Disjoint, yet interleaved', detail: 'March 1 and 3 are disjoint from March 2. Chronological comparison is still indeterminate.', request: temporalRequest('relate', dates([['2024-03-01', '2024-03-01'], ['2024-03-03', '2024-03-03']]), civil('2024-03-02')) },
+];

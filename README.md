@@ -27,6 +27,14 @@ linked [arithmetic playground](tools/playground/arithmetic.html) from the source
 playground. These are unreleased JavaScript APIs; Query and Rust retain their
 own capability boundaries.
 
+The separately selected [civil-date API](docs/aeonic-temporal-civil-date.md) adds
+`evaluateAeonicTemporal` and `evaluateAeonicTemporalText` against frozen snapshot
+0.1. Exact date-range bundles preserve origin and clamping history for chaining;
+Relations and Calendar are independently complete capabilities. The source
+playground includes twelve civil-date examples and explicit bundle continuations.
+These are unreleased JavaScript APIs; Query's temporal completion-set relations,
+Rust and timezone/WTC resolution keep their separate boundaries.
+
 
 ## Current Scope
 

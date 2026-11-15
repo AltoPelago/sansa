@@ -1,3 +1,4 @@
+export * from './aeonic-temporal-civil-date.js';
 export * from './aeonic-rational-arithmetic.js';
 export * from './aeonic-convenience.js';
 export * from './aeonic-arithmetic.js';

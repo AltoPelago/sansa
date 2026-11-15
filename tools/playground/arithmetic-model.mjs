@@ -1,5 +1,8 @@
+import { TEMPORAL_EXAMPLES } from './temporal-examples.mjs';
+import { parseStrictJson, exceedsJsonDepth } from '../../src/aeonic-json.js';
 export const ARITHMETIC_LIMITS = Object.freeze({ requestBytes: 262144, outputPolicyBytes: 16384, policyDepth: 8, resultBytes: 1048576, timeoutMs: 4000 });
 export const ARITHMETIC_LANES = Object.freeze({
+  temporal: { title: 'Civil dates', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-date.v1' },
   finite: { title: 'Finite arithmetic', snapshot: '0.1', profile: 'aeonic.operations.arithmetic.exact.v1' },
   rational: { title: 'Rational & rounding', snapshot: '0.2', profile: 'aeonic.operations.arithmetic.rational.v1' },
 });
@@ -17,8 +20,9 @@ export function validateArithmeticInput(input, limits = ARITHMETIC_LIMITS) {
       || Object.keys(input).some(key => !['lane', 'requestText', 'outputPolicyText'].includes(key))
       || !Object.hasOwn(input, 'lane') || !Object.hasOwn(input, 'requestText')
       || typeof input.lane !== 'string' || !Object.hasOwn(ARITHMETIC_LANES, input.lane) || typeof input.requestText !== 'string') {
-    throw new TypeError('Expected a finite/rational capability and logical JSON request text.');
+    throw new TypeError('Expected a finite/rational/civil-date capability and logical JSON request text.');
   }
+  if (input.lane === 'temporal' && Object.hasOwn(input, 'outputPolicyText')) throw new TypeError('Civil dates require explicit separate operations; numerical convenience policy is unavailable.');
   const policy = Object.hasOwn(input, 'outputPolicyText') ? input.outputPolicyText : '';
   if (typeof policy !== 'string') throw new TypeError('Output policy must be JSON text.');
   if (policy.length > limits.outputPolicyBytes || utf8Bytes(policy, limits.outputPolicyBytes) > limits.outputPolicyBytes) {
@@ -50,7 +54,13 @@ export const ARITHMETIC_EXAMPLES = [
   { id: 'unrepresentable', lane: 'rational', title: 'A rational is not a Number literal', detail: 'Exact 1/3 cannot be materialized as a finite Number. Explicit quantization is a separate decision.', request: { operation: 'materialize', input: { value: exact('1', '0', '3'), context: context('rational'), policy: { family: 'decimal' } } } },
   { id: 'compact', lane: 'rational', title: 'A compact million-place exponent', detail: 'An already-on-grid value stays compact instead of expanding a million digits.', request: { operation: 'quantize', input: { value: authored('1e1000000'), context: context('rational'), policy: { ...grid, increment: { category: 'exactNumber', coefficient: '1', exponent: '0' } } } } },
 ];
+export const VALUE_EXAMPLES = [...ARITHMETIC_EXAMPLES, ...TEMPORAL_EXAMPLES];
 export function continueArithmetic(value, lane, operation) {
+  if (lane === 'temporal') {
+    if (!value?.temporal || !['shift', 'step', 'materialize'].includes(operation)) throw new TypeError('A temporal continuation needs a complete date bundle.');
+    return { operation, input: { value: structuredClone(value), context: context(lane), policy:
+      operation === 'shift' ? { unit: 'month', count: '1' } : { granularity: 'month', ...(operation === 'step' ? { count: '1' } : {}) } } };
+  }
   if (!Object.hasOwn(ARITHMETIC_LANES, lane) || !['multiply', 'quantize', 'materialize'].includes(operation)
       || (operation === 'quantize' && lane !== 'rational')) throw new TypeError('Unsupported continuation.');
   const bundle = structuredClone(value);
@@ -60,4 +70,34 @@ export function continueArithmetic(value, lane, operation) {
 export function arithmeticDisplay(number) {
   if (number.category === 'finiteNumber') return number.value;
   return number.coefficient + ' × 10^' + number.exponent + (number.category === 'exactRational' ? ' / ' + number.denominator : '');
+}
+
+export function temporalDisplay(value) {
+  if (value.category === 'symbol') return '|' + value.value + '|';
+  if (value.temporal.category === 'civilDate') return value.temporal.value;
+  const ranges = value.temporal.ranges;
+  return ranges.slice(0, 4).map(r => r.start === r.end ? r.start : r.start + ' … ' + r.end).join(' ∪ ')
+    + (ranges.length > 4 ? ' … (' + ranges.length + ' ranges)' : '');
+}
+export function describeArithmeticInput(lane, requestText) {
+  try {
+    validateArithmeticInput({ lane, requestText });
+    if (exceedsJsonDepth(requestText, 32)) return 'Review the request. The selected API validates it when run.';
+    const request = parseStrictJson(requestText), input = request?.input, policy = input?.policy;
+    const label = bundle => {
+      const v = lane === 'temporal' ? bundle?.temporal : bundle?.number;
+      if (v?.category === 'civilDate' || v?.category === 'finiteNumber') return typeof v.value === 'string' ? v.value.slice(0, 60) : 'the operand';
+      if (v?.category === 'civilDateSet') return 'the exact date-range bundle';
+      return 'the derived value';
+    };
+    if (!input || typeof request.operation !== 'string') return 'Review the request. The selected API validates it when run.';
+    const op = request.operation, text = v => typeof v === 'string' ? v.slice(0, 60) : 'unspecified';
+    if (lane === 'temporal') {
+      if (op === 'shift') return 'Shift ' + label(input.value) + ' by ' + text(policy?.count) + ' ' + text(policy?.unit) + '. Preserve exact coverage for chaining.';
+      if (op === 'step') return 'Step ' + label(input.value) + ' by ' + text(policy?.count) + ' complete ' + text(policy?.granularity) + ' periods.';
+      if (op === 'materialize') return 'Materialize ' + label(input.value) + ' as an exact ' + text(policy?.granularity) + ' date.';
+    }
+    if (['equal', 'compare', 'relate', 'add', 'subtract', 'multiply', 'divide'].includes(op)) return text(op) + ': ' + label(input.left) + ' and ' + label(input.right) + '. The selected API determines the result.';
+    return text(op) + ': ' + label(input.value) + '. Review the explicit policy before running.';
+  } catch { return 'Review the request. The selected API validates it when run.'; }
 }
