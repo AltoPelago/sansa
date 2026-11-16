@@ -30,6 +30,9 @@ test('QA-0082: direct mutation preconditions preflight all clauses before planni
     assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');assert.equal(result.errors[0].preconditionIndex,1);noReads(h);
   }
   const h=host();assert.equal(planMutation({operations:[{op:'remove',target:'$.x'}],preconditions:[{expression:'"&key" == "&key"'}]},h.namespace).ok,true);
+  h.reset();const malformed=planMutation({operations:[{op:'remove',target:'$.x'}],preconditions:[{expression:'true /* &'}]},h.namespace);
+  assert.equal(malformed.ok,false);assert.equal(malformed.errors[0].code,'SANSA_MUTATE_INVALID_PRECONDITION');
+  assert.equal(typeof JSON.parse(JSON.stringify(malformed)).errors[0].cause.message,'string');noReads(h);
 });
 
 test('QA-0082: replay cannot bypass property admission using recheck false or a forged canonical expression',()=>{

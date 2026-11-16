@@ -2679,7 +2679,7 @@ function propertyExpressionSource(source, options, details = {}) {
   try { input = new QueryExpressionParser(source, options).input; }
   catch (error) {
     if (!(error instanceof SansaParseError)) throw error;
-    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:error, ...details});
+    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:{code:error.code, message:error.message, index:error.index}, ...details});
   }
   let quote = null;
   let candidate = false;
