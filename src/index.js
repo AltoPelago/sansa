@@ -3020,6 +3020,25 @@ function resolvePropertyAddress(address, namespace, root, prepared, policy, limi
   const budget = {inspected: 0, limit: limit === 0 ? 0 : limit};
   for (let index = 0; index < address.selectors.length; index++) {
     const selector = address.selectors[index];
+    if (selector.type === 'parent' || selector.type === 'attributeSpace') {
+      // These helpers decide support/policy over the whole input set. Project
+      // their selected values back to occurrence frames before filtering; a
+      // binding-keyed map would merge aliases from different authorized scopes.
+      const sources = selector.type === 'parent'
+        ? current.filter(occurrence => occurrence.binding !== policy.effectiveRoot)
+        : current;
+      const project = (binding, sourceIndex) => ({binding, context: selector.type === 'attributeSpace'
+        ? propertyContext(binding, binding) : sources[sourceIndex].context});
+      const bindings = current.map(occurrence => occurrence.binding);
+      const selected = selector.type === 'parent'
+        ? selectParents(namespace, bindings, index, policy, project)
+        : selectAttributeSpaces(namespace, bindings, index, project);
+      if (!selected.ok) return {ok:false,bindings:[],errors:[selected.error]};
+      if (policy.maxBindings !== undefined && selected.bindings.length > policy.maxBindings) return {ok:false,bindings:[],errors:[resolveBindingLimitError(policy.maxBindings, selected.bindings.length, index)]};
+      current = selected.bindings;
+      if (!current.length) break;
+      continue;
+    }
     const next = [];
     for (const occurrence of current) {
       if (selector.type === 'propertyFilter') {
@@ -7161,7 +7180,7 @@ function* iteratePositionRange(namespace, binding, start, end) {
   }
 }
 
-function selectParents(namespace, bindings, selectorIndex, policy) {
+function selectParents(namespace, bindings, selectorIndex, policy, project) {
   if (policy.parentTraversal === 'forbid') {
     return {
       ok: false,
@@ -7188,10 +7207,16 @@ function selectParents(namespace, bindings, selectorIndex, policy) {
   const traversable = bindings.filter((binding) => binding !== policy.effectiveRoot);
   if (traversable.length === 0) return { ok: true, bindings: [] };
   if (typeof namespace.parent === 'function') {
-    return { ok: true, bindings: traversable.map((binding) => namespace.parent(binding)).filter(Boolean) };
+    return { ok: true, bindings: traversable.map((binding, index) => {
+      const parent = namespace.parent(binding);
+      return parent && project ? project(parent, index) : parent;
+    }).filter(Boolean) };
   }
   if (traversable.some((binding) => Object.prototype.hasOwnProperty.call(binding, 'parent'))) {
-    return { ok: true, bindings: traversable.map((binding) => binding.parent).filter(Boolean) };
+    return { ok: true, bindings: traversable.map((binding, index) => {
+      const parent = binding.parent;
+      return parent && project ? project(parent, index) : parent;
+    }).filter(Boolean) };
   }
   if (traversable.length === 0) return { ok: true, bindings: [] };
   return {
@@ -7204,10 +7229,13 @@ function selectParents(namespace, bindings, selectorIndex, policy) {
   };
 }
 
-function selectAttributeSpaces(namespace, bindings, selectorIndex) {
+function selectAttributeSpaces(namespace, bindings, selectorIndex, project) {
   if (typeof namespace.attributeSpace !== 'function') {
     const selected = bindings
-      .map((binding) => binding.attributeSpace ?? binding.attributes)
+      .map((binding, index) => {
+        const attributes = binding.attributeSpace ?? binding.attributes;
+        return attributes && project ? project(attributes, index) : attributes;
+      })
       .filter(Boolean);
     if (selected.length > 0 || bindings.length === 0) return { ok: true, bindings: selected };
     return {
@@ -7221,7 +7249,10 @@ function selectAttributeSpaces(namespace, bindings, selectorIndex) {
   }
   return {
     ok: true,
-    bindings: bindings.map((binding) => namespace.attributeSpace(binding)).filter(Boolean),
+    bindings: bindings.map((binding, index) => {
+      const attributes = namespace.attributeSpace(binding);
+      return attributes && project ? project(attributes, index) : attributes;
+    }).filter(Boolean),
   };
 }
 
