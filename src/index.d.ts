@@ -160,7 +160,15 @@ export type SansaResolveErrorCode =
   | 'SANSA_RESOLVE_INVALID_BINDING_LIMIT'
   | 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED'
   | 'SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION'
-  | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR';
+  | 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR'
+  | 'SANSA_RESOLVE_INVALID_PROPERTY_LIMIT'
+  | 'SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE'
+  | 'SANSA_RESOLVE_UNSUPPORTED_KEY'
+  | 'SANSA_RESOLVE_UNSUPPORTED_TAG'
+  | 'SANSA_RESOLVE_PROPERTY_SCOPE_VIOLATION'
+  | 'SANSA_RESOLVE_INVALID_PROPERTY_METADATA'
+  | 'SANSA_RESOLVE_PROPERTY_ADAPTER_ERROR'
+  | 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED';
 
 export type SansaGraphErrorCode =
   | 'SANSA_GRAPH_INVALID_INPUT'
@@ -246,6 +254,9 @@ export interface SansaResolveDiagnostic {
   readonly selectorIndex?: number;
   /** Authored identity selected by an identity-related resolution failure. */
   readonly identity?: string;
+  readonly property?: 'key' | 'tag';
+  readonly budget?: 'maxPropertyInspections';
+  readonly causeCode?: string;
   readonly limit?: number;
   readonly observed?: number;
 }
@@ -336,7 +347,30 @@ export interface SansaDatatypeNumberComponent {
 export type SansaDatatypeGenericComponent = SansaDatatypeDescriptor | SansaDatatypeNumberComponent;
 export type SansaDatatypeClarifierComponent = SansaDatatypeStringComponent | SansaDatatypeNumberComponent;
 
+export type PropertyName = 'key' | 'tag';
+export type PropertyScopeRole = 'root' | 'inside' | 'outside';
+export type PropertyNodeKind = 'NodeLiteral' | 'NodeHead' | 'Other';
+export interface PropertyAccessContext<B extends object> {
+  readonly scopeRoot: B;
+  readonly evaluationRoot: B;
+  /** Present only while validating a yielded direct head of this owner. */
+  readonly directHeadOf?: B;
+}
+export interface PropertyAccessFault {
+  readonly type: 'SansaPropertyAccessFault';
+  readonly kind: 'invalidMetadata' | 'scopeViolation' | 'adapterFailure';
+}
+/** Callback faults are thrown, not returned as successful metadata. */
+export interface PropertyAccess<B extends object> {
+  readonly scope: (binding: B, context: PropertyAccessContext<B>) => PropertyScopeRole;
+  readonly key?: (binding: B, context: PropertyAccessContext<B>) => string | undefined;
+  readonly nodeKind?: (binding: B, context: PropertyAccessContext<B>) => PropertyNodeKind;
+  readonly nodeTag?: (binding: B, context: PropertyAccessContext<B>) => string | undefined;
+  readonly nodeHeads?: (binding: B, context: PropertyAccessContext<B>) => Iterable<B>;
+}
 export interface SansaResolveNamespace<TBinding extends object = SansaResolveBinding> {
+  /** Explicit authoritative property capability; no name/tag field fallback. */
+  readonly properties?: PropertyAccess<TBinding>;
   readonly root: TBinding | (() => TBinding | undefined);
   readonly contextualRoot?: TBinding;
   readonly children?: (binding: TBinding) => Iterable<TBinding> | readonly TBinding[] | undefined;
@@ -488,6 +522,9 @@ export type SansaGraphSequenceResult<TBinding extends object = SansaResolveBindi
     };
 
 export interface SansaResolveOptions<TBinding extends object = SansaResolveBinding> {
+  /** Standalone Resolve logical inspections; integer 0..1000000, default10000.
+   * No caller authority roots or mutable counter/session are accepted. */
+  readonly maxPropertyInspections?: number;
   /** Logical child inspections; default 10000, including misses.
    * For evaluateQuery, shared across all clauses/candidates in one invocation. */
   readonly maxIdentityInspections?: number;

@@ -4,6 +4,11 @@ Date: 16 November 2026. Scope: first implementation slice of
 [roadmap #51](https://github.com/AltoPelago/roadmap/issues/51), following merged
 specs #58, SANSA #48 and CTS #72. Releases and deployment remain held.
 
+This is the historical Addressing-only checkpoint. The later
+[standalone Resolve checkpoint](property-resolve-implementation.md) supersedes its
+execution-closed statements only for explicitly capable standalone Resolve hosts.
+Query and all other consumer denials remain in place.
+
 JavaScript and Rust Addressing now recognize exact `&key("...")` and
 `&tag("...")` suffixes, retain a `propertyFilter` AST variant and render canonical
 payloads with existing quote/escape rules. They remain non-exact. No namespace

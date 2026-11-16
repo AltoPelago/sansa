@@ -5,6 +5,10 @@ use crate::address::{
     render_address,
 };
 use crate::address::{is_identifier, is_number_literal};
+use crate::property::{
+    DEFAULT_PROPERTY_INSPECTIONS, MAX_PROPERTY_INSPECTIONS, PropertyAccess, PropertyAccessContext,
+    PropertyInspection,
+};
 use crate::value_semantics::Value;
 use crate::{Diagnostic, DiagnosticPhase};
 
@@ -28,6 +32,10 @@ pub trait Namespace {
 
     fn root(&self) -> Option<Self::Binding>;
     fn children(&self, binding: &Self::Binding) -> Vec<Self::Binding>;
+    /// Optional authoritative property access. Ordinary names/tags are not a fallback.
+    fn properties(&self) -> Option<&dyn PropertyAccess<Binding = Self::Binding>> {
+        None
+    }
 
     /// Explicit structural-identity capability; opaque occurrence IDs are unrelated.
     fn supports_structural_identity(&self) -> bool {
@@ -118,6 +126,7 @@ pub struct ResolveOptions<Binding> {
     pub allow_parent_from_effective_root: bool,
     pub max_bindings: Option<usize>,
     pub max_identity_inspections: usize,
+    pub max_property_inspections: u32,
 }
 
 impl<Binding> Default for ResolveOptions<Binding> {
@@ -129,6 +138,7 @@ impl<Binding> Default for ResolveOptions<Binding> {
             allow_parent_from_effective_root: false,
             max_bindings: None,
             max_identity_inspections: 10_000,
+            max_property_inspections: DEFAULT_PROPERTY_INSPECTIONS,
         }
     }
 }
@@ -278,15 +288,11 @@ fn resolve_valid_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
     inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> ResolveOutput<N::Binding> {
-    if let Some(index) = address
-        .selectors
-        .iter()
-        .position(|s| matches!(s, Selector::PropertyFilter { .. }))
-    {
+    if options.max_property_inspections > MAX_PROPERTY_INSPECTIONS {
         return ResolveOutput::failure(resolve_error(
-            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
-            "Property execution is not implemented",
-            Some(index),
+            "SANSA_RESOLVE_INVALID_PROPERTY_LIMIT",
+            "Property inspection limit must be from 0 through 1000000",
+            None,
         ));
     }
 
@@ -317,6 +323,22 @@ fn resolve_valid_address<N: Namespace>(
     let root = match root {
         Ok(root) => root,
         Err(error) => return ResolveOutput::failure(error),
+    };
+    let mut properties = if address
+        .selectors
+        .iter()
+        .any(|s| matches!(s, Selector::PropertyFilter { .. }))
+    {
+        match PropertyInspection::prepare(
+            namespace.properties(),
+            &address.selectors,
+            options.max_property_inspections,
+        ) {
+            Ok(properties) => Some(properties),
+            Err(error) => return ResolveOutput::failure(*error),
+        }
+    } else {
+        None
     };
 
     if has_identity && !namespace.supports_structural_identity() {
@@ -349,6 +371,9 @@ fn resolve_valid_address<N: Namespace>(
     }
     if options.max_bindings == Some(0) && address.selectors.is_empty() {
         return ResolveOutput::failure(binding_limit_error(0, 1, None));
+    }
+    if let Some(properties) = properties.as_mut() {
+        return resolve_property_address(address, namespace, options, inspection, properties, root);
     }
 
     let mut current = vec![root.clone()];
@@ -387,6 +412,99 @@ fn resolve_valid_address<N: Namespace>(
         ));
     }
     ResolveOutput::success(current)
+}
+
+fn resolve_property_address<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspection: &mut IdentityInspection<'_, N::Binding>,
+    properties: &mut PropertyInspection<'_, N::Binding>,
+    root: N::Binding,
+) -> ResolveOutput<N::Binding> {
+    struct Occurrence<B> {
+        binding: B,
+        scope_root: B,
+        evaluation_root: B,
+    }
+    let mut current = vec![Occurrence {
+        binding: root.clone(),
+        scope_root: root.clone(),
+        evaluation_root: root.clone(),
+    }];
+    for (index, selector) in address.selectors.iter().enumerate() {
+        let mut next = Vec::new();
+        for occurrence in current {
+            if let Selector::PropertyFilter { property, value } = selector {
+                let context = PropertyAccessContext {
+                    scope_root: &occurrence.scope_root,
+                    evaluation_root: &occurrence.evaluation_root,
+                    direct_head_of: None,
+                };
+                match properties.matches(&occurrence.binding, &context, *property, value, index) {
+                    Ok(true) => next.push(occurrence),
+                    Ok(false) => {}
+                    Err(error) => return ResolveOutput::failure(*error),
+                }
+            } else {
+                let mut local = options.clone();
+                local.max_bindings = options
+                    .max_bindings
+                    .map(|limit| limit.saturating_sub(next.len()));
+                let selected = match apply_selector(
+                    selector,
+                    std::slice::from_ref(&occurrence.binding),
+                    namespace,
+                    index,
+                    &root,
+                    &local,
+                    inspection,
+                ) {
+                    Ok(bindings) => bindings,
+                    Err(error) if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" => {
+                        return ResolveOutput::failure(binding_limit_error(
+                            options.max_bindings.expect("bounded local selection"),
+                            options
+                                .max_bindings
+                                .expect("bounded local selection")
+                                .saturating_add(1),
+                            Some(index),
+                        ));
+                    }
+                    Err(error) => return ResolveOutput::failure(*error),
+                };
+                for binding in selected {
+                    let boundary = matches!(
+                        selector,
+                        Selector::AttributeSpace | Selector::LocalSpace { .. }
+                    );
+                    next.push(Occurrence {
+                        scope_root: if boundary {
+                            binding.clone()
+                        } else {
+                            occurrence.scope_root.clone()
+                        },
+                        evaluation_root: if boundary {
+                            binding.clone()
+                        } else {
+                            occurrence.evaluation_root.clone()
+                        },
+                        binding,
+                    });
+                }
+            }
+            if let Some(limit) = options.max_bindings
+                && next.len() > limit
+            {
+                return ResolveOutput::failure(binding_limit_error(limit, next.len(), Some(index)));
+            }
+        }
+        current = next;
+        if current.is_empty() {
+            break;
+        }
+    }
+    ResolveOutput::success(current.into_iter().map(|o| o.binding).collect())
 }
 
 fn apply_selector<N: Namespace>(

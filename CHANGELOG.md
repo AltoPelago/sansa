@@ -7,6 +7,13 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Opt-in standalone property Resolve in the JS/TypeScript and Rust cores:
+  authoritative scope/key/direct-head facets, private occurrence frames, checked
+  metadata/iterator faults and finite inspection allowances. Query and other
+  consumers stay closed. Owning provider/bridge integration and profile/cost
+  qualification remain pending; no release or capability manifest promotion.
+  See `docs/property-resolve-implementation.md` for Rust API porting details.
+
 - Empty quoted members such as `$.[""]` are accepted by JavaScript and Rust addressing and mutation planning. Empty create names and nested AEON property/attribute payload keys are representable; empty local-space names remain invalid. Authority CTS transition and released-provider qualification remain pending.
 
 

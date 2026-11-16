@@ -4,6 +4,7 @@ pub mod address;
 pub mod evaluate;
 pub mod mutate;
 pub mod mutate_target;
+pub mod property;
 pub mod query;
 pub mod resolve;
 pub mod value_semantics;
@@ -167,6 +168,8 @@ pub struct Diagnostic {
     pub selector_index: Option<usize>,
     /// Selected structural identity for unsupported or ambiguous identity selection.
     pub identity: Option<String>,
+    /// Property predicate associated with a checked property diagnostic.
+    pub property: Option<String>,
     /// Candidate binding address associated with Query failure.
     pub candidate_address: Option<String>,
     /// Budget name associated with resource exhaustion.
@@ -192,6 +195,9 @@ impl std::fmt::Debug for Diagnostic {
         if self.identity.is_some() {
             out.field("identity", &self.identity);
         }
+        if self.property.is_some() {
+            out.field("property", &self.property);
+        }
         out.finish()
     }
 }
@@ -206,6 +212,7 @@ impl Diagnostic {
             phase: None,
             selector_index: None,
             identity: None,
+            property: None,
             candidate_address: None,
             budget: None,
             limit: None,
@@ -255,6 +262,9 @@ mod tests {
         assert_eq!(diagnostic.observed, None);
     }
 }
+
+#[cfg(test)]
+mod property_resolve_tests;
 
 #[cfg(test)]
 mod child_identity_tests;
