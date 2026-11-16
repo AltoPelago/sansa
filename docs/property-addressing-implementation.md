@@ -69,3 +69,24 @@ requires owning review; no AEON Rust dependency is repinned by this patch.
   latency /1.20x memory ceilings; no new performance qualification or heap waiver.
 - [ ] Close the separate positional resource gate or record reviewed release-scope
   deferral before final release qualification.
+
+## QA follow-up — 16 November 2026
+
+QA-2026-0082 and QA-2026-0083 are addressed by preflighting all Instruction
+requirements and structured mutation preconditions before target traversal,
+including later clauses, short circuits, empty sources and replay with
+`recheckPreconditions: false`. Original and canonical precondition spellings
+cannot hide one another. A candidate whose syntax cannot be validated fails
+closed; inert quoted/encoded data retains its existing meaning.
+
+Expression admission now uses iterative depth-first frames, lazy child-array
+iteration, completed-node memoization for shared ASTs and active-path cycle
+detection. This is a syntax/capability scan, so memoization does not remove
+execution occurrences or chargeable property inspections. It does not make the
+general expression evaluator or source-expression parser iterative.
+
+Regression controls cover depths32/6000/9000, widths64/128, shared DAGs, cycles,
+quoted ampersands, option-limited syntax and zero namespace/mutation-hook reads
+for denied programs. Rust's standalone parsed-expression primitive receives the
+same preflight denial for a short-circuited property. Compatibility, target and
+resource settings are unchanged; execution and release remain closed.

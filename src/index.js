@@ -226,7 +226,10 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
     const instruction = parsed.instruction;
     const mutation = instruction.mutation;
     const addresses = [instruction.from?.address, ...['target','source','container','parent','destination'].map(key => mutation[key]?.address), mutation.placement?.anchor?.address];
-    if (addresses.some(address => address && hasPropertyAst(address)) || propertyExpression(instruction.where?.ast)) {
+    if (addresses.some(address => address && hasPropertyAst(address))
+        || propertyExpression(instruction.where?.ast)
+        || (instruction.requires ?? []).some(requirement => propertyExpression(requirement.ast)
+          || propertyExpressionSource(requirement.expression, mutationQueryExpressionParseOptions({parse:options.parse ?? options})))) {
       return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property instructions are not admitted',{phase:'lower'})]};
     }
     const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
@@ -631,6 +634,8 @@ export function planMutation(input, namespace, options = {}) {
   if (!operationSurface.ok) return { ok: false, errors: [operationSurface.error] };
   const valueBudget = checkMutationValueBudgets(options, normalized.operations);
   if (!valueBudget.ok) return { ok: false, errors: [valueBudget.error] };
+  const admission = preflightMutationProperties(normalized.operations, normalized.preconditions, options);
+  if (admission) return { ok: false, errors: [admission] };
 
   const operations = [];
   const seenDestructiveTargets = new Set();
@@ -702,6 +707,9 @@ export function applyMutationPlan(plan, namespace, options = {}) {
   if (!valueBudget.ok) {
     return { ok: false, operationResults: [], errors: [valueBudget.error] };
   }
+  // Recheck policy even when callers explicitly skip precondition evaluation.
+  const admission = preflightMutationProperties(plan.operations, plan.preconditions ?? [], options, true);
+  if (admission) return { ok: false, operationResults: [], errors: [admission] };
 
   for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
     const operation = plan.operations[operationIndex];
@@ -2662,6 +2670,80 @@ function propertyExpression(expression) {
   return expression && findExpression(expression, entry => entry.type === 'resolutionExpression' && hasPropertyAst(entry.address));
 }
 
+function propertyExpressionSource(source, options, details = {}) {
+  if (typeof source !== 'string' || !source.includes('&')) return false;
+  // Reuse the expression cursor's comment normalization. This lexical gate
+  // avoids reparsing inert quoted/encoded data in an unused native requirement;
+  // the real parser and AST scan remain authoritative for candidate suffixes.
+  let input;
+  try { input = new QueryExpressionParser(source, options).input; }
+  catch (error) {
+    if (!(error instanceof SansaParseError)) throw error;
+    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:error, ...details});
+  }
+  let quote = null;
+  let candidate = false;
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index];
+    if (quote) {
+      if (char === '\\') index++;
+      else if (char === quote) quote = null;
+    } else if (char === '"' || isSymbolLiteralStart(input, index)) quote = char;
+    else if (char === '&') {
+      let end = index + 1;
+      while (isIdentifierContinue(input[end])) end++;
+      if (input[end] === '(') { candidate = true; break; }
+    }
+  }
+  if (!candidate) return false;
+  let parsed;
+  try { parsed = parseQueryExpression(source, options); }
+  catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', details);
+  }
+  if (!parsed.ok) throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:parsed.errors[0], ...details});
+  return propertyExpression(parsed.expression);
+}
+
+// This is admission preflight, not evaluation: inspect all active address roles
+// and preconditions before any operation can resolve a target or invoke a hook.
+function preflightMutationProperties(operations, preconditions, options, planned = false) {
+  const phase = planned ? 'apply' : 'policy';
+  const addressHasProperty = input => {
+    if (planned && input && typeof input === 'object' && typeof input.canonicalAddress === 'string') input = input.canonicalAddress;
+    if (typeof input !== 'string') return input && typeof input === 'object' && hasPropertyAst(input);
+    if (!hasPropertySyntax(input)) return false;
+    const parsed = parseAddress(input, options.parse);
+    if (!parsed.ok) throw new PropertyAddressError('Invalid property target', 'SANSA_MUTATE_INVALID_TARGET', {cause:parsed.errors[0]});
+    return true;
+  };
+  try {
+    for (let operationIndex = 0; operationIndex < operations.length; operationIndex++) {
+      const operation = operations[operationIndex];
+      for (const role of ['target', 'parent', 'source', 'container']) {
+        if (addressHasProperty(operation?.[role])) return mutationError('SANSA_MUTATE_NON_EXACT_TARGET', 'Property mutation targets are not admitted', {phase, operationIndex});
+      }
+      const anchor = operation?.placement?.anchor ?? operation?.placement?.target;
+      if (addressHasProperty(anchor)) return mutationError('SANSA_MUTATE_NON_EXACT_TARGET', 'Property mutation anchors are not admitted', {phase, operationIndex});
+    }
+    const parseOptions = mutationQueryExpressionParseOptions(options);
+    for (let preconditionIndex = 0; Array.isArray(preconditions) && preconditionIndex < preconditions.length; preconditionIndex++) {
+      const precondition = preconditions[preconditionIndex];
+      if (addressHasProperty(precondition?.target)
+          || propertyExpressionSource(precondition?.expression, parseOptions, {preconditionIndex})
+          || planned && propertyExpressionSource(precondition?.canonical, parseOptions, {preconditionIndex})) {
+        return mutationError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR', 'Property mutation preconditions are not admitted', {phase, preconditionIndex});
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof PropertyAddressError)) throw error;
+    return mutationError(error.code === 'SANSA_MUTATE_INVALID_PRECONDITION' ? error.code : 'SANSA_MUTATE_INVALID_TARGET', error.message,
+      {phase, ...(error.preconditionIndex === undefined ? {} : {preconditionIndex:error.preconditionIndex}), ...(error.cause === undefined ? {} : {cause:error.cause})});
+  }
+  return null;
+}
+
 function queryHasProperty(query) {
   return (query.from.source !== 'expression' && hasPropertyAst(query.from.address))
     || (query.from.source === 'expression' && propertyExpression(query.from.ast))
@@ -2731,34 +2813,37 @@ function normalizeQueryBudgetLimit(value) {
 }
 
 function findExpression(expression, predicate) {
-  if (predicate(expression)) return expression;
-
-  switch (expression.type) {
-    case 'groupExpression':
-      return findExpression(expression.expression, predicate);
-    case 'unaryExpression':
-      return findExpression(expression.argument, predicate);
-    case 'binaryExpression':
-      return findExpression(expression.left, predicate)
-        ?? findExpression(expression.right, predicate);
-    case 'functionCallExpression':
-      for (const argument of expression.arguments) {
-        const found = findExpression(argument, predicate);
-        if (found) return found;
+  const active = new Set();
+  const complete = new Set();
+  const stack = [{expression, index: -1}];
+  while (stack.length) {
+    const frame = stack.at(-1);
+    if (frame.index === -1) {
+      if (complete.has(frame.expression)) { stack.pop(); continue; }
+      if (active.has(frame.expression)) throw new PropertyAddressError('Cyclic expression AST');
+      if (predicate(frame.expression)) return frame.expression;
+      active.add(frame.expression);
+      frame.projection = false;
+      switch (frame.expression.type) {
+        case 'groupExpression': frame.children = [frame.expression.expression]; break;
+        case 'unaryExpression': case 'existenceExpression': case 'cardinalityExpression': frame.children = [frame.expression.argument]; break;
+        case 'binaryExpression': frame.children = [frame.expression.left, frame.expression.right]; break;
+        case 'functionCallExpression': frame.children = frame.expression.arguments; break;
+        case 'projectionExpression': frame.children = frame.expression.fields; frame.projection = true; break;
+        default: frame.children = [];
       }
-      return null;
-    case 'existenceExpression':
-    case 'cardinalityExpression':
-      return findExpression(expression.argument, predicate);
-    case 'projectionExpression':
-      for (const field of expression.fields) {
-        const found = findExpression(field.expression, predicate);
-        if (found) return found;
-      }
-      return null;
-    default:
-      return null;
+      frame.index = 0;
+    }
+    if (frame.index < frame.children.length) {
+      const child = frame.children[frame.index++];
+      stack.push({expression: frame.projection ? child.expression : child, index: -1});
+    } else {
+      active.delete(frame.expression);
+      complete.add(frame.expression);
+      stack.pop();
+    }
   }
+  return null;
 }
 
 function resolveConsumerAddress(input, namespace, options = {}) {

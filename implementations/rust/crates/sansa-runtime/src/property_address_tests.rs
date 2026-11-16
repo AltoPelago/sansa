@@ -171,3 +171,35 @@ fn native_property_ast_bounds_precede_namespace_access_and_preserve_native_index
     assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
     assert_eq!(host.reads.get(), 0);
 }
+
+#[test]
+fn standalone_expression_preflight_cannot_short_circuit_a_property() {
+    use crate::query::{BinaryOperator, ExistenceOperator, Expression, ResolutionScope};
+    let host = Host {
+        reads: Cell::new(0),
+    };
+    let literal = crate::query::parse_query("from $\nselect true")
+        .expect("query")
+        .select
+        .ast;
+    let address = parse_address("$&key(\"x\")").expect("address");
+    let expression = Expression::Binary {
+        operator: BinaryOperator::Or,
+        left: Box::new(literal),
+        right: Box::new(Expression::Existence {
+            operator: ExistenceOperator::Exists,
+            argument: Box::new(Expression::Resolution {
+                scope: ResolutionScope::Absolute,
+                canonical: address.canonical.clone(),
+                address,
+            }),
+        }),
+    };
+    let result =
+        crate::evaluate::evaluate_expression(&expression, &0, &host, &EvaluateOptions::default());
+    assert_eq!(
+        result.expect_err("property must be denied").code,
+        "SANSA_RESOLVE_UNSUPPORTED_SELECTOR"
+    );
+    assert_eq!(host.reads.get(), 0);
+}

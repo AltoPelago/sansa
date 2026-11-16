@@ -375,6 +375,12 @@ pub fn evaluate_expression<N: Namespace>(
     namespace: &N,
     options: &EvaluateOptions<N::Binding>,
 ) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+    if property_expression(expression) {
+        return Err(evaluate_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Property execution is not implemented",
+        ));
+    }
     evaluate_expression_inner(
         expression,
         current,
