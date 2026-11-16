@@ -1,11 +1,13 @@
 # Property selectors: candidate API contract 0.1
 
-Status: **prepared for review; unimplemented and not exported**. This document
-specifies the proposed ABI for the unpublished `sansa-v1-property-selectors`
-contract in `aeonite-org/aeonite-specs`. It is not current `src/index.d.ts`, a
-capability advertisement, a new package version or selector acceptance.
-The `.d.ts`, `.rs` and `.pyi` siblings are declaration artefacts for review and
-compile checks only. Existing runtime and capability manifests remain unchanged.
+Status: **unreleased candidate contract; core standalone Resolve implemented**.
+JavaScript/TypeScript and Rust expose the optional facet for direct read-only
+Resolve. Query and owning AEON/Python/native/WASM providers remain separate work;
+this is not a profile promotion or release. The `.d.ts`, `.rs` and `.pyi` siblings
+retain original review sketches; current exported JS types/Rust modules and the
+[implementation checkpoint](property-resolve-implementation.md) describe delivered
+support and limits. Query sections below remain the target for later slices.
+Existing capability manifests are unchanged.
 
 ## Address and Query model
 

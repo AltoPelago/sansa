@@ -29,13 +29,26 @@ npm run cts:instruction
 npm run cts:mutate
 ```
 
-## Prepared property API, not current support
+## Unreleased property Addressing and standalone Resolve
 
-[#51's candidate property contract](property-selectors-contract.md) and the
-adjacent TypeScript/Rust/Python declaration sketches prepare optional authorized
-key/tag access, scope frames, diagnostics and inspection accounting. They do not
-change the current entry points, declarations, capability manifest or released CTS
-claims. Runtime implementation and owning consumer admission remain separate.
+JavaScript/TypeScript and Rust support property Addressing and opt-in standalone
+read-only Resolve through the optional authoritative property facet. Current
+exports include `PropertyAccess`, read-only `PropertyAccessContext`, checked
+faults and `maxPropertyInspections` (default10000, maximum1000000). Hosts must
+prove authorized scope and direct-head ownership; ordinary names, paths and
+cached tags are not authority. Existing adapters do not opt in automatically.
+
+The [candidate contract](property-selectors-contract.md) and
+[implementation checkpoint](property-resolve-implementation.md) describe delivered
+support, private occurrence frames, diagnostics, accounting and Rust source-porting
+considerations. The adjacent declaration sketches are historical API preparation
+artifacts, rather than the current exported declarations.
+
+Query properties and owning AEON SDK/AEOS/Python/native/WASM/provider integration
+remain pending. Activation, Graph, Instruction/Mutate/SO, references and structural
+paths retain their separate prohibitions. The capability manifest and released
+CTS claims remain unchanged; runtime regression mirrors do not establish the full
+149-case experimental property profile, provider or performance qualification.
 
 ## Entry Points
 
@@ -407,7 +420,7 @@ Resolve invariants:
 - Unsupported or forbidden operations fail explicitly.
 - Every output binding is expected to retain a canonical address when the host adapter exposes one.
 - An exact expression must not produce more than one binding; multiplicity violations fail with `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`.
-- Resolve performs no value evaluation, predicate evaluation, projection, sorting, slicing, aggregation, or mutation.
+- Resolve evaluates admitted selector filters, including opted-in property suffixes, but performs no Query expression/value evaluation, projection, sorting, slicing, aggregation, or mutation.
 
 ## Experimental Mutate API
 
@@ -854,6 +867,7 @@ Parent traversal, position ranges, expansion selectors, filters, and name patter
 { type: "namePattern", pattern }
 { type: "semanticTypeFilter", name }
 { type: "representationKindFilter", name }
+{ type: "propertyFilter", property: "key", value } // property may also be "tag"
 ```
 
 Selector names and patterns are decoded string values. Renderers choose the shortest unambiguous canonical form.
@@ -866,6 +880,7 @@ Resolve is host-adapted. A namespace must expose a root binding:
 {
   root,
   contextualRoot?,
+  properties?,
   children?(binding),
   parent?(binding),
   member?(binding, name),
@@ -909,6 +924,13 @@ For simple hosts, bindings may expose fields directly:
 ```
 
 `scalarKind`, `valueKind`, or `literalKind` may be used by host-neutral fixtures to preserve scalar forms that JSON cannot express directly, such as `nan`, `infinity`, and explicit `null`. `nullReason` carries the surfaced AEON null reason, such as `notSet` or `notApplicable`.
+
+These ordinary binding fields are not a fallback for the authoritative property
+facet. `properties.scope` is required; key support additionally requires `key`,
+and tag support requires `nodeKind`, `nodeTag` and incremental `nodeHeads`.
+Root keys remain hidden and direct-head ownership must be proven by the facet.
+The current [property types and implementation](property-resolve-implementation.md)
+define read-only contexts, checked faults and finite inspection accounting.
 
 Query also recognizes the portable scalar representation names directly, including
 `DateLiteral`, `TimeLiteral`, `DateTimeLiteral`, `WTCDateTimeLiteral` and
@@ -1489,6 +1511,14 @@ Evaluation diagnostics may also include context fields such as `phase`, `candida
 - `SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN`
 - `SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION`
 - `SANSA_RESOLVE_UNSUPPORTED_SELECTOR`
+- `SANSA_RESOLVE_INVALID_PROPERTY_LIMIT`
+- `SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE`
+- `SANSA_RESOLVE_UNSUPPORTED_KEY`
+- `SANSA_RESOLVE_UNSUPPORTED_TAG`
+- `SANSA_RESOLVE_PROPERTY_SCOPE_VIOLATION`
+- `SANSA_RESOLVE_INVALID_PROPERTY_METADATA`
+- `SANSA_RESOLVE_PROPERTY_ADAPTER_ERROR`
+- `SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED`
 
 ## Host-token step parsing
 

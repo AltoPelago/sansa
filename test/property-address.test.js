@@ -40,9 +40,9 @@ test('canonical bounds count escaped rendering and retain property-free legacy l
   assert.equal(parseAddress('$&key("\ud800")').errors[0].code,'SANSA_INVALID_UNICODE_SCALAR');
   assert.equal(parseAddress('$&key("x"):'+ 'a<'.repeat(40000)+'b'+'>'.repeat(40000)).ok,false);
 });
-test('property execution is preflight-denied including empty prefixes, false branches and forged exact flags',()=>{
-  let reads=0;const host={root:{children:[]},children(){reads++;return [];},properties:{scope(){reads++;return 'inside';},key(){reads++;return 'x';}}};
-  for(const source of ['$.missing&key("x")','$&tag("x")'])assert.equal(resolveAddress(source,host).errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');
+test('legacy hosts lack property scope while prohibited consumers preflight empty and false branches',()=>{
+  let reads=0;const host={root:{children:[]},children(){reads++;return [];},key(){reads++;return 'x';}};
+  for(const source of ['$.missing&key("x")','$&tag("x")'])assert.equal(resolveAddress(source,host).errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE');
   const ast=parseAddress('$.missing&key("x")').address;ast.isExact=true;ast.canonical='$';assert.equal(resolveAddress(ast,host).ok,false);
   for(const source of ['from $.missing\nselect $&key("x")','from $\nwhere false and exists($&tag("x"))\nselect .','from $.missing\norder by $&tag("x")\nselect .']){
     const result=evaluateQuery(source,host);assert.equal(result.ok,false);assert.equal(result.errors[0].phase,'policy');

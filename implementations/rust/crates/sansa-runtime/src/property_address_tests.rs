@@ -95,7 +95,7 @@ struct Host {
 }
 
 #[test]
-fn property_denial_precedes_absolute_and_contextual_root_acquisition() {
+fn standalone_property_root_validity_precedes_optional_capabilities() {
     struct RootHost {
         calls: Cell<usize>,
         missing: bool,
@@ -131,9 +131,21 @@ fn property_denial_precedes_absolute_and_contextual_root_acquisition() {
                 resolve_address(source, &host, &options),
                 crate::resolve::resolve_parsed_address(&address, &host, &options),
             ] {
-                assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+                assert_eq!(
+                    result.errors[0].code,
+                    if missing {
+                        if source.starts_with('$') {
+                            "SANSA_RESOLVE_MISSING_ROOT"
+                        } else {
+                            "SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT"
+                        }
+                    } else {
+                        "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
+                    }
+                );
             }
-            assert_eq!(host.calls.get(), 0);
+            assert_eq!(host.calls.get(), 2);
+            host.calls.set(0);
         }
         let result = resolve_address("$", &host, &ResolveOptions::default());
         assert_eq!(host.calls.get(), 1);
@@ -161,7 +173,10 @@ fn parser_support_does_not_admit_execution_or_empty_branch_bypass() {
     for source in ["$.missing&key(\"x\")", "$&tag(\"x\")"] {
         let result = resolve_address(source, &host, &ResolveOptions::default());
         assert!(!result.errors.is_empty());
-        assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+        assert_eq!(
+            result.errors[0].code,
+            "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
+        );
     }
     // Query cursor integration follows in its own slice. Text fails during parsing;
     // caller Query ASTs must also be denied before evaluating an empty source.
@@ -218,7 +233,10 @@ fn native_property_ast_bounds_precede_namespace_access_and_preserve_native_index
     address.canonical = "$".into();
     let result =
         crate::resolve::resolve_parsed_address(&address, &host, &ResolveOptions::default());
-    assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+    assert_eq!(
+        result.errors[0].code,
+        "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
+    );
     assert_eq!(host.reads.get(), 0);
 }
 

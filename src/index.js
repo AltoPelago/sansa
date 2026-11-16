@@ -1,4 +1,5 @@
 import {PropertyAddressError, data as astData, hasPropertySyntax, hasPropertyAst, propertyLimit, renderPropertyAddress, parsePropertyQualifiers} from './property-address.js';
+import {DEFAULT_PROPERTY_INSPECTIONS, validPropertyLimit, prepareProperties, propertyContext, selectProperty} from './property-resolve.js';
 export { evaluateAeonicTemporal, evaluateAeonicTemporalText, AEONIC_TEMPORAL_CIVIL_DATE_PROFILE, AEONIC_TEMPORAL_CIVIL_DATE_DEFAULT_RESOURCE_LIMITS } from './aeonic-temporal-civil-date.js';
 export {
   evaluateAeonicRationalArithmetic,
@@ -30,6 +31,7 @@ export {
 import { parseDotSelectorFromCursor, parsePositionSelectorFromCursor, validatePositionIndex } from './selector-cursor.js';
 const CHILD_IDENTITY_RE = /^[A-Za-z0-9_-]+$/;
 const DENY_CHILD_IDENTITY = Symbol('consumer identity admission');
+const DENY_PROPERTIES = Symbol('consumer property admission');
 const QUERY_IDENTITY_BUDGET = Symbol('query identity inspections');
 const IDENTITY_ACTIVATION_GUARD = Symbol('identity activation scope');
 const DEFAULT_IDENTITY_INSPECTIONS = 10_000;
@@ -2895,7 +2897,7 @@ function findExpression(expression, predicate) {
 }
 
 function resolveConsumerAddress(input, namespace, options = {}) {
-  return resolveAddress(input, namespace, { ...options, [DENY_CHILD_IDENTITY]: true });
+  return resolveAddress(input, namespace, { ...options, [DENY_CHILD_IDENTITY]: true, [DENY_PROPERTIES]: true });
 }
 
 export function resolveAddress(input, namespace, options = {}) {
@@ -2903,8 +2905,9 @@ export function resolveAddress(input, namespace, options = {}) {
   try {
     parsed = typeof input === 'string' ? parseAddress(input, options.parse)
       : hasPropertyAst(input) ? parseAddress(renderAddress(input), options.parse) : {ok:true,address:input};
-  } catch {
-    return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST')]};
+  } catch (error) {
+    return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST', undefined,
+      error instanceof PropertyAddressError ? {causeCode: error.code} : {})]};
   }
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
   const hasIdentity = !(typeof input === 'string' && parsed.address.isExact)
@@ -2933,9 +2936,13 @@ export function resolveAddress(input, namespace, options = {}) {
   }
 
   const propertyIndex = parsed.address.selectors.findIndex(s => s.type === 'propertyFilter');
-  if (propertyIndex !== -1) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented',propertyIndex)]};
+  const maxPropertyInspections = options.maxPropertyInspections === undefined ? DEFAULT_PROPERTY_INSPECTIONS : options.maxPropertyInspections;
+  if (!validPropertyLimit(maxPropertyInspections)) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_INVALID_PROPERTY_LIMIT','Property inspection limit must be an integer from 0 through 1000000')]};
+  if (propertyIndex !== -1 && options[DENY_PROPERTIES]) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property selectors are not admitted by this consumer',propertyIndex)]};
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
+  const prepared = propertyIndex === -1 ? undefined : prepareProperties(namespace, parsed.address.selectors);
+  if (prepared?.error) return {ok:false,bindings:[],errors:[prepared.error]};
   if (hasIdentity) {
     const selectorIndex = parsed.address.selectors.findIndex(s => s.type === 'childIdentity');
     const identity = parsed.address.selectors[selectorIndex].identity;
@@ -2947,6 +2954,12 @@ export function resolveAddress(input, namespace, options = {}) {
   const identityBudget = hasIdentity
     ? (options[QUERY_IDENTITY_BUDGET] ?? { inspected: 0 })
     : undefined;
+
+  if (prepared) return resolvePropertyAddress(parsed.address, namespace, rootResult.binding, prepared, {
+    effectiveRoot: options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
+    parentTraversal: options.parentTraversal, failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
+    maxBindings, identityBudget, maxIdentityInspections, identityActivationGuard: options[IDENTITY_ACTIVATION_GUARD],
+  }, maxPropertyInspections);
 
   if (maxBindings === 0 && parsed.address.selectors.length === 0) {
     return {
@@ -3000,6 +3013,50 @@ export function resolveAddress(input, namespace, options = {}) {
   }
 
   return { ok: true, bindings: current, diagnostics: [] };
+}
+
+function resolvePropertyAddress(address, namespace, root, prepared, policy, limit) {
+  let current = [{binding: root, context: propertyContext(root, root)}];
+  const budget = {inspected: 0, limit: limit === 0 ? 0 : limit};
+  for (let index = 0; index < address.selectors.length; index++) {
+    const selector = address.selectors[index];
+    if (selector.type === 'parent' || selector.type === 'attributeSpace') {
+      // These helpers decide support/policy over the whole input set. Project
+      // their selected values back to occurrence frames before filtering; a
+      // binding-keyed map would merge aliases from different authorized scopes.
+      const sources = selector.type === 'parent'
+        ? current.filter(occurrence => occurrence.binding !== policy.effectiveRoot)
+        : current;
+      const project = (binding, sourceIndex) => ({binding, context: selector.type === 'attributeSpace'
+        ? propertyContext(binding, binding) : sources[sourceIndex].context});
+      const bindings = current.map(occurrence => occurrence.binding);
+      const selected = selector.type === 'parent'
+        ? selectParents(namespace, bindings, index, policy, project)
+        : selectAttributeSpaces(namespace, bindings, index, project);
+      if (!selected.ok) return {ok:false,bindings:[],errors:[selected.error]};
+      if (policy.maxBindings !== undefined && selected.bindings.length > policy.maxBindings) return {ok:false,bindings:[],errors:[resolveBindingLimitError(policy.maxBindings, selected.bindings.length, index)]};
+      current = selected.bindings;
+      if (!current.length) break;
+      continue;
+    }
+    const next = [];
+    for (const occurrence of current) {
+      if (selector.type === 'propertyFilter') {
+        const selected = selectProperty(occurrence.binding, occurrence.context, prepared, selector, index, budget);
+        if (selected.error) return {ok:false,bindings:[],errors:[selected.error]};
+        if (selected.match) next.push(occurrence);
+      } else {
+        const maxBindings = policy.maxBindings === undefined ? undefined : policy.maxBindings - next.length;
+        const selected = applyResolveSelector(selector, [occurrence.binding], namespace, index, {...policy, maxBindings});
+        if (!selected.ok) return {ok:false,bindings:[],errors:[selected.error.code === 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED' ? resolveBindingLimitError(policy.maxBindings, policy.maxBindings + 1, index) : selected.error]};
+        for (const binding of selected.bindings) next.push({binding, context: ['attributeSpace', 'localSpace'].includes(selector.type) ? propertyContext(binding, binding) : occurrence.context});
+      }
+      if (policy.maxBindings !== undefined && next.length > policy.maxBindings) return {ok:false,bindings:[],errors:[resolveBindingLimitError(policy.maxBindings, next.length, index)]};
+    }
+    current = next;
+    if (!current.length) break;
+  }
+  return {ok:true,bindings:current.map(occurrence => occurrence.binding),diagnostics:[]};
 }
 
 export function traverseGraph(starts, namespace, declarations, options = {}) {
@@ -3909,7 +3966,7 @@ function resolveQueryAddress(address, namespace, options, resolveOptions = optio
   const budget = options[QUERY_IDENTITY_BUDGET];
   return budget === undefined
     ? resolveConsumerAddress(address, namespace, resolveOptions)
-    : resolveAddress(address, namespace, { ...resolveOptions, [QUERY_IDENTITY_BUDGET]: budget });
+    : resolveAddress(address, namespace, { ...resolveOptions, [QUERY_IDENTITY_BUDGET]: budget, [DENY_PROPERTIES]: true });
 }
 
 function evaluateQueryFromClause(from, namespace, options) {
@@ -7123,7 +7180,7 @@ function* iteratePositionRange(namespace, binding, start, end) {
   }
 }
 
-function selectParents(namespace, bindings, selectorIndex, policy) {
+function selectParents(namespace, bindings, selectorIndex, policy, project) {
   if (policy.parentTraversal === 'forbid') {
     return {
       ok: false,
@@ -7150,10 +7207,16 @@ function selectParents(namespace, bindings, selectorIndex, policy) {
   const traversable = bindings.filter((binding) => binding !== policy.effectiveRoot);
   if (traversable.length === 0) return { ok: true, bindings: [] };
   if (typeof namespace.parent === 'function') {
-    return { ok: true, bindings: traversable.map((binding) => namespace.parent(binding)).filter(Boolean) };
+    return { ok: true, bindings: traversable.map((binding, index) => {
+      const parent = namespace.parent(binding);
+      return parent && project ? project(parent, index) : parent;
+    }).filter(Boolean) };
   }
   if (traversable.some((binding) => Object.prototype.hasOwnProperty.call(binding, 'parent'))) {
-    return { ok: true, bindings: traversable.map((binding) => binding.parent).filter(Boolean) };
+    return { ok: true, bindings: traversable.map((binding, index) => {
+      const parent = binding.parent;
+      return parent && project ? project(parent, index) : parent;
+    }).filter(Boolean) };
   }
   if (traversable.length === 0) return { ok: true, bindings: [] };
   return {
@@ -7166,10 +7229,13 @@ function selectParents(namespace, bindings, selectorIndex, policy) {
   };
 }
 
-function selectAttributeSpaces(namespace, bindings, selectorIndex) {
+function selectAttributeSpaces(namespace, bindings, selectorIndex, project) {
   if (typeof namespace.attributeSpace !== 'function') {
     const selected = bindings
-      .map((binding) => binding.attributeSpace ?? binding.attributes)
+      .map((binding, index) => {
+        const attributes = binding.attributeSpace ?? binding.attributes;
+        return attributes && project ? project(attributes, index) : attributes;
+      })
       .filter(Boolean);
     if (selected.length > 0 || bindings.length === 0) return { ok: true, bindings: selected };
     return {
@@ -7183,7 +7249,10 @@ function selectAttributeSpaces(namespace, bindings, selectorIndex) {
   }
   return {
     ok: true,
-    bindings: bindings.map((binding) => namespace.attributeSpace(binding)).filter(Boolean),
+    bindings: bindings.map((binding, index) => {
+      const attributes = namespace.attributeSpace(binding);
+      return attributes && project ? project(attributes, index) : attributes;
+    }).filter(Boolean),
   };
 }
 

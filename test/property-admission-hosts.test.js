@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {evaluateQuery, lowerInstruction, parseAddress, parseInstruction, parseQuery, resolveAddress} from '../src/index.js';
 
-test('property Resolve denies text and native addresses before all namespace root access', () => {
+test('closed Query consumer denies text and native property addresses before namespace root access', () => {
   for (const root of ['$', '?']) for (const suffix of ['&key("x")', '.missing&tag("x")']) {
     const source = root + suffix;
     for (const input of [source, parseAddress(source).address]) {
@@ -11,10 +11,12 @@ test('property Resolve denies text and native addresses before all namespace roo
       const host = {root: forbidden, children: forbidden};
       Object.defineProperty(host, 'contextualRoot', {get: forbidden});
       for (const namespace of [host, {}, undefined]) {
-        const result = resolveAddress(input, namespace);
+        const query = parseQuery('from $\nselect true').query;
+        query.select.ast = {type:'resolutionExpression',scope:'absolute',address:typeof input==='string'?parseAddress(input).address:input};
+        const result = evaluateQuery(query, namespace);
         assert.equal(result.ok, false);
         assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');
-        assert.equal(result.errors[0].selectorIndex, suffix.startsWith('.') ? 1 : 0);
+        assert.equal(result.errors[0].phase, 'policy');
       }
       assert.equal(reads, 0);
     }
