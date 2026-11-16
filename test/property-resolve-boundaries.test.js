@@ -27,6 +27,11 @@ test('over-budget yielded heads are not inspected even through iterator value ac
   const result=resolveAddress('$.multi&tag("right")',namespace,{maxPropertyInspections:1});
   assert.equal(result.errors[0].code,'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED');
   assert.equal(reads,0);assert.equal(closed,1);
+  // Iterator protocol records are objects, including callable objects. They
+  // are not caller ASTs and do not have the plain-data AST restriction.
+  namespace.properties.nodeHeads=()=>({[Symbol.iterator](){return this;},next(){return Object.assign(()=>{},{done:false,value:bindings.get('right')});},return(){return Object.assign(()=>{},{done:true});}});
+  const callable=resolveAddress('$.multi&tag("right")',namespace,{maxPropertyInspections:2});
+  assert.equal(callable.ok,true);assert.deepEqual(callable.bindings,[bindings.get('multi')]);
 });
 
 test('capable adapters do not admit Query, Instruction, mutation or literal activation', () => {

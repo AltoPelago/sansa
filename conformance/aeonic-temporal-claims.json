@@ -85,7 +85,7 @@
       "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
       "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76",
       "src/property-address.js": "f88d857a0f073d3a1056cdfe89d87165140708a105feb81def3f12a37fe23ce3",
-      "src/property-resolve.js": "59b3312aa2c92fdcf60639fdcfd4c4e314f4899e2a66f9135001b2fe9dfa0301"
+      "src/property-resolve.js": "ce140a6fcb22cf46a8f3ecb5e8b5857cdf0dcff5eaca7f3e50f5fe1263e2e52f"
     },
     "limits": [
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",

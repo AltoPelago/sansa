@@ -11,6 +11,7 @@ class PropertyFailure {
   constructor(code) { this.code = code; internalFailures.add(this); }
 }
 const invalid = () => { throw new PropertyFailure('SANSA_RESOLVE_INVALID_PROPERTY_METADATA'); };
+const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 function faultCode(error) {
   if (internalFailures.has(error)) return error.code;
   // Explicit checked faults are plain data; never evaluate fault accessors or
@@ -96,16 +97,16 @@ export function selectProperty(binding, context, prepared, selector, selectorInd
       const create = iterable?.[Symbol.iterator];
       if (typeof create !== 'function') invalid();
       iterator = create.call(iterable);
-      if (!iterator) invalid();
+      if (!objectLike(iterator)) invalid();
       const next = iterator.next;
       if (typeof next !== 'function') invalid();
       while (true) {
         const step = next.call(iterator);
-        if (!step || typeof step !== 'object') invalid();
+        if (!objectLike(step)) invalid();
         if (step.done) { finished = true; break; }
         charge();
         const head = step.value;
-        if (!head || !['object', 'function'].includes(typeof head)) invalid();
+        if (!objectLike(head)) invalid();
         const headContext = propertyContext(context.scopeRoot, context.evaluationRoot, binding);
         authorize(head, headContext);
         if (kind(head, headContext) !== 'NodeHead') invalid();
@@ -119,7 +120,7 @@ export function selectProperty(binding, context, prepared, selector, selectorInd
         if (close !== undefined) {
           if (typeof close !== 'function') invalid();
           const closed = close.call(iterator);
-          if (!closed || typeof closed !== 'object') invalid();
+          if (!objectLike(closed)) invalid();
         }
       }
     }
