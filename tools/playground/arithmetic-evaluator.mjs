@@ -1,5 +1,5 @@
 import {
-  evaluateAeonicTemporalText, evaluateAeonicArithmeticText, evaluateAeonicRationalArithmeticText,
+  evaluateAeonicCivilDateTimeText, evaluateAeonicTemporalText, evaluateAeonicArithmeticText, evaluateAeonicRationalArithmeticText,
   evaluateAeonicArithmeticAndMaterializeText, evaluateAeonicRationalArithmeticAndMaterializeText,
 } from '../../src/index.js';
 import { parseStrictJson, exceedsJsonDepth } from '../../src/aeonic-json.js';
@@ -8,6 +8,7 @@ import { validateArithmeticInput, ARITHMETIC_LIMITS } from './arithmetic-model.m
 
 export function evaluateArithmeticPlayground(input) {
   validateArithmeticInput(input);
+  if (input.lane === 'datetime') return evaluateAeonicCivilDateTimeText(input.requestText);
   if (input.lane === 'temporal') return evaluateAeonicTemporalText(input.requestText);
   const rational = input.lane === 'rational';
   if (!Object.hasOwn(input, 'outputPolicyText')) {

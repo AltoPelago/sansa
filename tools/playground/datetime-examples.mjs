@@ -1,0 +1,22 @@
+const b = value => ({ number: { category: 'finiteNumber', value } });
+const dt = value => ({ temporal: { category: 'civilDateTime', value } });
+const points = pieces => ({ temporal: { category: 'civilDateTimeSet', pieces }, originDateGranularity: 'undeclared', originClockForm: 'undeclared', history: { clamping: 'none-declared', approximation: 'none-declared' } });
+const interval = (start, end, includeStart = true, includeEnd = false) => ({ kind: 'interval', start, end, includeStart, includeEnd });
+const datetimeRequest = (operation, value, other, policy) => ({ operation, input: {
+  context: { profile: 'aeonic.operations.temporal.civil-datetime.v1' },
+  ...(['shift', 'shiftClock', 'step', 'materialize'].includes(operation) ? { value, ...(operation === 'shiftClock' ? { amount: other } : {}) } : { left: value, right: other }),
+  ...(policy ? { policy } : {}),
+} });
+export const DATETIME_EXAMPLES = [
+  { id: 'datetime-clock-carry', lane: 'datetime', title: 'Exact clock carry', detail: 'Add 0.2 civil-coordinate seconds across midnight, preserving exact fractional seconds.', request: datetimeRequest('shiftClock', dt('2024-03-01T23:59:59.9'), b('0.2')) },
+  { id: 'datetime-month-shift', lane: 'datetime', title: 'Shift February’s minutes', detail: 'February’s daily 09:30 minutes shift to March 1–29. Later calculations retain those exact intervals.', request: datetimeRequest('shift', dt('2024-02T09:30'), undefined, { unit: 'month', count: '1' }) },
+  { id: 'datetime-month-step', lane: 'datetime', title: 'Step the complete month form', detail: 'Stepping the February form produces the daily 09:30 minutes on every date of March, including March 30–31.', request: datetimeRequest('step', dt('2024-02T09:30'), undefined, { dateGranularity: 'month', clockForm: 'minute', count: '1' }) },
+  { id: 'datetime-reordered-clamp', lane: 'datetime', title: 'Clamping preserves clock gaps', detail: 'Two source days clamp to February 28. The early and late clock windows remain disconnected after reordering.', request: datetimeRequest('shift', points([interval('2023-01-30T23:00:00', '2023-01-31T01:00:00')]), undefined, { unit: 'month', count: '1' }) },
+  { id: 'datetime-open-boundary', lane: 'datetime', title: 'Excluded endpoint', detail: 'The 09:30 minute excludes 09:31:00. The two exact sets are disjoint.', request: datetimeRequest('relate', dt('2024-03-01T09:30'), dt('2024-03-01T09:31:00')) },
+  { id: 'datetime-reduced-date', lane: 'datetime', title: 'A point on every date', detail: 'Reduced dates preserve every compatible date. Authored .1 and .10 cover identical second coordinates.', request: datetimeRequest('equal', dt('2024-T09:30:00.1'), dt('2024-T09:30:00.10')) },
+  { id: 'datetime-history', lane: 'datetime', title: 'A previously rounded amount', detail: 'A derived finite-decimal amount feeds the clock shift directly. Its approximation marker remains attached to the exact result.', request: datetimeRequest('shiftClock', dt('2023-01-31T09:30:00'), { number: { category: 'exactNumber', coefficient: '2', exponent: '-1' }, history: 'approximation-declared' }) },
+  { id: 'datetime-final-minute', lane: 'datetime', title: 'Last minute in the domain', detail: 'The excluded end-of-domain marker preserves the complete last minute without admitting year 10000 as a value.', request: datetimeRequest('shiftClock', dt('9999-12-31T23:59'), b('0')) },
+  { id: 'datetime-materialize', lane: 'datetime', title: 'Materialize an exact form', detail: 'Exact coverage matches the requested month/minute form. Both origin markers and both histories remain in the envelope.', request: datetimeRequest('materialize', dt('2024-03T09:30'), undefined, { dateGranularity: 'month', clockForm: 'minute' }) },
+  { id: 'datetime-partial-output', lane: 'datetime', title: 'No widening into a month', detail: 'March 1–29 at 09:30 cannot materialize as the complete March form. It produces a diagnostic and no value.', request: datetimeRequest('materialize', points(Array.from({ length: 29 }, (_, i) => interval(`2024-03-${String(i + 1).padStart(2, '0')}T09:30:00`, `2024-03-${String(i + 1).padStart(2, '0')}T09:31:00`))), undefined, { dateGranularity: 'month', clockForm: 'minute' }) },
+  { id: 'datetime-fine-fraction', lane: 'datetime', title: 'Beyond nanoseconds', detail: 'An exact picosecond shift is admitted within resource limits. No automatic rounding occurs.', request: datetimeRequest('shiftClock', dt('2024-03-01T09:30:00'), b('1e-12')) },
+];

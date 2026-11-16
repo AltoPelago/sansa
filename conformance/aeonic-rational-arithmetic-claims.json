@@ -43,8 +43,8 @@
       "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
     },
     "implementation_files_sha256": {
-      "src/index.js": "a81e951dbfe90c85bdfa7b268f312d4c6708716cbbbc1c172bc5b584864a3a73",
-      "src/index.d.ts": "315257d52213d53ea9548efe0915048e6e235218bef16ed08a3139d2eec12be1",
+      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
+      "src/index.d.ts": "c0de36607e1cccb6c5016fdca580a4dc0abccbdc6ee75f7a2e3033e631e1a1f4",
       "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
       "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",
       "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
@@ -60,7 +60,8 @@
       "The CTS supplies explicit baseline and companion limits. Seventeen independent native default-capacity probes are separate evidence, not Cartesian or machine-time/memory guarantees.",
       "Native getters/proxies/custom subclasses, object-key enumeration, outer CTS transport and whole-chain budgets remain separate from logical JSON conformance.",
       "Convenience composition has its own step metadata/result shape and tests; it does not widen this frozen operation result contract.",
-      "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3."
+      "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3.",
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
     ]
   }
 }

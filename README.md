@@ -35,6 +35,15 @@ playground includes twelve civil-date examples and explicit bundle continuations
 These are unreleased JavaScript APIs; Query's temporal completion-set relations,
 Rust and timezone/WTC resolution keep their separate boundaries.
 
+The standalone [civil date-time API](docs/aeonic-temporal-civil-datetime.md)
+adds `evaluateAeonicCivilDateTime` and `evaluateAeonicCivilDateTimeText` against
+frozen snapshot 0.1. Exact point/interval sets preserve excluded endpoints, both
+origins and clamping/approximation histories. Independently complete Relations
+and Arithmetic cover symbolic relations, calendar/clock shifts, complete-form
+stepping and exact materialization. Try **Civil date-times** in the value
+operations playground. Explicit profile selection is required; this adds no
+Query/Rust integration, timezone resolution or package release.
+
 
 ## Current Scope
 

@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "target": "aeonic-temporal-civil-datetime-cts-v1-snapshot-0.1",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "semantic_execution": true,
+  "capabilities": [
+    "arithmetic"
+  ],
+  "excluded_unclaimed_capability_cases": 38,
+  "operation_cases": 119,
+  "chains": 2,
+  "law_groups": 0,
+  "sut_executions": 124,
+  "assertions": 124,
+  "manifest_sha256": "e02470ed4bf85cf2cefed34e53cb327beb5011028daae53ac5059d462168ce1d",
+  "runner_sha256": "55e4948cf85b078f49687bbb628de7fc4aacb13609c6c936e57f17cefe2d99ae",
+  "specification_source_sha256": "7c2f315c7ea19d17e01991ebea40e7474d5c2388286bbf827f38d6e56bff9fe1",
+  "specification_schema_sha256": "55ba948d45d7113c92f845cafc071c1f44f7794350543b31b7be179733332155",
+  "helper_hashes": {
+    "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+    "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+    "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489",
+    "runners/temporal_civil_datetime_checks.py": "16eb93eb4664751ede5222286e283e4b4c6c87e6a3bbaa706cff5c8ec00d326f"
+  },
+  "resource_limits": {
+    "maxRequestBytes": 65536,
+    "maxRequestDepth": 32,
+    "maxTemporalCharacters": 1024,
+    "maxInputPieces": 512,
+    "maxIntermediatePieces": 4096,
+    "maxOutputPieces": 512,
+    "maxWork": 16384,
+    "maxFractionDigits": 256,
+    "maxCountCharacters": 32,
+    "maxNumericCharacters": 4096,
+    "maxCoefficientDigits": 1024,
+    "maxExponentMagnitude": 1000000,
+    "maxWorkspaceDigits": 4096,
+    "maxOutputCharacters": 1024,
+    "maxResultBytes": 131072
+  },
+  "sut": "node scripts/cts-aeonic-temporal-civil-datetime-adapter.mjs --capability-set arithmetic",
+  "cwd": ".",
+  "failures": []
+}

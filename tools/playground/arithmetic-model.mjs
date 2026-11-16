@@ -1,7 +1,9 @@
+import { DATETIME_EXAMPLES } from './datetime-examples.mjs';
 import { TEMPORAL_EXAMPLES } from './temporal-examples.mjs';
 import { parseStrictJson, exceedsJsonDepth } from '../../src/aeonic-json.js';
 export const ARITHMETIC_LIMITS = Object.freeze({ requestBytes: 262144, outputPolicyBytes: 16384, policyDepth: 8, resultBytes: 1048576, timeoutMs: 4000 });
 export const ARITHMETIC_LANES = Object.freeze({
+  datetime: { title: 'Civil date-times', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-datetime.v1' },
   temporal: { title: 'Civil dates', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-date.v1' },
   finite: { title: 'Finite arithmetic', snapshot: '0.1', profile: 'aeonic.operations.arithmetic.exact.v1' },
   rational: { title: 'Rational & rounding', snapshot: '0.2', profile: 'aeonic.operations.arithmetic.rational.v1' },
@@ -20,9 +22,9 @@ export function validateArithmeticInput(input, limits = ARITHMETIC_LIMITS) {
       || Object.keys(input).some(key => !['lane', 'requestText', 'outputPolicyText'].includes(key))
       || !Object.hasOwn(input, 'lane') || !Object.hasOwn(input, 'requestText')
       || typeof input.lane !== 'string' || !Object.hasOwn(ARITHMETIC_LANES, input.lane) || typeof input.requestText !== 'string') {
-    throw new TypeError('Expected a finite/rational/civil-date capability and logical JSON request text.');
+    throw new TypeError('Expected a finite/rational/civil-date/civil-date-time capability and logical JSON request text.');
   }
-  if (input.lane === 'temporal' && Object.hasOwn(input, 'outputPolicyText')) throw new TypeError('Civil dates require explicit separate operations; numerical convenience policy is unavailable.');
+  if (['temporal', 'datetime'].includes(input.lane) && Object.hasOwn(input, 'outputPolicyText')) throw new TypeError('Temporal capabilities require explicit separate operations; numerical convenience policy is unavailable.');
   const policy = Object.hasOwn(input, 'outputPolicyText') ? input.outputPolicyText : '';
   if (typeof policy !== 'string') throw new TypeError('Output policy must be JSON text.');
   if (policy.length > limits.outputPolicyBytes || utf8Bytes(policy, limits.outputPolicyBytes) > limits.outputPolicyBytes) {
@@ -54,8 +56,15 @@ export const ARITHMETIC_EXAMPLES = [
   { id: 'unrepresentable', lane: 'rational', title: 'A rational is not a Number literal', detail: 'Exact 1/3 cannot be materialized as a finite Number. Explicit quantization is a separate decision.', request: { operation: 'materialize', input: { value: exact('1', '0', '3'), context: context('rational'), policy: { family: 'decimal' } } } },
   { id: 'compact', lane: 'rational', title: 'A compact million-place exponent', detail: 'An already-on-grid value stays compact instead of expanding a million digits.', request: { operation: 'quantize', input: { value: authored('1e1000000'), context: context('rational'), policy: { ...grid, increment: { category: 'exactNumber', coefficient: '1', exponent: '0' } } } } },
 ];
-export const VALUE_EXAMPLES = [...ARITHMETIC_EXAMPLES, ...TEMPORAL_EXAMPLES];
+export const VALUE_EXAMPLES = [...ARITHMETIC_EXAMPLES, ...TEMPORAL_EXAMPLES, ...DATETIME_EXAMPLES];
 export function continueArithmetic(value, lane, operation) {
+  if (lane === 'datetime') {
+    if (!value?.temporal || !['civilDateTime', 'civilDateTimeSet'].includes(value.temporal.category) || !['shift', 'shiftClock', 'step', 'materialize'].includes(operation)) throw new TypeError('A date-time continuation needs a complete date-time bundle.');
+    const input = { value: structuredClone(value), context: context(lane) };
+    if (operation === 'shiftClock') input.amount = authored('0.2');
+    else input.policy = operation === 'shift' ? { unit: 'month', count: '1' } : { dateGranularity: 'month', clockForm: 'minute', ...(operation === 'step' ? { count: '1' } : {}) };
+    return { operation, input };
+  }
   if (lane === 'temporal') {
     if (!value?.temporal || !['shift', 'step', 'materialize'].includes(operation)) throw new TypeError('A temporal continuation needs a complete date bundle.');
     return { operation, input: { value: structuredClone(value), context: context(lane), policy:
@@ -85,13 +94,20 @@ export function describeArithmeticInput(lane, requestText) {
     if (exceedsJsonDepth(requestText, 32)) return 'Review the request. The selected API validates it when run.';
     const request = parseStrictJson(requestText), input = request?.input, policy = input?.policy;
     const label = bundle => {
-      const v = lane === 'temporal' ? bundle?.temporal : bundle?.number;
-      if (v?.category === 'civilDate' || v?.category === 'finiteNumber') return typeof v.value === 'string' ? v.value.slice(0, 60) : 'the operand';
+      const v = ['temporal', 'datetime'].includes(lane) ? bundle?.temporal ?? bundle?.number : bundle?.number;
+      if (['civilDate', 'civilDateTime'].includes(v?.category) || v?.category === 'finiteNumber') return typeof v.value === 'string' ? v.value.slice(0, 60) : 'the operand';
+      if (v?.category === 'civilDateTimeSet') return 'the exact point/interval bundle';
       if (v?.category === 'civilDateSet') return 'the exact date-range bundle';
       return 'the derived value';
     };
     if (!input || typeof request.operation !== 'string') return 'Review the request. The selected API validates it when run.';
     const op = request.operation, text = v => typeof v === 'string' ? v.slice(0, 60) : 'unspecified';
+    if (lane === 'datetime') {
+      if (op === 'shiftClock') return 'Shift ' + label(input.value) + ' by ' + label(input.amount) + ' civil-coordinate seconds. Preserve exact fractions and history.';
+      if (op === 'shift') return 'Shift ' + label(input.value) + ' by ' + text(policy?.count) + ' ' + text(policy?.unit) + ', preserving every clock subset.';
+      if (op === 'step') return 'Step ' + label(input.value) + ' by ' + text(policy?.count) + ' complete ' + text(policy?.dateGranularity) + '/' + text(policy?.clockForm) + ' forms.';
+      if (op === 'materialize') return 'Materialize ' + label(input.value) + ' as an exact ' + text(policy?.dateGranularity) + '/' + text(policy?.clockForm) + ' form.';
+    }
     if (lane === 'temporal') {
       if (op === 'shift') return 'Shift ' + label(input.value) + ' by ' + text(policy?.count) + ' ' + text(policy?.unit) + '. Preserve exact coverage for chaining.';
       if (op === 'step') return 'Step ' + label(input.value) + ' by ' + text(policy?.count) + ' complete ' + text(policy?.granularity) + ' periods.';
@@ -100,4 +116,22 @@ export function describeArithmeticInput(lane, requestText) {
     if (['equal', 'compare', 'relate', 'add', 'subtract', 'multiply', 'divide'].includes(op)) return text(op) + ': ' + label(input.left) + ' and ' + label(input.right) + '. The selected API determines the result.';
     return text(op) + ': ' + label(input.value) + '. Review the explicit policy before running.';
   } catch { return 'Review the request. The selected API validates it when run.'; }
+}
+
+export function dateTimeDisplay(value) {
+  if (value.category === 'symbol') return '|' + value.value + '|';
+  if (value.temporal.category === 'civilDateTime') return value.temporal.value;
+  const pieces = value.temporal.pieces;
+  return pieces.slice(0, 3).map(p => p.kind === 'point' ? p.at
+    : (p.includeStart ? '[' : '(') + p.start + ' … ' + (typeof p.end === 'string' ? p.end : 'end of domain') + (p.includeEnd ? ']' : ')')).join(' ∪ ')
+    + (pieces.length > 3 ? ' … (' + pieces.length + ' pieces)' : '');
+}
+export function dateTimeFacts(result) {
+  const rows = [['Current clamping', result.metadata.clamping]];
+  const add = (prefix, history, origin) => rows.push([prefix + 'date origin', origin.dateGranularity], [prefix + 'clock origin', origin.clockForm],
+    [prefix + 'clamping history', history.clamping], [prefix + 'approximation history', history.approximation]);
+  if (result.value.category === 'symbol') for (const side of ['left', 'right']) {
+    add(side === 'left' ? 'Left ' : 'Right ', result.metadata.operandHistory[side], result.metadata.operandOrigin[side]);
+  } else add('', result.value.history, { dateGranularity: result.value.originDateGranularity, clockForm: result.value.originClockForm });
+  return rows;
 }
