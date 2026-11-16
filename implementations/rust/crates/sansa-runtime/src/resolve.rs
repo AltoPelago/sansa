@@ -224,8 +224,19 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
         .selectors
         .iter()
         .any(|s| matches!(s, Selector::ChildIdentity { .. }));
-    let address = if has_identity {
-        if !identity_ast_bounded(address) {
+    let has_property = address
+        .selectors
+        .iter()
+        .any(|selector| matches!(selector, Selector::PropertyFilter { .. }));
+    if has_property && crate::address::validate_property_ast(address).is_err() {
+        return ResolveOutput::failure(resolve_error(
+            "SANSA_RESOLVE_INVALID_ADDRESS",
+            "Invalid property address AST",
+            None,
+        ));
+    }
+    let address = if has_identity || has_property {
+        if has_identity && !has_property && !identity_ast_bounded(address) {
             return ResolveOutput::failure(resolve_error(
                 "SANSA_RESOLVE_INVALID_ADDRESS",
                 "Invalid identity address AST",
@@ -267,6 +278,18 @@ fn resolve_valid_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
     inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> ResolveOutput<N::Binding> {
+    if let Some(index) = address
+        .selectors
+        .iter()
+        .position(|s| matches!(s, Selector::PropertyFilter { .. }))
+    {
+        return ResolveOutput::failure(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Property execution is not implemented",
+            Some(index),
+        ));
+    }
+
     let has_identity = address
         .selectors
         .iter()
@@ -376,6 +399,11 @@ fn apply_selector<N: Namespace>(
     inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> Result<Vec<N::Binding>, Box<Diagnostic>> {
     match selector {
+        Selector::PropertyFilter { .. } => Err(Box::new(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Property execution is not implemented",
+            Some(selector_index),
+        ))),
         Selector::ChildIdentity { identity } => {
             let mut output = Vec::new();
             for parent in bindings {

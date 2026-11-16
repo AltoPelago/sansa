@@ -5,6 +5,9 @@ export * from './aeonic-arithmetic.js';
 export * from './aeonic-comparison.js';
 
 export type SansaParseErrorCode =
+  | 'SANSA_UNKNOWN_PROPERTY_SELECTOR'
+  | 'SANSA_EXPECTED_PROPERTY_ARGUMENT'
+  | 'SANSA_PROPERTY_LIMIT_EXCEEDED'
   | 'SANSA_EXPECTED_IDENTITY'
   | 'SANSA_UNTERMINATED_IDENTITY'
   | 'SANSA_EMPTY_ADDRESS'
@@ -89,6 +92,9 @@ export type SansaWarningCode =
   | 'SANSA_NON_PORTABLE_POSITION_INDEX';
 
 export interface SansaDiagnostic {
+  readonly limitKind?: 'payloadScalars' | 'selectors' | 'canonicalScalars';
+  readonly limit?: number;
+  readonly observed?: number;
   readonly code: SansaParseErrorCode;
   readonly message: string;
   readonly index: number;
@@ -1488,7 +1494,14 @@ export interface ChildIdentitySelector {
   readonly identity: string;
 }
 
+export interface PropertyFilterSelector {
+  readonly type: 'propertyFilter';
+  readonly property: 'key' | 'tag';
+  readonly value: string;
+}
+
 export type SansaSelector =
+  | PropertyFilterSelector
   | ChildIdentitySelector
   | MemberSelector
   | PositionSelector

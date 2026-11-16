@@ -1,3 +1,4 @@
+import {PropertyAddressError, data as astData, hasPropertySyntax, hasPropertyAst, propertyLimit, renderPropertyAddress, parsePropertyQualifiers} from './property-address.js';
 export { evaluateAeonicTemporal, evaluateAeonicTemporalText, AEONIC_TEMPORAL_CIVIL_DATE_PROFILE, AEONIC_TEMPORAL_CIVIL_DATE_DEFAULT_RESOURCE_LIMITS } from './aeonic-temporal-civil-date.js';
 export {
   evaluateAeonicRationalArithmetic,
@@ -96,13 +97,14 @@ export function parseAddress(input, options = {}) {
     const address = parser.parse();
     return { ok: true, address, warnings: parser.warnings };
   } catch (error) {
-    if (error instanceof SansaParseError) {
+    if (error instanceof SansaParseError || error instanceof PropertyAddressError) {
       return {
         ok: false,
         errors: [{
           code: error.code,
           message: error.message,
-          index: error.index,
+          index: error.index ?? 0,
+          ...(error.limitKind === undefined ? {} : {limitKind:error.limitKind, limit:error.limit, observed:error.observed}),
         }],
       };
     }
@@ -221,6 +223,10 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
     };
   }
   try {
+    const instruction = parsed.instruction;
+    if (instructionHasProperty(instruction, options)) {
+      return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property instructions are not admitted',{phase:'lower'})]};
+    }
     const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
     const request = lowered.preconditions.length === 0
       ? lowered.operations.length === 1 ? lowered.operations[0] : lowered.operations
@@ -236,6 +242,7 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
       warnings: parsed.warnings ?? [],
     };
   } catch (error) {
+    if (error instanceof PropertyAddressError) return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST',{phase:'lower'})]};
     if (error instanceof SansaInstructionLowerError) {
       return { ok: false, errors: [error.diagnostic] };
     }
@@ -476,6 +483,12 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const query = parsed.query;
+  try {
+    if (queryHasProperty(query)) return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented'),{phase:'policy'})]};
+  } catch (error) {
+    if (!(error instanceof PropertyAddressError)) throw error;
+    return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST'),{phase:'policy'})]};
+  }
   const policy = enforceQueryPolicy(query, options);
   if (!policy.ok) {
     return {
@@ -616,6 +629,8 @@ export function planMutation(input, namespace, options = {}) {
   if (!operationSurface.ok) return { ok: false, errors: [operationSurface.error] };
   const valueBudget = checkMutationValueBudgets(options, normalized.operations);
   if (!valueBudget.ok) return { ok: false, errors: [valueBudget.error] };
+  const admission = preflightMutationProperties(normalized.operations, normalized.preconditions, options);
+  if (admission) return { ok: false, errors: [admission] };
 
   const operations = [];
   const seenDestructiveTargets = new Set();
@@ -687,6 +702,9 @@ export function applyMutationPlan(plan, namespace, options = {}) {
   if (!valueBudget.ok) {
     return { ok: false, operationResults: [], errors: [valueBudget.error] };
   }
+  // Recheck policy even when callers explicitly skip precondition evaluation.
+  const admission = preflightMutationProperties(plan.operations, plan.preconditions ?? [], options, true);
+  if (admission) return { ok: false, operationResults: [], errors: [admission] };
 
   for (let operationIndex = 0; operationIndex < plan.operations.length; operationIndex += 1) {
     const operation = plan.operations[operationIndex];
@@ -2643,6 +2661,131 @@ function capitalize(value) {
   return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
+function propertyExpression(expression) {
+  return findExpression(expression, (entry, type) => type === 'resolutionExpression' && hasPropertyAst(astData(entry, 'address')));
+}
+
+// Read only own data fields. Admission must not execute caller AST accessors,
+// including array elements or projection/requirement wrappers.
+function astArray(value) {
+  if (!Array.isArray(value)) throw new PropertyAddressError('Expected AST array');
+  return value;
+}
+function* astEntries(value) {
+  const entries = astArray(value);
+  const length = astData(entries, 'length');
+  for (let i = 0; i < length; i++) yield astData(entries, String(i));
+}
+function clauseHasProperty(clause) {
+  return clause != null && propertyExpression(astData(clause, 'ast'));
+}
+function instructionHasProperty(instruction, options) {
+  const mutation = astData(instruction, 'mutation');
+  const from = astData(instruction, 'from', true);
+  if (from && hasPropertyAst(astData(from, 'address'))) return true;
+  for (const role of ['target', 'source', 'container', 'parent', 'destination']) {
+    const target = astData(mutation, role, true);
+    // A create destination may be a member name rather than an address role.
+    const address = target && astData(target, 'address', true);
+    if (address && hasPropertyAst(address)) return true;
+  }
+  const placement = astData(mutation, 'placement', true);
+  const anchor = placement && astData(placement, 'anchor', true);
+  if (anchor && hasPropertyAst(astData(anchor, 'address'))) return true;
+  if (clauseHasProperty(astData(instruction, 'where', true))) return true;
+  const requirements = astData(instruction, 'requires', true);
+  if (requirements != null) for (const requirement of astEntries(requirements)) {
+    if (clauseHasProperty(requirement)
+        || propertyExpressionSource(astData(requirement, 'expression'), mutationQueryExpressionParseOptions({parse:options.parse ?? options}))) return true;
+  }
+  return false;
+}
+
+function propertyExpressionSource(source, options, details = {}) {
+  if (typeof source !== 'string' || !source.includes('&')) return false;
+  // Reuse the expression cursor's comment normalization. This lexical gate
+  // avoids reparsing inert quoted/encoded data in an unused native requirement;
+  // the real parser and AST scan remain authoritative for candidate suffixes.
+  let input;
+  try { input = new QueryExpressionParser(source, options).input; }
+  catch (error) {
+    if (!(error instanceof SansaParseError)) throw error;
+    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:{code:error.code, message:error.message, index:error.index}, ...details});
+  }
+  let quote = null;
+  let candidate = false;
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index];
+    if (quote) {
+      if (char === '\\') index++;
+      else if (char === quote) quote = null;
+    } else if (char === '"' || isSymbolLiteralStart(input, index)) quote = char;
+    else if (char === '&') {
+      let end = index + 1;
+      while (isIdentifierContinue(input[end])) end++;
+      if (input[end] === '(') { candidate = true; break; }
+    }
+  }
+  if (!candidate) return false;
+  let parsed;
+  try { parsed = parseQueryExpression(source, options); }
+  catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', details);
+  }
+  if (!parsed.ok) throw new PropertyAddressError('Cannot preflight precondition syntax', 'SANSA_MUTATE_INVALID_PRECONDITION', {cause:parsed.errors[0], ...details});
+  return propertyExpression(parsed.expression);
+}
+
+// This is admission preflight, not evaluation: inspect all active address roles
+// and preconditions before any operation can resolve a target or invoke a hook.
+function preflightMutationProperties(operations, preconditions, options, planned = false) {
+  const phase = planned ? 'apply' : 'policy';
+  const addressHasProperty = input => {
+    if (planned && input && typeof input === 'object' && typeof input.canonicalAddress === 'string') input = input.canonicalAddress;
+    if (typeof input !== 'string') return input && typeof input === 'object' && hasPropertyAst(input);
+    if (!hasPropertySyntax(input)) return false;
+    const parsed = parseAddress(input, options.parse);
+    if (!parsed.ok) throw new PropertyAddressError('Invalid property target', 'SANSA_MUTATE_INVALID_TARGET', {cause:parsed.errors[0]});
+    return true;
+  };
+  try {
+    for (let operationIndex = 0; operationIndex < operations.length; operationIndex++) {
+      const operation = operations[operationIndex];
+      for (const role of ['target', 'parent', 'source', 'container']) {
+        if (addressHasProperty(operation?.[role])) return mutationError('SANSA_MUTATE_NON_EXACT_TARGET', 'Property mutation targets are not admitted', {phase, operationIndex});
+      }
+      const anchor = operation?.placement?.anchor ?? operation?.placement?.target;
+      if (addressHasProperty(anchor)) return mutationError('SANSA_MUTATE_NON_EXACT_TARGET', 'Property mutation anchors are not admitted', {phase, operationIndex});
+    }
+    const parseOptions = mutationQueryExpressionParseOptions(options);
+    for (let preconditionIndex = 0; Array.isArray(preconditions) && preconditionIndex < preconditions.length; preconditionIndex++) {
+      const precondition = preconditions[preconditionIndex];
+      if (addressHasProperty(precondition?.target)
+          || propertyExpressionSource(precondition?.expression, parseOptions, {preconditionIndex})
+          || planned && propertyExpressionSource(precondition?.canonical, parseOptions, {preconditionIndex})) {
+        return mutationError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR', 'Property mutation preconditions are not admitted', {phase, preconditionIndex});
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof PropertyAddressError)) throw error;
+    return mutationError(error.code === 'SANSA_MUTATE_INVALID_PRECONDITION' ? error.code : 'SANSA_MUTATE_INVALID_TARGET', error.message,
+      {phase, ...(error.preconditionIndex === undefined ? {} : {preconditionIndex:error.preconditionIndex}), ...(error.cause === undefined ? {} : {cause:error.cause})});
+  }
+  return null;
+}
+
+function queryHasProperty(query) {
+  const from = astData(query, 'from');
+  if (astData(from, 'source') === 'expression' ? clauseHasProperty(from) : hasPropertyAst(astData(from, 'address'))) return true;
+  if (clauseHasProperty(astData(query, 'where', true))) return true;
+  const orderBy = astData(query, 'orderBy', true);
+  if (orderBy) for (const key of astEntries(astData(orderBy, 'keys'))) {
+    if (clauseHasProperty(key)) return true;
+  }
+  return propertyExpression(astData(astData(query, 'select'), 'ast'));
+}
+
 function enforceQueryPolicy(query, options) {
   if (!isValidationQueryPolicy(options.policy)) return { ok: true };
 
@@ -2660,8 +2803,8 @@ function enforceQueryPolicy(query, options) {
     query.select.ast,
   ];
   const disallowedFunction = expressions
-    .map((expression) => findExpression(expression, (entry) => entry.type === 'functionCallExpression'
-      && TRANSFORM_EXTENSION_FUNCTIONS.has(entry.name)))
+    .map((expression) => findExpression(expression, (entry, type) => type === 'functionCallExpression'
+      && TRANSFORM_EXTENSION_FUNCTIONS.has(astData(entry, 'name'))))
     .find(Boolean);
   if (disallowedFunction) {
     return queryPolicyViolation(
@@ -2704,34 +2847,51 @@ function normalizeQueryBudgetLimit(value) {
 }
 
 function findExpression(expression, predicate) {
-  if (predicate(expression)) return expression;
-
-  switch (expression.type) {
-    case 'groupExpression':
-      return findExpression(expression.expression, predicate);
-    case 'unaryExpression':
-      return findExpression(expression.argument, predicate);
-    case 'binaryExpression':
-      return findExpression(expression.left, predicate)
-        ?? findExpression(expression.right, predicate);
-    case 'functionCallExpression':
-      for (const argument of expression.arguments) {
-        const found = findExpression(argument, predicate);
-        if (found) return found;
+  const active = new Set();
+  const complete = new Set();
+  const stack = [{expression, index: -1}];
+  while (stack.length) {
+    const frame = stack.at(-1);
+    if (frame.index === -1) {
+      if (complete.has(frame.expression)) { stack.pop(); continue; }
+      if (active.has(frame.expression)) throw new PropertyAddressError('Cyclic expression AST');
+      const type = astData(frame.expression, 'type');
+      astData(frame.expression, 'canonical', true);
+      if (predicate(frame.expression, type)) return frame.expression;
+      active.add(frame.expression);
+      frame.projection = false;
+      switch (type) {
+        case 'groupExpression': frame.children = [astData(frame.expression, 'expression')]; break;
+        case 'unaryExpression': case 'existenceExpression': case 'cardinalityExpression':
+          astData(frame.expression, 'operator', true);
+          frame.children = [astData(frame.expression, 'argument')]; break;
+        case 'binaryExpression':
+          astData(frame.expression, 'operator', true);
+          frame.children = [astData(frame.expression, 'left'), astData(frame.expression, 'right')]; break;
+        case 'functionCallExpression':
+          astData(frame.expression, 'name');
+          frame.children = astArray(astData(frame.expression, 'arguments')); break;
+        case 'projectionExpression': frame.children = astArray(astData(frame.expression, 'fields')); frame.projection = true; break;
+        case 'resolutionExpression': astData(frame.expression, 'scope', true); frame.children = []; break;
+        case 'literalExpression':
+          astData(frame.expression, 'kind', true); astData(frame.expression, 'value', true); astData(frame.expression, 'nullReason', true);
+          frame.children = []; break;
+        default: frame.children = [];
       }
-      return null;
-    case 'existenceExpression':
-    case 'cardinalityExpression':
-      return findExpression(expression.argument, predicate);
-    case 'projectionExpression':
-      for (const field of expression.fields) {
-        const found = findExpression(field.expression, predicate);
-        if (found) return found;
-      }
-      return null;
-    default:
-      return null;
+      frame.length = astData(frame.children, 'length');
+      frame.index = 0;
+    }
+    if (frame.index < frame.length) {
+      const child = astData(frame.children, String(frame.index++));
+      if (frame.projection) astData(child, 'name');
+      stack.push({expression: frame.projection ? astData(child, 'expression') : child, index: -1});
+    } else {
+      active.delete(frame.expression);
+      complete.add(frame.expression);
+      stack.pop();
+    }
   }
+  return null;
 }
 
 function resolveConsumerAddress(input, namespace, options = {}) {
@@ -2739,7 +2899,13 @@ function resolveConsumerAddress(input, namespace, options = {}) {
 }
 
 export function resolveAddress(input, namespace, options = {}) {
-  let parsed = typeof input === 'string' ? parseAddress(input, options.parse) : { ok: true, address: input };
+  let parsed;
+  try {
+    parsed = typeof input === 'string' ? parseAddress(input, options.parse)
+      : hasPropertyAst(input) ? parseAddress(renderAddress(input), options.parse) : {ok:true,address:input};
+  } catch {
+    return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST')]};
+  }
   if (!parsed.ok) return { ok: false, bindings: [], errors: parsed.errors };
   const hasIdentity = !(typeof input === 'string' && parsed.address.isExact)
     && Array.isArray(parsed.address?.selectors) && parsed.address.selectors.some(s => s?.type === 'childIdentity');
@@ -2766,6 +2932,8 @@ export function resolveAddress(input, namespace, options = {}) {
     };
   }
 
+  const propertyIndex = parsed.address.selectors.findIndex(s => s.type === 'propertyFilter');
+  if (propertyIndex !== -1) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented',propertyIndex)]};
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
   if (hasIdentity) {
@@ -3107,6 +3275,7 @@ function validateGraphInput(starts, namespace, declarations, options) {
       || (declaration.danglingTarget !== 'omit' && declaration.danglingTarget !== 'error')) {
       return graphError('SANSA_GRAPH_INVALID_DECLARATION', 'Graph relationship declaration is invalid');
     }
+    if (hasPropertySyntax(declaration.edgeAddress)) return graphError('SANSA_GRAPH_INVALID_DECLARATION','Property selectors are not admitted by Graph');
     if (ids.has(declaration.id)) {
       return graphError('SANSA_GRAPH_DUPLICATE_DECLARATION', `Graph relationship declaration '${declaration.id}' is duplicated`, {
         declarationId: declaration.id,
@@ -3171,6 +3340,11 @@ function graphError(code, message, details = {}) {
 }
 
 export function renderAddress(address) {
+  if (hasPropertyAst(address)) return renderPropertyAddress(address, quotePayload, renderQualifierNumber);
+  return renderLegacyAddress(address);
+}
+
+function renderLegacyAddress(address) {
   if (Array.isArray(address?.selectors) && address.selectors.some(s => s?.type === 'childIdentity')
       && !validIdentityAddressAst(address)) throw new Error('Invalid identity address AST');
   let output = address.root.kind === 'absolute' ? '$' : '?';
@@ -4172,6 +4346,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   if (!Array.isArray(activated.address?.selectors) || !['absolute', 'contextual'].includes(activated.address.root?.kind)) {
     return {ok: false, error: queryEvaluateError('SANSA_QUERY_EVALUATE_INVALID_PATH_LITERAL', 'Invalid activated address AST')};
   }
+  if (activated.address.selectors.some(s => s?.type === 'propertyFilter')) return deniedAddressActivation('Property activation is not admitted');
   const hasIdentity = activated.address.selectors.some(s => s?.type === 'childIdentity');
   if (hasIdentity) {
     const address = normalizeActivationAst(activated.address, options.parse?.address, false);
@@ -7175,6 +7350,8 @@ class AddressParser {
     this.index = 0;
     this.warnings = [];
     this.maxPositionIndex = normalizeMaxPositionIndex(options.maxPositionIndex);
+    this.propertySyntax = hasPropertySyntax(input);
+    this.propertyWork = 0;
   }
 
   parse() {
@@ -7191,10 +7368,12 @@ class AddressParser {
 
     while (!this.atEnd()) {
       const char = this.peek();
+      if (this.propertySyntax && char !== ':' && selectors.length >= 256) propertyLimit('selectors', 256);
+      if (char === '&') { selectors.push(this.parsePropertySelector()); continue; }
       if (char === ':') {
         this.index += 1;
         if (this.atEnd()) this.fail('Expected qualifier expression', 'SANSA_EXPECTED_QUALIFIER');
-        qualifierExpression = this.parseQualifierExpression();
+        qualifierExpression = this.propertySyntax ? parsePropertyQualifiers(this) : this.parseQualifierExpression();
         break;
       }
       if (char === '.') {
@@ -7227,8 +7406,29 @@ class AddressParser {
       qualifierExpression,
       isExact: selectors.every(isExactSelector),
     };
-    address.canonical = renderAddress(address);
+    address.canonical = this.propertySyntax ? renderPropertyAddress(address, quotePayload, renderQualifierNumber) : renderLegacyAddress(address);
     return address;
+  }
+
+  parsePropertySelector() {
+    this.consume('&');
+    const start = this.index;
+    while (isIdentifierContinue(this.peek())) this.index += 1;
+    if (this.index - start !== 3) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    const property = this.input.slice(start, this.index);
+    if (!['key', 'tag'].includes(property)) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    this.consume('(');
+    if (isLayout(this.peek())) this.fail('Whitespace is not allowed inside a SANSA address', 'SANSA_UNEXPECTED_WHITESPACE');
+    if (this.peek() !== '"') this.fail('Expected quoted property argument', 'SANSA_EXPECTED_PROPERTY_ARGUMENT');
+    const value = this.parseQuotedPayload(4096);
+    this.consume(')');
+    return {type:'propertyFilter', property, value};
+  }
+
+  chargePropertyWork(count) {
+    if (!this.propertySyntax) return;
+    this.propertyWork += count;
+    if (this.propertyWork > 65536) propertyLimit('canonicalScalars', 65536);
   }
 
   peekSyntax() { return this.peek(); }
@@ -7242,6 +7442,7 @@ class AddressParser {
     }
     if (this.atEnd()) this.fail('Unterminated structural identity selector', 'SANSA_UNTERMINATED_IDENTITY');
     if (this.index === start) this.fail('Expected structural identity name', 'SANSA_EXPECTED_IDENTITY');
+    this.chargePropertyWork(this.index - start);
     const identity = this.input.slice(start, this.index++);
     return { type: 'childIdentity', identity };
   }
@@ -7331,6 +7532,7 @@ class AddressParser {
       this.index += 1;
     }
     if (this.index === start) this.fail('Expected qualifier argument', 'SANSA_EXPECTED_QUALIFIER_ARGUMENT');
+    this.chargePropertyWork(this.index - start);
     const value = this.input.slice(start, this.index);
     if (!QUALIFIER_NUMBER_RE.test(value)) this.fail('Invalid qualifier argument', 'SANSA_INVALID_QUALIFIER_ARGUMENT');
     const number = Number(value);
@@ -7343,12 +7545,15 @@ class AddressParser {
     if (!isIdentifierStart(first)) this.fail(`Expected ${context}`, 'SANSA_EXPECTED_IDENTIFIER');
     this.index += 1;
     while (isIdentifierContinue(this.peek())) this.index += 1;
+    this.chargePropertyWork(this.index - start);
     return this.input.slice(start, this.index);
   }
 
-  parseQuotedPayload() {
+  parseQuotedPayload(limit = 65536) {
     this.consume('"');
     let output = '';
+    let scalars = 0;
+    this.chargePropertyWork(1);
     while (!this.atEnd()) {
       const char = this.peek();
       if (char === '"') {
@@ -7358,12 +7563,21 @@ class AddressParser {
       if (char === '\n' || char === '\r') {
         this.fail('Quoted payloads must not contain raw newlines', 'SANSA_RAW_NEWLINE_IN_QUOTED_PAYLOAD');
       }
-      if (char === '\\') {
-        output += this.parseEscape();
-        continue;
+      if (!this.propertySyntax) {
+        if (char === '\\') { output += this.parseEscape(); continue; }
+        output += char; this.index += 1; continue;
       }
-      output += char;
-      this.index += 1;
+      let decoded;
+      if (char === '\\') decoded = this.parseEscape();
+      else {
+        decoded = String.fromCodePoint(this.input.codePointAt(this.index));
+        const point = decoded.codePointAt(0);
+        if (point >= 0xd800 && point <= 0xdfff) this.fail('Invalid Unicode scalar', 'SANSA_INVALID_UNICODE_SCALAR');
+        this.index += decoded.length;
+      }
+      if (++scalars > limit) propertyLimit(limit === 4096 ? 'payloadScalars' : 'canonicalScalars', limit);
+      this.chargePropertyWork(1);
+      output += decoded;
     }
     this.fail('Unterminated quoted payload', 'SANSA_UNTERMINATED_QUOTED_PAYLOAD');
   }

@@ -23,7 +23,7 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-15",
+    "verified_on": "2026-11-16",
     "node": "v24.22.2",
     "specification_commit": "d0e89eb3b092bde56c04b1a5c9836373f5e8748e",
     "cts_commit": "ff3308837c3848b1596e76f0c997f8565edc2a45",
@@ -51,11 +51,11 @@
       "maxResultBytes": 16384
     },
     "reports": {
-      "all": "results/aeonic-temporal-all-snapshot-0.1.json",
-      "relations": "results/aeonic-temporal-relations-snapshot-0.1.json",
-      "calendar": "results/aeonic-temporal-calendar-snapshot-0.1.json"
+      "all": "results/aeonic-temporal-all-property-addressing-2026-11-16.json",
+      "relations": "results/aeonic-temporal-relations-property-addressing-2026-11-16.json",
+      "calendar": "results/aeonic-temporal-calendar-property-addressing-2026-11-16.json"
     },
-    "capacity_report": "results/aeonic-temporal-capacity.json",
+    "capacity_report": "results/aeonic-temporal-capacity-property-addressing-2026-11-16.json",
     "report_normalization": "cwd recorded as .; verdicts, outcomes, metadata, limits, target hashes and counts unchanged",
     "adapted_from": {
       "repository": "AltoPelago/aeonic",
@@ -74,8 +74,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "5bd559841b3a190491c60122da92a2612bbc15f51795d7aa81f7b7e946269e5c",
-      "src/index.d.ts": "7edb3df195a9a1e18e3d99ca35f8ad9908d95f02723fd534eff8dc070789234e",
+      "src/index.js": "2432cf698ef1c03e732d743ee93fc3a509c30ea3bb2d7be2ee642078335fe9cf",
+      "src/index.d.ts": "92187cde6a6185b83f7ceae731516fc2d16125d7ddda04649a2d29895699566d",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -83,7 +83,8 @@
       "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
       "scripts/cts-aeonic-temporal-civil-date-adapter.mjs": "2b97c037527a02171a6e9cd9bed214a2183e6203e6eae2c83193ba51745bca5a",
       "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
-      "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76"
+      "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76",
+      "src/property-address.js": "f88d857a0f073d3a1056cdfe89d87165140708a105feb81def3f12a37fe23ce3"
     },
     "limits": [
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",
@@ -92,6 +93,6 @@
       "Source APIs explicitly select profile/policy and preserve precise sets, origin and sticky history. A containing display never becomes authored period coverage.",
       "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation."
     ],
-    "source_base_commit": "bd98c72c91585afc3058207167aba621bf57ba65"
+    "source_base_commit": "f4b21686e5da99b327d36d5d7974bb848d17835c"
   }
 }
