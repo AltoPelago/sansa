@@ -88,7 +88,9 @@ test('deep and wide property expressions remain denied before reading an empty s
 test('expression preflight handles shared DAGs without repeated expansion and diagnoses cycles',()=>{
   for(const depth of [12,18]){
     const query=parseQuery('from $.missing\nselect true').query;
-    let reads=0;const leaf={...query.select.ast};Object.defineProperty(leaf,'type',{get(){reads++;return 'literalExpression';}});
+    // Test-only descriptor instrumentation counts visits without requiring AST
+    // getters to be accepted. The resolver does not advertise proxy support.
+    let reads=0;const leaf=new Proxy({...query.select.ast},{getOwnPropertyDescriptor(target,key){if(key==='type')reads++;return Reflect.getOwnPropertyDescriptor(target,key);}});
     let expression=leaf;for(let i=0;i<depth;i++)expression={type:'binaryExpression',operator:'and',left:expression,right:expression};
     query.select.ast=expression;assert.equal(evaluateQuery(query,host().namespace).ok,true);assert.ok(reads<=4,`leaf visited ${reads} times`);
   }

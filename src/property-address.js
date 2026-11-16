@@ -29,7 +29,7 @@ export function hasPropertySyntax(source) {
   }
   return false;
 }
-function data(object, key, optional = false) {
+export function data(object, key, optional = false) {
   if (!object || typeof object !== 'object') throw new PropertyAddressError('Expected plain address data');
   const prototype = Object.getPrototypeOf(object);
   if (prototype !== Object.prototype && prototype !== null && !Array.isArray(object)) throw new PropertyAddressError('Expected plain address data');

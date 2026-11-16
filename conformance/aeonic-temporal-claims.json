@@ -74,7 +74,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "616fca0a758dd3f2f7e9dddcb147b4ee438c98bc78fd317f9d2e0bd1f7de0301",
+      "src/index.js": "2432cf698ef1c03e732d743ee93fc3a509c30ea3bb2d7be2ee642078335fe9cf",
       "src/index.d.ts": "92187cde6a6185b83f7ceae731516fc2d16125d7ddda04649a2d29895699566d",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
@@ -84,7 +84,7 @@
       "scripts/cts-aeonic-temporal-civil-date-adapter.mjs": "2b97c037527a02171a6e9cd9bed214a2183e6203e6eae2c83193ba51745bca5a",
       "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
       "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76",
-      "src/property-address.js": "3cf96f7efc4d65e556fdc99931d63475dc8b99e6d9eb4b6859fd175b40284410"
+      "src/property-address.js": "f88d857a0f073d3a1056cdfe89d87165140708a105feb81def3f12a37fe23ce3"
     },
     "limits": [
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",

@@ -278,6 +278,18 @@ fn resolve_valid_address<N: Namespace>(
     options: &ResolveOptions<N::Binding>,
     inspection: &mut IdentityInspection<'_, N::Binding>,
 ) -> ResolveOutput<N::Binding> {
+    if let Some(index) = address
+        .selectors
+        .iter()
+        .position(|s| matches!(s, Selector::PropertyFilter { .. }))
+    {
+        return ResolveOutput::failure(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
+            "Property execution is not implemented",
+            Some(index),
+        ));
+    }
+
     let has_identity = address
         .selectors
         .iter()
@@ -306,18 +318,6 @@ fn resolve_valid_address<N: Namespace>(
         Ok(root) => root,
         Err(error) => return ResolveOutput::failure(error),
     };
-
-    if let Some(index) = address
-        .selectors
-        .iter()
-        .position(|s| matches!(s, Selector::PropertyFilter { .. }))
-    {
-        return ResolveOutput::failure(resolve_error(
-            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
-            "Property execution is not implemented",
-            Some(index),
-        ));
-    }
 
     if has_identity && !namespace.supports_structural_identity() {
         let (index, identity) = address

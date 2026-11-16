@@ -1,4 +1,4 @@
-import {PropertyAddressError, hasPropertySyntax, hasPropertyAst, propertyLimit, renderPropertyAddress, parsePropertyQualifiers} from './property-address.js';
+import {PropertyAddressError, data as astData, hasPropertySyntax, hasPropertyAst, propertyLimit, renderPropertyAddress, parsePropertyQualifiers} from './property-address.js';
 export { evaluateAeonicTemporal, evaluateAeonicTemporalText, AEONIC_TEMPORAL_CIVIL_DATE_PROFILE, AEONIC_TEMPORAL_CIVIL_DATE_DEFAULT_RESOURCE_LIMITS } from './aeonic-temporal-civil-date.js';
 export {
   evaluateAeonicRationalArithmetic,
@@ -224,12 +224,7 @@ export function lowerInstruction(input, namespaceOrOptions = {}, maybeOptions = 
   }
   try {
     const instruction = parsed.instruction;
-    const mutation = instruction.mutation;
-    const addresses = [instruction.from?.address, ...['target','source','container','parent','destination'].map(key => mutation[key]?.address), mutation.placement?.anchor?.address];
-    if (addresses.some(address => address && hasPropertyAst(address))
-        || propertyExpression(instruction.where?.ast)
-        || (instruction.requires ?? []).some(requirement => propertyExpression(requirement.ast)
-          || propertyExpressionSource(requirement.expression, mutationQueryExpressionParseOptions({parse:options.parse ?? options})))) {
+    if (instructionHasProperty(instruction, options)) {
       return {ok:false,errors:[instructionLowerError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property instructions are not admitted',{phase:'lower'})]};
     }
     const lowered = lowerParsedInstruction(parsed.instruction, namespace, options);
@@ -2667,7 +2662,43 @@ function capitalize(value) {
 }
 
 function propertyExpression(expression) {
-  return expression && findExpression(expression, entry => entry.type === 'resolutionExpression' && hasPropertyAst(entry.address));
+  return findExpression(expression, (entry, type) => type === 'resolutionExpression' && hasPropertyAst(astData(entry, 'address')));
+}
+
+// Read only own data fields. Admission must not execute caller AST accessors,
+// including array elements or projection/requirement wrappers.
+function astArray(value) {
+  if (!Array.isArray(value)) throw new PropertyAddressError('Expected AST array');
+  return value;
+}
+function* astEntries(value) {
+  const entries = astArray(value);
+  const length = astData(entries, 'length');
+  for (let i = 0; i < length; i++) yield astData(entries, String(i));
+}
+function clauseHasProperty(clause) {
+  return clause != null && propertyExpression(astData(clause, 'ast'));
+}
+function instructionHasProperty(instruction, options) {
+  const mutation = astData(instruction, 'mutation');
+  const from = astData(instruction, 'from', true);
+  if (from && hasPropertyAst(astData(from, 'address'))) return true;
+  for (const role of ['target', 'source', 'container', 'parent', 'destination']) {
+    const target = astData(mutation, role, true);
+    // A create destination may be a member name rather than an address role.
+    const address = target && astData(target, 'address', true);
+    if (address && hasPropertyAst(address)) return true;
+  }
+  const placement = astData(mutation, 'placement', true);
+  const anchor = placement && astData(placement, 'anchor', true);
+  if (anchor && hasPropertyAst(astData(anchor, 'address'))) return true;
+  if (clauseHasProperty(astData(instruction, 'where', true))) return true;
+  const requirements = astData(instruction, 'requires', true);
+  if (requirements != null) for (const requirement of astEntries(requirements)) {
+    if (clauseHasProperty(requirement)
+        || propertyExpressionSource(astData(requirement, 'expression'), mutationQueryExpressionParseOptions({parse:options.parse ?? options}))) return true;
+  }
+  return false;
 }
 
 function propertyExpressionSource(source, options, details = {}) {
@@ -2745,11 +2776,14 @@ function preflightMutationProperties(operations, preconditions, options, planned
 }
 
 function queryHasProperty(query) {
-  return (query.from.source !== 'expression' && hasPropertyAst(query.from.address))
-    || (query.from.source === 'expression' && propertyExpression(query.from.ast))
-    || propertyExpression(query.where?.ast)
-    || query.orderBy?.keys.some(key => propertyExpression(key.ast))
-    || propertyExpression(query.select.ast);
+  const from = astData(query, 'from');
+  if (astData(from, 'source') === 'expression' ? clauseHasProperty(from) : hasPropertyAst(astData(from, 'address'))) return true;
+  if (clauseHasProperty(astData(query, 'where', true))) return true;
+  const orderBy = astData(query, 'orderBy', true);
+  if (orderBy) for (const key of astEntries(astData(orderBy, 'keys'))) {
+    if (clauseHasProperty(key)) return true;
+  }
+  return propertyExpression(astData(astData(query, 'select'), 'ast'));
 }
 
 function enforceQueryPolicy(query, options) {
@@ -2769,8 +2803,8 @@ function enforceQueryPolicy(query, options) {
     query.select.ast,
   ];
   const disallowedFunction = expressions
-    .map((expression) => findExpression(expression, (entry) => entry.type === 'functionCallExpression'
-      && TRANSFORM_EXTENSION_FUNCTIONS.has(entry.name)))
+    .map((expression) => findExpression(expression, (entry, type) => type === 'functionCallExpression'
+      && TRANSFORM_EXTENSION_FUNCTIONS.has(astData(entry, 'name'))))
     .find(Boolean);
   if (disallowedFunction) {
     return queryPolicyViolation(
@@ -2821,22 +2855,36 @@ function findExpression(expression, predicate) {
     if (frame.index === -1) {
       if (complete.has(frame.expression)) { stack.pop(); continue; }
       if (active.has(frame.expression)) throw new PropertyAddressError('Cyclic expression AST');
-      if (predicate(frame.expression)) return frame.expression;
+      const type = astData(frame.expression, 'type');
+      astData(frame.expression, 'canonical', true);
+      if (predicate(frame.expression, type)) return frame.expression;
       active.add(frame.expression);
       frame.projection = false;
-      switch (frame.expression.type) {
-        case 'groupExpression': frame.children = [frame.expression.expression]; break;
-        case 'unaryExpression': case 'existenceExpression': case 'cardinalityExpression': frame.children = [frame.expression.argument]; break;
-        case 'binaryExpression': frame.children = [frame.expression.left, frame.expression.right]; break;
-        case 'functionCallExpression': frame.children = frame.expression.arguments; break;
-        case 'projectionExpression': frame.children = frame.expression.fields; frame.projection = true; break;
+      switch (type) {
+        case 'groupExpression': frame.children = [astData(frame.expression, 'expression')]; break;
+        case 'unaryExpression': case 'existenceExpression': case 'cardinalityExpression':
+          astData(frame.expression, 'operator', true);
+          frame.children = [astData(frame.expression, 'argument')]; break;
+        case 'binaryExpression':
+          astData(frame.expression, 'operator', true);
+          frame.children = [astData(frame.expression, 'left'), astData(frame.expression, 'right')]; break;
+        case 'functionCallExpression':
+          astData(frame.expression, 'name');
+          frame.children = astArray(astData(frame.expression, 'arguments')); break;
+        case 'projectionExpression': frame.children = astArray(astData(frame.expression, 'fields')); frame.projection = true; break;
+        case 'resolutionExpression': astData(frame.expression, 'scope', true); frame.children = []; break;
+        case 'literalExpression':
+          astData(frame.expression, 'kind', true); astData(frame.expression, 'value', true); astData(frame.expression, 'nullReason', true);
+          frame.children = []; break;
         default: frame.children = [];
       }
+      frame.length = astData(frame.children, 'length');
       frame.index = 0;
     }
-    if (frame.index < frame.children.length) {
-      const child = frame.children[frame.index++];
-      stack.push({expression: frame.projection ? child.expression : child, index: -1});
+    if (frame.index < frame.length) {
+      const child = astData(frame.children, String(frame.index++));
+      if (frame.projection) astData(child, 'name');
+      stack.push({expression: frame.projection ? astData(child, 'expression') : child, index: -1});
     } else {
       active.delete(frame.expression);
       complete.add(frame.expression);
@@ -2884,10 +2932,10 @@ export function resolveAddress(input, namespace, options = {}) {
     };
   }
 
-  const rootResult = resolveRoot(parsed.address.root, namespace, options);
-  if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
   const propertyIndex = parsed.address.selectors.findIndex(s => s.type === 'propertyFilter');
   if (propertyIndex !== -1) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented',propertyIndex)]};
+  const rootResult = resolveRoot(parsed.address.root, namespace, options);
+  if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
   if (hasIdentity) {
     const selectorIndex = parsed.address.selectors.findIndex(s => s.type === 'childIdentity');
     const identity = parsed.address.selectors[selectorIndex].identity;

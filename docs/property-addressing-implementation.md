@@ -90,3 +90,22 @@ quoted ampersands, option-limited syntax and zero namespace/mutation-hook reads
 for denied programs. Rust's standalone parsed-expression primitive receives the
 same preflight denial for a short-circuited property. Compatibility, target and
 resource settings are unchanged; execution and release remain closed.
+
+## Copilot follow-up — 16 November 2026
+
+- [x] Reject properties before acquiring absolute or contextual namespace roots
+  in both JavaScript and Rust Resolve. Text and native ASTs return the same
+  unsupported-selector diagnostic with missing roots and without invoking root
+  hooks. Property-free root diagnostics and traversal retain their behavior.
+- [x] Read expression nodes, clause wrappers, child arrays, projection fields
+  and Instruction requirements through own data descriptors during admission.
+  Accessors are rejected through existing Query/Instruction diagnostic envelopes
+  without invoking them, including returning and throwing getters. Create
+  destinations expressed as member names retain their existing lowering behavior.
+- [x] Preserve iterative depth/width, shared-DAG and cycle controls. DAG visit
+  instrumentation now counts data-descriptor reads rather than admitting getters.
+  This does not advertise arbitrary Proxy AST support or harden every later
+  evaluator/host interaction; it protects the admission fields this slice reads.
+
+No property execution, capability, public declaration, dependency, target contract
+or numeric budget changes. Release and deployment remain on hold.

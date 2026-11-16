@@ -93,6 +93,56 @@ fn prepared_parser_expectations() {
 struct Host {
     reads: Cell<usize>,
 }
+
+#[test]
+fn property_denial_precedes_absolute_and_contextual_root_acquisition() {
+    struct RootHost {
+        calls: Cell<usize>,
+        missing: bool,
+    }
+    impl Namespace for RootHost {
+        type Binding = usize;
+        fn root(&self) -> Option<usize> {
+            self.calls.set(self.calls.get() + 1);
+            (!self.missing).then_some(0)
+        }
+        fn contextual_root(&self) -> Option<usize> {
+            self.calls.set(self.calls.get() + 1);
+            (!self.missing).then_some(0)
+        }
+        fn children(&self, _: &usize) -> Vec<usize> {
+            panic!("denied property must not navigate")
+        }
+    }
+    for missing in [false, true] {
+        let host = RootHost {
+            calls: Cell::new(0),
+            missing,
+        };
+        for source in [
+            "$&key(\"x\")",
+            "$.missing&tag(\"x\")",
+            "?&key(\"x\")",
+            "?.missing&tag(\"x\")",
+        ] {
+            let address = parse_address(source).expect("address");
+            let options = ResolveOptions::default();
+            for result in [
+                resolve_address(source, &host, &options),
+                crate::resolve::resolve_parsed_address(&address, &host, &options),
+            ] {
+                assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+            }
+            assert_eq!(host.calls.get(), 0);
+        }
+        let result = resolve_address("$", &host, &ResolveOptions::default());
+        assert_eq!(host.calls.get(), 1);
+        assert_eq!(result.is_ok(), !missing);
+        let result = resolve_address("?", &host, &ResolveOptions::default());
+        assert_eq!(host.calls.get(), 2);
+        assert_eq!(result.is_ok(), !missing);
+    }
+}
 impl Namespace for Host {
     type Binding = usize;
     fn root(&self) -> Option<usize> {
