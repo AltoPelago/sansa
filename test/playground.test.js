@@ -98,7 +98,7 @@ test('shipped playground examples load and have valid address and Query expressi
   const context = vm.createContext({window: {}, document: {querySelector: () => ({innerHTML: ''})}});
   vm.runInContext(readFileSync(new URL('../tools/playground/examples.mjs', import.meta.url), 'utf8'), context);
   const examples = Object.values(context.window.SansaPlaygroundExamples);
-  assert.equal(examples.length, 11);
+  assert.equal(examples.length, 22);
   for (const example of examples) {
     assert.equal(parseAddress(example.address).ok, true, example.label);
     if (example.view === 'query') assert.equal(parseQuery(example.query).ok, true, example.label);

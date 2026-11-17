@@ -7,6 +7,10 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Add local real-SDK key/tag Resolve examples, independent property inspection
+  controls and checked budget/parser diagnostics. Property Query remains
+  unadmitted; runtime grammar, target guards and release policy are unchanged.
+
 - Standalone Aeonic civil date-time snapshot 0.1 operations in JavaScript and
   TypeScript: exact point/interval sets, symbolic relations, calendar/clock
   shifts, complete-form stepping and materialization. Explicit profiles and
