@@ -62,7 +62,6 @@
       "Convenience composition has its own step metadata/result shape and tests; it does not widen this frozen operation result contract.",
       "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3.",
       "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
-      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared index.js/index.d.ts fingerprints refreshed only; no new performance acceptance.",
       "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ]
   }

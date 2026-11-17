@@ -100,7 +100,6 @@
       "Native logical JSON and text exclude arbitrary getters/proxies/custom subclasses and eager key enumeration costs. Outer framing is a separate host boundary.",
       "Standalone JavaScript only, explicit profile selection. Existing Query temporal APIs and numerical/civil-date defaults remain unchanged. No Rust port, timezone/WTC/elapsed-time authority or package release.",
       "Local Node24 evidence; Node20/22/24 hosted CI is recorded separately. Playground worker caps are application controls, not a general memory sandbox.",
-      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared index.js/index.d.ts fingerprints refreshed only; no new performance acceptance.",
       "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ]
   }
