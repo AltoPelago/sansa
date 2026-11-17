@@ -7,6 +7,13 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Standalone Aeonic civil date-time snapshot 0.1 operations in JavaScript and
+  TypeScript: exact point/interval sets, symbolic relations, calendar/clock
+  shifts, complete-form stepping and materialization. Explicit profiles and
+  complete-bundle chaining preserve origins and clamping/approximation history.
+  Frozen CTS/capacity evidence and a browser-worker playground lane are included.
+  See `docs/aeonic-temporal-civil-datetime.md` for scope and limits.
+
 - Opt-in standalone property Resolve in the JS/TypeScript and Rust cores:
   authoritative scope/key/direct-head facets, private occurrence frames, checked
   metadata/iterator faults and finite inspection allowances. Query and other

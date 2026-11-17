@@ -71,9 +71,9 @@ For complete original/reordered/moved/replacement examples, paste the linked
 [source snapshots](../../fixtures/child-identity-workflows/README.md) into the
 source editor and follow the [workflow guide](../../docs/child-identity-workflows.md).
 
-## Arithmetic and civil dates
+## Value operations
 
-Choose **Arithmetic & civil dates** to open `arithmetic.html`. This linked page calls SANSA's
+Choose **Value operations** to open `arithmetic.html`. This linked page calls SANSA's
 finite snapshot 0.1 and rational snapshot 0.2 text APIs, with eleven numerical examples,
 verbatim logical JSON and a separate combined-output-policy editor. Exact thirds
 can feed multiplication, explicit quantization or materialization; continuations
@@ -99,3 +99,14 @@ follows current request JSON; historical starting-point prose is labeled
 separately. These controls share the same worker/time/input/output bounds above.
 A containing month/year label never widens coverage. See the [civil-date API and
 frozen claim](../../docs/aeonic-temporal-civil-date.md).
+
+The **Civil date-times · snapshot 0.1** lane adds exact points/intervals,
+excluded endpoints, reduced dates/clocks, calendar and civil-coordinate clock
+shifts, complete-form stepping and exact materialization. Both origins and both
+histories are displayed separately. Continuations copy the complete bundle;
+step/materialize selectors are explicit, editable policies. No output-family
+convenience mode is offered for temporal lanes. A containing display never widens
+coverage, and clock shifts make no elapsed-time or timezone claim. Eleven
+examples call the SANSA source API in a browser worker. Descriptions follow edited
+requests; diagnostics retain no reusable value. See the
+[date-time API and frozen evidence](../../docs/aeonic-temporal-civil-datetime.md).

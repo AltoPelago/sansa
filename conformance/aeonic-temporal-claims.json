@@ -74,8 +74,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "ce5e0eb89a6a49cb499ae53455fe71378778c9d943001a621b878f7b417bcfb6",
-      "src/index.d.ts": "003c08a44b0c6f23c18c2e003005dcdad60668f2813b5eabb4b1b97102b071d5",
+      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
+      "src/index.d.ts": "c0de36607e1cccb6c5016fdca580a4dc0abccbdc6ee75f7a2e3033e631e1a1f4",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -92,7 +92,8 @@
       "18independent default-capacity probes retain companion limits and do not promise a Cartesian product, heap/time/process bounds or whole-chain budgets.",
       "Logical JSON and text guarantees exclude arbitrary native accessors/proxies/container subclasses and eager key enumeration; full STDIO envelope/process/transport budgets are separate.",
       "Source APIs explicitly select profile/policy and preserve precise sets, origin and sticky history. A containing display never becomes authored period coverage.",
-      "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation."
+      "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation.",
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
     ],
     "source_base_commit": "f4b21686e5da99b327d36d5d7974bb848d17835c"
   }

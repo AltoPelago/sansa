@@ -1,5 +1,5 @@
 import { ARITHMETIC_LANES, VALUE_EXAMPLES, ARITHMETIC_LIMITS,
-  validateArithmeticInput, continueArithmetic, arithmeticDisplay, temporalDisplay, describeArithmeticInput } from './arithmetic-model.mjs';
+  validateArithmeticInput, continueArithmetic, arithmeticDisplay, temporalDisplay, dateTimeDisplay, dateTimeFacts, describeArithmeticInput } from './arithmetic-model.mjs';
 const $ = id => document.getElementById(id);
 const state = { worker: null, timer: null, value: null };
 const element = (tag, text) => { const item = document.createElement(tag); item.textContent = text; return item; };
@@ -13,14 +13,14 @@ function clear(message = 'Inputs changed. Run the operation again.') {
   $('response').textContent = ''; $('result').replaceChildren(); $('result-state').textContent = message;
 }
 function controls() {
-  const temporal = $('lane').value === 'temporal';
+  const temporal = ['temporal', 'datetime'].includes($('lane').value);
   if (temporal) $('result-mode').value = 'exact';
   $('result-mode-field').hidden = temporal;
   $('output-editor').hidden = $('result-mode').value !== 'combined';
   $('profile').textContent = ARITHMETIC_LANES[$('lane').value].profile;
   for (const button of document.querySelectorAll('[data-continue]')) {
     const op = button.dataset.continue;
-    button.hidden = temporal ? !['shift', 'step', 'materialize'].includes(op) : !['multiply', 'materialize', ...($('lane').value === 'rational' ? ['quantize'] : [])].includes(op);
+    button.hidden = temporal ? !['shift', 'step', 'materialize', ...($('lane').value === 'datetime' ? ['shiftClock'] : [])].includes(op) : !['multiply', 'materialize', ...($('lane').value === 'rational' ? ['quantize'] : [])].includes(op);
   }
   $('description').textContent = describeArithmeticInput($('lane').value, $('request').value);
 }
@@ -51,14 +51,14 @@ function render(result) {
     box.append(facts([...(result.step ? [['Failed step', result.step]] : []), ['Stage', String(result.context.stage)], ['Path', result.context.path ?? 'Operation root']]));
     return;
   }
-  const temporal = $('lane').value === 'temporal';
+  const temporal = ['temporal', 'datetime'].includes($('lane').value);
   const symbol = result.value.category === 'symbol';
   state.value = symbol ? null : result.value;
-  const display = temporal ? temporalDisplay(result.value) : arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
+  const display = temporal ? ($('lane').value === 'datetime' ? dateTimeDisplay(result.value) : temporalDisplay(result.value)) : arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
   number.className = 'number'; box.append(number);
-  const kind = element('p', temporal ? (symbol ? 'Symbolic date-set outcome' : 'Exact civil-date bundle') : { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
+  const kind = element('p', temporal ? (symbol ? 'Symbolic date-set outcome' : ($('lane').value === 'datetime' ? 'Exact civil-date-time bundle' : 'Exact civil-date bundle')) : { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
   const steps = result.metadata.steps;
-  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ...(temporal ? [['Current clamping', result.metadata.clamping], ...(symbol ? [['Left history', result.metadata.operandHistory.left], ['Right history', result.metadata.operandHistory.right]] : [['Origin granularity', result.value.originGranularity], ['Clamping history', result.value.history]])] : [['Approximation history', result.value.history]])]));
+  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ...($('lane').value === 'datetime' ? dateTimeFacts(result) : temporal ? [['Current clamping', result.metadata.clamping], ...(symbol ? [['Left history', result.metadata.operandHistory.left], ['Right history', result.metadata.operandHistory.right]] : [['Origin granularity', result.value.originGranularity], ['Clamping history', result.value.history]])] : [['Approximation history', result.value.history]])]));
   const details = document.createElement('details'); details.append(element('summary', steps ? 'Step policies & evaluation' : 'Effective policy'), element('pre', JSON.stringify(steps ?? result.metadata.effectivePolicy, null, 2))); box.append(details);
   $('continue').hidden = symbol;
 }
