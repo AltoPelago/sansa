@@ -2,7 +2,7 @@
 
 Date:16 November2026. Unreleased candidate; no profile promotion or release.
 
-JavaScript/TypeScript and Rust execute `&key("...")` and `&tag("...")` only in
+JavaScript/TypeScript and Rust execute `&key("...")`, `&tag("...")` and `&headTag("...")` only in
 standalone read-only Resolve with an explicitly capable namespace. Public types
 are `PropertyAccess`, `PropertyAccessContext` and checked `PropertyAccessFault`
 (TypeScript), or `property::PropertyAccess` and its context/scope/kind/error types

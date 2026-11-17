@@ -93,6 +93,7 @@ pub enum Selector {
 pub enum PropertyName {
     Key,
     Tag,
+    HeadTag,
 }
 impl PropertyName {
     #[must_use]
@@ -100,6 +101,7 @@ impl PropertyName {
         match self {
             Self::Key => "key",
             Self::Tag => "tag",
+            Self::HeadTag => "headTag",
         }
     }
 }
@@ -452,6 +454,7 @@ impl<'a> Parser<'a> {
         let property = match &self.input[start..self.index] {
             "key" => PropertyName::Key,
             "tag" => PropertyName::Tag,
+            "headTag" => PropertyName::HeadTag,
             _ => {
                 return self.fail(
                     "Unknown property selector",

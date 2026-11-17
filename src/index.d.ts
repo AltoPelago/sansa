@@ -255,7 +255,7 @@ export interface SansaResolveDiagnostic {
   readonly selectorIndex?: number;
   /** Authored identity selected by an identity-related resolution failure. */
   readonly identity?: string;
-  readonly property?: 'key' | 'tag';
+  readonly property?: 'key' | 'tag' | 'headTag';
   readonly budget?: 'maxPropertyInspections';
   readonly causeCode?: string;
   readonly limit?: number;
@@ -348,7 +348,7 @@ export interface SansaDatatypeNumberComponent {
 export type SansaDatatypeGenericComponent = SansaDatatypeDescriptor | SansaDatatypeNumberComponent;
 export type SansaDatatypeClarifierComponent = SansaDatatypeStringComponent | SansaDatatypeNumberComponent;
 
-export type PropertyName = 'key' | 'tag';
+export type PropertyName = 'key' | 'tag' | 'headTag';
 export type PropertyScopeRole = 'root' | 'inside' | 'outside';
 export type PropertyNodeKind = 'NodeLiteral' | 'NodeHead' | 'Other';
 export interface PropertyAccessContext<B extends object> {
@@ -1534,7 +1534,7 @@ export interface ChildIdentitySelector {
 
 export interface PropertyFilterSelector {
   readonly type: 'propertyFilter';
-  readonly property: 'key' | 'tag';
+  readonly property: 'key' | 'tag' | 'headTag';
   readonly value: string;
 }
 

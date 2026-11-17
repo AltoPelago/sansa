@@ -89,8 +89,8 @@ export function selectProperty(binding, context, prepared, selector, selectorInd
     const role = authorize(binding, context);
     if (selector.property === 'key') return {match: role === 'root' ? false : scalar(call('key', binding, context)) === selector.value};
     const nodeKind = kind(binding, context);
-    if (nodeKind === 'Other') return {match: false};
-    if (nodeKind === 'NodeHead') return {match: scalar(call('nodeTag', binding, context)) === selector.value};
+    if (selector.property === 'headTag') return {match: nodeKind === 'NodeHead' && scalar(call('nodeTag', binding, context)) === selector.value};
+    if (nodeKind !== 'NodeLiteral') return {match: false};
     let iterator, finished = false, match = false;
     try {
       const iterable = call('nodeHeads', binding, context);

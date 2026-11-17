@@ -11,7 +11,7 @@ fn prepared_parser_expectations() {
     ))
     .expect("fixture");
     let tests = suite["tests"].as_array().expect("tests");
-    assert_eq!(tests.len(), 34);
+    assert_eq!(tests.len(), 40);
     for vector in tests {
         let id = vector["id"].as_str().expect("id");
         let input = &vector["input"];

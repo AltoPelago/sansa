@@ -7483,10 +7483,12 @@ class AddressParser {
   parsePropertySelector() {
     this.consume('&');
     const start = this.index;
-    while (isIdentifierContinue(this.peek())) this.index += 1;
-    if (this.index - start !== 3) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    while (isIdentifierContinue(this.peek())) {
+      this.index += 1;
+      if (this.index - start > 7) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    }
     const property = this.input.slice(start, this.index);
-    if (!['key', 'tag'].includes(property)) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
+    if (!['key', 'tag', 'headTag'].includes(property)) this.fail('Unknown property selector', 'SANSA_UNKNOWN_PROPERTY_SELECTOR', start);
     this.consume('(');
     if (isLayout(this.peek())) this.fail('Whitespace is not allowed inside a SANSA address', 'SANSA_UNEXPECTED_WHITESPACE');
     if (this.peek() !== '"') this.fail('Expected quoted property argument', 'SANSA_EXPECTED_PROPERTY_ARGUMENT');

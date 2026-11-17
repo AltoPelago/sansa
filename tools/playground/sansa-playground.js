@@ -451,7 +451,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resultLine(row) {
-    return `${row.path}${row.identity ? `  (identity: ${row.identity})` : ""} = ${renderValue(row.value)}`;
+    return `${row.path} [${row.type || "binding"}]${row.identity ? `  (identity: ${row.identity})` : ""} = ${renderValue(row.value)}`;
   }
 
   function renderMatches(matches, parsedAddress, warnings) {
@@ -570,6 +570,11 @@ document.addEventListener("DOMContentLoaded", () => {
     diagnostics.textContent = lines.length > 0 ? lines.join("\n") : "No diagnostics.";
   }
 
+  function diagnosticDetails(error) {
+    return ["selectorIndex", "identity", "property", "budget", "limitKind", "limit", "observed"]
+      .filter(key => error[key] !== undefined).map(key => `${key}=${error[key]}`).join(", ");
+  }
+
   function renderDiagnostics(meta, warnings = [], lineOffset = 0, queryErrors = []) {
     const lines = [];
     let hasErrors = false;
@@ -589,7 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const error of queryErrors) {
       hasErrors = true;
       const phase = error.phase ? `[${error.phase}] ` : "";
-      const context = ["selectorIndex", "identity", "limit", "observed"].filter(key => error[key] !== undefined).map(key => `${key}=${error[key]}`).join(", ");
+      const context = diagnosticDetails(error);
       lines.push(`[error] ${phase}${error.code ? `${error.code}: ` : ""}${error.message ?? String(error)}${context ? ` (${context})` : ""}`);
     }
     state.diagnosticLines = lines;
@@ -606,7 +611,8 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="sansa-status">Invalid address</div>
       <p class="sansa-warning">${escapeHtml(first?.message ?? "Unable to parse SANSA address.")}</p>
     `;
-    state.diagnosticLines = [`[error] ${first?.code ?? "SANSA_PARSE_ERROR"}: ${first?.message ?? "Invalid SANSA address."}`];
+    const context = diagnosticDetails(first ?? {});
+    state.diagnosticLines = [`[error] ${first?.code ?? "SANSA_PARSE_ERROR"}: ${first?.message ?? "Invalid SANSA address."}${context ? ` (${context})` : ""}`];
     state.hasDiagnosticErrors = true;
     updateDiagnosticsForCaret();
   }
@@ -744,7 +750,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!value.trim() || !Number.isSafeInteger(maxIdentityInspections) || maxIdentityInspections < 0) {
       throw new Error("Identity inspections must be a non-negative safe integer.");
     }
-    return {maxIdentityInspections, maxBindings: 1000};
+    const propertyValue = shell.querySelector("[data-sansa-property-inspections]").value;
+    const maxPropertyInspections = Number(propertyValue);
+    if (!propertyValue.trim() || !Number.isInteger(maxPropertyInspections) || maxPropertyInspections < 0 || maxPropertyInspections > 1000000) {
+      throw new Error("Property inspections must be an integer from 0 through 1000000.");
+    }
+    return {maxIdentityInspections, maxPropertyInspections, maxBindings: 1000};
   }
 
   function rowsMatchingAddress(addressText) {
@@ -1516,6 +1527,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.mode = example.mode || "transport";
     shell.querySelector("[data-sansa-scope]").value = example.scope ?? "$";
     shell.querySelector("[data-sansa-inspections]").value = example.inspections ?? 10000;
+    shell.querySelector("[data-sansa-property-inspections]").value = example.propertyInspections ?? 10000;
     syncView();
     syncModeButtons();
     sourceComposer?.setMode?.(state.mode);
@@ -1542,7 +1554,7 @@ document.addEventListener("DOMContentLoaded", () => {
     query.value = "from $.inventory.items.*\nselect .name";
     window.AeonWebHighlight?.refreshEditor?.(source);
   }
-  for (const control of shell.querySelectorAll("[data-sansa-scope], [data-sansa-inspections]")) {
+  for (const control of shell.querySelectorAll("[data-sansa-scope], [data-sansa-inspections], [data-sansa-property-inspections]")) {
     control.addEventListener("input", scheduleResolve);
   }
   shell.querySelector("[data-sansa-run]").addEventListener("click", resolveNow);

@@ -110,3 +110,43 @@ coverage, and clock shifts make no elapsed-time or timezone claim. Eleven
 examples call the SANSA source API in a browser worker. Descriptions follow edited
 requests; diagnostics retain no reusable value. See the
 [date-time API and frozen evidence](../../docs/aeonic-temporal-civil-datetime.md).
+
+## Property selectors (development)
+
+Use an AEON build containing merged #201/#203. The property examples use the
+same `createAeonNamespace` metadata facet and `resolveAddress` engine as the SDK;
+this UI has no property parser, tag-field inference or alternate resolver.
+`&key("...")` compares the literal incoming member/attribute key. Empty keys,
+`*` in a key, and Unicode remain literal. Positions are not keys. A selected
+scope root hides its incoming key but retains its intrinsic/direct-head tags;
+`&tag("...")` matches node containers only. `&headTag("...")` matches heads only; neither treats an ordinary field named `tag` as metadata.
+
+**Property inspections** is independent of identity inspections: default 10,000,
+maximum 1,000,000, with zero permitted. The value goes to Resolve unchanged;
+logical work includes candidates and yielded direct heads, including misses and
+repeated occurrences. Construction, ancestry and other navigation have separate
+costs. Budget failures show the real property/budget/limit/observed fields and
+return no partial results. Parser limit diagnostics retain limitKind too.
+
+**Property Query: not admitted** demonstrates the current consumer boundary,
+even with trusted address activation. Property Query, mutation, AEOS policies,
+structural references and stored-address activation are not enabled by these
+examples. The SANSA Composer accepts manually entered property suffixes through
+the real parser; automatic property suggestions are not supplied yet.
+
+Run the explicit cross-repository integration check after building AEON:
+
+```sh
+node tools/workflows/verify-property-playground.mjs /absolute/path/to/built/aeon
+# Or verify explicitly installed candidate packages:
+node tools/workflows/verify-property-playground.mjs /absolute/path/to/consumer --installed
+```
+
+It checks every property example as text and parsed AST, scope roots, original
+binding handles, direct heads, inspection diagnostics and Query denial. No
+installation, index, mutation or release is performed. Official releases,
+deployment, stable profile promotion and final performance qualification remain
+held; the 1.15x latency / 1.20x memory budgets are unchanged.
+
+Results label their actual representation kind. Use the recursive container/head
+examples to compare `&tag` and `&headTag`; add `.*` explicitly to visit head children.

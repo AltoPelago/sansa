@@ -109,7 +109,7 @@ export function renderPropertyAddress(address, quote, number) {
       case 'representationKindFilter': emit('%' + identifier(text(s, 'name'))); break;
       case 'propertyFilter': {
         const property = data(s, 'property');
-        if (!['key', 'tag'].includes(property)) throw new PropertyAddressError('Unknown property');
+        if (!['key', 'tag', 'headTag'].includes(property)) throw new PropertyAddressError('Unknown property');
         emit('&' + property + '(' + quoted(scalarCount(data(s, 'value'), MAX_PAYLOAD, 'payloadScalars')) + ')'); break;
       }
       default: throw new PropertyAddressError('Unknown selector');

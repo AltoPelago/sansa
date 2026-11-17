@@ -13,20 +13,21 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-14",
+    "verified_on": "2026-11-18",
     "node": "v24.22.2",
     "manifest_sha256": "8e7a42fe340ec2b9c5f4612e8818a9cbce9e3250a5b6d9971e22eed992fc7d69",
     "report": "results/aeonic-comparison-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; other shared-runner fields are retained",
     "implementation_files_sha256": {
-      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
+      "src/index.js": "9bb5dd2e5554e675befbc14967294bd496ef62ab573a0f698c6d2998a8babee1",
       "src/aeonic-comparison.js": "4eb31b7f452b248c4ee189d99e880b73fe20c88ded2d77872f528a9331ae60db",
       "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
       "scripts/cts-aeonic-comparison-adapter.mjs": "1a7ad1b5f3149c0ec83d61d8d1562ebd4f4cf2c2bcac891bcaf947bbf4a460ed"
     },
     "limits": [
-      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
+      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ]
   }
 }

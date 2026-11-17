@@ -14,7 +14,7 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-14",
+    "verified_on": "2026-11-18",
     "node": "v24.22.2",
     "specification_commit": "d4801c7e4814af1ef6e51951c0af3f3d429f04fb",
     "cts_commit": "2ee51c88ad944a0f1c0951d5e39b298561c00c35",
@@ -43,8 +43,8 @@
       "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
     },
     "implementation_files_sha256": {
-      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
-      "src/index.d.ts": "c0de36607e1cccb6c5016fdca580a4dc0abccbdc6ee75f7a2e3033e631e1a1f4",
+      "src/index.js": "9bb5dd2e5554e675befbc14967294bd496ef62ab573a0f698c6d2998a8babee1",
+      "src/index.d.ts": "273b93604a17209bca83ef53c6022551c3e616236552fd85bc708202c13a4331",
       "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
       "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",
       "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
@@ -61,7 +61,8 @@
       "Native getters/proxies/custom subclasses, object-key enumeration, outer CTS transport and whole-chain budgets remain separate from logical JSON conformance.",
       "Convenience composition has its own step metadata/result shape and tests; it does not widen this frozen operation result contract.",
       "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3.",
-      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
+      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ]
   }
 }
