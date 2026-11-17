@@ -1,4 +1,4 @@
-# Property selectors: candidate API contract 0.1
+# Property selectors: candidate API contract 0.2
 
 Status: **unreleased candidate contract; core standalone Resolve implemented**.
 JavaScript/TypeScript and Rust expose the optional facet for direct read-only
@@ -11,13 +11,13 @@ Existing capability manifests are unchanged.
 
 ## Address and Query model
 
-`&key("...")` and `&tag("...")` are suffix filters without a preceding dot.
+`&key("...")`, `&tag("...")` and `&headTag("...")` are suffix filters without a preceding dot.
 They use the existing SANSA quoted-payload decoder/canonical emitter; no JSON-only
 or host-regex replacement is allowed. Payloads may contain whitespace, escaped
 quotes/backslashes and literal wildcard characters. Unknown names/extra arguments
 fail. `&first`/`&last`/rank operators remain deferred.
 
-The proposed selector is `{type:'propertyFilter', property:'key'|'tag', value:string}`.
+The proposed selector is `{type:'propertyFilter', property:'key'|'tag'|'headTag', value:string}`.
 Normalize caller ASTs without mutation, recompute rendering/exactness, and reject
 unknown variants/invalid Unicode/unchecked accessor fields or cyclic graphs.
 Property-bearing addresses have fixed candidate ceilings: 256 total selectors,
@@ -50,7 +50,7 @@ counter is introduced.
 | `nodeTag(binding, context)` | For tag support, Unicode-scalar string or absent. Only called on an authorized NodeHead. |
 | `nodeHeads(binding, context)` | For tag support, incremental iterable of original directly owned head handles; no flattening, eager clone or hidden suffix read. |
 
-Tag support requires all three node operations, even in an empty/non-node
+Both tag predicates share node support requiring all three node operations, even in an empty/non-node
 namespace. Key support requires `key`; both require `scope`. JavaScript/Python
 use callable presence; Rust's optional facet has required `scope`, explicit
 `supports_key`/`supports_nodes` defaults false and checked fallible methods.
@@ -67,7 +67,7 @@ or local-space roots. Parent navigation is unchanged, but property inspection of
 an escaped occurrence fails. The facet must not infer authority from a canonical
 path. Adapters unable to prove it stay unsupported.
 
-A NodeHead matches its own tag. A NodeLiteral existentially inspects direct heads,
+Only `&headTag` matches a NodeHead's own tag. `&tag` matches only a NodeLiteral, existentially inspecting its direct heads,
 emitting the original container at most once per input occurrence. Stop at first
 match; later navigation still starts from that container. Repeated branches retain
 results and charges. Ordinary `tag` object fields and cached outer tags are ignored.
@@ -114,7 +114,7 @@ panic/abort behavior is not a portable checked-error guarantee.
 | Pure Python AEON | Optional `properties` mapping follows the same camelCase callback/context keys and error domain. Resolve only until a separate Query implementation exists. |
 | Native/Python/WASM bridges | Preserve error/absent/scope/ownership distinctions and counters through actual existing entry points. No new native/WASM API is implied by these sketches. |
 
-Candidate 0.1 intends Addressing, read-only Resolve and direct read-only Query.
+Candidate 0.2 intends Addressing, read-only Resolve and direct read-only Query.
 AEOS selector and Type Transpiler require separate integration admission. Activation
 (including trusted), Graph, mutation/Instruction/SO, structural AEOS paths,
 references and event/storage paths stay closed. Query-shaped mutation entry points
@@ -140,4 +140,21 @@ Local positions keep their separate group/candidate/buffer/cost gate. Official
 release, deployment and publication stay held. No tests here establish implemented
 property-selector conformance.
 
-Owning specification input: [`87af960eb26d15711369d20c9753efddb8617a48`](https://github.com/aeonite-org/aeonite-specs/commit/87af960eb26d15711369d20c9753efddb8617a48). This pins the proposal, not an adopted or published profile.
+Owning specification input: [`ec43f7996d3d44d86e1a7639bb26d98b4fb829c1`](https://github.com/aeonite-org/aeonite-specs/commit/ec43f7996d3d44d86e1a7639bb26d98b4fb829c1). This pins the proposal, not an adopted or published profile.
+
+## Unreleased 0.2 kind split
+
+`&tag("book")` retains only NodeLiteral containers with a matching direct head.
+`&headTag("book")` retains only NodeHead bindings with that intrinsic tag. A
+wrong-kind candidate is a charged miss after scope/kind validation; it does not
+read tag metadata or enumerate heads. Neither predicate matches a StringLiteral
+whose value happens to be `book`. Both share the existing node capability and
+inspection allowance. `nodeTag` remains the adapter callback name for authorized
+head access; it is not renamed by this grammar addition.
+
+Child navigation stays explicit: `...&headTag("book").*` selects the matched
+head's children. A recursive search can now select containers or heads without
+implicitly returning both. `&key`, scope/ownership, ordering, multiplicity,
+canonical structural paths, resource ceilings and prohibited-consumer admission
+remain unchanged. This revises an unpublished candidate; it does not promote a
+stable profile. Rust exhaustive PropertyName matches must handle HeadTag.

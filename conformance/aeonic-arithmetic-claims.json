@@ -14,7 +14,7 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-14",
+    "verified_on": "2026-11-18",
     "node": "v24.22.2",
     "specification_commit": "be4597cba2909d9756297047ec5bf34ec6cf8eea",
     "cts_commit": "321022560b477f238c69d3853c89d3aa135def2a",
@@ -35,8 +35,8 @@
     "report": "results/aeonic-arithmetic-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
     "implementation_files_sha256": {
-      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
-      "src/index.d.ts": "c0de36607e1cccb6c5016fdca580a4dc0abccbdc6ee75f7a2e3033e631e1a1f4",
+      "src/index.js": "9bb5dd2e5554e675befbc14967294bd496ef62ab573a0f698c6d2998a8babee1",
+      "src/index.d.ts": "273b93604a17209bca83ef53c6022551c3e616236552fd85bc708202c13a4331",
       "src/aeonic-arithmetic.js": "65e4195ab6421a498157657d00452b459640a98e7e421a2b873282fd43a2ac9c",
       "src/aeonic-arithmetic.d.ts": "e03421a44d0f8164165bd37603b91809e0a5131d560d12054a78baa6963f4df6",
       "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
@@ -49,7 +49,8 @@
       "The CTS supplies explicit baseline and per-boundary companion settings; no Cartesian machine-capacity guarantee.",
       "Native graph hardening and optional work budgets are separate implementation evidence.",
       "Conformance applies to JavaScript source, not Rust or a package release.",
-      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
+      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ]
   }
 }

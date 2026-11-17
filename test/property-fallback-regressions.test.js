@@ -14,7 +14,7 @@ const forms=source=>[source,parseAddress(source).address];
 test('QA-0085: mixed attribute and parent field fallbacks retain supported branches in text/native calls',()=>{
   for(const reverse of [false,true])for(const field of ['attributes','attributeSpace']){
     const h=fixture();h.a[field]=h.attrs;h.a.parent=h.root;if(reverse)h.root.children.reverse();
-    for(const [prefix,expected]of [['$.*.@',[h.attrs]],['$.*.^',[h.root]]])for(const source of forms(prefix+'&tag("x")')){
+    for(const [prefix,expected]of [['$.*.@',[h.attrs]],['$.*.^',[h.root]]])for(const source of forms(prefix+'&headTag("x")')){
       const plain=resolveAddress(prefix,h.namespace);assert.equal(plain.ok,true);assert.deepEqual(plain.bindings,expected);
       const result=resolveAddress(source,h.namespace);assert.equal(result.ok,true,JSON.stringify(result.errors??[]));assert.deepEqual(result.bindings,expected);
       assert.equal(result.bindings[0],expected[0]);
@@ -32,20 +32,20 @@ test('set-level unsupported, empty and inherited-field decisions match ordinary 
     if(form==='inherited')Object.setPrototypeOf(h.a,suffix==='.@'?{attributes:h.attrs}:{parent:h.root});
     if(form==='ownAbsent')Object.defineProperty(h.a,suffix==='.@'?'attributes':'parent',{value:undefined});
     if(form==='callbackAbsent')h.namespace[suffix==='.@'?'attributeSpace':'parent']=()=>undefined;
-    const plain=resolveAddress('$.*'+suffix,h.namespace), result=resolveAddress('$.*'+suffix+'&tag("x")',h.namespace);
+    const plain=resolveAddress('$.*'+suffix,h.namespace), result=resolveAddress('$.*'+suffix+'&headTag("x")',h.namespace);
     assert.equal(result.ok,plain.ok,`${suffix}/${form}`);
     if(plain.ok)assert.deepEqual(result.bindings,plain.bindings);
     else assert.equal(result.errors[0].code,plain.errors[0].code);
   }
   const h=fixture();h.a.parent=undefined;Object.setPrototypeOf(h.b,{parent:h.root});
-  assert.deepEqual(resolveAddress('$.*.^&tag("x")',h.namespace).bindings,[h.root]);
+  assert.deepEqual(resolveAddress('$.*.^&headTag("x")',h.namespace).bindings,[h.root]);
 });
 
 test('set-level parent policy precedes every callback/getter and fallback values are read once',()=>{
   for(const options of [{parentTraversal:'forbid'},{failOnParentFromEffectiveRoot:true}]){
     const h=fixture();h.root.children=[h.a,h.root];let reads=0;
     Object.defineProperty(h.a,'parent',{get(){reads++;return h.root;}});
-    for(const prefix of ['$.*.^','$.*.^&tag("x")']){
+    for(const prefix of ['$.*.^','$.*.^&headTag("x")']){
       const result=resolveAddress(prefix,h.namespace,options);assert.equal(result.ok,false);
       assert.equal(result.errors[0].code,options.parentTraversal?'SANSA_RESOLVE_PARENT_TRAVERSAL_FORBIDDEN':'SANSA_RESOLVE_BOUNDARY_ESCAPE_FORBIDDEN');
       assert.equal(reads,0);assert.equal(h.counts.scope,0);
@@ -53,7 +53,7 @@ test('set-level parent policy precedes every callback/getter and fallback values
   }
   for(const suffix of ['.@','.^']){
     const h=fixture();let reads=0;Object.defineProperty(h.a,suffix==='.@'?'attributes':'parent',{get(){reads++;return suffix==='.@'?h.attrs:h.root;}});
-    assert.equal(resolveAddress('$.*'+suffix+'&tag("x")',h.namespace).ok,true);assert.equal(reads,1);
+    assert.equal(resolveAddress('$.*'+suffix+'&headTag("x")',h.namespace).ok,true);assert.equal(reads,1);
   }
 });
 

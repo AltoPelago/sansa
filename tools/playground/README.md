@@ -119,7 +119,7 @@ this UI has no property parser, tag-field inference or alternate resolver.
 `&key("...")` compares the literal incoming member/attribute key. Empty keys,
 `*` in a key, and Unicode remain literal. Positions are not keys. A selected
 scope root hides its incoming key but retains its intrinsic/direct-head tags;
-`&tag("...")` does not treat an ordinary field named `tag` as metadata.
+`&tag("...")` matches node containers only. `&headTag("...")` matches heads only; neither treats an ordinary field named `tag` as metadata.
 
 **Property inspections** is independent of identity inspections: default 10,000,
 maximum 1,000,000, with zero permitted. The value goes to Resolve unchanged;
@@ -147,3 +147,6 @@ binding handles, direct heads, inspection diagnostics and Query denial. No
 installation, index, mutation or release is performed. Official releases,
 deployment, stable profile promotion and final performance qualification remain
 held; the 1.15x latency / 1.20x memory budgets are unchanged.
+
+Results label their actual representation kind. Use the recursive container/head
+examples to compare `&tag` and `&headTag`; add `.*` explicitly to visit head children.

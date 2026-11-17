@@ -7,6 +7,11 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Revise the unpublished property candidate: `&tag` matches NodeLiteral
+  containers only; `&headTag` matches NodeHead bindings only. Share the existing
+  node facet, scope checks and inspection budget; keep child navigation explicit.
+  Playground results show their representation kinds. No release or promotion.
+
 - Add local real-SDK key/tag Resolve examples, independent property inspection
   controls and checked budget/parser diagnostics. Property Query remains
   unadmitted; runtime grammar, target guards and release policy are unchanged.

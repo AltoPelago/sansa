@@ -451,7 +451,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resultLine(row) {
-    return `${row.path}${row.identity ? `  (identity: ${row.identity})` : ""} = ${renderValue(row.value)}`;
+    return `${row.path} [${row.type || "binding"}]${row.identity ? `  (identity: ${row.identity})` : ""} = ${renderValue(row.value)}`;
   }
 
   function renderMatches(matches, parsedAddress, warnings) {

@@ -23,7 +23,7 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-16",
+    "verified_on": "2026-11-18",
     "node": "v24.22.2",
     "specification_commit": "d0e89eb3b092bde56c04b1a5c9836373f5e8748e",
     "cts_commit": "ff3308837c3848b1596e76f0c997f8565edc2a45",
@@ -74,8 +74,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "7ccd9d9ecef55bc63d20faf1d90f7255811a32b10af4783608aabb0d7da90420",
-      "src/index.d.ts": "c0de36607e1cccb6c5016fdca580a4dc0abccbdc6ee75f7a2e3033e631e1a1f4",
+      "src/index.js": "9bb5dd2e5554e675befbc14967294bd496ef62ab573a0f698c6d2998a8babee1",
+      "src/index.d.ts": "273b93604a17209bca83ef53c6022551c3e616236552fd85bc708202c13a4331",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -84,8 +84,8 @@
       "scripts/cts-aeonic-temporal-civil-date-adapter.mjs": "2b97c037527a02171a6e9cd9bed214a2183e6203e6eae2c83193ba51745bca5a",
       "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
       "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76",
-      "src/property-address.js": "f88d857a0f073d3a1056cdfe89d87165140708a105feb81def3f12a37fe23ce3",
-      "src/property-resolve.js": "ce140a6fcb22cf46a8f3ecb5e8b5857cdf0dcff5eaca7f3e50f5fe1263e2e52f"
+      "src/property-address.js": "030add5cd4f27800fc3d0cc192ac867976b4c2dfa65684db0186f099924087e2",
+      "src/property-resolve.js": "a36e5ab03bafe4f443f250ea5a28ec2ed3bfc28babd8f34bed5b42e167acaab8"
     },
     "limits": [
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",
@@ -93,7 +93,8 @@
       "Logical JSON and text guarantees exclude arbitrary native accessors/proxies/container subclasses and eager key enumeration; full STDIO envelope/process/transport budgets are separate.",
       "Source APIs explicitly select profile/policy and preserve precise sets, origin and sticky history. A containing display never becomes authored period coverage.",
       "JavaScript source claim only; Query/Rust/timezones/WTC/database resolution and package publication remain separate. Playground convenience is application tooling. Node24verified locally; Node20/22/24hosted CI is a separate observation.",
-      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately."
+      "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
+      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
     ],
     "source_base_commit": "f4b21686e5da99b327d36d5d7974bb848d17835c"
   }

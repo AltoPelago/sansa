@@ -115,13 +115,15 @@ impl<'a, B: Clone + Eq> PropertyInspection<'a, B> {
                 };
                 let supported = match property {
                     PropertyName::Key => access.supports_key(),
-                    PropertyName::Tag => access.supports_nodes(),
+                    PropertyName::Tag | PropertyName::HeadTag => access.supports_nodes(),
                 };
                 if !supported {
                     return Err(diagnostic(
                         match property {
                             PropertyName::Key => "SANSA_RESOLVE_UNSUPPORTED_KEY",
-                            PropertyName::Tag => "SANSA_RESOLVE_UNSUPPORTED_TAG",
+                            PropertyName::Tag | PropertyName::HeadTag => {
+                                "SANSA_RESOLVE_UNSUPPORTED_TAG"
+                            }
                         },
                         *property,
                         index,
@@ -190,11 +192,11 @@ impl<'a, B: Clone + Eq> PropertyInspection<'a, B> {
             .map_err(|e| fault(e, property, index))?
         {
             PropertyNodeKind::Other => Ok(false),
-            PropertyNodeKind::NodeHead => facet
+            PropertyNodeKind::NodeHead if property == PropertyName::HeadTag => facet
                 .node_tag(binding, context)
                 .map(|v| v.as_deref() == Some(value))
                 .map_err(|e| fault(e, property, index)),
-            PropertyNodeKind::NodeLiteral => {
+            PropertyNodeKind::NodeLiteral if property == PropertyName::Tag => {
                 let heads = facet
                     .node_heads(binding, context)
                     .map_err(|e| fault(e, property, index))?;
@@ -227,6 +229,7 @@ impl<'a, B: Clone + Eq> PropertyInspection<'a, B> {
                 }
                 Ok(false)
             }
+            _ => Ok(false),
         }
     }
 }

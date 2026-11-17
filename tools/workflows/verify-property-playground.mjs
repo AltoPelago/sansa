@@ -49,5 +49,5 @@ for (const [id, example] of Object.entries(examples).filter(([id]) => id.startsW
   }
   report.examples.push(id);
 }
-assert.equal(report.examples.length, 11);
+assert.equal(report.examples.length, 14);
 console.log(JSON.stringify(report, null, 2));

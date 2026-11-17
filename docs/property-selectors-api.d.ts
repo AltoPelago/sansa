@@ -1,7 +1,7 @@
 /** Candidate 0.1 declarations for review only. Not runtime/package exports. */
 import type {SansaAddress, SansaSelector, SansaResolveNamespace, SansaResolveOptions, SansaQueryEvaluateOptions} from '../src/index.js';
 
-export type PropertyName = 'key' | 'tag';
+export type PropertyName = 'key' | 'tag' | 'headTag';
 export type PropertyScopeRole = 'root' | 'inside' | 'outside';
 export type PropertyNodeKind = 'NodeLiteral' | 'NodeHead' | 'Other';
 export interface PropertyAccessContext<B extends object> {

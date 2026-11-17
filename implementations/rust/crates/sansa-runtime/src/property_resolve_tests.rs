@@ -320,7 +320,7 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
         let input = &vector["input"];
         // Native Rust Address/options cannot encode JS accessor/cycle ASTs or
         // booleans/negative/fractional u32 allowances. They are not claimed here;
-        // JS runs all83, and native AST/typed boundary controls are separate.
+        // JS runs all95, and native AST/typed boundary controls are separate.
         let limit = input["options"]["maxPropertyInspections"]
             .as_f64()
             .unwrap_or(10_000.0);
@@ -359,7 +359,7 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
             }
         }
     }
-    assert_eq!(executed, 67, "selection must not change silently");
+    assert_eq!(executed, 79, "selection must not change silently");
 }
 
 #[test]
