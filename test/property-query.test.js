@@ -102,7 +102,8 @@ test('QA-0093: real evaluator result perturbations fail the repeated/reentrant o
       if(change&&result.ok&&result.results.length){tampered++;const row=result.results[0];return {...result,results:[{...row,value:{type:'bindingSet',bindings:mode==='clonedNestedHandle'?row.value.bindings.map(b=>({...b})):[]}}]};}
       return result;
     };
-    assert.throws(()=>runPropertyQueryVector(vector,{evaluate}),/records|authorized handle/,mode);
+    const operator=mode==='clonedNestedHandle'?'strictEqual':'deepStrictEqual';
+    assert.throws(()=>runPropertyQueryVector(vector,{evaluate}),error=>error.code==='ERR_ASSERTION'&&error.operator===operator,mode);
     assert.ok(tampered>0,mode);
   }
 });
