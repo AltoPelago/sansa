@@ -1,0 +1,116 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-temporal-civil-clock-relations",
+      "snapshot_id": "aeonic-temporal-civil-clock-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Temporal.CivilClock.Relations",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-clock -- --capability-set relations",
+      "notes": "Verified complete immutable snapshot0.1 capability; proposal lifecycle. Standalone unreleased JavaScript source, explicit profile; no Query/Rust, calendar anchoring, timezone/WTC or release claim."
+    },
+    {
+      "surface": "aeonic-temporal-civil-clock-arithmetic",
+      "snapshot_id": "aeonic-temporal-civil-clock-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Temporal.CivilClock.Arithmetic",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-clock -- --capability-set arithmetic",
+      "notes": "Verified complete immutable snapshot0.1 capability; proposal lifecycle. Standalone unreleased JavaScript source, explicit profile; no Query/Rust, calendar anchoring, timezone/WTC or release claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-18",
+    "node": "v24.22.2",
+    "source_base_commit": "da76789aff29025affe180196e79ba5749c9e0a2",
+    "specification_commit": "29b3a0b52d9709a9937d9b48f23eefcab0e35aea",
+    "cts_commit": "042b0e9c51680a95fda1dbba57bd8f014b3e628e",
+    "specification_snapshot_id": "aeonic-temporal-civil-clock-specs-v1-snapshot-0.1",
+    "profile": "aeonic.operations.temporal.civil-clock.v1",
+    "artifact_sha256": {
+      "manifest_sha256": "970e64f25239e8bb322b101c8f1ce5cf4195c3ab6c0f6c45610727f1a8035322",
+      "runner_sha256": "b5878131fb0c2c7b1d451ece72320e3feee7cbdc74df251f9106f9fa2aa94ebc",
+      "specification_source_sha256": "f7fbaf66f854a54564b25353d6eed8ae9d783ec026ecace8ea0a2768beb5e6c7",
+      "specification_schema_sha256": "448921db259532011d0aa866f68a3483a5911d540edb691a56331e86e3cd7b69"
+    },
+    "helper_sha256": {
+      "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+      "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+      "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489",
+      "runners/temporal_civil_datetime_checks.py": "16eb93eb4664751ede5222286e283e4b4c6c87e6a3bbaa706cff5c8ec00d326f",
+      "runners/temporal_civil_clock_checks.py": "c1e18e93775bb2c54910e05d02458f5d188b0b3195d7185e3a1cd251bbdd6953"
+    },
+    "test_resource_limits": {
+      "maxRequestBytes": 65536,
+      "maxRequestDepth": 32,
+      "maxTemporalCharacters": 1024,
+      "maxInputPieces": 512,
+      "maxIntermediatePieces": 4096,
+      "maxOutputPieces": 512,
+      "maxWork": 16384,
+      "maxFractionDigits": 256,
+      "maxRelativeDayDigits": 256,
+      "maxCountCharacters": 32,
+      "maxNumericCharacters": 4096,
+      "maxCoefficientDigits": 1024,
+      "maxExponentMagnitude": 1000000,
+      "maxWorkspaceDigits": 4096,
+      "maxOutputCharacters": 1024,
+      "maxResultBytes": 131072
+    },
+    "reports": {
+      "all": "results/aeonic-clock-all-snapshot-0.1.json",
+      "relations": "results/aeonic-clock-relations-snapshot-0.1.json",
+      "arithmetic": "results/aeonic-clock-arithmetic-snapshot-0.1.json"
+    },
+    "capacity_report": "results/aeonic-clock-capacity.json",
+    "report_normalization": "cwd recorded as .; actual verdicts, values, metadata, counts, limits and fingerprints unchanged",
+    "adapted_from": {
+      "repository": "AltoPelago/aeonic",
+      "commit": "8cb31dd3beb44d758ed27c02600b5b4c858fc2a1",
+      "files_sha256": {
+        "src/temporal-civil-clock.js": "5a6b4dc9a0d63cbe8bee87f009ef7c5bff954bae2070417e69376954529bd1d8",
+        "src/json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+        "src/rational-json.js": "d0d094c3e4df3992f996cf3452879c8c342a10368e064109d6e4a7b86b6c909a",
+        "scripts/temporal-civil-clock-cts-adapter.mjs": "fd0c968db9c9508e26a7f52023f693023e6b008ea521078770d385f340dbb56d",
+        "scripts/calibrate-temporal-civil-clock-capacity.py": "6b2929e7c9c026ad973ef3cebb3a114ecc0121a4f3402a34b83627abf8c5eb0b"
+      },
+      "adaptations": [
+        "Local imports, SANSA public names and MIT provenance header.",
+        "Bounded scalar UTF-8 counter replaces Buffer byteLength for browser workers; accepted byte counts/staged admission/operation semantics preserved.",
+        "Existing strict JSON and raw-number helpers reused; complete selected capability also restricts trusted provider availability."
+      ]
+    },
+    "implementation_files_sha256": {
+      "src/index.js": "c6d8b43710c7c8a6f4002e18c7469de8e0a13b1bd456de01ce6c5ab8d3e0b55f",
+      "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
+      "src/aeonic-temporal-civil-clock.js": "3bbc0cbcbb5251939e144859a9d567c3e89571d3291dc24a3034daf1057f6f49",
+      "src/aeonic-temporal-civil-clock.d.ts": "59020c5124a25b8ef79b3c79109fc88207c7c01062183c351f49bb6b2d2f5f05",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
+      "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
+      "scripts/cts-aeonic-temporal-civil-clock-adapter.mjs": "c717e133cb4093da99dc76a5926417ac53afe319279568440373a92cff4692ed",
+      "scripts/cts-aeonic-clock.mjs": "f2000f951af57f72d2467eaf950e9dd24a7e3b64ec71f8bf0b70252ba3a7109c",
+      "scripts/calibrate-aeonic-clock-capacity.py": "6b2929e7c9c026ad973ef3cebb3a114ecc0121a4f3402a34b83627abf8c5eb0b",
+      "tools/playground/arithmetic-model.mjs": "3d3195ca9276430bbfeeda4f55ce82f61e4588cd8c98cc529683621f35f061f5",
+      "tools/playground/arithmetic-evaluator.mjs": "bfb479fd1950b80757dfa9f01e73bd6bf1c6071ac5675681594e41b5a98acbb6",
+      "tools/playground/arithmetic-worker.mjs": "c4e9683c3202df9c9190b7fb1510c2faa3aa750fe94c7decbb320c0fe769abf4",
+      "tools/playground/arithmetic.mjs": "c9ab1bf24661ad768598014187d4f6632f157273669baf04418a86ebb5a05a11",
+      "tools/playground/arithmetic.html": "8959cdc1ea4a85e63c83b0031dc47e7fd03b9153de5388f9ab445344df1059dd",
+      "tools/playground/clock-examples.mjs": "e7f27ddc647fff67aa7a137a46115026e724d62e075c691a398a73d2e62910a4",
+      "package.json": "b033b39c5b4e7ddc0c8243a877fcf46c0309344e459a8fabc0ed35f4636c88d6"
+    },
+    "limits": [
+      "Genuine frozen combined378 SUT executions/420 assertions; independently restricted Relations261/303 and Arithmetic116/116. Actual outputs feed chains, no semantic case opt-outs.",
+      "34 native-default capacity probes isolate all16 dimensions with recorded companion limits. No Cartesian-product, process/heap/disk, outer transport/framing, arbitrary accessors/proxies/subclasses or whole-chain guarantee.",
+      "Exact signed relative days have no calendar date. Ordinary unqualified clock coordinates only; no timezone/WTC/leap or elapsed-time authority. Explicit profile and output selectors required.",
+      "Standalone unreleased JavaScript/TypeScript only; Query temporal relations, Rust and previous numerical/date/date-time engines/defaults remain separate and unchanged.",
+      "Local Node24.22.2 evidence. Required Node20/22/24 hosted checks recorded separately after execution. Report fingerprints bind inputs, not proof of historical process identity by themselves.",
+      "Browser worker runs the real source API without Buffer. Application input/result/timeout controls, preparation and rendering remain separate from semantic operation allowances; no whole-process memory sandbox.",
+      "Descriptions follow current request text; exact bundle continuations preserve relative days, origin and approximation history. Symbols/diagnostics cannot feed the clock chain."
+    ]
+  }
+}

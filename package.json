@@ -81,7 +81,9 @@
     "cts:aeonic-temporal": "node scripts/cts-aeonic-temporal.mjs",
     "cts:aeonic-temporal:capacity": "python3 scripts/calibrate-aeonic-temporal-capacity.py --sut 'node scripts/cts-aeonic-temporal-civil-date-adapter.mjs'",
     "cts:aeonic-datetime": "node scripts/cts-aeonic-datetime.mjs",
-    "cts:aeonic-datetime:capacity": "python3 scripts/calibrate-aeonic-datetime-capacity.py --sut 'node scripts/cts-aeonic-temporal-civil-datetime-adapter.mjs'"
+    "cts:aeonic-datetime:capacity": "python3 scripts/calibrate-aeonic-datetime-capacity.py --sut 'node scripts/cts-aeonic-temporal-civil-datetime-adapter.mjs'",
+    "cts:aeonic-clock": "node scripts/cts-aeonic-clock.mjs",
+    "cts:aeonic-clock:capacity": "python3 scripts/calibrate-aeonic-clock-capacity.py --sut 'node scripts/cts-aeonic-temporal-civil-clock-adapter.mjs'"
   },
   "keywords": [
     "sansa",
