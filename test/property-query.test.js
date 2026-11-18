@@ -3,34 +3,10 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {evaluateQuery,parseQuery,renderQuery} from '../src/index.js';
 import {propertyHost} from './property-resolve-fixture.mjs';
+import {runPropertyQueryVector} from './property-query-fixture.mjs';
 const suite=JSON.parse(readFileSync(new URL('../fixtures/property-query-candidate-v1.json',import.meta.url)));
-for(const vector of suite.tests) test(vector.id,()=>{
-  const {input,expected}=vector;
-  if(input.operation==='parse-query'){
-    const r=parseQuery(input.source);
-    const observed={ok:r.ok,canonical:r.query?.canonical,currentPropertyScope:r.query?.select.ast.scope,currentAddressRoot:r.query?.select.ast.address.root.kind};
-    for(const [field,value] of Object.entries(expected)){assert.ok(Object.hasOwn(observed,field),field);assert.deepEqual(observed[field],value,field);}return;
-  }
-  for(const native of [false,true]){
-    const host=propertyHost(input);let nestedResultsOk;
-    if(input.reenter){let entered=false;const key=host.namespace.properties.key;
-      host.namespace.properties.key=function(...args){if(!entered){entered=true; nestedResultsOk=evaluateQuery(input.reenter.source,host.namespace,{resolve:{maxPropertyInspections:input.reenter.maxPropertyInspections}}).ok;}return key.apply(this,args);};
-    }
-    const options=structuredClone(input.options??{});
-    if(input.contextualRoot) options.resolve={...options.resolve,contextualRoot:host.bindings.get(input.contextualRoot)};
-    const parsed=parseQuery(input.source);assert.equal(parsed.ok,true);
-    let r;for(let i=0;i<(input.repeat??1);i++)r=evaluateQuery(native?parsed.query:input.source,host.namespace,options);
-    const observed={ok:r.ok,records:r.results.map(row=>({candidate:row.binding.id,valueBindings:row.value.bindings.map(b=>b.id)})),calls:host.calls,nestedResultsOk};
-    if(!r.ok)Object.assign(observed,r.errors[0],{error:r.errors[0].code});
-    for(const [field,value]of Object.entries(expected)){
-      assert.ok(Object.hasOwn(observed,field),`unasserted ${field}`);
-      if(field==='calls')for(const [name,count]of Object.entries(value))assert.equal(observed.calls[name]??0,count,`${native} calls.${name}`);
-      else assert.deepEqual(observed[field],value,`${native} ${field}`);
-    }
-    assert.equal(Object.getOwnPropertySymbols(r).length,0);
-    assert.doesNotThrow(()=>JSON.stringify(r));
-  }
-});
+for(const vector of suite.tests) test(vector.id,()=>runPropertyQueryVector(vector));
+
 
 test('Query retains separate frames for repeated handles through where, ordering and slicing',()=>{
   const root={address:'$'},a={address:'$.a'},b={address:'$.b'},shared={address:'$.shared'};
@@ -89,5 +65,44 @@ test('caller property Query cannot hide accessors behind an earlier matching sel
     if(fault==='laterExpression')Object.defineProperty(q.select.ast,'value',{get(){reads++;return true;}});
     if(fault==='unknownExpression')q.select.ast={type:'unknownExpression'};
     const r=evaluateQuery(q,h.namespace);assert.equal(r.ok,false);assert.equal(r.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');assert.equal(reads,0);assert.deepEqual(h.calls,{});
+  }
+});
+
+
+test('QA-0091: untouched shared qualifier ASTs retain text parity without expanding aliases',()=>{
+  for(const depth of [8,12,16]) {
+    const h=propertyHost();const source='from $.document&key("document"):'+ 'a<'.repeat(depth)+'b'+'>'.repeat(depth)+'\nselect .';
+    const parsed=parseQuery(source);assert.equal(parsed.ok,true);
+    const before=renderQuery(parsed.query);
+    const text=evaluateQuery(source,h.namespace),native=evaluateQuery(parsed.query,h.namespace);
+    assert.equal(text.ok,true);assert.equal(native.ok,true,`depth ${depth}: ${JSON.stringify(native)}`);
+    assert.equal(native.results[0].binding,h.bindings.get('doc'));
+    assert.deepEqual(native.results[0].value.bindings,text.results[0].value.bindings);
+    assert.equal(renderQuery(parsed.query),before);
+  }
+});
+test('QA-0091: snapshots still reject cycles, accessors and excessive semantic DAG expansion before hooks',()=>{
+  for(const fault of ['cycle','extraCycle','accessor','wideDag']) {
+    const h=propertyHost();const q=parseQuery('from $.document&key("document")\nselect true').query;let reads=0;
+    if(fault==='cycle') q.select.ast={type:'groupExpression',expression:q.select.ast},q.select.ast.expression=q.select.ast;
+    if(fault==='extraCycle'){q.extra={};q.extra.self=q.extra;}
+    if(fault==='accessor')Object.defineProperty(q.select.ast,'value',{get(){reads++;throw Error('must not execute');}});
+    if(fault==='wideDag'){for(let i=0;i<16;i++)q.select.ast={type:'binaryExpression',operator:'and',left:q.select.ast,right:q.select.ast};}
+    const r=evaluateQuery(q,h.namespace);assert.equal(r.ok,false,fault);assert.equal(r.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');assert.equal(reads,0);assert.deepEqual(h.calls,{});
+  }
+});
+test('QA-0093: real evaluator result perturbations fail the repeated/reentrant oracle',()=>{
+  for(const mode of ['first','last','nested','outer','clonedNestedHandle']) {
+    const vector=suite.tests.find(v=>v.input[mode==='first'||mode==='last'?'repeat':'reenter']);
+    const counts=new WeakMap();let depth=0,tampered=0;
+    const evaluate=(input,namespace,options)=>{
+      const n=(counts.get(namespace)??0)+1;counts.set(namespace,n);const nested=depth>0;
+      depth++;let result;try{result=evaluateQuery(input,namespace,options);}finally{depth--;}
+      const change=mode==='first'?n===1:mode==='last'?n===2:mode==='outer'?!nested:nested;
+      if(change&&result.ok&&result.results.length){tampered++;const row=result.results[0];return {...result,results:[{...row,value:{type:'bindingSet',bindings:mode==='clonedNestedHandle'?row.value.bindings.map(b=>({...b})):[]}}]};}
+      return result;
+    };
+    assert.throws(()=>runPropertyQueryVector(vector,{evaluate}),/records|authorized handle/,mode);
+    assert.ok(tampered>0,mode);
   }
 });

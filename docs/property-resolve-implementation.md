@@ -75,8 +75,10 @@ Attribute/local-space boundaries, repeated occurrence frames and stable ordering
 survive filtering and slicing. One private property allowance spans the entire
 Query; separate and reentrant public calls get fresh state. Complete capability
 preflight runs before empty/short-circuited traversal. Caller property Query ASTs
-are snapshotted, bounded (20,000 data entries, 128 preparation levels and
-1 MiB of text in JavaScript) and reparsed; output bindings/records carry no frames or
+are snapshotted while preserving completed-node sharing and rejecting active
+cycles. The existing 20,000-entry/128-level/1 MiB preparation bounds stay in force;
+a separate walk checks semantic rendering against the same entry/text ceilings
+before rendering shared expression occurrences. The snapshot is then reparsed; output bindings/records carry no frames or
 mutable counters. The 15 byte-identical prepared Query vectors check every present
 field and callback count in text and native AST forms, alongside local regressions.
 They are regression mirrors, not full CTS protocol/profile claims.

@@ -74,7 +74,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "0e6cc1f4d6a368ec98e1b4a4f999a6ff0722a288497e9e8093c26b17eddfb3d2",
+      "src/index.js": "7f81425bb3ebaca69593738a56d90e6d98efa4cc302a11468c6c066f611a73c2",
       "src/index.d.ts": "273b93604a17209bca83ef53c6022551c3e616236552fd85bc708202c13a4331",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",

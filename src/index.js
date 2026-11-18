@@ -2833,6 +2833,7 @@ function normalizePropertyQuery(query, parseOptions) {
   // Snapshot caller data before any namespace hook can mutate it. Bounds apply
   // only to the newly admitted property Query surface, not existing Query ASTs.
   const active = new Set();
+  const completed = new WeakMap();
   let nodes = 0, scalars = 0;
   const clone = (value, depth) => {
     if (++nodes > 20000 || depth > 128) throw new PropertyAddressError('Query AST preparation bound exceeded');
@@ -2840,6 +2841,7 @@ function normalizePropertyQuery(query, parseOptions) {
     if (['function','symbol','bigint'].includes(typeof value)) throw new PropertyAddressError('Invalid Query AST value');
     if (value === null || typeof value !== 'object') return value;
     if (active.has(value)) throw new PropertyAddressError('Cyclic Query AST');
+    if (completed.has(value)) return completed.get(value);
     active.add(value);
     const copy = Array.isArray(value) ? [] : {};
     for (const key of Object.getOwnPropertyNames(value)) {
@@ -2854,15 +2856,55 @@ function normalizePropertyQuery(query, parseOptions) {
       copy.canonical = copy.scope === 'current'
         ? (rendered === '?' ? '.' : rendered[1] === '&' || rendered[1] === '[' ? '.' + rendered.slice(1) : rendered.slice(1)) : rendered;
     }
+    completed.set(value,copy);
     return copy;
   };
   let rendered;
-  try { rendered = renderQuery(clone(query,0)); }
+  try { const snapshot=clone(query,0); boundPropertyQueryRendering(snapshot); rendered = renderQuery(snapshot); }
   catch (error) { if (error instanceof PropertyAddressError) throw error; throw new PropertyAddressError('Invalid property Query AST'); }
   const parsed = parseQuery(rendered, parseOptions);
   if (!parsed.ok) throw new PropertyAddressError('Invalid property Query AST');
   return parsed.query;
 }
+// Sharing reduces snapshot work, but Query expressions can reuse a subtree at
+// many semantic positions. Charge those rendered occurrences before invoking
+// the ordinary renderer, using the existing preparation bounds. Qualifier
+// convenience aliases are not semantic expression edges.
+function boundPropertyQueryRendering(query) {
+  const pending=[];
+  let entries=0, text=100;
+  const add=value=>{
+    if(typeof value!=='string')throw new PropertyAddressError('Invalid Query AST text');
+    text+=value.length;
+    if(text>1048576)throw new PropertyAddressError('Query AST text bound exceeded');
+  };
+  if(query.from.source==='expression')pending.push(query.from.ast);else add(renderAddress(query.from.address));
+  if(query.where)pending.push(query.where.ast);
+  if(query.orderBy)for(const key of query.orderBy.keys){add(key.direction);pending.push(key.ast);}
+  for(const clause of [query.offset,query.limit])if(clause && (!Number.isSafeInteger(clause.value)||clause.value<0))throw new PropertyAddressError('Invalid Query AST integer');
+  pending.push(query.select.ast);
+  while(pending.length){
+    const expression=pending.pop();
+    if(++entries>20000)throw new PropertyAddressError('Query AST preparation bound exceeded');
+    add('                    ');
+    switch(expression.type){
+      case 'literalExpression':
+        if(expression.canonical!==undefined)add(expression.canonical);
+        else if(expression.value===null||['string','number','boolean'].includes(typeof expression.value))add(renderQueryExpression(expression));
+        else throw new PropertyAddressError('Invalid Query AST literal');
+        break;
+      case 'currentBindingExpression':break;
+      case 'resolutionExpression':add(expression.canonical);break;
+      case 'groupExpression':pending.push(expression.expression);break;
+      case 'unaryExpression':case 'existenceExpression':case 'cardinalityExpression':add(expression.operator);pending.push(expression.argument);break;
+      case 'binaryExpression':add(expression.operator);pending.push(expression.right,expression.left);break;
+      case 'functionCallExpression':add(expression.name);for(const argument of expression.arguments)pending.push(argument);break;
+      case 'projectionExpression':for(const field of expression.fields){add(field.name);pending.push(field.expression);}break;
+      default:throw new PropertyAddressError('Invalid Query AST expression');
+    }
+  }
+}
+
 function validatePropertyQueryRoots(query, namespace, options) {
   const resolve = options.resolve ?? {};
   const limit = resolve.maxPropertyInspections === undefined ? DEFAULT_PROPERTY_INSPECTIONS : resolve.maxPropertyInspections;

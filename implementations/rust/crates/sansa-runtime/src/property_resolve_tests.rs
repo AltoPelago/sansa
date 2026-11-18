@@ -14,7 +14,7 @@ struct Host {
     input: J,
     calls: RefCell<BTreeMap<String, usize>>,
     reentered: Cell<bool>,
-    nested_ok: Cell<Option<bool>>,
+    nested_result: RefCell<Option<crate::evaluate::QueryOutput<usize>>>,
 }
 impl Host {
     fn new(input: &J) -> Self {
@@ -49,7 +49,7 @@ impl Host {
             input: input.clone(),
             calls: RefCell::new(BTreeMap::new()),
             reentered: Cell::new(false),
-            nested_ok: Cell::new(None),
+            nested_result: RefCell::new(None),
         };
         for i in 0..h.rows.len() {
             for child in h.links(i) {
@@ -282,7 +282,7 @@ impl PropertyAccess for Host {
                 self,
                 &options,
             );
-            self.nested_ok.set(Some(result.errors.is_empty()));
+            *self.nested_result.borrow_mut() = Some(result);
         }
         self.text("key", *binding, "key")
     }
@@ -584,7 +584,7 @@ fn capable_host_admits_read_only_query_but_not_mutation() {
 
 #[test]
 fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
-    use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_parsed_query, evaluate_query};
+    use crate::evaluate::{EvaluateOptions, evaluate_parsed_query, evaluate_query};
     let suite: J = serde_json::from_str(include_str!(
         "../tests/fixtures/property-query-candidate-v1.json"
     ))
@@ -619,34 +619,128 @@ fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
                 },
                 ..EvaluateOptions::default()
             };
-            let mut result = None;
+            let mut results = Vec::new();
             for _ in 0..input["repeat"].as_u64().unwrap_or(1) {
-                result = Some(if native {
+                results.push(if native {
                     evaluate_parsed_query(&parsed, &host, &options)
                 } else {
                     evaluate_query(source, &host, &options)
                 });
             }
-            let result = result.expect("result");
-            let records:Vec<J>=result.results.iter().map(|row|{let EvaluatedValue::Bindings(values)=&row.value else{panic!("bindings");};json!({"candidate":host.rows[row.candidate]["id"],"valueBindings":values.iter().map(|b|host.rows[*b]["id"].clone()).collect::<Vec<_>>()})}).collect();
-            let error = result.errors.first();
-            let observed = json!({"ok":error.is_none(),"records":records,"error":error.map(|e|&e.code),"phase":error.and_then(|e|e.phase).map(|p|format!("{p:?}").to_lowercase()),"limit":error.and_then(|e|e.limit),"observed":error.and_then(|e|e.observed),"budget":error.and_then(|e|e.budget.as_ref()),"nestedResultsOk":host.nested_ok.get()});
-            for (field, expected) in vector["expected"].as_object().expect("expected") {
-                if field == "calls" {
-                    for (name, count) in expected.as_object().expect("calls") {
-                        assert_eq!(
-                            *host.calls.borrow().get(name).unwrap_or(&0),
-                            count.as_u64().expect("count") as usize,
-                            "{id} {native} calls.{name}"
-                        );
-                    }
-                } else {
-                    assert!(observed.get(field).is_some(), "unasserted {field}");
-                    assert_eq!(&observed[field], expected, "{id} {native} {field}");
-                }
-            }
+            assert_property_query_results(&host, &results, &vector["expected"]);
         }
         executed += 1;
     }
     assert_eq!(executed, 15);
+}
+
+fn assert_property_query_results(
+    host: &Host,
+    results: &[crate::evaluate::QueryOutput<usize>],
+    expected: &J,
+) {
+    use crate::evaluate::EvaluatedValue;
+    assert!(!results.is_empty(), "public invocations");
+    let nested_ok = host.nested_result.borrow().as_ref().map(|result| {
+        result.is_ok()
+            && result.results.len() == 1
+            && result.results[0].candidate == host.id("doc")
+            && result.results[0].value == EvaluatedValue::Bindings(vec![host.id("doc")])
+    });
+    for (invocation, result) in results.iter().enumerate() {
+        let records:Vec<J>=result.results.iter().map(|row| {
+            let EvaluatedValue::Bindings(values)=&row.value else {panic!("records Binding Set");};
+            json!({"candidate":host.rows[row.candidate]["id"],"valueBindings":values.iter().map(|b|host.rows[*b]["id"].clone()).collect::<Vec<_>>()})
+        }).collect();
+        let error = result.errors.first();
+        let observed = json!({"ok":error.is_none(),"records":records,"error":error.map(|e|&e.code),"phase":error.and_then(|e|e.phase).map(|p|format!("{p:?}").to_lowercase()),"limit":error.and_then(|e|e.limit),"observed":error.and_then(|e|e.observed),"budget":error.and_then(|e|e.budget.as_ref()),"nestedResultsOk":nested_ok});
+        for (field, value) in expected.as_object().expect("expected") {
+            if field == "calls" {
+                continue;
+            }
+            assert!(observed.get(field).is_some(), "unasserted {field}");
+            assert_eq!(&observed[field], value, "invocation {invocation} {field}");
+        }
+    }
+    if let Some(calls) = expected.get("calls") {
+        for (name, count) in calls.as_object().expect("calls") {
+            assert_eq!(
+                *host.calls.borrow().get(name).unwrap_or(&0),
+                count.as_u64().expect("count") as usize,
+                "aggregate calls.{name}"
+            );
+        }
+    }
+}
+
+#[test]
+fn query_oracle_rejects_wrong_first_last_nested_and_outer_bindings() {
+    use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_parsed_query, evaluate_query};
+    let suite: J = serde_json::from_str(include_str!(
+        "../tests/fixtures/property-query-candidate-v1.json"
+    ))
+    .expect("fixture");
+    for native in [false, true] {
+        for mode in ["first", "last", "nested", "outer"] {
+            let vector = suite["tests"]
+                .as_array()
+                .expect("tests")
+                .iter()
+                .find(|v| {
+                    if ["first", "last"].contains(&mode) {
+                        v["input"]["repeat"] == 2
+                    } else {
+                        v["input"]["reenter"].is_object()
+                    }
+                })
+                .expect("vector");
+            let input = &vector["input"];
+            let host = Host::new(input);
+            let options = EvaluateOptions {
+                resolve: ResolveOptions {
+                    max_property_inspections: input["options"]["resolve"]["maxPropertyInspections"]
+                        .as_u64()
+                        .expect("limit") as u32,
+                    ..ResolveOptions::default()
+                },
+                ..EvaluateOptions::default()
+            };
+            let source = input["source"].as_str().expect("source");
+            let parsed = crate::query::parse_query(source).expect("query");
+            let mut results: Vec<_> = (0..input["repeat"].as_u64().unwrap_or(1))
+                .map(|_| {
+                    if native {
+                        evaluate_parsed_query(&parsed, &host, &options)
+                    } else {
+                        evaluate_query(source, &host, &options)
+                    }
+                })
+                .collect();
+            assert_property_query_results(&host, &results, &vector["expected"]);
+            if mode == "nested" {
+                host.nested_result
+                    .borrow_mut()
+                    .as_mut()
+                    .expect("nested")
+                    .results[0]
+                    .value = EvaluatedValue::Bindings(vec![]);
+            } else {
+                let index = usize::from(mode == "last");
+                results[index].results[0].value = EvaluatedValue::Bindings(vec![]);
+            }
+            let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                assert_property_query_results(&host, &results, &vector["expected"])
+            }));
+            let error = failure.expect_err("wrong bindings must fail the actual vector oracle");
+            let message = error
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| error.downcast_ref::<&str>().copied())
+                .expect("assertion message");
+            assert!(
+                message.contains("records") || message.contains("nestedResultsOk"),
+                "{mode}: {message}"
+            );
+        }
+    }
 }
