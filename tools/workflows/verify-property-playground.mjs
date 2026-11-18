@@ -5,7 +5,8 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import vm from 'node:vm';
 import {parseAddress, parseQuery, evaluateQuery, resolveAddress} from '../../src/index.js';
-import {rowsFromNamespace, scopedNamespace, selectionRows} from '../playground/namespace.mjs';
+import {rowsFromNamespace, scopedNamespace} from '../playground/namespace.mjs';
+import {verifyPropertySelection} from './property-playground-assertions.mjs';
 
 // Explicit owner build: no SDK substitute, installation, cache or field fallback.
 const root = process.argv[2];
@@ -16,7 +17,7 @@ const [{runRuntime}, {createAeonNamespace}] = await Promise.all([import(url('run
 const context = vm.createContext({window:{}, document:{querySelector:()=>({innerHTML:''})}});
 vm.runInContext(readFileSync(new URL('../playground/examples.mjs', import.meta.url), 'utf8'), context);
 const examples = JSON.parse(JSON.stringify(context.window.SansaPlaygroundExamples));
-const report = {examples:[], queryPropertiesAdmitted:false, release:false, deployment:false};
+const report = {examples:[], queryPropertiesAdmitted:true, release:false, deployment:false};
 for (const [id, example] of Object.entries(examples).filter(([id]) => id.startsWith('property'))) {
   const compiled = runRuntime(example.source, {mode:'transport', datatypePolicy:'reserved_only', includeAnnotations:true, output:'map'});
   assert.deepEqual(compiled.meta.errors, [], id);
@@ -38,16 +39,10 @@ for (const [id, example] of Object.entries(examples).filter(([id]) => id.startsW
         assert.equal(selected.errors[0].limit, 1); assert.equal(selected.errors[0].observed, 2);
       }
     } else {
-      assert.equal(selected.ok, true, id);
-      assert.deepEqual(selected.bindings.map(binding => binding.address), example.expectedPaths, id);
-      const projected = selectionRows(selected, rows);
-      for (let i=0;i<projected.length;i++) {
-        assert.equal(projected[i].binding, selected.bindings[i]);
-        assert.equal(selected.bindings[i], resolveAddress(selected.bindings[i].address, owner).bindings[0]);
-      }
+      verifyPropertySelection(selected, example, owner, rows, id);
     }
   }
   report.examples.push(id);
 }
-assert.equal(report.examples.length, 14);
+assert.equal(report.examples.length, 15);
 console.log(JSON.stringify(report, null, 2));

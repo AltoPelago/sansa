@@ -72,16 +72,16 @@ test('QA-0083: deep unused Query and Instruction expressions retain empty-source
   }
 });
 
-test('deep and wide property expressions remain denied before reading an empty source',()=>{
+test('deep property ASTs are bounded and wide properties preflight before empty-source traversal',()=>{
   const property=parseQuery('from $\nselect $&key("x")').query.select.ast;
   for(const depth of [6000,9000]){
     const h=host();const query=parseQuery('from $.missing\nselect true').query;query.select.ast=groups(property,depth);
-    const result=evaluateQuery(query,h.namespace);assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');noReads(h);
+    const result=evaluateQuery(query,h.namespace);assert.equal(result.ok,false);assert.equal(result.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');noReads(h);
   }
   for(const width of [64,128]){
     const h=host();const query=parseQuery('from $.missing\nselect true').query;const literal=query.select.ast;
     query.select.ast={type:'projectionExpression',fields:Array.from({length:width},(_,i)=>({name:'f'+i,expression:i===width-1?property:literal}))};
-    assert.equal(evaluateQuery(query,h.namespace).ok,false);noReads(h);
+    const r=evaluateQuery(query,h.namespace);assert.equal(r.ok,false);assert.equal(r.errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE');assert.equal(h.counts.children,0);
   }
 });
 

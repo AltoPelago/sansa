@@ -772,7 +772,7 @@ fn parse_from_clause(
         ));
     }
     if source.starts_with('$') || source.starts_with('?') {
-        if source.chars().any(is_layout) {
+        if source.chars().any(is_layout) && !crate::address::has_property_syntax(&source) {
             return Err(ParseError::new(
                 "SANSA_QUERY_INVALID_FROM_ADDRESS",
                 "Expected a single SANSA address after 'from'",
@@ -1261,7 +1261,8 @@ impl ExpressionParser<'_, '_> {
             self.node()?;
             return Ok(Expression::CurrentBinding);
         }
-        let positional = source.starts_with(".[") && !source.starts_with(".[\"");
+        let positional =
+            (source.starts_with(".[") && !source.starts_with(".[\"")) || source.starts_with(".&");
         let parse_source = if positional {
             format!("?{}", &source[1..])
         } else if let Some(rest) = source.strip_prefix('.') {
@@ -1462,7 +1463,11 @@ impl ExpressionParser<'_, '_> {
             }
             match ch {
                 '(' => parens += 1,
-                ')' if parens > 0 => parens -= 1,
+                ')' if parens > 0 => {
+                    parens -= 1;
+                    self.advance();
+                    continue;
+                }
                 '[' => brackets += 1,
                 ']' if brackets > 0 => brackets -= 1,
                 _ => {}

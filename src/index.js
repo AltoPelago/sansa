@@ -33,6 +33,9 @@ import { parseDotSelectorFromCursor, parsePositionSelectorFromCursor, validatePo
 const CHILD_IDENTITY_RE = /^[A-Za-z0-9_-]+$/;
 const DENY_CHILD_IDENTITY = Symbol('consumer identity admission');
 const DENY_PROPERTIES = Symbol('consumer property admission');
+const QUERY_PROPERTIES = Symbol('query property state');
+const QUERY_CURRENT_FRAME = Symbol('query current occurrence');
+const QUERY_RESOLVE_FRAME = Symbol('query resolve occurrence');
 const QUERY_IDENTITY_BUDGET = Symbol('query identity inspections');
 const IDENTITY_ACTIVATION_GUARD = Symbol('identity activation scope');
 const DEFAULT_IDENTITY_INSPECTIONS = 10_000;
@@ -485,12 +488,21 @@ export function evaluateQuery(input, namespace, options = {}) {
     };
   }
 
-  const query = parsed.query;
+  let query = parsed.query;
+  let propertySelectors;
   try {
-    if (queryHasProperty(query)) return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property execution is not implemented'),{phase:'policy'})]};
+    propertySelectors = queryPropertySelectors(query);
+    if (propertySelectors.length && typeof input !== 'string') {
+      query = normalizePropertyQuery(query, options.parse);
+      propertySelectors = queryPropertySelectors(query);
+    }
   } catch (error) {
     if (!(error instanceof PropertyAddressError)) throw error;
     return {ok:false,results:[],errors:[annotateQueryDiagnostic(resolveError('SANSA_RESOLVE_INVALID_ADDRESS','Invalid property address AST'),{phase:'policy'})]};
+  }
+  if (propertySelectors.length) {
+    const error = validatePropertyQueryRoots(query, namespace, options);
+    if (error) return {ok:false,results:[],errors:[annotateQueryDiagnostic(error,{phase:"policy"})]};
   }
   const policy = enforceQueryPolicy(query, options);
   if (!policy.ok) {
@@ -499,6 +511,14 @@ export function evaluateQuery(input, namespace, options = {}) {
       results: [],
       errors: [annotateQueryDiagnostic(policy.error, { phase: 'policy' })],
     };
+  }
+
+  if (propertySelectors.length) {
+    // Validate options and roots before consumer/capability admission. No child
+    // or metadata hooks run during this whole-query preflight.
+    const prepared = prepareProperties(namespace, propertySelectors);
+    if (prepared.error) return {ok:false,results:[],errors:[annotateQueryDiagnostic({...prepared.error,selectorIndex:propertySelectors[prepared.error.selectorIndex]?.querySelectorIndex},{phase:'policy'})]};
+    options = {...options, [QUERY_PROPERTIES]: {prepared, budget:{inspected:0,limit:options.resolve?.maxPropertyInspections === undefined ? DEFAULT_PROPERTY_INSPECTIONS : options.resolve.maxPropertyInspections}, frames:new WeakMap()}};
   }
 
   const from = evaluateQueryFromClause(query.from, namespace, options);
@@ -511,6 +531,7 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   let bindings = from.bindings;
+  let frames = options[QUERY_PROPERTIES]?.frames.get(from);
   const fromBudget = checkQueryBudget(options, 'maxFromBindings', bindings.length);
   if (!fromBudget.ok) {
     return {
@@ -530,8 +551,10 @@ export function evaluateQuery(input, namespace, options = {}) {
       };
     }
     const filtered = [];
-    for (const binding of bindings) {
-      const evaluated = evaluateQueryExpressionValue(query.where.ast, binding, namespace, options);
+    const filteredFrames = [];
+    for (let row = 0; row < bindings.length; row++) {
+      const binding = bindings[row];
+      const evaluated = evaluateQueryExpressionValue(query.where.ast, binding, namespace, queryRowOptions(options, frames?.[row]));
       if (!evaluated.ok) {
         return {
           ok: false,
@@ -553,9 +576,10 @@ export function evaluateQuery(input, namespace, options = {}) {
           })],
         };
       }
-      if (boolean.value) filtered.push(binding);
+      if (boolean.value) { filtered.push(binding); if (frames) filteredFrames.push(frames[row]); }
     }
     bindings = filtered;
+    if (frames) frames = filteredFrames;
   }
 
   if (query.orderBy) {
@@ -567,7 +591,7 @@ export function evaluateQuery(input, namespace, options = {}) {
         errors: [annotateQueryDiagnostic(orderBudget.error, { phase: 'order' })],
       };
     }
-    const ordered = orderQueryBindings(query.orderBy, bindings, namespace, options);
+    const ordered = orderQueryBindings(query.orderBy, bindings, namespace, options, frames);
     if (!ordered.ok) {
       return {
         ok: false,
@@ -576,10 +600,11 @@ export function evaluateQuery(input, namespace, options = {}) {
       };
     }
     bindings = ordered.bindings;
+    if (frames) frames = ordered.frames;
   }
 
-  if (query.offset) bindings = bindings.slice(query.offset.value);
-  if (query.limit) bindings = bindings.slice(0, query.limit.value);
+  if (query.offset) { bindings = bindings.slice(query.offset.value); frames = frames?.slice(query.offset.value); }
+  if (query.limit) { bindings = bindings.slice(0, query.limit.value); frames = frames?.slice(0, query.limit.value); }
 
   const resultBudget = checkQueryBudget(options, 'maxResultRecords', bindings.length);
   if (!resultBudget.ok) {
@@ -591,8 +616,9 @@ export function evaluateQuery(input, namespace, options = {}) {
   }
 
   const results = [];
-  for (const binding of bindings) {
-    const evaluated = evaluateQueryExpressionValue(query.select.ast, binding, namespace, options);
+  for (let row = 0; row < bindings.length; row++) {
+    const binding = bindings[row];
+    const evaluated = evaluateQueryExpressionValue(query.select.ast, binding, namespace, queryRowOptions(options, frames?.[row]));
     if (!evaluated.ok) {
       return {
         ok: false,
@@ -2778,15 +2804,122 @@ function preflightMutationProperties(operations, preconditions, options, planned
   return null;
 }
 
-function queryHasProperty(query) {
-  const from = astData(query, 'from');
-  if (astData(from, 'source') === 'expression' ? clauseHasProperty(from) : hasPropertyAst(astData(from, 'address'))) return true;
-  if (clauseHasProperty(astData(query, 'where', true))) return true;
-  const orderBy = astData(query, 'orderBy', true);
-  if (orderBy) for (const key of astEntries(astData(orderBy, 'keys'))) {
-    if (clauseHasProperty(key)) return true;
+function queryPropertySelectors(query) {
+  const selectors = [];
+  const address = value => {
+    if (hasPropertyAst(value)) {
+      // Rendering validates every selector, including bounds and qualifiers.
+      renderAddress(value);
+      let index=0;
+      for (const selector of astEntries(astData(value,'selectors'))) { if (astData(selector,'type') === 'propertyFilter') selectors.push({type:'propertyFilter',property:astData(selector,'property'),value:astData(selector,'value'),querySelectorIndex:index}); index++; }
+    }
+  };
+  const expression = value => findExpression(value, (entry, type) => {
+    if (type === 'resolutionExpression') address(astData(entry,'address'));
+    return false;
+  });
+  const from = astData(query,'from');
+  if (astData(from,'source') === 'expression') expression(astData(from,'ast')); else address(astData(from,'address'));
+  const where = astData(query,'where',true);
+  if (where) expression(astData(where,'ast'));
+  const order = astData(query,'orderBy',true);
+  if (order) for (const key of astEntries(astData(order,'keys'))) expression(astData(key,'ast'));
+  expression(astData(astData(query,'select'),'ast'));
+  return selectors;
+}
+function queryHasProperty(query) { return queryPropertySelectors(query).length > 0; }
+
+function normalizePropertyQuery(query, parseOptions) {
+  // Snapshot caller data before any namespace hook can mutate it. Bounds apply
+  // only to the newly admitted property Query surface, not existing Query ASTs.
+  const active = new Set();
+  const completed = new WeakMap();
+  let nodes = 0, scalars = 0;
+  const clone = (value, depth) => {
+    if (++nodes > 20000 || depth > 128) throw new PropertyAddressError('Query AST preparation bound exceeded');
+    if (typeof value === 'string') { scalars += value.length; if (scalars > 1048576) throw new PropertyAddressError('Query AST text bound exceeded'); }
+    if (['function','symbol','bigint'].includes(typeof value)) throw new PropertyAddressError('Invalid Query AST value');
+    if (value === null || typeof value !== 'object') return value;
+    if (active.has(value)) throw new PropertyAddressError('Cyclic Query AST');
+    if (completed.has(value)) return completed.get(value);
+    active.add(value);
+    const copy = Array.isArray(value) ? [] : {};
+    for (const key of Object.getOwnPropertyNames(value)) {
+      if (Array.isArray(value) && key === 'length') continue;
+      Object.defineProperty(copy,key,{value:clone(astData(value,key),depth+1),enumerable:true,writable:true,configurable:true});
+    }
+    active.delete(value);
+    if (copy.type === 'resolutionExpression') {
+      const rendered = renderAddress(copy.address);
+      if (!['absolute','contextual','current'].includes(copy.scope)
+          || (copy.scope === 'absolute') !== (copy.address.root.kind === 'absolute')) throw new PropertyAddressError('Invalid resolution scope');
+      copy.canonical = copy.scope === 'current'
+        ? (rendered === '?' ? '.' : rendered[1] === '&' || rendered[1] === '[' ? '.' + rendered.slice(1) : rendered.slice(1)) : rendered;
+    }
+    completed.set(value,copy);
+    return copy;
+  };
+  let rendered;
+  try { const snapshot=clone(query,0); boundPropertyQueryRendering(snapshot); rendered = renderQuery(snapshot); }
+  catch (error) { if (error instanceof PropertyAddressError) throw error; throw new PropertyAddressError('Invalid property Query AST'); }
+  const parsed = parseQuery(rendered, parseOptions);
+  if (!parsed.ok) throw new PropertyAddressError('Invalid property Query AST');
+  return parsed.query;
+}
+// Sharing reduces snapshot work, but Query expressions can reuse a subtree at
+// many semantic positions. Charge those rendered occurrences before invoking
+// the ordinary renderer, using the existing preparation bounds. Qualifier
+// convenience aliases are not semantic expression edges.
+function boundPropertyQueryRendering(query) {
+  const pending=[];
+  let entries=0, text=100;
+  const add=value=>{
+    if(typeof value!=='string')throw new PropertyAddressError('Invalid Query AST text');
+    text+=value.length;
+    if(text>1048576)throw new PropertyAddressError('Query AST text bound exceeded');
+  };
+  if(query.from.source==='expression')pending.push(query.from.ast);else add(renderAddress(query.from.address));
+  if(query.where)pending.push(query.where.ast);
+  if(query.orderBy)for(const key of query.orderBy.keys){add(key.direction);pending.push(key.ast);}
+  for(const clause of [query.offset,query.limit])if(clause && (!Number.isSafeInteger(clause.value)||clause.value<0))throw new PropertyAddressError('Invalid Query AST integer');
+  pending.push(query.select.ast);
+  while(pending.length){
+    const expression=pending.pop();
+    if(++entries>20000)throw new PropertyAddressError('Query AST preparation bound exceeded');
+    add('                    ');
+    switch(expression.type){
+      case 'literalExpression':
+        if(expression.canonical!==undefined)add(expression.canonical);
+        else if(expression.value===null||['string','number','boolean'].includes(typeof expression.value))add(renderQueryExpression(expression));
+        else throw new PropertyAddressError('Invalid Query AST literal');
+        break;
+      case 'currentBindingExpression':break;
+      case 'resolutionExpression':add(expression.canonical);break;
+      case 'groupExpression':pending.push(expression.expression);break;
+      case 'unaryExpression':case 'existenceExpression':case 'cardinalityExpression':add(expression.operator);pending.push(expression.argument);break;
+      case 'binaryExpression':add(expression.operator);pending.push(expression.right,expression.left);break;
+      case 'functionCallExpression':add(expression.name);for(const argument of expression.arguments)pending.push(argument);break;
+      case 'projectionExpression':for(const field of expression.fields){add(field.name);pending.push(field.expression);}break;
+      default:throw new PropertyAddressError('Invalid Query AST expression');
+    }
   }
-  return propertyExpression(astData(astData(query, 'select'), 'ast'));
+}
+
+function validatePropertyQueryRoots(query, namespace, options) {
+  const resolve = options.resolve ?? {};
+  const limit = resolve.maxPropertyInspections === undefined ? DEFAULT_PROPERTY_INSPECTIONS : resolve.maxPropertyInspections;
+  if (!validPropertyLimit(limit)) return resolveError('SANSA_RESOLVE_INVALID_PROPERTY_LIMIT','Property inspection limit must be an integer from 0 through 1000000');
+  if (resolve.maxBindings !== undefined && (!Number.isSafeInteger(resolve.maxBindings) || resolve.maxBindings < 0)) return resolveError('SANSA_RESOLVE_INVALID_BINDING_LIMIT','Invalid binding limit');
+  if (resolve.maxIdentityInspections !== undefined && (!Number.isSafeInteger(resolve.maxIdentityInspections) || resolve.maxIdentityInspections < 0)) return resolveError('SANSA_RESOLVE_INVALID_IDENTITY_LIMIT','Invalid identity limit');
+  const from = query.from;
+  const root = resolveRoot(from.source === 'expression' ? {kind:'absolute'} : from.address.root, namespace ?? {}, resolve);
+  return root.ok ? undefined : root.error;
+}
+function queryRowOptions(options, context) { return context ? {...options,[QUERY_CURRENT_FRAME]:context} : options; }
+function transferQueryFrames(source, target, options) {
+  const state = options[QUERY_PROPERTIES];
+  if (state) state.frames.set(target, state.frames.get(source) ?? []);
+  return target;
 }
 
 function enforceQueryPolicy(query, options) {
@@ -2942,7 +3075,7 @@ export function resolveAddress(input, namespace, options = {}) {
   if (propertyIndex !== -1 && options[DENY_PROPERTIES]) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_UNSUPPORTED_SELECTOR','Property selectors are not admitted by this consumer',propertyIndex)]};
   const rootResult = resolveRoot(parsed.address.root, namespace, options);
   if (!rootResult.ok) return { ok: false, bindings: [], errors: [rootResult.error] };
-  const prepared = propertyIndex === -1 ? undefined : prepareProperties(namespace, parsed.address.selectors);
+  const prepared = options[QUERY_PROPERTIES]?.prepared ?? (propertyIndex === -1 ? undefined : prepareProperties(namespace, parsed.address.selectors));
   if (prepared?.error) return {ok:false,bindings:[],errors:[prepared.error]};
   if (hasIdentity) {
     const selectorIndex = parsed.address.selectors.findIndex(s => s.type === 'childIdentity');
@@ -2960,7 +3093,7 @@ export function resolveAddress(input, namespace, options = {}) {
     effectiveRoot: options.allowParentFromEffectiveRoot === true ? undefined : rootResult.binding,
     parentTraversal: options.parentTraversal, failOnParentFromEffectiveRoot: options.failOnParentFromEffectiveRoot === true,
     maxBindings, identityBudget, maxIdentityInspections, identityActivationGuard: options[IDENTITY_ACTIVATION_GUARD],
-  }, maxPropertyInspections);
+  }, maxPropertyInspections, options);
 
   if (maxBindings === 0 && parsed.address.selectors.length === 0) {
     return {
@@ -3016,9 +3149,10 @@ export function resolveAddress(input, namespace, options = {}) {
   return { ok: true, bindings: current, diagnostics: [] };
 }
 
-function resolvePropertyAddress(address, namespace, root, prepared, policy, limit) {
-  let current = [{binding: root, context: propertyContext(root, root)}];
-  const budget = {inspected: 0, limit: limit === 0 ? 0 : limit};
+function resolvePropertyAddress(address, namespace, root, prepared, policy, limit, options = {}) {
+  let current = [{binding: root, context: options[QUERY_RESOLVE_FRAME] ?? propertyContext(root, root)}];
+  const budget = options[QUERY_PROPERTIES]?.budget ?? {inspected: 0, limit: limit === 0 ? 0 : limit};
+  if (policy.maxBindings === 0 && address.selectors.length === 0) return {ok:false,bindings:[],errors:[resolveBindingLimitError(0,1)]};
   for (let index = 0; index < address.selectors.length; index++) {
     const selector = address.selectors[index];
     if (selector.type === 'parent' || selector.type === 'attributeSpace') {
@@ -3057,7 +3191,10 @@ function resolvePropertyAddress(address, namespace, root, prepared, policy, limi
     current = next;
     if (!current.length) break;
   }
-  return {ok:true,bindings:current.map(occurrence => occurrence.binding),diagnostics:[]};
+  if (address.isExact && current.length > 1) return {ok:false,bindings:[],errors:[resolveError('SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION','Exact SANSA resolution produced more than one binding')]};
+  const result = {ok:true,bindings:current.map(occurrence => occurrence.binding),diagnostics:[]};
+  options[QUERY_PROPERTIES]?.frames.set(result,current.map(occurrence => occurrence.context));
+  return result;
 }
 
 export function traverseGraph(starts, namespace, declarations, options = {}) {
@@ -3967,7 +4104,7 @@ function resolveQueryAddress(address, namespace, options, resolveOptions = optio
   const budget = options[QUERY_IDENTITY_BUDGET];
   return budget === undefined
     ? resolveConsumerAddress(address, namespace, resolveOptions)
-    : resolveAddress(address, namespace, { ...resolveOptions, [QUERY_IDENTITY_BUDGET]: budget, [DENY_PROPERTIES]: true });
+    : resolveAddress(address, namespace, { ...resolveOptions, [QUERY_IDENTITY_BUDGET]: budget, [DENY_PROPERTIES]: !options[QUERY_PROPERTIES], ...(options[QUERY_PROPERTIES] ? {[QUERY_PROPERTIES]:options[QUERY_PROPERTIES], [QUERY_RESOLVE_FRAME]:resolveOptions?.[QUERY_RESOLVE_FRAME]} : {}) });
 }
 
 function evaluateQueryFromClause(from, namespace, options) {
@@ -3992,7 +4129,7 @@ function evaluateQueryFromClause(from, namespace, options) {
       ],
     };
   }
-  return { ok: true, bindings: evaluated.value.bindings, diagnostics: [] };
+  return transferQueryFrames(evaluated.value, { ok: true, bindings: evaluated.value.bindings, diagnostics: [] }, options);
 }
 
 function evaluateQueryExpressionValue(expression, currentBinding, namespace, options) {
@@ -4006,13 +4143,9 @@ function evaluateQueryExpressionValue(expression, currentBinding, namespace, opt
         ).value,
       };
     case 'currentBindingExpression':
-      return {
-        ok: true,
-        value: {
-          type: 'bindingSet',
-          bindings: [currentBinding],
-        },
-      };
+      { const value = {type:'bindingSet',bindings:[currentBinding]};
+        if (options[QUERY_PROPERTIES]) options[QUERY_PROPERTIES].frames.set(value,[options[QUERY_CURRENT_FRAME] ?? propertyContext(currentBinding,currentBinding)]);
+        return {ok:true,value}; }
     case 'resolutionExpression':
       return evaluateResolutionExpression(expression, currentBinding, namespace, options);
     case 'groupExpression':
@@ -4041,17 +4174,11 @@ function evaluateResolutionExpression(expression, currentBinding, namespace, opt
   const resolveOptions = {
     ...(options.resolve ?? {}),
     ...(['current', 'contextual'].includes(expression.scope) ? { contextualRoot: currentBinding } : {}),
-    ...(expression.scope === 'current' ? { allowParentFromEffectiveRoot: true } : {}),
+    ...(expression.scope === 'current' ? { allowParentFromEffectiveRoot: true, [QUERY_RESOLVE_FRAME]: propertyContext(options[QUERY_CURRENT_FRAME]?.scopeRoot ?? currentBinding, currentBinding) } : {}),
   };
   const resolved = resolveQueryAddress(expression.address, namespace, options, resolveOptions);
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
-  return {
-    ok: true,
-    value: {
-      type: 'bindingSet',
-      bindings: resolved.bindings,
-    },
-  };
+  return {ok:true,value:transferQueryFrames(resolved,{type:'bindingSet',bindings:resolved.bindings},options)};
 }
 
 function evaluateUnaryExpression(expression, currentBinding, namespace, options) {
@@ -4444,7 +4571,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
   };
   const resolved = guard
     ? resolveQueryAddress(activated.address, namespace, options, resolveOptions)
-    : resolveConsumerAddress(activated.address, namespace, resolveOptions);
+    : resolveConsumerAddress(activated.address, namespace, {...resolveOptions,[QUERY_PROPERTIES]:options[QUERY_PROPERTIES]});
   if (!resolved.ok) {
     const error = resolved.errors[0];
     if (error.code === 'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED') {
@@ -4478,13 +4605,7 @@ function evaluatePathExpression(expression, currentBinding, namespace, options) 
       ),
     };
   }
-  return {
-    ok: true,
-    value: {
-      type: 'bindingSet',
-      bindings: resolved.bindings,
-    },
-  };
+  return {ok:true,value:transferQueryFrames(resolved,{type:'bindingSet',bindings:resolved.bindings},options)};
 }
 
 const ADDRESS_ACTIVATION_SELECTOR_FEATURE = new Map([
@@ -4900,13 +5021,10 @@ function evaluateResolveChildExpression(expression, currentBinding, namespace, o
     };
   }
 
-  return {
-    ok: true,
-    value: {
-      type: 'bindingSet',
-      bindings,
-    },
-  };
+  const value = {type:'bindingSet',bindings};
+  const state = options[QUERY_PROPERTIES];
+  if (state) state.frames.set(value,bindings.map(() => state.frames.get(base.value)[0]));
+  return {ok:true,value};
 }
 
 function evaluateFollowExpression(expression, currentBinding, namespace, options) {
@@ -4937,7 +5055,7 @@ function evaluateFollowExpression(expression, currentBinding, namespace, options
     };
   }
 
-  const resolved = resolveConsumerAddress(target.address, namespace, options.resolve);
+  const resolved = resolveConsumerAddress(target.address, namespace, {...options.resolve,[QUERY_PROPERTIES]:options[QUERY_PROPERTIES]});
   if (!resolved.ok) return { ok: false, error: resolved.errors[0] };
   if (resolved.bindings.length === 0) {
     return {
@@ -4946,13 +5064,7 @@ function evaluateFollowExpression(expression, currentBinding, namespace, options
     };
   }
 
-  return {
-    ok: true,
-    value: {
-      type: 'bindingSet',
-      bindings: resolved.bindings,
-    },
-  };
+  return {ok:true,value:transferQueryFrames(resolved,{type:'bindingSet',bindings:resolved.bindings},options)};
 }
 
 function isReferenceFormValue(value, metadata) {
@@ -5549,13 +5661,13 @@ function evaluateCardinalityFunctionBooleans(expression, currentBinding, namespa
   return { ok: true, values };
 }
 
-function orderQueryBindings(orderBy, bindings, namespace, options) {
+function orderQueryBindings(orderBy, bindings, namespace, options, frames) {
   const keyed = [];
   for (let index = 0; index < bindings.length; index += 1) {
     const binding = bindings[index];
     const keys = [];
     for (const key of orderBy.keys) {
-      const evaluated = evaluateQueryExpressionValue(key.ast, binding, namespace, options);
+      const evaluated = evaluateQueryExpressionValue(key.ast, binding, namespace, queryRowOptions(options, frames?.[index]));
       if (!evaluated.ok) {
         return {
           ok: false,
@@ -5649,6 +5761,7 @@ function orderQueryBindings(orderBy, bindings, namespace, options) {
   return {
     ok: true,
     bindings: keyed.map((entry) => entry.binding),
+    ...(frames ? {frames:keyed.map(entry => frames[entry.index])} : {}),
   };
 }
 
@@ -8375,7 +8488,7 @@ class QueryParser {
       this.fail("Expected SANSA address after 'from'", 'SANSA_QUERY_EXPECTED_FROM_ADDRESS', clause.bodyStart);
     }
     if (expression.startsWith('$') || expression.startsWith('?')) {
-      if (/\s/.test(expression)) {
+      if (/\s/.test(expression) && !hasPropertySyntax(expression)) {
         this.fail("Expected a single SANSA address after 'from'", 'SANSA_QUERY_INVALID_FROM_ADDRESS', clause.bodyStart);
       }
       const result = parseAddress(expression, this.options.address);
@@ -8775,7 +8888,7 @@ class QueryExpressionParser {
         canonical: '.',
       };
     }
-    const positionalCurrentShorthand = isQueryCurrentPositionalShorthand(source);
+    const positionalCurrentShorthand = isQueryCurrentPositionalShorthand(source) || source.startsWith('.&');
     const parseSource = positionalCurrentShorthand
       ? `?${source.slice(1)}`
       : source.startsWith('.')
