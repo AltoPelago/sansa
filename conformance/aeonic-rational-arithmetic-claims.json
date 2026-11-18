@@ -43,7 +43,7 @@
       "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
     },
     "implementation_files_sha256": {
-      "src/index.js": "c6d8b43710c7c8a6f4002e18c7469de8e0a13b1bd456de01ce6c5ab8d3e0b55f",
+      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
       "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
       "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
       "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",

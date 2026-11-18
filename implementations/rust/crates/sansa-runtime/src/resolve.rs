@@ -229,7 +229,22 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
     inspected: &mut usize,
     guard: Option<&IdentityGuard<'_, N::Binding>>,
 ) -> ResolveOutput<N::Binding> {
-    let normalized;
+    let address = match normalize_address(address) {
+        Ok(address) => address,
+        Err(error) => return ResolveOutput::failure(error),
+    };
+    resolve_valid_address(
+        &address,
+        namespace,
+        options,
+        &mut IdentityInspection { inspected, guard },
+    )
+}
+// Match the evaluator's single diagnostic envelope without another error model.
+#[allow(clippy::result_large_err)]
+pub(crate) fn normalize_address(
+    address: &Address,
+) -> Result<std::borrow::Cow<'_, Address>, Diagnostic> {
     let has_identity = address
         .selectors
         .iter()
@@ -239,7 +254,7 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
         .iter()
         .any(|selector| matches!(selector, Selector::PropertyFilter { .. }));
     if has_property && crate::address::validate_property_ast(address).is_err() {
-        return ResolveOutput::failure(resolve_error(
+        return Err(resolve_error(
             "SANSA_RESOLVE_INVALID_ADDRESS",
             "Invalid property address AST",
             None,
@@ -247,7 +262,7 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
     }
     let address = if has_identity || has_property {
         if has_identity && !has_property && !identity_ast_bounded(address) {
-            return ResolveOutput::failure(resolve_error(
+            return Err(resolve_error(
                 "SANSA_RESOLVE_INVALID_ADDRESS",
                 "Invalid identity address AST",
                 None,
@@ -256,7 +271,7 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
         // Native AST indexes have already been represented as usize. Reparse
         // syntax and recompute flags without reinstating the text parser's
         // portable default over a caller's explicitly accepted native profile.
-        normalized = match parse_address_with_options(
+        let normalized = match parse_address_with_options(
             &render_address(address),
             ParseOptions {
                 max_position_index: usize::MAX,
@@ -264,23 +279,18 @@ pub(crate) fn resolve_parsed_address_with_guard<N: Namespace>(
         ) {
             Ok(parsed) => parsed.address,
             Err(_) => {
-                return ResolveOutput::failure(resolve_error(
+                return Err(resolve_error(
                     "SANSA_RESOLVE_INVALID_ADDRESS",
                     "Invalid identity address AST",
                     None,
                 ));
             }
         };
-        &normalized
+        std::borrow::Cow::Owned(normalized)
     } else {
-        address
+        std::borrow::Cow::Borrowed(address)
     };
-    resolve_valid_address(
-        address,
-        namespace,
-        options,
-        &mut IdentityInspection { inspected, guard },
-    )
+    Ok(address)
 }
 fn resolve_valid_address<N: Namespace>(
     address: &Address,
@@ -373,7 +383,14 @@ fn resolve_valid_address<N: Namespace>(
         return ResolveOutput::failure(binding_limit_error(0, 1, None));
     }
     if let Some(properties) = properties.as_mut() {
-        return resolve_property_address(address, namespace, options, inspection, properties, root);
+        return match resolve_property_address(
+            address, namespace, options, inspection, properties, root, None,
+        ) {
+            Ok(occurrences) => {
+                ResolveOutput::success(occurrences.into_iter().map(|o| o.binding).collect())
+            }
+            Err(error) => ResolveOutput::failure(error),
+        };
     }
 
     let mut current = vec![root.clone()];
@@ -414,6 +431,114 @@ fn resolve_valid_address<N: Namespace>(
     ResolveOutput::success(current)
 }
 
+// Occurrence frames never cross the public binding/serialization boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PropertyFrame<B> {
+    pub(crate) scope_root: B,
+    pub(crate) evaluation_root: B,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Occurrence<B> {
+    pub(crate) binding: B,
+    pub(crate) frame: Option<std::rc::Rc<PropertyFrame<B>>>,
+}
+impl<B: Clone> Occurrence<B> {
+    pub(crate) fn root(binding: B) -> Self {
+        Self {
+            binding,
+            frame: None,
+        }
+    }
+    fn scoped(binding: B) -> Self {
+        Self {
+            frame: Some(std::rc::Rc::new(PropertyFrame {
+                scope_root: binding.clone(),
+                evaluation_root: binding.clone(),
+            })),
+            binding,
+        }
+    }
+}
+impl<B> std::ops::Deref for Occurrence<B> {
+    type Target = B;
+    fn deref(&self) -> &B {
+        &self.binding
+    }
+}
+// Match the evaluator's single diagnostic envelope without another error model.
+#[allow(clippy::result_large_err)]
+pub(crate) fn resolve_query_occurrences<N: Namespace>(
+    address: &Address,
+    namespace: &N,
+    options: &ResolveOptions<N::Binding>,
+    inspected: &mut usize,
+    properties: &mut PropertyInspection<'_, N::Binding>,
+    initial: Option<Occurrence<N::Binding>>,
+    guard: Option<&IdentityGuard<'_, N::Binding>>,
+) -> Result<Vec<Occurrence<N::Binding>>, Diagnostic> {
+    let address = normalize_address(address)?;
+    let root = match address.root {
+        Root::Absolute => namespace.root(),
+        Root::Contextual => options
+            .contextual_root
+            .clone()
+            .or_else(|| namespace.contextual_root()),
+    }
+    .ok_or_else(|| {
+        resolve_error(
+            if address.root == Root::Absolute {
+                "SANSA_RESOLVE_MISSING_ROOT"
+            } else {
+                "SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT"
+            },
+            "Query resolution requires a root binding",
+            None,
+        )
+    })?;
+    if let Some(index) = address
+        .selectors
+        .iter()
+        .position(|s| matches!(s, Selector::ChildIdentity { .. }))
+        && !namespace.supports_structural_identity()
+    {
+        return Err(resolve_error(
+            "SANSA_RESOLVE_UNSUPPORTED_IDENTITY",
+            "Identity selection requires identity support",
+            Some(index),
+        ));
+    }
+    if address
+        .selectors
+        .iter()
+        .any(|s| matches!(s, Selector::ChildIdentity { .. }))
+        && !namespace.structural_identity_scope(&root)
+    {
+        return Err(resolve_error(
+            "SANSA_RESOLVE_IDENTITY_SCOPE_MISMATCH",
+            "Identity root belongs to another namespace snapshot or scope",
+            None,
+        ));
+    }
+    let occurrences = resolve_property_address(
+        &address,
+        namespace,
+        options,
+        &mut IdentityInspection { inspected, guard },
+        properties,
+        root,
+        initial,
+    )?;
+    if address.is_exact && occurrences.len() > 1 {
+        return Err(resolve_error(
+            "SANSA_RESOLVE_EXACT_MULTIPLICITY_VIOLATION",
+            "Exact SANSA resolution produced more than one binding",
+            None,
+        ));
+    }
+    Ok(occurrences)
+}
+// Match the evaluator's single diagnostic envelope without another error model.
+#[allow(clippy::result_large_err)]
 fn resolve_property_address<N: Namespace>(
     address: &Address,
     namespace: &N,
@@ -421,30 +546,29 @@ fn resolve_property_address<N: Namespace>(
     inspection: &mut IdentityInspection<'_, N::Binding>,
     properties: &mut PropertyInspection<'_, N::Binding>,
     root: N::Binding,
-) -> ResolveOutput<N::Binding> {
-    struct Occurrence<B> {
-        binding: B,
-        scope_root: B,
-        evaluation_root: B,
+    initial: Option<Occurrence<N::Binding>>,
+) -> Result<Vec<Occurrence<N::Binding>>, Diagnostic> {
+    let mut current = vec![initial.unwrap_or_else(|| Occurrence::scoped(root.clone()))];
+    if options.max_bindings == Some(0) && address.selectors.is_empty() {
+        return Err(binding_limit_error(0, 1, None));
     }
-    let mut current = vec![Occurrence {
-        binding: root.clone(),
-        scope_root: root.clone(),
-        evaluation_root: root.clone(),
-    }];
     for (index, selector) in address.selectors.iter().enumerate() {
         let mut next = Vec::new();
         for occurrence in current {
             if let Selector::PropertyFilter { property, value } = selector {
+                let frame = occurrence
+                    .frame
+                    .as_ref()
+                    .expect("property traversal has a frame");
                 let context = PropertyAccessContext {
-                    scope_root: &occurrence.scope_root,
-                    evaluation_root: &occurrence.evaluation_root,
+                    scope_root: &frame.scope_root,
+                    evaluation_root: &frame.evaluation_root,
                     direct_head_of: None,
                 };
                 match properties.matches(&occurrence.binding, &context, *property, value, index) {
                     Ok(true) => next.push(occurrence),
                     Ok(false) => {}
-                    Err(error) => return ResolveOutput::failure(*error),
+                    Err(error) => return Err(*error),
                 }
             } else {
                 let mut local = options.clone();
@@ -462,7 +586,7 @@ fn resolve_property_address<N: Namespace>(
                 ) {
                     Ok(bindings) => bindings,
                     Err(error) if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" => {
-                        return ResolveOutput::failure(binding_limit_error(
+                        return Err(binding_limit_error(
                             options.max_bindings.expect("bounded local selection"),
                             options
                                 .max_bindings
@@ -471,32 +595,27 @@ fn resolve_property_address<N: Namespace>(
                             Some(index),
                         ));
                     }
-                    Err(error) => return ResolveOutput::failure(*error),
+                    Err(error) => return Err(*error),
                 };
                 for binding in selected {
                     let boundary = matches!(
                         selector,
                         Selector::AttributeSpace | Selector::LocalSpace { .. }
                     );
-                    next.push(Occurrence {
-                        scope_root: if boundary {
-                            binding.clone()
-                        } else {
-                            occurrence.scope_root.clone()
-                        },
-                        evaluation_root: if boundary {
-                            binding.clone()
-                        } else {
-                            occurrence.evaluation_root.clone()
-                        },
-                        binding,
+                    next.push(if boundary {
+                        Occurrence::scoped(binding)
+                    } else {
+                        Occurrence {
+                            binding,
+                            frame: occurrence.frame.clone(),
+                        }
                     });
                 }
             }
             if let Some(limit) = options.max_bindings
                 && next.len() > limit
             {
-                return ResolveOutput::failure(binding_limit_error(limit, next.len(), Some(index)));
+                return Err(binding_limit_error(limit, next.len(), Some(index)));
             }
         }
         current = next;
@@ -504,7 +623,7 @@ fn resolve_property_address<N: Namespace>(
             break;
         }
     }
-    ResolveOutput::success(current.into_iter().map(|o| o.binding).collect())
+    Ok(current)
 }
 
 fn apply_selector<N: Namespace>(

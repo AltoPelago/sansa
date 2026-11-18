@@ -34,7 +34,8 @@ const examples = {
   propertyRootTag: {label: 'Property: root tag', source: propertySource, scope: '$.value', address: '$&tag("widget")', expectedPaths: ['$.value']},
   propertyAttribute: {label: 'Property: attribute space', source: propertySource, address: '$.reading.@.*&key("")', expectedPaths: ['$.reading.@.[""]']},
   propertyBudget: {label: 'Property: inspection limit', source: propertySource, propertyInspections: 1, address: '$.value&tag("widget")', expectedCode: 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED'},
-  propertyQuery: {label: 'Property Query: not admitted', source: propertySource, address: '$', view: 'query', query: 'from $.*&key("value")\nselect .', expectedCode: 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR'},
+  propertyQuery: {label: 'Property Query: current row', source: propertySource, address: '$', view: 'query', query: 'from $.*&key("value")\nselect .&tag("widget")', expectedCandidatePaths: ['$.value'], expectedQueryPaths: ['$.value']},
+  propertyQueryContext: {label: 'Property Query: scope root', source: propertySource, address: '$', view: 'query', query: 'from $.value\nselect ?&key("value")', expectedCandidatePaths: ['$.value'], expectedQueryPaths: []},
   query: {label: 'Query', source: inventory, address: '$.inventory.items', view: 'query', query: 'from $.inventory.items.*\nwhere .qty >= 6\nselect .name'},
   queryIdentity: {label: 'Query child identities', source: inventory, address: '$.inventory.items', view: 'query', query: "from $.inventory.items.\\item1\\\nselect .\\name1\\"},
 };

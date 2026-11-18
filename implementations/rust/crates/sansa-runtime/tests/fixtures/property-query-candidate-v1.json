@@ -1,0 +1,398 @@
+{
+  "meta": {
+    "suite_id": "property-query",
+    "lane": "sansa-properties",
+    "capability": "SANSA.Resolve",
+    "profile": "sansa-properties-read-only-candidate-0.2",
+    "sut_protocol": "sansa-properties-preparation-v0.1",
+    "spec_refs": [
+      "aeonite-specs/sources/sansa/v1/property-selectors-v1.aeon"
+    ]
+  },
+  "id": "property-query",
+  "title": "Property candidate query",
+  "tests": [
+    {
+      "id": "sansa-properties-query-current-key",
+      "description": "query current key",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nselect .&key(\"document\")"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ],
+        "calls": {
+          "scope": 1,
+          "key": 1
+        }
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-context-key",
+      "description": "query context key",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nselect ?&key(\"document\")"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": []
+          }
+        ],
+        "calls": {
+          "scope": 1,
+          "key": 0
+        }
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-current-tag",
+      "description": "query current tag",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nselect .&tag(\"catalog\")"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ]
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-empty-select",
+      "description": "query empty select",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nselect .&key(\"absent\")"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": []
+          }
+        ]
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-where-removes",
+      "description": "query where removes",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nwhere exists(.&key(\"absent\"))\nselect ."
+      },
+      "expected": {
+        "ok": true,
+        "records": []
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-quoted-spaces",
+      "description": "query quoted spaces",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.*&key(\"a b\")\nselect ."
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "space",
+            "valueBindings": [
+              "space"
+            ]
+          }
+        ]
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-scope-from-context",
+      "description": "query scope from context",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from ?\nselect .&key(\"document\")",
+        "contextualRoot": "doc"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": []
+          }
+        ]
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-local-root",
+      "description": "query local root",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document.<\"private\">\nselect .&key(\"fakePrivate\")"
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "private",
+            "valueBindings": []
+          }
+        ]
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-unsupported-empty",
+      "description": "query unsupported empty",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.missing\nwhere false\nselect .&tag(\"catalog\")",
+        "omit": [
+          "nodeHeads"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "records": [],
+        "error": "SANSA_RESOLVE_UNSUPPORTED_TAG",
+        "calls": {
+          "scope": 0,
+          "children": 0
+        },
+        "phase": "policy"
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-shared-exact",
+      "description": "query shared exact",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.*&key(\"document\")\nwhere exists(.&tag(\"catalog\"))\nselect .&key(\"document\")",
+        "options": {
+          "resolve": {
+            "maxPropertyInspections": 16
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ],
+        "calls": {
+          "scope": 16,
+          "key": 14
+        }
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-shared-overflow",
+      "description": "query shared overflow",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.*&key(\"document\")\nwhere exists(.&tag(\"catalog\"))\nselect .&key(\"document\")",
+        "options": {
+          "resolve": {
+            "maxPropertyInspections": 15
+          }
+        }
+      },
+      "expected": {
+        "ok": false,
+        "records": [],
+        "error": "SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED",
+        "limit": 15,
+        "observed": 16,
+        "budget": "maxPropertyInspections",
+        "phase": "select"
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-repeated-predicates",
+      "description": "query repeated predicates",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nwhere exists(.&key(\"document\"))\nselect .&key(\"document\")",
+        "options": {
+          "resolve": {
+            "maxPropertyInspections": 2
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ],
+        "calls": {
+          "scope": 2,
+          "key": 2
+        }
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-current-ast",
+      "description": "query current ast",
+      "input": {
+        "operation": "parse-query",
+        "source": "from $.document\nselect .&key(\"document\")"
+      },
+      "expected": {
+        "ok": true,
+        "canonical": "from $.document\nselect .&key(\"document\")",
+        "currentPropertyScope": "current",
+        "currentAddressRoot": "contextual"
+      },
+      "covers": [
+        "query",
+        "ast"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-fresh-counters",
+      "description": "query fresh counters",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nselect .&key(\"document\")",
+        "repeat": 2,
+        "options": {
+          "resolve": {
+            "maxPropertyInspections": 1
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ],
+        "calls": {
+          "scope": 2,
+          "key": 2
+        }
+      },
+      "covers": [
+        "query"
+      ]
+    },
+    {
+      "id": "sansa-properties-query-reentrant-counters",
+      "description": "query reentrant counters",
+      "input": {
+        "operation": "query",
+        "namespace": "properties",
+        "source": "from $.document\nwhere exists(.&key(\"document\"))\nselect .&key(\"document\")",
+        "reenter": {
+          "callback": "key",
+          "source": "from $.document\nselect .&key(\"document\")",
+          "maxPropertyInspections": 1
+        },
+        "options": {
+          "resolve": {
+            "maxPropertyInspections": 2
+          }
+        }
+      },
+      "expected": {
+        "ok": true,
+        "records": [
+          {
+            "candidate": "doc",
+            "valueBindings": [
+              "doc"
+            ]
+          }
+        ],
+        "calls": {
+          "scope": 3,
+          "key": 3
+        },
+        "nestedResultsOk": true
+      },
+      "covers": [
+        "query"
+      ]
+    }
+  ]
+}

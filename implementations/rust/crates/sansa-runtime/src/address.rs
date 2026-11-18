@@ -1038,7 +1038,7 @@ fn quote(value: &str) -> String {
     output
 }
 
-fn has_property_syntax(source: &str) -> bool {
+pub(crate) fn has_property_syntax(source: &str) -> bool {
     if !source.contains('&') {
         return false;
     }

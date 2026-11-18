@@ -35,7 +35,7 @@
     "report": "results/aeonic-arithmetic-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
     "implementation_files_sha256": {
-      "src/index.js": "c6d8b43710c7c8a6f4002e18c7469de8e0a13b1bd456de01ce6c5ab8d3e0b55f",
+      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
       "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
       "src/aeonic-arithmetic.js": "65e4195ab6421a498157657d00452b459640a98e7e421a2b873282fd43a2ac9c",
       "src/aeonic-arithmetic.d.ts": "e03421a44d0f8164165bd37603b91809e0a5131d560d12054a78baa6963f4df6",

@@ -19,7 +19,7 @@
     "report": "results/aeonic-comparison-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; other shared-runner fields are retained",
     "implementation_files_sha256": {
-      "src/index.js": "c6d8b43710c7c8a6f4002e18c7469de8e0a13b1bd456de01ce6c5ab8d3e0b55f",
+      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
       "src/aeonic-comparison.js": "4eb31b7f452b248c4ee189d99e880b73fe20c88ded2d77872f528a9331ae60db",
       "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",

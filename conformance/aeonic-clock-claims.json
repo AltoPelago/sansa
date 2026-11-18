@@ -85,7 +85,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "c6d8b43710c7c8a6f4002e18c7469de8e0a13b1bd456de01ce6c5ab8d3e0b55f",
+      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
       "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
       "src/aeonic-temporal-civil-clock.js": "3bbc0cbcbb5251939e144859a9d567c3e89571d3291dc24a3034daf1057f6f49",
       "src/aeonic-temporal-civil-clock.d.ts": "59020c5124a25b8ef79b3c79109fc88207c7c01062183c351f49bb6b2d2f5f05",
@@ -110,7 +110,9 @@
       "Standalone unreleased JavaScript/TypeScript only; Query temporal relations, Rust and previous numerical/date/date-time engines/defaults remain separate and unchanged.",
       "Local Node24.22.2 evidence. Required Node20/22/24 hosted checks recorded separately after execution. Report fingerprints bind inputs, not proof of historical process identity by themselves.",
       "Browser worker runs the real source API without Buffer. Application input/result/timeout controls, preparation and rendering remain separate from semantic operation allowances; no whole-process memory sandbox.",
-      "Descriptions follow current request text; exact bundle continuations preserve relative days, origin and approximation history. Symbols/diagnostics cannot feed the clock chain."
-    ]
+      "Descriptions follow current request text; exact bundle continuations preserve relative days, origin and approximation history. Symbols/diagnostics cannot feed the clock chain.",
+      "2026-11-18 merge integration: property Query changes from ce6c8fde239ff5fa28897c564f49d1cd544fad80 are retained. Clock engine, adapter, browser lane and selected frozen artifacts are unchanged; the combined shared-entry fingerprint is refreshed."
+    ],
+    "integration_base_commit": "ce6c8fde239ff5fa28897c564f49d1cd544fad80"
   }
 }
