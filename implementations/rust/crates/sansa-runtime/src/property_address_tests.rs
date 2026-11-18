@@ -178,8 +178,7 @@ fn parser_support_does_not_admit_execution_or_empty_branch_bypass() {
             "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
         );
     }
-    // Query cursor integration follows in its own slice. Text fails during parsing;
-    // caller Query ASTs must also be denied before evaluating an empty source.
+    // Query preflights unsupported property capabilities before empty traversal.
     for source in [
         "from $.missing\nselect $&key(\"x\")",
         "from $\nwhere false and exists($&tag(\"x\"))\nselect .",
@@ -187,7 +186,11 @@ fn parser_support_does_not_admit_execution_or_empty_branch_bypass() {
     ] {
         let result = evaluate_query(source, &host, &EvaluateOptions::default());
         assert!(!result.errors.is_empty());
-        assert_eq!(result.errors[0].phase, Some(crate::DiagnosticPhase::Parse));
+        assert_eq!(result.errors[0].phase, Some(crate::DiagnosticPhase::Policy));
+        assert_eq!(
+            result.errors[0].code,
+            "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
+        );
     }
     let mut query = crate::query::parse_query("from $.missing\nselect .").expect("legacy Query");
     query.select.ast = crate::query::Expression::Resolution {
@@ -196,7 +199,10 @@ fn parser_support_does_not_admit_execution_or_empty_branch_bypass() {
         canonical: "$&key(\"x\")".into(),
     };
     let result = crate::evaluate::evaluate_parsed_query(&query, &host, &EvaluateOptions::default());
-    assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
+    assert_eq!(
+        result.errors[0].code,
+        "SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE"
+    );
     assert_eq!(result.errors[0].phase, Some(crate::DiagnosticPhase::Policy));
     assert_eq!(host.reads.get(), 0);
 }

@@ -80,15 +80,9 @@ test('malformed caller property ASTs fail through Query and Instruction result e
   assert.equal(lowered.ok,false);assert.equal(lowered.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');assert.equal(reads,0);
 });
 
-test('headTag stays closed to Query mutation Instruction and activation before traversal',()=>{
+test('headTag stays closed to mutation and Instruction before traversal',()=>{
   let reads=0;
   const host={get root(){reads++;throw Error('unadmitted traversal');}};
-  for(const text of ['from $.missing\nselect $&headTag("book")','from $\nwhere false and exists($&headTag("book"))\nselect .']){
-    for(const query of [text,parseQuery(text).query]){
-      const result=evaluateQuery(query,host,{addressActivation:'trusted'});
-      assert.equal(result.ok,false);assert.equal(result.errors[0].phase,'policy');
-    }
-  }
   const address=parseAddress('$&headTag("book")').address;
   assert.equal(planMutation({op:'remove',target:address},host).ok,false);
   assert.equal(planInstruction('remove $&headTag("book")',host).ok,false);

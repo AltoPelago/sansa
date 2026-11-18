@@ -1,9 +1,9 @@
-# Standalone property Resolve implementation
+# Read-only property Resolve and Query implementation
 
 Date:16 November2026. Unreleased candidate; no profile promotion or release.
 
 JavaScript/TypeScript and Rust execute `&key("...")`, `&tag("...")` and `&headTag("...")` only in
-standalone read-only Resolve with an explicitly capable namespace. Public types
+standalone read-only Resolve and direct read-only Query with an explicitly capable namespace. Public types
 are `PropertyAccess`, `PropertyAccessContext` and checked `PropertyAccessFault`
 (TypeScript), or `property::PropertyAccess` and its context/scope/kind/error types
 (Rust). `Namespace.properties()` defaults to `None`. Existing adapters remain
@@ -67,12 +67,24 @@ Additional tests cover typed/cleanup faults, reentry and closed consumers. These
 mirrors are runtime regressions, not a new CTS protocol/profile advertisement or
 execution of the full149-case property target.
 
-Query, activation (including trusted), Graph, Instruction/Mutate/SO, AEOS selectors,
-Type Transpiler, structural/reference/event/storage consumers stay closed. No
-AEON SDK/AEOS/Python/native/WASM adapter or dependency is repinned. Owning providers
-must implement authoritative facets and bridge distinctions before advertising
-support. The playground does not gain property execution through unchanged AEON
-SDKs. Query cursor/current-row syntax and Query-wide accounting remain separate.
+Direct read-only Query admits property addresses in `from`, `where`, `order by`
+and `select`, including projections and nested expressions. `.&key("x")` and
+`.&tag("x")` retain the row's originating scope while moving its evaluation root;
+explicit `?&key("x")` establishes a boundary at the row, hiding its incoming key.
+Attribute/local-space boundaries, repeated occurrence frames and stable ordering
+survive filtering and slicing. One private property allowance spans the entire
+Query; separate and reentrant public calls get fresh state. Complete capability
+preflight runs before empty/short-circuited traversal. Caller property Query ASTs
+are snapshotted, bounded (20,000 data entries, 128 preparation levels and
+1 MiB of text in JavaScript) and reparsed; output bindings/records carry no frames or
+mutable counters. The 15 byte-identical prepared Query vectors check every present
+field and callback count in text and native AST forms, alongside local regressions.
+They are regression mirrors, not full CTS protocol/profile claims.
+
+Activation (including trusted), Graph, Instruction/Mutate/SO, AEOS selectors,
+Type Transpiler, structural/reference/event/storage consumers stay closed. Direct
+Query support does not admit Query-shaped mutation/precondition callers. Pure
+Python has no Query evaluator; Core/native/WASM literal APIs remain inert.
 
 Rust source porting includes new `ResolveOptions`/`Diagnostic` fields for clients
 using exhaustive struct literals, alongside the prior selector enum/QualifierTerm

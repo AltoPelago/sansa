@@ -98,10 +98,10 @@ The Instruction and Mutate CTS lanes are experimental and are not included in `n
 
 ## Source playground
 
-Unreleased property selectors have opt-in standalone Resolve support in the
-JavaScript/TypeScript and Rust cores. Hosts must implement the authoritative
-facet; existing AEON adapters/playground and Query do not gain property execution
-automatically. See [implementation and limits](docs/property-resolve-implementation.md).
+Unreleased property selectors have opt-in read-only Resolve and direct Query support
+in the JavaScript/TypeScript and Rust cores. Hosts must implement the authoritative
+facet. Current-row `.&key("x")` retains its originating scope; explicit `?` starts
+a boundary at the row. Mutation and literal activation remain closed. See [implementation and limits](docs/property-resolve-implementation.md).
 
 Run the website-derived playground directly against this checkout's SANSA source:
 

@@ -4,7 +4,7 @@ use crate::resolve::{
     Namespace, Navigation, ResolveOptions, resolve_address, resolve_parsed_address,
 };
 use serde_json::{Value as J, json};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 struct Host {
@@ -13,6 +13,8 @@ struct Host {
     parents: Vec<Option<usize>>,
     input: J,
     calls: RefCell<BTreeMap<String, usize>>,
+    reentered: Cell<bool>,
+    nested_ok: Cell<Option<bool>>,
 }
 impl Host {
     fn new(input: &J) -> Self {
@@ -46,6 +48,8 @@ impl Host {
             ids,
             input: input.clone(),
             calls: RefCell::new(BTreeMap::new()),
+            reentered: Cell::new(false),
+            nested_ok: Cell::new(None),
         };
         for i in 0..h.rows.len() {
             for child in h.links(i) {
@@ -263,6 +267,23 @@ impl PropertyAccess for Host {
         binding: &usize,
         _: &PropertyAccessContext<'_, usize>,
     ) -> Result<Option<String>, PropertyAccessError> {
+        if self.input["reenter"].is_object() && !self.reentered.replace(true) {
+            let options = crate::evaluate::EvaluateOptions {
+                resolve: ResolveOptions {
+                    max_property_inspections: self.input["reenter"]["maxPropertyInspections"]
+                        .as_u64()
+                        .expect("limit") as u32,
+                    ..ResolveOptions::default()
+                },
+                ..crate::evaluate::EvaluateOptions::default()
+            };
+            let result = crate::evaluate::evaluate_query(
+                self.input["reenter"]["source"].as_str().expect("source"),
+                self,
+                &options,
+            );
+            self.nested_ok.set(Some(result.errors.is_empty()));
+        }
         self.text("key", *binding, "key")
     }
     fn node_kind(
@@ -443,6 +464,11 @@ fn independent_occurrence_frames_survive_space_transitions() {
         fn attribute_space(&self, binding: &usize) -> Navigation<usize> {
             Navigation::Binding(*binding)
         }
+        fn value(&self, _: &usize) -> Option<crate::value_semantics::Value> {
+            Some(crate::value_semantics::Value::FiniteNumber(
+                crate::value_semantics::FiniteNumber::parse("1").expect("number"),
+            ))
+        }
         fn properties(&self) -> Option<&dyn PropertyAccess<Binding = usize>> {
             Some(self)
         }
@@ -496,10 +522,25 @@ fn independent_occurrence_frames_survive_space_transitions() {
         "SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED"
     );
     assert!(result.bindings.is_empty());
+    host.seen.borrow_mut().clear();
+    let output = crate::evaluate::evaluate_query(
+        "from $.*.@.*\nwhere exists(.&key(\"a\")) or exists(.&key(\"b\"))\norder by . asc\noffset 1\nselect .&key(\"b\")",
+        &host,
+        &crate::evaluate::EvaluateOptions::default(),
+    );
+    assert!(output.errors.is_empty(), "{:?}", output.errors);
+    assert_eq!(output.results.len(), 1);
+    assert_eq!(output.results[0].candidate, 3);
+    assert_eq!(
+        output.results[0].value,
+        crate::evaluate::EvaluatedValue::Bindings(vec![3])
+    );
+    assert!(host.seen.borrow().contains(&(1, 3)));
+    assert!(host.seen.borrow().contains(&(2, 3)));
 }
 
 #[test]
-fn capable_host_does_not_admit_query_or_mutation() {
+fn capable_host_admits_read_only_query_but_not_mutation() {
     use crate::query::{Expression, ResolutionScope};
     let host = Host::new(&json!({}));
     let mut query = crate::query::parse_query("from $.missing\nselect .").expect("query");
@@ -514,8 +555,9 @@ fn capable_host_does_not_admit_query_or_mutation() {
         &host,
         &crate::evaluate::EvaluateOptions::default(),
     );
-    assert_eq!(result.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_SELECTOR");
-    assert!(host.calls.borrow().is_empty());
+    assert!(result.errors.is_empty());
+    assert!(result.results.is_empty());
+    host.calls.borrow_mut().clear();
     use crate::mutate::{
         MutationAddressInput, MutationRequest, PlanMutationOptions, PlanMutationResult,
         RequestedMutationOperation, RequestedRemoveOperation, plan_mutation,
@@ -538,4 +580,73 @@ fn capable_host_does_not_admit_query_or_mutation() {
     };
     assert_eq!(errors[0].code, "SANSA_MUTATE_NON_EXACT_TARGET");
     assert!(host.calls.borrow().is_empty());
+}
+
+#[test]
+fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
+    use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_parsed_query, evaluate_query};
+    let suite: J = serde_json::from_str(include_str!(
+        "../tests/fixtures/property-query-candidate-v1.json"
+    ))
+    .expect("fixture");
+    let mut executed = 0;
+    for vector in suite["tests"].as_array().expect("tests") {
+        let input = &vector["input"];
+        let id = vector["id"].as_str().expect("id");
+        let source = input["source"].as_str().expect("source");
+        let parsed = crate::query::parse_query(source).expect(id);
+        if input["operation"] == "parse-query" {
+            let crate::query::Expression::Resolution { scope, address, .. } = &parsed.select.ast
+            else {
+                panic!("current property");
+            };
+            let observed = json!({"ok":true,"canonical":parsed.canonical,"currentPropertyScope":if *scope==crate::query::ResolutionScope::Current {"current"} else {"other"},"currentAddressRoot":if address.root==crate::address::Root::Contextual {"contextual"}else{"absolute"}});
+            for (field, expected) in vector["expected"].as_object().expect("expected") {
+                assert_eq!(&observed[field], expected, "{id} {field}");
+            }
+            executed += 1;
+            continue;
+        }
+        for native in [false, true] {
+            let host = Host::new(input);
+            let options = EvaluateOptions {
+                resolve: ResolveOptions {
+                    contextual_root: input["contextualRoot"].as_str().map(|id| host.id(id)),
+                    max_property_inspections: input["options"]["resolve"]["maxPropertyInspections"]
+                        .as_u64()
+                        .unwrap_or(10000) as u32,
+                    ..ResolveOptions::default()
+                },
+                ..EvaluateOptions::default()
+            };
+            let mut result = None;
+            for _ in 0..input["repeat"].as_u64().unwrap_or(1) {
+                result = Some(if native {
+                    evaluate_parsed_query(&parsed, &host, &options)
+                } else {
+                    evaluate_query(source, &host, &options)
+                });
+            }
+            let result = result.expect("result");
+            let records:Vec<J>=result.results.iter().map(|row|{let EvaluatedValue::Bindings(values)=&row.value else{panic!("bindings");};json!({"candidate":host.rows[row.candidate]["id"],"valueBindings":values.iter().map(|b|host.rows[*b]["id"].clone()).collect::<Vec<_>>()})}).collect();
+            let error = result.errors.first();
+            let observed = json!({"ok":error.is_none(),"records":records,"error":error.map(|e|&e.code),"phase":error.and_then(|e|e.phase).map(|p|format!("{p:?}").to_lowercase()),"limit":error.and_then(|e|e.limit),"observed":error.and_then(|e|e.observed),"budget":error.and_then(|e|e.budget.as_ref()),"nestedResultsOk":host.nested_ok.get()});
+            for (field, expected) in vector["expected"].as_object().expect("expected") {
+                if field == "calls" {
+                    for (name, count) in expected.as_object().expect("calls") {
+                        assert_eq!(
+                            *host.calls.borrow().get(name).unwrap_or(&0),
+                            count.as_u64().expect("count") as usize,
+                            "{id} {native} calls.{name}"
+                        );
+                    }
+                } else {
+                    assert!(observed.get(field).is_some(), "unasserted {field}");
+                    assert_eq!(&observed[field], expected, "{id} {native} {field}");
+                }
+            }
+        }
+        executed += 1;
+    }
+    assert_eq!(executed, 15);
 }

@@ -1,12 +1,12 @@
 # Property selectors: candidate API contract 0.2
 
-Status: **unreleased candidate contract; core standalone Resolve implemented**.
-JavaScript/TypeScript and Rust expose the optional facet for direct read-only
-Resolve. Query and owning AEON/Python/native/WASM providers remain separate work;
-this is not a profile promotion or release. The `.d.ts`, `.rs` and `.pyi` siblings
-retain original review sketches; current exported JS types/Rust modules and the
-[implementation checkpoint](property-resolve-implementation.md) describe delivered
-support and limits. Query sections below remain the target for later slices.
+Status: **unreleased candidate; core direct read-only Resolve and Query implemented**.
+JavaScript/TypeScript and Rust expose the optional facet. Owning AEON SDK namespaces
+supply authoritative metadata; pure Python remains Resolve-only because it has no
+Query evaluator. Native/WASM ports expose Core literals, not a new Resolve/Query API.
+The `.d.ts`, `.rs` and `.pyi` siblings retain original review sketches; current
+exported types/modules and the [implementation checkpoint](property-resolve-implementation.md)
+describe delivered support and limits. No profile promotion or release.
 Existing capability manifests are unchanged.
 
 ## Address and Query model

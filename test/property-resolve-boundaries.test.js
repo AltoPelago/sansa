@@ -34,10 +34,8 @@ test('over-budget yielded heads are not inspected even through iterator value ac
   assert.equal(callable.ok,true);assert.deepEqual(callable.bindings,[bindings.get('multi')]);
 });
 
-test('capable adapters do not admit Query, Instruction, mutation or literal activation', () => {
+test('capable adapters do not admit Instruction, mutation or literal activation', () => {
   for (const operation of [
-    h => evaluateQuery('from $.missing\nselect $&key("x")', h),
-    h => evaluateQuery('from $\nwhere false and exists($&tag("x"))\nselect .', h),
     h => planInstruction('from $.missing\nrequire true or exists($&key("x"))\nremove ?', h),
     h => planMutation({op:'remove',target:'$.document&key("document")'}, h),
   ]) {

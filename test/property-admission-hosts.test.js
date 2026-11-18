@@ -2,32 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {evaluateQuery, lowerInstruction, parseAddress, parseInstruction, parseQuery, resolveAddress} from '../src/index.js';
 
-test('closed Query consumer denies text and native property addresses before namespace root access', () => {
-  for (const root of ['$', '?']) for (const suffix of ['&key("x")', '.missing&tag("x")']) {
-    const source = root + suffix;
-    for (const input of [source, parseAddress(source).address]) {
-      let reads = 0;
-      const forbidden = () => { reads++; throw new Error('namespace must not be read'); };
-      const host = {root: forbidden, children: forbidden};
-      Object.defineProperty(host, 'contextualRoot', {get: forbidden});
-      for (const namespace of [host, {}, undefined]) {
-        const query = parseQuery('from $\nselect true').query;
-        query.select.ast = {type:'resolutionExpression',scope:'absolute',address:typeof input==='string'?parseAddress(input).address:input};
-        const result = evaluateQuery(query, namespace);
-        assert.equal(result.ok, false);
-        assert.equal(result.errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_SELECTOR');
-        assert.equal(result.errors[0].phase, 'policy');
-      }
-      assert.equal(reads, 0);
-    }
+test('property Query requires a root before capabilities, even with empty candidates', () => {
+  for (const input of ['from $.missing\nselect $&key("x")', parseQuery('from $.missing\nselect $&key("x")').query]) {
+    const r=evaluateQuery(input,{});assert.equal(r.ok,false);assert.equal(r.errors[0].code,'SANSA_RESOLVE_MISSING_ROOT');assert.equal(r.errors[0].phase,'policy');
   }
-  let reads = 0;
-  const root = {address: '$', children: []};
-  const host = {root() { reads++; return root; }};
-  assert.equal(resolveAddress('$', host).ok, true);
-  assert.equal(reads, 1);
-  assert.equal(resolveAddress('$', {}).errors[0].code, 'SANSA_RESOLVE_MISSING_ROOT');
-  assert.equal(resolveAddress('?', {}).errors[0].code, 'SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT');
 });
 
 const query = expression => parseQuery(`from $.missing\nselect ${expression}`).query;

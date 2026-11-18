@@ -5,16 +5,19 @@
 // and allocation on every propagated failure path.
 #![allow(clippy::result_large_err)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::ops::Deref;
 
 use crate::address::{Address, Root, Selector, parse_address};
+use crate::property::PropertyInspection;
 use crate::query::{
     BinaryOperator, CardinalityOperator, ExistenceOperator, Expression, FromClause, Literal,
     LiteralKind, LiteralValue, OrderDirection, Query, UnaryOperator, parse_query,
 };
-use crate::resolve::{Namespace, ResolveOptions, resolve_parsed_address};
+use crate::resolve::{
+    Namespace, Occurrence, PropertyFrame, ResolveOptions, resolve_parsed_address,
+};
 use crate::value_semantics::{FiniteNumber, Profile, Value, compare, equal, is_value, not_equal};
 use crate::{Diagnostic, DiagnosticPhase};
 
@@ -100,6 +103,7 @@ struct EvaluationContext<'a, Binding> {
     options: &'a EvaluateOptions<Binding>,
     identity_inspections: Cell<usize>,
     admit_child_identity: bool,
+    properties: RefCell<Option<PropertyInspection<'a, Binding>>>,
 }
 
 impl<Binding> Deref for EvaluationContext<'_, Binding> {
@@ -171,10 +175,18 @@ pub fn evaluate_parsed_query<N: Namespace>(
     namespace: &N,
     options: &EvaluateOptions<N::Binding>,
 ) -> QueryOutput<N::Binding> {
+    let properties = match prepare_query_properties(query, namespace, options) {
+        Ok(properties) => properties,
+        Err(mut error) => {
+            error.phase = Some(DiagnosticPhase::Policy);
+            return QueryOutput::failure(error);
+        }
+    };
     let context = EvaluationContext {
         options,
         identity_inspections: Cell::new(0),
         admit_child_identity: true,
+        properties: RefCell::new(properties),
     };
     let options = &context;
     if let Err(error) = enforce_policy(query, options.policy) {
@@ -217,7 +229,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
                     return QueryOutput::failure(with_candidate(
                         error,
                         DiagnosticPhase::Where,
-                        &binding,
+                        &binding.binding,
                         namespace,
                     ));
                 }
@@ -247,7 +259,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
                         return QueryOutput::failure(with_candidate(
                             error,
                             DiagnosticPhase::Order,
-                            &binding,
+                            &binding.binding,
                             namespace,
                         ));
                     }
@@ -263,7 +275,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
                     return QueryOutput::failure(with_candidate(
                         invalid_comparison(error.message),
                         DiagnosticPhase::Order,
-                        &keyed[index].0,
+                        &keyed[index].0.binding,
                         namespace,
                     ));
                 }
@@ -273,7 +285,7 @@ pub fn evaluate_parsed_query<N: Namespace>(
                     return QueryOutput::failure(with_candidate(
                         invalid_comparison(error.message),
                         DiagnosticPhase::Order,
-                        &keyed[index].0,
+                        &keyed[index].0.binding,
                         namespace,
                     ));
                 }
@@ -320,14 +332,14 @@ pub fn evaluate_parsed_query<N: Namespace>(
     for binding in bindings {
         match evaluate_expression_inner(&query.select.ast, &binding, namespace, options) {
             Ok(value) => results.push(QueryRecord {
-                candidate: binding,
-                value,
+                candidate: binding.binding,
+                value: value.into_public(),
             }),
             Err(error) => {
                 return QueryOutput::failure(with_candidate(
                     error,
                     DiagnosticPhase::Select,
-                    &binding,
+                    &binding.binding,
                     namespace,
                 ));
             }
@@ -336,14 +348,37 @@ pub fn evaluate_parsed_query<N: Namespace>(
     QueryOutput::success(results)
 }
 
+// Query values keep occurrence frames until the public result boundary.
+#[derive(Debug, Clone)]
+enum FramedValue<B> {
+    Scalar(Value),
+    Bindings(Vec<Occurrence<B>>),
+    Object(Vec<(String, FramedValue<B>)>),
+}
+impl<B> FramedValue<B> {
+    fn into_public(self) -> EvaluatedValue<B> {
+        match self {
+            Self::Scalar(value) => EvaluatedValue::Scalar(value),
+            Self::Bindings(bindings) => {
+                EvaluatedValue::Bindings(bindings.into_iter().map(|o| o.binding).collect())
+            }
+            Self::Object(fields) => EvaluatedValue::Object(
+                fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into_public()))
+                    .collect(),
+            ),
+        }
+    }
+}
 fn evaluate_from<N: Namespace>(
     from: &FromClause,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<Vec<N::Binding>> {
+) -> EvaluationResult<Vec<Occurrence<N::Binding>>> {
     match from {
         FromClause::Address(address) => {
-            resolve_query(address, namespace, &options.resolve, options)
+            resolve_query(address, namespace, &options.resolve, options, None)
         }
         FromClause::Path(expression) => {
             let root = namespace.root().ok_or_else(|| {
@@ -353,8 +388,13 @@ fn evaluate_from<N: Namespace>(
                     DiagnosticPhase::From,
                 )
             })?;
-            match evaluate_expression_inner(expression, &root, namespace, options)? {
-                EvaluatedValue::Bindings(bindings) => Ok(bindings),
+            match evaluate_expression_inner(
+                expression,
+                &Occurrence::root(root),
+                namespace,
+                options,
+            )? {
+                FramedValue::Bindings(bindings) => Ok(bindings),
                 _ => Err(evaluate_error(
                     "SANSA_QUERY_EVALUATE_INVALID_FROM_SOURCE",
                     "Dynamic 'from' source expression must evaluate to a Binding Set",
@@ -383,35 +423,58 @@ pub fn evaluate_expression<N: Namespace>(
     }
     evaluate_expression_inner(
         expression,
-        current,
+        &Occurrence::root(current.clone()),
         namespace,
         &EvaluationContext {
             options,
             identity_inspections: Cell::new(0),
             admit_child_identity: false,
+            properties: RefCell::new(None),
         },
     )
+    .map(FramedValue::into_public)
 }
 
 fn evaluate_expression_inner<N: Namespace>(
     expression: &Expression,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     match expression {
-        Expression::Literal(literal) => Ok(EvaluatedValue::Scalar(literal_value(literal)?)),
-        Expression::CurrentBinding => Ok(EvaluatedValue::Bindings(vec![current.clone()])),
+        Expression::Literal(literal) => Ok(FramedValue::Scalar(literal_value(literal)?)),
+        Expression::CurrentBinding => Ok(FramedValue::Bindings(vec![current.clone()])),
         Expression::Resolution { address, scope, .. } => {
             let mut resolve_options = options.resolve.clone();
             if !matches!(scope, crate::query::ResolutionScope::Absolute) {
-                resolve_options.contextual_root = Some(current.clone());
+                resolve_options.contextual_root = Some(current.binding.clone());
             }
             if matches!(scope, crate::query::ResolutionScope::Current) {
                 resolve_options.allow_parent_from_effective_root = true;
             }
-            resolve_query(address, namespace, &resolve_options, options)
-                .map(EvaluatedValue::Bindings)
+            resolve_query(
+                address,
+                namespace,
+                &resolve_options,
+                options,
+                if matches!(scope, crate::query::ResolutionScope::Current)
+                    && options.properties.borrow().is_some()
+                {
+                    Some(Occurrence {
+                        binding: current.binding.clone(),
+                        frame: Some(std::rc::Rc::new(PropertyFrame {
+                            scope_root: current
+                                .frame
+                                .as_ref()
+                                .map_or_else(|| current.binding.clone(), |f| f.scope_root.clone()),
+                            evaluation_root: current.binding.clone(),
+                        })),
+                    })
+                } else {
+                    None
+                },
+            )
+            .map(FramedValue::Bindings)
         }
         Expression::Group(inner) => evaluate_expression_inner(inner, current, namespace, options),
         Expression::Unary {
@@ -419,7 +482,7 @@ fn evaluate_expression_inner<N: Namespace>(
             argument,
         } => {
             let value = evaluate_expression_inner(argument, current, namespace, options)?;
-            Ok(EvaluatedValue::Scalar(Value::Boolean(!expect_boolean(
+            Ok(FramedValue::Scalar(Value::Boolean(!expect_boolean(
                 value, namespace,
             )?)))
         }
@@ -438,7 +501,7 @@ fn evaluate_expression_inner<N: Namespace>(
         Expression::Existence { operator, argument } => {
             let bindings = evaluate_resolution_argument(argument, current, namespace, options)?;
             let present = !bindings.is_empty();
-            Ok(EvaluatedValue::Scalar(Value::Boolean(match operator {
+            Ok(FramedValue::Scalar(Value::Boolean(match operator {
                 ExistenceOperator::Exists => present,
                 ExistenceOperator::Absent => !present,
             })))
@@ -450,7 +513,7 @@ fn evaluate_expression_inner<N: Namespace>(
                 CardinalityOperator::All => values.iter().all(|value| *value),
                 CardinalityOperator::None => values.iter().all(|value| !*value),
             };
-            Ok(EvaluatedValue::Scalar(Value::Boolean(value)))
+            Ok(FramedValue::Scalar(Value::Boolean(value)))
         }
         Expression::Projection { fields } => {
             let mut output = Vec::with_capacity(fields.len());
@@ -460,7 +523,7 @@ fn evaluate_expression_inner<N: Namespace>(
                     evaluate_expression_inner(&field.expression, current, namespace, options)?,
                 ));
             }
-            Ok(EvaluatedValue::Object(output))
+            Ok(FramedValue::Object(output))
         }
     }
 }
@@ -469,15 +532,15 @@ fn evaluate_binary<N: Namespace>(
     operator: BinaryOperator,
     left: &Expression,
     right: &Expression,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     let left = evaluate_expression_inner(left, current, namespace, options)?;
     let right = evaluate_expression_inner(right, current, namespace, options)?;
     if operator == BinaryOperator::In {
         let left = expect_scalar(left, namespace)?;
-        let EvaluatedValue::Bindings(bindings) = right else {
+        let FramedValue::Bindings(bindings) = right else {
             return Err(invalid_comparison(
                 "Membership right operand must evaluate to a Binding Set",
             ));
@@ -485,12 +548,12 @@ fn evaluate_binary<N: Namespace>(
         for binding in bindings {
             let right = binding_value(namespace, &binding)?;
             match equal(&left, &right, options.profile) {
-                Ok(true) => return Ok(EvaluatedValue::Scalar(Value::Boolean(true))),
+                Ok(true) => return Ok(FramedValue::Scalar(Value::Boolean(true))),
                 Ok(false) => {}
                 Err(error) => return Err(invalid_comparison(error.message)),
             }
         }
-        return Ok(EvaluatedValue::Scalar(Value::Boolean(false)));
+        return Ok(FramedValue::Scalar(Value::Boolean(false)));
     }
     let left = expect_scalar(left, namespace)?;
     let right = expect_scalar(right, namespace)?;
@@ -510,15 +573,15 @@ fn evaluate_binary<N: Namespace>(
         _ => unreachable!(),
     }
     .map_err(|error| invalid_comparison(error.message))?;
-    Ok(EvaluatedValue::Scalar(Value::Boolean(value)))
+    Ok(FramedValue::Scalar(Value::Boolean(value)))
 }
 
 fn evaluate_logical<N: Namespace>(
     expression: &Expression,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     enum Task<'a> {
         Evaluate(&'a Expression),
         Left(BinaryOperator, &'a Expression),
@@ -558,14 +621,14 @@ fn evaluate_logical<N: Namespace>(
             }
         }
     }
-    Ok(EvaluatedValue::Scalar(Value::Boolean(
+    Ok(FramedValue::Scalar(Value::Boolean(
         values.pop().expect("logical result"),
     )))
 }
 
 fn evaluate_cardinality<N: Namespace>(
     expression: &Expression,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
 ) -> EvaluationResult<Vec<bool>> {
@@ -610,13 +673,11 @@ fn evaluate_cardinality<N: Namespace>(
         let binding_sets = evaluated
             .iter()
             .enumerate()
-            .filter_map(|(index, value)| {
-                matches!(value, EvaluatedValue::Bindings(_)).then_some(index)
-            })
+            .filter_map(|(index, value)| matches!(value, FramedValue::Bindings(_)).then_some(index))
             .collect::<Vec<_>>();
         if binding_sets.len() == 1 {
             let set_index = binding_sets[0];
-            let EvaluatedValue::Bindings(bindings) = &evaluated[set_index] else {
+            let FramedValue::Bindings(bindings) = &evaluated[set_index] else {
                 unreachable!()
             };
             let mut values = Vec::with_capacity(bindings.len());
@@ -645,22 +706,22 @@ fn evaluate_cardinality<N: Namespace>(
 
 fn map_cardinality_binary<N: Namespace>(
     operator: BinaryOperator,
-    left: EvaluatedValue<N::Binding>,
-    right: EvaluatedValue<N::Binding>,
+    left: FramedValue<N::Binding>,
+    right: FramedValue<N::Binding>,
     namespace: &N,
     profile: Profile,
 ) -> EvaluationResult<Vec<bool>> {
-    let left_is_set = matches!(left, EvaluatedValue::Bindings(_));
-    let right_is_set = matches!(right, EvaluatedValue::Bindings(_));
+    let left_is_set = matches!(left, FramedValue::Bindings(_));
+    let right_is_set = matches!(right, FramedValue::Bindings(_));
     if left_is_set == right_is_set {
         return Err(evaluate_error(
             "SANSA_QUERY_EVALUATE_INVALID_CARDINALITY_ARGUMENT",
             "Cardinality predicate must compare one binding set with one scalar",
         ));
     }
-    let (bindings, scalar, set_on_left) = if let EvaluatedValue::Bindings(bindings) = left {
+    let (bindings, scalar, set_on_left) = if let FramedValue::Bindings(bindings) = left {
         (bindings, expect_scalar(right, namespace)?, true)
-    } else if let EvaluatedValue::Bindings(bindings) = right {
+    } else if let FramedValue::Bindings(bindings) = right {
         (bindings, expect_scalar(left, namespace)?, false)
     } else {
         unreachable!()
@@ -682,10 +743,10 @@ fn map_cardinality_binary<N: Namespace>(
 fn evaluate_function<N: Namespace>(
     name: &str,
     arguments: &[Expression],
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     match name {
         "path" => evaluate_path(arguments, current, namespace, options),
         "fallback" => evaluate_fallback(arguments, current, namespace, options),
@@ -694,19 +755,19 @@ fn evaluate_function<N: Namespace>(
         "isValue" if arguments.len() == 1 => {
             let evaluated = evaluate_expression_inner(&arguments[0], current, namespace, options)?;
             let value = match evaluated {
-                EvaluatedValue::Bindings(bindings) if bindings.is_empty() => false,
-                EvaluatedValue::Bindings(bindings) if bindings.len() > 1 => {
+                FramedValue::Bindings(bindings) if bindings.is_empty() => false,
+                FramedValue::Bindings(bindings) if bindings.len() > 1 => {
                     return Err(cardinality(
                         "Function 'isValue' expected at most one binding",
                     ));
                 }
-                EvaluatedValue::Bindings(bindings) => {
+                FramedValue::Bindings(bindings) => {
                     namespace.value(&bindings[0]).as_ref().is_some_and(is_value)
                 }
-                EvaluatedValue::Scalar(value) => is_value(&value),
-                EvaluatedValue::Object(_) => true,
+                FramedValue::Scalar(value) => is_value(&value),
+                FramedValue::Object(_) => true,
             };
-            Ok(EvaluatedValue::Scalar(Value::Boolean(value)))
+            Ok(FramedValue::Scalar(Value::Boolean(value)))
         }
         "isValue" => Err(invalid_function("isValue", 1)),
         "only" | "lookup" | "matches" | "objectfrom" => Err(evaluate_error(
@@ -729,14 +790,14 @@ fn evaluate_function<N: Namespace>(
 fn evaluate_scalar_function<Binding>(
     name: &str,
     values: &[Value],
-) -> EvaluationResult<EvaluatedValue<Binding>> {
+) -> EvaluationResult<FramedValue<Binding>> {
     let invalid = || {
         evaluate_error(
             "SANSA_QUERY_EVALUATE_INVALID_FUNCTION_CALL",
             format!("Invalid arguments for function '{name}'"),
         )
     };
-    let boolean = |value| Ok(EvaluatedValue::Scalar(Value::Boolean(value)));
+    let boolean = |value| Ok(FramedValue::Scalar(Value::Boolean(value)));
     match name {
         "isValue" if values.len() == 1 => boolean(is_value(&values[0])),
         "isNull" if values.len() == 1 => boolean(matches!(values[0], Value::ExplicitNull { .. })),
@@ -753,11 +814,11 @@ fn evaluate_scalar_function<Binding>(
             _ => Err(invalid()),
         },
         "lower" if values.len() == 1 => match &values[0] {
-            Value::String(value) => Ok(EvaluatedValue::Scalar(Value::String(value.to_lowercase()))),
+            Value::String(value) => Ok(FramedValue::Scalar(Value::String(value.to_lowercase()))),
             _ => Err(invalid()),
         },
         "upper" if values.len() == 1 => match &values[0] {
-            Value::String(value) => Ok(EvaluatedValue::Scalar(Value::String(value.to_uppercase()))),
+            Value::String(value) => Ok(FramedValue::Scalar(Value::String(value.to_uppercase()))),
             _ => Err(invalid()),
         },
         "contains" | "startsWith" | "endsWith" if values.len() == 2 => {
@@ -778,14 +839,14 @@ fn evaluate_scalar_function<Binding>(
                 };
                 output.push_str(value);
             }
-            Ok(EvaluatedValue::Scalar(Value::String(output)))
+            Ok(FramedValue::Scalar(Value::String(output)))
         }
         "radixScale" if values.len() == 1 => match &values[0] {
             Value::Radix { payload, .. } => {
                 let scale = payload
                     .split_once('.')
                     .map_or(0, |(_, fraction)| fraction.replace('_', "").len());
-                Ok(EvaluatedValue::Scalar(Value::FiniteNumber(
+                Ok(FramedValue::Scalar(Value::FiniteNumber(
                     FiniteNumber::parse(scale.to_string()).expect("scale is finite"),
                 )))
             }
@@ -801,7 +862,7 @@ fn evaluate_scalar_function<Binding>(
                     payload: right,
                     semantic_type: right_type,
                 },
-            ) => Ok(EvaluatedValue::Scalar(Value::String(temporal_relation(
+            ) => Ok(FramedValue::Scalar(Value::String(temporal_relation(
                 left, left_type, right, right_type,
             )))),
             _ => Err(invalid()),
@@ -838,20 +899,20 @@ fn evaluate_scalar_function<Binding>(
 
 fn evaluate_fallback<N: Namespace>(
     arguments: &[Expression],
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     if arguments.len() != 2 {
         return Err(invalid_function("fallback", 2));
     }
     match evaluate_expression_inner(&arguments[0], current, namespace, options) {
-        Ok(EvaluatedValue::Bindings(bindings)) if bindings.is_empty() => {}
-        Ok(EvaluatedValue::Bindings(bindings)) if bindings.len() > 1 => {
+        Ok(FramedValue::Bindings(bindings)) if bindings.is_empty() => {}
+        Ok(FramedValue::Bindings(bindings)) if bindings.len() > 1 => {
             return Err(cardinality("Function 'fallback' expected one binding"));
         }
-        Ok(EvaluatedValue::Bindings(bindings)) => match binding_value(namespace, &bindings[0]) {
-            Ok(value) => return Ok(EvaluatedValue::Scalar(value)),
+        Ok(FramedValue::Bindings(bindings)) => match binding_value(namespace, &bindings[0]) {
+            Ok(value) => return Ok(FramedValue::Scalar(value)),
             Err(error) if error.code == "SANSA_QUERY_EVALUATE_MISSING_SCALAR" => {}
             Err(error) => return Err(error),
         },
@@ -861,26 +922,25 @@ fn evaluate_fallback<N: Namespace>(
     }
     let replacement = evaluate_expression_inner(&arguments[1], current, namespace, options)?;
     match replacement {
-        EvaluatedValue::Bindings(bindings) if bindings.is_empty() => Err(missing_scalar(
+        FramedValue::Bindings(bindings) if bindings.is_empty() => Err(missing_scalar(
             "Function 'fallback' replacement resolved no scalar value",
         )),
-        EvaluatedValue::Bindings(bindings) if bindings.len() > 1 => {
+        FramedValue::Bindings(bindings) if bindings.len() > 1 => {
             Err(cardinality("Function 'fallback' expected one binding"))
         }
-        EvaluatedValue::Bindings(bindings) => Ok(EvaluatedValue::Scalar(binding_value(
-            namespace,
-            &bindings[0],
-        )?)),
+        FramedValue::Bindings(bindings) => {
+            Ok(FramedValue::Scalar(binding_value(namespace, &bindings[0])?))
+        }
         value => Ok(value),
     }
 }
 
 fn evaluate_resolve_child<N: Namespace>(
     arguments: &[Expression],
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     if arguments.len() != 2 || unwrap_resolution(&arguments[0]).is_none() {
         return Err(invalid_function("resolveChild", 2));
     }
@@ -923,15 +983,23 @@ fn evaluate_resolve_child<N: Namespace>(
             "Function 'resolveChild' target resolved multiple bindings",
         ));
     }
-    Ok(EvaluatedValue::Bindings(selected))
+    Ok(FramedValue::Bindings(
+        selected
+            .into_iter()
+            .map(|binding| Occurrence {
+                binding,
+                frame: base[0].frame.clone(),
+            })
+            .collect(),
+    ))
 }
 
 fn evaluate_follow<N: Namespace>(
     arguments: &[Expression],
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     if arguments.len() != 1 {
         return Err(invalid_function("follow", 1));
     }
@@ -954,22 +1022,23 @@ fn evaluate_follow<N: Namespace>(
             "Function 'follow' requires an exact reference target path",
         ));
     }
-    let bindings = resolve(&address, namespace, &options.resolve)?;
+    crate::resolve::deny_child_identity(&address)?;
+    let bindings = resolve_query(&address, namespace, &options.resolve, options, None)?;
     if bindings.is_empty() {
         return Err(evaluate_error(
             "SANSA_QUERY_EVALUATE_MISSING_REFERENCE_TARGET",
             "Function 'follow' target resolved no binding",
         ));
     }
-    Ok(EvaluatedValue::Bindings(bindings))
+    Ok(FramedValue::Bindings(bindings))
 }
 
 fn evaluate_path<N: Namespace>(
     arguments: &[Expression],
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<EvaluatedValue<N::Binding>> {
+) -> EvaluationResult<FramedValue<N::Binding>> {
     if arguments.len() != 1 {
         return Err(invalid_function("path", 1));
     }
@@ -995,7 +1064,7 @@ fn evaluate_path<N: Namespace>(
     let grant = authorize_path(&address, current, namespace, &options.address_activation)?;
     let mut resolve_options = options.resolve.clone();
     if address.root == Root::Contextual {
-        resolve_options.contextual_root = Some(current.clone());
+        resolve_options.contextual_root = Some(current.binding.clone());
     }
     resolve_options.max_bindings = match (grant.max_bindings, resolve_options.max_bindings) {
         (Some(grant), Some(host)) => Some(grant.min(host)),
@@ -1020,40 +1089,60 @@ fn evaluate_path<N: Namespace>(
         }
     };
     let mut inspected = options.identity_inspections.get();
-    let output = crate::resolve::resolve_parsed_address_with_guard(
-        &address,
-        namespace,
-        &resolve_options,
-        &mut inspected,
-        grant
-            .identity_roots
-            .as_ref()
-            .map(|_| &guard as &crate::resolve::IdentityGuard<'_, N::Binding>),
-    );
+    let guard = grant
+        .identity_roots
+        .as_ref()
+        .map(|_| &guard as &crate::resolve::IdentityGuard<'_, N::Binding>);
+    let output = if let Some(properties) = options.properties.borrow_mut().as_mut() {
+        crate::resolve::resolve_query_occurrences(
+            &address,
+            namespace,
+            &resolve_options,
+            &mut inspected,
+            properties,
+            None,
+            guard,
+        )
+    } else {
+        let output = crate::resolve::resolve_parsed_address_with_guard(
+            &address,
+            namespace,
+            &resolve_options,
+            &mut inspected,
+            guard,
+        );
+        output.errors.into_iter().next().map_or_else(
+            || Ok(output.bindings.into_iter().map(Occurrence::root).collect()),
+            Err,
+        )
+    };
     options.identity_inspections.set(inspected);
-    if let Some(error) = output.errors.into_iter().next() {
-        if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" {
-            let mut mapped = evaluate_error(
-                "SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED",
-                error.message,
-            );
-            mapped.limit = error.limit;
-            mapped.observed = error.observed;
-            return Err(mapped);
+    let bindings = match output {
+        Err(error) => {
+            if error.code == "SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED" {
+                let mut mapped = evaluate_error(
+                    "SANSA_QUERY_PATH_ACTIVATION_BINDING_LIMIT_EXCEEDED",
+                    error.message,
+                );
+                mapped.limit = error.limit;
+                mapped.observed = error.observed;
+                return Err(mapped);
+            }
+            return Err(error);
         }
-        return Err(error);
-    }
-    if grant.identity_roots.is_some() {
-        for binding in &output.bindings {
-            guard(binding)?;
+        Ok(bindings) => bindings,
+    };
+    if let Some(guard) = guard {
+        for binding in &bindings {
+            guard(&binding.binding)?;
         }
     }
-    Ok(EvaluatedValue::Bindings(output.bindings))
+    Ok(FramedValue::Bindings(bindings))
 }
 
 fn authorize_path<N: Namespace>(
     address: &Address,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     activation: &AddressActivation,
 ) -> EvaluationResult<ActivationGrant> {
@@ -1134,7 +1223,7 @@ fn authorize_path<N: Namespace>(
             ));
         }
         let binding = if address.root == Root::Contextual {
-            Some(current.clone())
+            Some(current.binding.clone())
         } else {
             namespace.root()
         };
@@ -1194,7 +1283,7 @@ fn canonical_activation_path(source: &str) -> Option<Address> {
 
 fn effective_address<N: Namespace>(
     address: &Address,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
 ) -> EvaluationResult<Address> {
     if address.root == Root::Absolute {
@@ -1235,10 +1324,10 @@ fn normalize_parent_selectors(mut address: Address) -> EvaluationResult<Address>
 
 fn evaluate_resolution_argument<N: Namespace>(
     expression: &Expression,
-    current: &N::Binding,
+    current: &Occurrence<N::Binding>,
     namespace: &N,
     options: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<Vec<N::Binding>> {
+) -> EvaluationResult<Vec<Occurrence<N::Binding>>> {
     let expression = unwrap_resolution(expression).ok_or_else(|| {
         evaluate_error(
             "SANSA_QUERY_EVALUATE_INVALID_EXISTENCE_ARGUMENT",
@@ -1246,7 +1335,7 @@ fn evaluate_resolution_argument<N: Namespace>(
         )
     })?;
     match evaluate_expression_inner(expression, current, namespace, options)? {
-        EvaluatedValue::Bindings(bindings) => Ok(bindings),
+        FramedValue::Bindings(bindings) => Ok(bindings),
         _ => unreachable!(),
     }
 }
@@ -1260,7 +1349,7 @@ fn unwrap_resolution(expression: &Expression) -> Option<&Expression> {
 }
 
 fn expect_boolean<N: Namespace>(
-    value: EvaluatedValue<N::Binding>,
+    value: FramedValue<N::Binding>,
     namespace: &N,
 ) -> EvaluationResult<bool> {
     match expect_scalar(value, namespace)? {
@@ -1273,19 +1362,19 @@ fn expect_boolean<N: Namespace>(
 }
 
 fn expect_scalar<N: Namespace>(
-    value: EvaluatedValue<N::Binding>,
+    value: FramedValue<N::Binding>,
     namespace: &N,
 ) -> EvaluationResult<Value> {
     match value {
-        EvaluatedValue::Scalar(value) => Ok(value),
-        EvaluatedValue::Bindings(bindings) if bindings.is_empty() => {
+        FramedValue::Scalar(value) => Ok(value),
+        FramedValue::Bindings(bindings) if bindings.is_empty() => {
             Err(missing_scalar("Resolution produced no scalar binding"))
         }
-        EvaluatedValue::Bindings(bindings) if bindings.len() > 1 => Err(cardinality(
+        FramedValue::Bindings(bindings) if bindings.len() > 1 => Err(cardinality(
             "Resolution produced multiple bindings where one scalar was required",
         )),
-        EvaluatedValue::Bindings(bindings) => binding_value(namespace, &bindings[0]),
-        EvaluatedValue::Object(_) => Err(cardinality(
+        FramedValue::Bindings(bindings) => binding_value(namespace, &bindings[0]),
+        FramedValue::Object(_) => Err(cardinality(
             "Derived object cannot be consumed as a scalar query value",
         )),
     }
@@ -1362,23 +1451,37 @@ fn resolve_query<N: Namespace>(
     namespace: &N,
     resolve_options: &ResolveOptions<N::Binding>,
     context: &EvaluationContext<'_, N::Binding>,
-) -> EvaluationResult<Vec<N::Binding>> {
+    initial: Option<Occurrence<N::Binding>>,
+) -> EvaluationResult<Vec<Occurrence<N::Binding>>> {
     if !context.admit_child_identity {
-        return resolve(address, namespace, resolve_options);
+        return resolve(address, namespace, resolve_options)
+            .map(|v| v.into_iter().map(Occurrence::root).collect());
     }
     let mut inspected = context.identity_inspections.get();
-    let output = crate::resolve::resolve_parsed_address_with_inspections(
-        address,
-        namespace,
-        resolve_options,
-        &mut inspected,
-    );
+    let result = if let Some(properties) = context.properties.borrow_mut().as_mut() {
+        crate::resolve::resolve_query_occurrences(
+            address,
+            namespace,
+            resolve_options,
+            &mut inspected,
+            properties,
+            initial,
+            None,
+        )
+    } else {
+        let output = crate::resolve::resolve_parsed_address_with_inspections(
+            address,
+            namespace,
+            resolve_options,
+            &mut inspected,
+        );
+        output.errors.into_iter().next().map_or_else(
+            || Ok(output.bindings.into_iter().map(Occurrence::root).collect()),
+            Err,
+        )
+    };
     context.identity_inspections.set(inspected);
-    output
-        .errors
-        .into_iter()
-        .next()
-        .map_or_else(|| Ok(output.bindings), Err)
+    result
 }
 
 fn resolve<N: Namespace>(
@@ -1395,6 +1498,101 @@ fn resolve<N: Namespace>(
         .map_or_else(|| Ok(output.bindings), Err)
 }
 
+fn prepare_query_properties<'a, N: Namespace>(
+    query: &Query,
+    namespace: &'a N,
+    options: &EvaluateOptions<N::Binding>,
+) -> EvaluationResult<Option<PropertyInspection<'a, N::Binding>>> {
+    let mut addresses = Vec::new();
+    let mut expressions = Vec::new();
+    match &query.from {
+        FromClause::Address(address) => addresses.push(address),
+        FromClause::Path(expression) => expressions.push(expression),
+    }
+    if let Some(clause) = &query.where_clause {
+        expressions.push(&clause.ast);
+    }
+    if let Some(order) = &query.order_by {
+        expressions.extend(order.keys.iter().map(|k| &k.ast));
+    }
+    expressions.push(&query.select.ast);
+    for expression in expressions {
+        let mut stack = vec![expression];
+        while let Some(expression) = stack.pop() {
+            match expression {
+                Expression::Resolution { address, .. } => addresses.push(address),
+                Expression::Group(inner)
+                | Expression::Unary {
+                    argument: inner, ..
+                }
+                | Expression::Existence {
+                    argument: inner, ..
+                }
+                | Expression::Cardinality {
+                    argument: inner, ..
+                } => stack.push(inner),
+                Expression::Binary { left, right, .. } => {
+                    stack.push(right);
+                    stack.push(left);
+                }
+                Expression::FunctionCall { arguments, .. } => stack.extend(arguments.iter().rev()),
+                Expression::Projection { fields } => {
+                    stack.extend(fields.iter().rev().map(|f| &f.expression))
+                }
+                _ => {}
+            }
+        }
+    }
+    if !addresses.iter().any(|a| property_address(a)) {
+        return Ok(None);
+    }
+    let mut selectors = Vec::new();
+    let mut indices = Vec::new();
+    for address in addresses {
+        let normalized = crate::resolve::normalize_address(address)?;
+        for (index, selector) in normalized.selectors.iter().enumerate() {
+            if matches!(selector, Selector::PropertyFilter { .. }) {
+                selectors.push(selector.clone());
+                indices.push(index);
+            }
+        }
+    }
+    if options.resolve.max_property_inspections > crate::property::MAX_PROPERTY_INSPECTIONS {
+        return Err(evaluate_error(
+            "SANSA_RESOLVE_INVALID_PROPERTY_LIMIT",
+            "Invalid property inspection limit",
+        ));
+    }
+    let root = match &query.from {
+        FromClause::Address(address) if address.root == Root::Contextual => options
+            .resolve
+            .contextual_root
+            .clone()
+            .or_else(|| namespace.contextual_root()),
+        _ => namespace.root(),
+    };
+    if root.is_none() {
+        return Err(evaluate_error(
+            if matches!(&query.from,FromClause::Address(a) if a.root == Root::Contextual) {
+                "SANSA_RESOLVE_UNSUPPORTED_CONTEXTUAL_ROOT"
+            } else {
+                "SANSA_RESOLVE_MISSING_ROOT"
+            },
+            "Query requires a root binding",
+        ));
+    }
+    enforce_policy(query, options.policy)?;
+    PropertyInspection::prepare(
+        namespace.properties(),
+        &selectors,
+        options.resolve.max_property_inspections,
+    )
+    .map(Some)
+    .map_err(|mut e| {
+        e.selector_index = e.selector_index.map(|i| indices[i]);
+        *e
+    })
+}
 fn property_address(address: &Address) -> bool {
     address
         .selectors
@@ -1429,29 +1627,6 @@ fn property_expression(expression: &Expression) -> bool {
 }
 
 fn enforce_policy(query: &Query, policy: QueryPolicy) -> EvaluationResult<()> {
-    let mut expressions = Vec::new();
-    let from_property = match &query.from {
-        FromClause::Address(address) => property_address(address),
-        FromClause::Path(expression) => {
-            expressions.push(expression);
-            false
-        }
-    };
-    if let Some(clause) = &query.where_clause {
-        expressions.push(&clause.ast);
-    }
-    if let Some(order) = &query.order_by {
-        expressions.extend(order.keys.iter().map(|key| &key.ast));
-    }
-    expressions.push(&query.select.ast);
-    if from_property || expressions.into_iter().any(property_expression) {
-        return Err(diagnostic(
-            "SANSA_RESOLVE_UNSUPPORTED_SELECTOR",
-            "Property execution is not implemented",
-            DiagnosticPhase::Policy,
-        ));
-    }
-
     if policy == QueryPolicy::General {
         return Ok(());
     }
