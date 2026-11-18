@@ -101,7 +101,7 @@
       "tools/playground/arithmetic.mjs": "c9ab1bf24661ad768598014187d4f6632f157273669baf04418a86ebb5a05a11",
       "tools/playground/arithmetic.html": "8959cdc1ea4a85e63c83b0031dc47e7fd03b9153de5388f9ab445344df1059dd",
       "tools/playground/clock-examples.mjs": "e7f27ddc647fff67aa7a137a46115026e724d62e075c691a398a73d2e62910a4",
-      "package.json": "b033b39c5b4e7ddc0c8243a877fcf46c0309344e459a8fabc0ed35f4636c88d6"
+      "package.json": "6937bdd08250627450fbd8a1be15a44ded6cb4c8f13562005a8f91540021986d"
     },
     "limits": [
       "Genuine frozen combined378 SUT executions/420 assertions; independently restricted Relations261/303 and Arithmetic116/116. Actual outputs feed chains, no semantic case opt-outs.",
@@ -111,7 +111,8 @@
       "Local Node24.22.2 evidence. Required Node20/22/24 hosted checks recorded separately after execution. Report fingerprints bind inputs, not proof of historical process identity by themselves.",
       "Browser worker runs the real source API without Buffer. Application input/result/timeout controls, preparation and rendering remain separate from semantic operation allowances; no whole-process memory sandbox.",
       "Descriptions follow current request text; exact bundle continuations preserve relative days, origin and approximation history. Symbols/diagnostics cannot feed the clock chain.",
-      "2026-11-18 merge integration: property Query changes from ce6c8fde239ff5fa28897c564f49d1cd544fad80 are retained. Clock engine, adapter, browser lane and selected frozen artifacts are unchanged; the combined shared-entry fingerprint is refreshed."
+      "2026-11-18 merge integration: property Query changes from ce6c8fde239ff5fa28897c564f49d1cd544fad80 are retained. Clock engine, adapter, browser lane and selected frozen artifacts are unchanged; the combined shared-entry fingerprint is refreshed.",
+      "Query metadata API integration: the package export adds @altopelago/sansa/query-metadata; clock implementation and frozen artifacts are unchanged. Refresh only the shared package.json fingerprint and rerun JavaScript regressions; no new frozen CTS execution is claimed."
     ],
     "integration_base_commit": "ce6c8fde239ff5fa28897c564f49d1cd544fad80"
   }
