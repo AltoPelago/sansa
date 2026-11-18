@@ -13,6 +13,10 @@ versions may still include breaking changes when the SANSA specifications move.
   CTS/capacity evidence and nine browser-worker playground examples with full
   bundle reuse. See `docs/aeonic-temporal-civil-clock.md` for scope and limits.
 
+- Add documented JavaScript/TypeScript `getQueryValueMetadata` and
+  `getQueryObjectFieldMetadata` presentation accessors, with detached frozen
+  descriptors for native query values and projection fields.
+
 - Revise the unpublished property candidate: `&tag` matches NodeLiteral
   containers only; `&headTag` matches NodeHead bindings only. Share the existing
   node facet, scope checks and inspection budget; keep child navigation explicit.

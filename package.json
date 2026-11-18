@@ -14,6 +14,10 @@
     "./parsing/selector-cursor": {
       "types": "./src/selector-cursor.d.ts",
       "import": "./src/selector-cursor.js"
+    },
+    "./query-metadata": {
+      "types": "./src/query-metadata.d.ts",
+      "import": "./src/query-metadata.js"
     }
   },
   "bin": {

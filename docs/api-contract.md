@@ -1547,3 +1547,35 @@ scope contract](child-identity-activation.md). Trusted/default activation, refer
 following, graph traversal, Instruction and mutation retain their guards. Public Rust `evaluate_expression` remains
 closed for mutation-precondition consumers; only Query entry points admit IDs.
 No public struct, session, codec or serialization format is added by this slice.
+
+## Query result metadata accessors (JavaScript/TypeScript)
+
+`getQueryValueMetadata(queryValue)` returns a detached, frozen native scalar
+metadata descriptor for a live scalar result of `evaluateQuery`, or `undefined`
+when no metadata is available. Binding Sets retain their public bindings and
+namespace metadata; this accessor does not resolve or materialize them.
+
+`getQueryObjectFieldMetadata(object)` accepts a materialized projection object
+(`queryValue.value`), including nested projection objects. It returns a detached,
+frozen record keyed by field name, whose descriptors are also frozen. Fields
+without native metadata are omitted; an object without metadata returns `{}`.
+These accessors are exported from `@altopelago/sansa/query-metadata` and declared
+in `src/query-metadata.d.ts`.
+
+Descriptors may contain `kind`, `category`, `semanticType`, `containerKind`,
+`nullReason`, `numericLexeme`, `radixBase`, and `radixScale`. Fields are optional;
+accessors expose available evaluator information without guessing a type from a
+JavaScript string. Preserve exact `numericLexeme` rather than converting it to a
+JavaScript number. An explicit null reason is independent of JavaScript `null`.
+
+```js
+import { getQueryValueMetadata, getQueryObjectFieldMetadata } from '@altopelago/sansa/query-metadata';
+const scalarMetadata = getQueryValueMetadata(result.results[0].value);
+const fieldMetadata = getQueryObjectFieldMetadata(result.results[0].value.value);
+```
+
+Call these accessors before JSON transport. They do not restore metadata lost
+through JSON serialization, clone operations, or user-created replacements.
+Serialize the descriptors explicitly alongside values if a transport needs them.
+They do not mutate results, expose private storage, change Query semantics, or
+supply source provenance. Internal property names are not a public API.
