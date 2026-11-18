@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "target": "aeonic-temporal-civil-clock-cts-v1-snapshot-0.1",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "semantic_execution": true,
+  "capabilities": [
+    "relations"
+  ],
+  "excluded_unclaimed_capability_cases": 113,
+  "operation_cases": 69,
+  "chains": 0,
+  "law_groups": 1,
+  "sut_executions": 261,
+  "assertions": 303,
+  "manifest_sha256": "970e64f25239e8bb322b101c8f1ce5cf4195c3ab6c0f6c45610727f1a8035322",
+  "runner_sha256": "b5878131fb0c2c7b1d451ece72320e3feee7cbdc74df251f9106f9fa2aa94ebc",
+  "specification_source_sha256": "f7fbaf66f854a54564b25353d6eed8ae9d783ec026ecace8ea0a2768beb5e6c7",
+  "specification_schema_sha256": "448921db259532011d0aa866f68a3483a5911d540edb691a56331e86e3cd7b69",
+  "helper_hashes": {
+    "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+    "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+    "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489",
+    "runners/temporal_civil_datetime_checks.py": "16eb93eb4664751ede5222286e283e4b4c6c87e6a3bbaa706cff5c8ec00d326f",
+    "runners/temporal_civil_clock_checks.py": "c1e18e93775bb2c54910e05d02458f5d188b0b3195d7185e3a1cd251bbdd6953"
+  },
+  "resource_limits": {
+    "maxRequestBytes": 65536,
+    "maxRequestDepth": 32,
+    "maxTemporalCharacters": 1024,
+    "maxInputPieces": 512,
+    "maxIntermediatePieces": 4096,
+    "maxOutputPieces": 512,
+    "maxWork": 16384,
+    "maxFractionDigits": 256,
+    "maxRelativeDayDigits": 256,
+    "maxCountCharacters": 32,
+    "maxNumericCharacters": 4096,
+    "maxCoefficientDigits": 1024,
+    "maxExponentMagnitude": 1000000,
+    "maxWorkspaceDigits": 4096,
+    "maxOutputCharacters": 1024,
+    "maxResultBytes": 131072
+  },
+  "sut": "node scripts/cts-aeonic-temporal-civil-clock-adapter.mjs --capability-set relations",
+  "cwd": ".",
+  "failures": []
+}

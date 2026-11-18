@@ -19,7 +19,7 @@
     "report": "results/aeonic-comparison-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; other shared-runner fields are retained",
     "implementation_files_sha256": {
-      "src/index.js": "7f81425bb3ebaca69593738a56d90e6d98efa4cc302a11468c6c066f611a73c2",
+      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
       "src/aeonic-comparison.js": "4eb31b7f452b248c4ee189d99e880b73fe20c88ded2d77872f528a9331ae60db",
       "src/aeonic-exact-number.js": "aa81a848394e9bb1d55f8aa03d858e9376ea8783599a857683f3b26a93af7b13",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -27,7 +27,8 @@
     },
     "limits": [
       "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
-      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance."
+      "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance.",
+      "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release."
     ]
   }
 }

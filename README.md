@@ -45,6 +45,14 @@ operations playground. Explicit profile selection is required; this adds no
 Query/Rust integration, timezone resolution or package release.
 
 
+The standalone [civil-clock API](docs/aeonic-temporal-civil-clock.md) adds
+`evaluateAeonicCivilClock` and `evaluateAeonicCivilClockText` against frozen
+snapshot 0.1. Signed relative days and exact point/interval sets survive midnight
+and chaining, with symbolic relations and approximation history. Try **Civil
+clocks** in the value operations playground. Explicit profile/clock selectors
+control stepping and materialization; no date or timezone is supplied.
+
+
 ## Current Scope
 
 - root selectors: `$`, `?`

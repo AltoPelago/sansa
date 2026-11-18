@@ -7,6 +7,12 @@ versions may still include breaking changes when the SANSA specifications move.
 
 ## Unreleased
 
+- Standalone Aeonic civil-clock snapshot 0.1 APIs in JavaScript/TypeScript:
+  exact relative-day point/interval sets, finite-decimal clock shifts,
+  complete-form stepping/materialization and symbolic relations. Adds frozen
+  CTS/capacity evidence and nine browser-worker playground examples with full
+  bundle reuse. See `docs/aeonic-temporal-civil-clock.md` for scope and limits.
+
 - Revise the unpublished property candidate: `&tag` matches NodeLiteral
   containers only; `&headTag` matches NodeHead bindings only. Share the existing
   node facet, scope checks and inspection budget; keep child navigation explicit.
