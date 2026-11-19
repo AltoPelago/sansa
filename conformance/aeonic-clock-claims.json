@@ -85,8 +85,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
-      "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
+      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-clock.js": "3bbc0cbcbb5251939e144859a9d567c3e89571d3291dc24a3034daf1057f6f49",
       "src/aeonic-temporal-civil-clock.d.ts": "59020c5124a25b8ef79b3c79109fc88207c7c01062183c351f49bb6b2d2f5f05",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -95,13 +95,13 @@
       "scripts/cts-aeonic-temporal-civil-clock-adapter.mjs": "c717e133cb4093da99dc76a5926417ac53afe319279568440373a92cff4692ed",
       "scripts/cts-aeonic-clock.mjs": "f2000f951af57f72d2467eaf950e9dd24a7e3b64ec71f8bf0b70252ba3a7109c",
       "scripts/calibrate-aeonic-clock-capacity.py": "6b2929e7c9c026ad973ef3cebb3a114ecc0121a4f3402a34b83627abf8c5eb0b",
-      "tools/playground/arithmetic-model.mjs": "3d3195ca9276430bbfeeda4f55ce82f61e4588cd8c98cc529683621f35f061f5",
-      "tools/playground/arithmetic-evaluator.mjs": "bfb479fd1950b80757dfa9f01e73bd6bf1c6071ac5675681594e41b5a98acbb6",
+      "tools/playground/arithmetic-model.mjs": "edaf3d6f670de2597d2827cae452bd24ed904ab85839991cae82ca758735c3ec",
+      "tools/playground/arithmetic-evaluator.mjs": "4887248bbec6869b1d9d5e6462668ebc94e22afd5fa326b0ac8d4a5c57ffa669",
       "tools/playground/arithmetic-worker.mjs": "c4e9683c3202df9c9190b7fb1510c2faa3aa750fe94c7decbb320c0fe769abf4",
-      "tools/playground/arithmetic.mjs": "c9ab1bf24661ad768598014187d4f6632f157273669baf04418a86ebb5a05a11",
-      "tools/playground/arithmetic.html": "8959cdc1ea4a85e63c83b0031dc47e7fd03b9153de5388f9ab445344df1059dd",
+      "tools/playground/arithmetic.mjs": "476f2ea962e5e7dc32e1c397d93a25464b7b9ae182f59b176ec4792e0a179f83",
+      "tools/playground/arithmetic.html": "a9854d5493bf896a5625fd4992618c39e0137cecb198593b6f83e65a587c574e",
       "tools/playground/clock-examples.mjs": "e7f27ddc647fff67aa7a137a46115026e724d62e075c691a398a73d2e62910a4",
-      "package.json": "6937bdd08250627450fbd8a1be15a44ded6cb4c8f13562005a8f91540021986d"
+      "package.json": "79b093429b426b21843d1180347ed7234c250dd17f7ebdbe37928da632c8d6c1"
     },
     "limits": [
       "Genuine frozen combined378 SUT executions/420 assertions; independently restricted Relations261/303 and Arithmetic116/116. Actual outputs feed chains, no semantic case opt-outs.",
@@ -112,7 +112,8 @@
       "Browser worker runs the real source API without Buffer. Application input/result/timeout controls, preparation and rendering remain separate from semantic operation allowances; no whole-process memory sandbox.",
       "Descriptions follow current request text; exact bundle continuations preserve relative days, origin and approximation history. Symbols/diagnostics cannot feed the clock chain.",
       "2026-11-18 merge integration: property Query changes from ce6c8fde239ff5fa28897c564f49d1cd544fad80 are retained. Clock engine, adapter, browser lane and selected frozen artifacts are unchanged; the combined shared-entry fingerprint is refreshed.",
-      "Query metadata API integration: the package export adds @altopelago/sansa/query-metadata; clock implementation and frozen artifacts are unchanged. Refresh only the shared package.json fingerprint and rerun JavaScript regressions; no new frozen CTS execution is claimed."
+      "Query metadata API integration: the package export adds @altopelago/sansa/query-metadata; clock implementation and frozen artifacts are unchanged. Refresh only the shared package.json fingerprint and rerun JavaScript regressions; no new frozen CTS execution is claimed.",
+      "2026-11-20 anchoring addition refreshes only shared src/index.js, src/index.d.ts, tools/playground/arithmetic-model.mjs, tools/playground/arithmetic-evaluator.mjs, tools/playground/arithmetic.mjs, tools/playground/arithmetic.html, package.json fingerprints. Previous engines/adapters/defaults and historical reports remain byte-identical; full source regressions cover shared exports and playground. Complete anchoring evidence is separate in aeonic-anchor-claims.json."
     ],
     "integration_base_commit": "ce6c8fde239ff5fa28897c564f49d1cd544fad80"
   }

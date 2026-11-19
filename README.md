@@ -45,6 +45,12 @@ operations playground. Explicit profile selection is required; this adds no
 Query/Rust integration, timezone resolution or package release.
 
 
+The standalone [date-anchoring API](docs/aeonic-temporal-civil-anchor.md) adds
+`evaluateAeonicCivilAnchor` and `evaluateAeonicCivilAnchorText` against frozen
+anchoring snapshot 0.1. It translates signed clock day carry onto one exact date,
+returning a date-time bundle with both origins and histories preserved. The Value
+operations playground includes Date anchoring and explicit cross-lane continuation.
+
 The standalone [civil-clock API](docs/aeonic-temporal-civil-clock.md) adds
 `evaluateAeonicCivilClock` and `evaluateAeonicCivilClockText` against frozen
 snapshot 0.1. Signed relative days and exact point/interval sets survive midnight

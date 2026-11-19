@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS } from '@altopelago/sansa';
+test('anchoring claim pins current public source, complete frozen execution and separate native admission evidence', () => {
+  const claim = JSON.parse(readFileSync('conformance/aeonic-anchor-claims.json', 'utf8')), v = claim.verification;
+  assert.equal(claim.claims.length, 1); assert.equal(claim.claims[0].capability, 'Aeonic.Operations.Temporal.CivilAnchor');
+  assert.deepEqual(v.test_resource_limits, AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS);
+  for (const [path, hash] of Object.entries(v.implementation_files_sha256)) assert.equal(createHash('sha256').update(readFileSync(path)).digest('hex'), hash, path);
+  const report = JSON.parse(readFileSync('conformance/' + v.report, 'utf8'));
+  assert.equal(report.status, 'passed'); assert.equal(report.stable_conformance_claim, true);
+  assert.equal(report.semantic_execution, true); assert.equal(report.complete_passing_execution, true);
+  assert.equal(report.target_status, 'immutable-local'); assert.equal(report.target, claim.claims[0].snapshot_id);
+  assert.equal(report.sut_executions, 234); assert.equal(report.assertions, 234); assert.deepEqual(report.failures, []);
+  for (const [key, hash] of Object.entries(v.artifact_sha256)) assert.equal(report[key], hash, key);
+  assert.deepEqual(report.helper_hashes, v.helper_sha256); assert.deepEqual(report.resource_limits, v.test_resource_limits);
+  const capacity = JSON.parse(readFileSync('conformance/' + v.capacity_report, 'utf8'));
+  assert.equal(capacity.status, 'passed'); assert.equal(capacity.checks, 26); assert.equal(capacity.stable_conformance_claim, false);
+  assert.equal(capacity.calibrator_sha256, createHash('sha256').update(readFileSync('scripts/calibrate-aeonic-anchor-capacity.py')).digest('hex'));
+  assert.deepEqual(capacity.defaults, v.test_resource_limits);
+  assert.deepEqual(capacity.covered_dimensions, Object.keys(v.test_resource_limits).sort());
+});

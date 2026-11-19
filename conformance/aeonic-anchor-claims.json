@@ -1,0 +1,104 @@
+{
+  "claim_format": "aeonite.cts-claims.v1",
+  "cts_protocol": "cts.protocol.v1",
+  "implementation": "@altopelago/sansa JavaScript unreleased working source",
+  "claims": [
+    {
+      "surface": "aeonic-temporal-civil-anchor",
+      "snapshot_id": "aeonic-temporal-civil-anchor-cts-v1-snapshot-0.1",
+      "status": "experimental",
+      "capability": "Aeonic.Operations.Temporal.CivilAnchor",
+      "capability_set": "complete",
+      "command": "npm run cts:aeonic-anchor",
+      "notes": "Verified complete immutable snapshot0.1 capability; proposal lifecycle. Standalone unreleased JavaScript, explicit profile; no Query/Rust/timezone/WTC or release claim."
+    }
+  ],
+  "verification": {
+    "verified_on": "2026-11-20",
+    "node": "v24.22.2",
+    "source_base_commit": "52995f62b7e0322c1990f550440ec68645e7f4df",
+    "specification_commit": "1433b69315d8cdcb6ede9c7fbdb348f9ba80dab9",
+    "cts_commit": "4cdf710daaf7385e75f49b07097853aa8698339e",
+    "specification_snapshot_id": "aeonic-temporal-civil-anchor-specs-v1-snapshot-0.1",
+    "profile": "aeonic.operations.temporal.civil-anchor.v1",
+    "artifact_sha256": {
+      "manifest_sha256": "2512f3524c0bc0ba0dd561a769a7a4dc548c3c48fef72c4a945980193eca2b9b",
+      "runner_sha256": "e88c06a22cee9a475b55bc0f64cb3186016e4dfd7f48734cc9aabf74b6874752",
+      "specification_source_sha256": "dbb2a63e058a9efc99982af6875239163aac179da008a27a0f93b7b74cd769ab",
+      "specification_schema_sha256": "943c954fb1f6d1b936852b4bf26ff1b813e0009107a77bdbd022353041d0d25b"
+    },
+    "helper_sha256": {
+      "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+      "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+      "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489",
+      "runners/temporal_civil_anchor_checks.py": "199c083f1c7298f34c3dffa66ce61a6bbdfd3f2a9f2a6ac31730f5410fe4f4b1"
+    },
+    "test_resource_limits": {
+      "maxRequestBytes": 65536,
+      "maxRequestDepth": 32,
+      "maxTemporalCharacters": 1024,
+      "maxInputRanges": 128,
+      "maxInputPieces": 512,
+      "maxRelativeDayDigits": 256,
+      "maxFractionDigits": 256,
+      "maxWork": 16384,
+      "maxIntermediatePieces": 4096,
+      "maxOutputPieces": 512,
+      "maxResultBytes": 131072
+    },
+    "report": "results/aeonic-anchor-snapshot-0.1.json",
+    "capacity_report": "results/aeonic-anchor-capacity.json",
+    "calibrator_sha256": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8",
+    "report_normalization": "cwd recorded as .; actual verdicts, counts, limits and fingerprints unchanged",
+    "adapted_from": {
+      "repository": "AltoPelago/aeonic",
+      "commit": "4efb42be227c1b1cd458a53155cebd51ffcc0154",
+      "files_sha256": {
+        "src/temporal-civil-anchor.js": "9871cff38c9c403e7fcaa7318e177b782263191179a91b7af18bfd4a5fac211e",
+        "src/json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+        "src/rational-json.js": "d0d094c3e4df3992f996cf3452879c8c342a10368e064109d6e4a7b86b6c909a",
+        "scripts/temporal-civil-anchor-cts-adapter.mjs": "cc7fefcb8ab0e19a2a34138221b70922cad8aee9812df4fa5ab3f4441a2deafd",
+        "scripts/calibrate-temporal-civil-anchor-capacity.py": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8"
+      },
+      "adaptations": [
+        "Local helper imports, SANSA public names and MIT provenance header.",
+        "Bounded UTF-8 counting replaces Buffer.byteLength for browser workers, retaining exact admission verdicts.",
+        "Existing strict JSON/raw-number helpers reused. Complete anchoring capability, no semantic opt-outs."
+      ]
+    },
+    "implementation_files_sha256": {
+      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
+      "src/aeonic-temporal-civil-anchor.js": "13a0b13ddf5947fbdfce81a2068aa10b1bbcceac37e183916fe7c6179fd24688",
+      "src/aeonic-temporal-civil-anchor.d.ts": "6ff7c6a74b7f547508e26128804de73530f49bc4cb3896f20f9bc47355f943bb",
+      "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
+      "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
+      "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
+      "scripts/cts-aeonic-temporal-civil-anchor-adapter.mjs": "21b313b48e38bb5b0d164175eed4862a743a266d8a2f9657720c9aaf5548e44c",
+      "scripts/cts-aeonic-anchor.mjs": "d51f2e2f0ed0b6e4ee354349be93a1031a5174a5823c5cb6b369f7952633cb32",
+      "scripts/calibrate-aeonic-anchor-capacity.py": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8",
+      "tools/playground/arithmetic-model.mjs": "edaf3d6f670de2597d2827cae452bd24ed904ab85839991cae82ca758735c3ec",
+      "tools/playground/arithmetic-evaluator.mjs": "4887248bbec6869b1d9d5e6462668ebc94e22afd5fa326b0ac8d4a5c57ffa669",
+      "tools/playground/arithmetic-worker.mjs": "c4e9683c3202df9c9190b7fb1510c2faa3aa750fe94c7decbb320c0fe769abf4",
+      "tools/playground/arithmetic.mjs": "476f2ea962e5e7dc32e1c397d93a25464b7b9ae182f59b176ec4792e0a179f83",
+      "tools/playground/arithmetic.html": "a9854d5493bf896a5625fd4992618c39e0137cecb198593b6f83e65a587c574e",
+      "tools/playground/anchor-examples.mjs": "57ad2b7076ef7732fa10fb09aa95e899e1d9034ff3fde2ec7073da92c9715fbc",
+      "package.json": "79b093429b426b21843d1180347ed7234c250dd17f7ebdbe37928da632c8d6c1"
+    },
+    "limits": [
+      "All234 frozen mandatory cases execute against the actual SANSA adapter, with complete values/metadata or reason/stage/pointer assertions. No fixture replay is used as implementation evidence.",
+      "26 native-default probes isolate11 dimensions using recorded companions; admitted controls may reach later semantic diagnostics. No Cartesian-product/arbitrary native-object/process/heap/disk/framing/browser-preparation/whole-chain guarantee.",
+      "Local Node24 verification; hosted Node20/22/24 evidence is separate. Snapshot0.1 remains proposal-stage; no package release.",
+      "Exact single-day date anchoring of unqualified ordinary civil clocks; timezone/WTC, leap/UTC and elapsed-time authority remain separate.",
+      "Public native/text APIs and TypeScript declarations support existing date/clock producer bundles and complete date-time continuation; Query predicates and Rust are unchanged.",
+      "Browser worker uses the actual source implementation without Buffer; preparation/rendering/timeouts and application budgets remain separate from operation allowances.",
+      "Prior Aeonic reviews do not independently review this SANSA adaptation. Full product regressions and browser verification are retained separately."
+    ],
+    "author_checks": {
+      "focused_api_driver_playground_tests": 11,
+      "typescript": "Strict NodeNext consumer contracts pass for anchoring and all existing numerical/temporal families.",
+      "browser": "Observed leap-day carry, clock/date to anchoring preparation, anchoring to date-time execution, and independent origins/clamping/approximation history in the actual source playground.",
+      "product_suite": "Normal configuration:789 passed/92 optional runtime skips. With built AEON Core/AES selected:879 passed, with2 mock-discovery controls excluded by name; both controls passed in the normal configuration. Together all881 tests executed successfully."
+    }
+  }
+}

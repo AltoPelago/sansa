@@ -1,9 +1,11 @@
+import { ANCHOR_EXAMPLES } from './anchor-examples.mjs';
 import { CLOCK_EXAMPLES } from './clock-examples.mjs';
 import { DATETIME_EXAMPLES } from './datetime-examples.mjs';
 import { TEMPORAL_EXAMPLES } from './temporal-examples.mjs';
 import { parseStrictJson, exceedsJsonDepth } from '../../src/aeonic-json.js';
 export const ARITHMETIC_LIMITS = Object.freeze({ requestBytes: 262144, outputPolicyBytes: 16384, policyDepth: 8, resultBytes: 1048576, timeoutMs: 4000 });
 export const ARITHMETIC_LANES = Object.freeze({
+  anchor: { title: 'Date anchoring', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-anchor.v1' },
   clock: { title: 'Civil clocks', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-clock.v1' },
   datetime: { title: 'Civil date-times', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-datetime.v1' },
   temporal: { title: 'Civil dates', snapshot: '0.1', profile: 'aeonic.operations.temporal.civil-date.v1' },
@@ -24,9 +26,9 @@ export function validateArithmeticInput(input, limits = ARITHMETIC_LIMITS) {
       || Object.keys(input).some(key => !['lane', 'requestText', 'outputPolicyText'].includes(key))
       || !Object.hasOwn(input, 'lane') || !Object.hasOwn(input, 'requestText')
       || typeof input.lane !== 'string' || !Object.hasOwn(ARITHMETIC_LANES, input.lane) || typeof input.requestText !== 'string') {
-    throw new TypeError('Expected a finite/rational/civil-date/civil-date-time/civil-clock capability and logical JSON request text.');
+    throw new TypeError('Expected a finite/rational/civil-date/civil-date-time/civil-clock/anchoring capability and logical JSON request text.');
   }
-  if (['temporal', 'datetime', 'clock'].includes(input.lane) && Object.hasOwn(input, 'outputPolicyText')) throw new TypeError('Temporal capabilities require explicit separate operations; numerical convenience policy is unavailable.');
+  if (['temporal', 'datetime', 'clock', 'anchor'].includes(input.lane) && Object.hasOwn(input, 'outputPolicyText')) throw new TypeError('Temporal capabilities require explicit separate operations; numerical convenience policy is unavailable.');
   const policy = Object.hasOwn(input, 'outputPolicyText') ? input.outputPolicyText : '';
   if (typeof policy !== 'string') throw new TypeError('Output policy must be JSON text.');
   if (policy.length > limits.outputPolicyBytes || utf8Bytes(policy, limits.outputPolicyBytes) > limits.outputPolicyBytes) {
@@ -58,7 +60,7 @@ export const ARITHMETIC_EXAMPLES = [
   { id: 'unrepresentable', lane: 'rational', title: 'A rational is not a Number literal', detail: 'Exact 1/3 cannot be materialized as a finite Number. Explicit quantization is a separate decision.', request: { operation: 'materialize', input: { value: exact('1', '0', '3'), context: context('rational'), policy: { family: 'decimal' } } } },
   { id: 'compact', lane: 'rational', title: 'A compact million-place exponent', detail: 'An already-on-grid value stays compact instead of expanding a million digits.', request: { operation: 'quantize', input: { value: authored('1e1000000'), context: context('rational'), policy: { ...grid, increment: { category: 'exactNumber', coefficient: '1', exponent: '0' } } } } },
 ];
-export const VALUE_EXAMPLES = [...ARITHMETIC_EXAMPLES, ...TEMPORAL_EXAMPLES, ...DATETIME_EXAMPLES, ...CLOCK_EXAMPLES];
+export const VALUE_EXAMPLES = [...ARITHMETIC_EXAMPLES, ...TEMPORAL_EXAMPLES, ...DATETIME_EXAMPLES, ...CLOCK_EXAMPLES, ...ANCHOR_EXAMPLES];
 export function continueArithmetic(value, lane, operation) {
   if (lane === 'clock') {
     if (!value?.temporal || !['civilClock', 'civilClockSet'].includes(value.temporal.category) || !['shiftClock', 'step', 'materialize'].includes(operation)) throw new TypeError('A clock continuation needs a complete civil-clock bundle.');
@@ -103,7 +105,7 @@ export function describeArithmeticInput(lane, requestText) {
     if (exceedsJsonDepth(requestText, 32)) return 'Review the request. The selected API validates it when run.';
     const request = parseStrictJson(requestText), input = request?.input, policy = input?.policy;
     const label = bundle => {
-      const v = ['temporal', 'datetime', 'clock'].includes(lane) ? bundle?.temporal ?? bundle?.number : bundle?.number;
+      const v = ['temporal', 'datetime', 'clock', 'anchor'].includes(lane) ? bundle?.temporal ?? bundle?.number : bundle?.number;
       if (['civilDate', 'civilDateTime', 'civilClock'].includes(v?.category) || v?.category === 'finiteNumber') return typeof v.value === 'string' ? v.value.slice(0, 60) : 'the operand';
       if (['civilDateTimeSet', 'civilClockSet'].includes(v?.category)) return 'the exact point/interval bundle';
       if (v?.category === 'civilDateSet') return 'the exact date-range bundle';
@@ -111,6 +113,7 @@ export function describeArithmeticInput(lane, requestText) {
     };
     if (!input || typeof request.operation !== 'string') return 'Review the request. The selected API validates it when run.';
     const op = request.operation, text = v => typeof v === 'string' ? v.slice(0, 60) : 'unspecified';
+    if (lane === 'anchor' && op === 'anchor') return 'Anchor ' + label(input.clock) + ' to ' + label(input.anchor) + '. Day 0 uses that date; preserve carry, exact boundaries and both histories.';
     if (lane === 'clock') {
       if (op === 'shiftClock') return 'Shift ' + label(input.value) + ' by ' + label(input.amount) + ' civil-coordinate seconds. Preserve relative days, exact fractions and history.';
       if (op === 'step') return 'Step ' + label(input.value) + ' by ' + text(policy?.count) + ' complete ' + text(policy?.clockForm) + ' forms, retaining relative days.';
@@ -166,4 +169,19 @@ export function clockFacts(result) {
     return [[prefix + 'clock origin', result.metadata.operandOrigin[side]], [prefix + 'approximation history', result.metadata.operandHistory[side]]];
   });
   return [['Clock origin', result.value.originClockForm], ['Approximation history', result.value.history]];
+}
+
+// Cross-lane actions prepare requests only. Each receiving API still validates
+// exact coverage and requires its own explicitly selected profile.
+export function prepareAnchoring(value) {
+  const category = value?.temporal?.category;
+  const anchor = { temporal: { category: 'civilDate', value: '2024-02-28' } };
+  const clock = { temporal: { category: 'civilClock', value: '09:30:00' } };
+  if (['civilDate', 'civilDateSet'].includes(category)) return { operation: 'anchor', input: { anchor: structuredClone(value), clock, context: context('anchor') } };
+  if (['civilClock', 'civilClockSet'].includes(category)) return { operation: 'anchor', input: { anchor, clock: structuredClone(value), context: context('anchor') } };
+  throw new TypeError('Anchoring needs a complete date or clock bundle.');
+}
+export function continueAnchoredDateTime(value) {
+  if (value?.temporal?.category !== 'civilDateTimeSet') throw new TypeError('Continue with a complete anchored date-time bundle.');
+  return continueArithmetic(value, 'datetime', 'shiftClock');
 }

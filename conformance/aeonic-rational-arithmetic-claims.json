@@ -43,8 +43,8 @@
       "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
     },
     "implementation_files_sha256": {
-      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
-      "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
+      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
       "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",
       "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
@@ -63,7 +63,8 @@
       "JavaScript source claim only; Rust, Query integration and package publication are separate. Local runtime is Node24.22.2; Node20/22/24 CI pins both authorities and TypeScript5.9.3.",
       "2026-11-17: shared public exports add the independent civil date-time API. Existing engine/binding/default bytes and historical suite reports retained; shared-entry fingerprints refreshed, suites rechecked separately.",
       "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance.",
-      "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release."
+      "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release.",
+      "2026-11-20 anchoring addition refreshes only shared src/index.js, src/index.d.ts fingerprints. Previous engines/adapters/defaults and historical reports remain byte-identical; full source regressions cover shared exports and playground. Complete anchoring evidence is separate in aeonic-anchor-claims.json."
     ]
   }
 }

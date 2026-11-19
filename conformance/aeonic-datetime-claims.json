@@ -83,8 +83,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "58ada2d6de0de13596ce207606003768da2e1cfae4270eceaf25f7598fbb33a2",
-      "src/index.d.ts": "cdbb1ac0bdeb3bedc3e5c814e9e59e906f36ba8853fe8ce0b54f33ea7b54ed5b",
+      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-datetime.js": "0c976a8375e5d170d2ca12cb9c9af2f89ee46aba6c7b9eab081f2d53e397d757",
       "src/aeonic-temporal-civil-datetime.d.ts": "6818ae1850044b44b29aa1dd3c4277db0f4db9062bc7f68637372d7000ea6e98",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -101,7 +101,8 @@
       "Standalone JavaScript only, explicit profile selection. Existing Query temporal APIs and numerical/civil-date defaults remain unchanged. No Rust port, timezone/WTC/elapsed-time authority or package release.",
       "Local Node24 evidence; Node20/22/24 hosted CI is recorded separately. Playground worker caps are application controls, not a general memory sandbox.",
       "2026-11-18: property Addressing adds headTag. Arithmetic/temporal engines, bindings, defaults and frozen reports remain byte-identical; all five frozen suites rechecked. Shared Addressing entry/type/helper fingerprints refreshed only; no new performance acceptance.",
-      "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release."
+      "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release.",
+      "2026-11-20 anchoring addition refreshes only shared src/index.js, src/index.d.ts fingerprints. Previous engines/adapters/defaults and historical reports remain byte-identical; full source regressions cover shared exports and playground. Complete anchoring evidence is separate in aeonic-anchor-claims.json."
     ]
   }
 }
