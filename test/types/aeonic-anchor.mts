@@ -18,3 +18,14 @@ evaluateAeonicCivilAnchor({ operation: 'anchor', input: { anchor, context: { pro
 evaluateAeonicCivilAnchor({ operation: 'anchor', input: { anchor: clock, clock, context: { profile } } });
 // @ts-expect-error Only the complete anchoring capability is supported.
 evaluateAeonicCivilAnchor(request, { capabilities: ['relations'] });
+const completeCapability = ['anchoring'] as const;
+evaluateAeonicCivilAnchor(request, { capabilities: completeCapability });
+evaluateAeonicCivilAnchorText('{}', { capabilities: completeCapability });
+// @ts-expect-error An empty selection is rejected by the native API.
+evaluateAeonicCivilAnchor(request, { capabilities: [] });
+// @ts-expect-error A duplicate selection is rejected by the native API.
+evaluateAeonicCivilAnchor(request, { capabilities: ['anchoring', 'anchoring'] });
+// @ts-expect-error An empty selection is rejected by the text API.
+evaluateAeonicCivilAnchorText('{}', { capabilities: [] });
+// @ts-expect-error A duplicate selection is rejected by the text API.
+evaluateAeonicCivilAnchorText('{}', { capabilities: ['anchoring', 'anchoring'] });

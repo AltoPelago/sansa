@@ -18,7 +18,7 @@ export interface AeonicCivilAnchorResourceLimits {
 export const AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS: Readonly<AeonicCivilAnchorResourceLimits>;
 export interface AeonicCivilAnchorOptions {
   readonly resourceLimits?: Partial<AeonicCivilAnchorResourceLimits>;
-  readonly capabilities?: readonly 'anchoring'[];
+  readonly capabilities?: readonly ['anchoring'];
 }
 export interface AeonicCivilAnchorProfile { readonly profile?: string }
 export interface AeonicCivilAnchorRequest {

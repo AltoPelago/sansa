@@ -71,7 +71,7 @@
       "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-anchor.js": "9982e379894b09ed3187291c66dd92d835fbbe44792eb8413f6c1f363f454f2c",
-      "src/aeonic-temporal-civil-anchor.d.ts": "6ff7c6a74b7f547508e26128804de73530f49bc4cb3896f20f9bc47355f943bb",
+      "src/aeonic-temporal-civil-anchor.d.ts": "85929993d1fc33b39f41c7263b73021f7bb71788c63979b5d205b75e2d585ba9",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
       "src/aeonic-rational-json.js": "b10cc189de58f3616a3e37c26d54d646c55d02017598b4d91617c46aa6759572",
       "src/aeonic-arithmetic-binding.js": "25cefa1725b011fd5c7a1d3131576a629956d50746d29b4da4a2a77a799ed56b",
@@ -116,6 +116,16 @@
       "native_admission": 26,
       "independent_fix_review": "Not performed by the implementation author; QA recheck remains separate.",
       "product_tests": 884
+    },
+    "typing_fix_verification": {
+      "finding": "QA-2026-0118",
+      "reviewed_head": "945eb1b25e392f43e96f70fa8c721521df444acf",
+      "change": "Optional capabilities uses a readonly singleton tuple matching both public runtime APIs.",
+      "test": "test/types/aeonic-anchor.mts",
+      "before": "All4 negative compile guards fail as unused:empty and duplicate capability lists were accepted for native and text calls.",
+      "after": "Strict NodeNext compilation rejects all4 invalid calls and accepts readonly singleton calls to both entry points.",
+      "scope": "Declaration, consumer compile assertions and declaration fingerprint only; previous runtime CTS/admission evidence retained unchanged.",
+      "prior_findings": "User-supplied QA independently verified QA-2026-0112/0113/0114 at945eb1b2 and mirrored source fixes at0d392cf8; see SANSA PR59 review comment7022870165. The new typing correction remains author verification pending QA recheck."
     }
   }
 }
