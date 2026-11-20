@@ -155,3 +155,9 @@ held; the 1.15x latency / 1.20x memory budgets are unchanged.
 
 Results label their actual representation kind. Use the recursive container/head
 examples to compare `&tag` and `&headTag`; add `.*` explicitly to visit head children.
+
+Date anchoring uses frozen snapshot 0.1. Select **Date anchoring** in Value
+operations, edit either authored or derived input in the request JSON, and run.
+Clock/date results offer explicit anchoring actions; anchored results offer
+**Shift as date-time**. Continuations preserve complete bundles and prepare an
+explicit receiving profile for review without automatically executing.

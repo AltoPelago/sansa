@@ -1,3 +1,4 @@
+export * from './aeonic-temporal-civil-anchor.js';
 export * from './aeonic-temporal-civil-clock.js';
 export * from './aeonic-temporal-civil-datetime.js';
 export * from './aeonic-temporal-civil-date.js';

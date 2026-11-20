@@ -1,0 +1,57 @@
+name: Aeonic civil anchoring operations
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot-0-1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    env:
+      AEONITE_CTS_ROOT: ${{ github.workspace }}/anchor-cts/cts
+      AEONITE_SPECS_ROOT: ${{ github.workspace }}/anchor-specs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aeonite-org/aeonite-cts
+          ref: 4cdf710daaf7385e75f49b07097853aa8698339e
+          path: anchor-cts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aeonite-org/aeonite-specs
+          ref: 1433b69315d8cdcb6ede9c7fbdb348f9ba80dab9
+          path: anchor-specs
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14'
+      - name: Install shared runner dependencies
+        run: python3 -m pip install -r anchor-cts/runners/requirements-aeonic-operations.txt
+      - name: Validate civil anchoring claims
+        run: node scripts/validate-cts-claims.mjs --claims conformance/aeonic-anchor-claims.json
+      - name: Verify complete civil anchoring snapshot 0.1
+        run: |
+          npm run cts:aeonic-anchor
+      - name: Independent default-capacity checks
+        run: npm run cts:aeonic-anchor:capacity
+      - name: Install locked development dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: API and ingress regressions
+        run: npm test
+      - name: TypeScript consumer contract
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sansa-types" --ignore-scripts --no-audit --no-fund typescript@5.9.3
+          node "$RUNNER_TEMP/sansa-types/node_modules/typescript/bin/tsc" --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext test/types/aeonic-anchor.mts test/types/aeonic-clock.mts test/types/aeonic-datetime.mts test/types/aeonic-temporal.mts test/types/aeonic-rational-arithmetic.mts test/types/aeonic-arithmetic.mts

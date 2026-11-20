@@ -1,5 +1,5 @@
 import { ARITHMETIC_LANES, VALUE_EXAMPLES, ARITHMETIC_LIMITS,
-  validateArithmeticInput, continueArithmetic, arithmeticDisplay, temporalDisplay, dateTimeDisplay, dateTimeFacts, clockDisplay, clockFacts, describeArithmeticInput } from './arithmetic-model.mjs';
+  validateArithmeticInput, continueArithmetic, prepareAnchoring, continueAnchoredDateTime, arithmeticDisplay, temporalDisplay, dateTimeDisplay, dateTimeFacts, clockDisplay, clockFacts, describeArithmeticInput } from './arithmetic-model.mjs';
 const $ = id => document.getElementById(id);
 const state = { worker: null, timer: null, value: null };
 const element = (tag, text) => { const item = document.createElement(tag); item.textContent = text; return item; };
@@ -13,7 +13,7 @@ function clear(message = 'Inputs changed. Run the operation again.') {
   $('response').textContent = ''; $('result').replaceChildren(); $('result-state').textContent = message;
 }
 function controls() {
-  const temporal = ['temporal', 'datetime', 'clock'].includes($('lane').value);
+  const temporal = ['temporal', 'datetime', 'clock', 'anchor'].includes($('lane').value);
   if (temporal) $('result-mode').value = 'exact';
   $('result-mode-field').hidden = temporal;
   $('output-editor').hidden = $('result-mode').value !== 'combined';
@@ -21,8 +21,11 @@ function controls() {
   for (const button of document.querySelectorAll('[data-continue]')) {
     const op = button.dataset.continue;
     if (op === 'step') button.textContent = $('lane').value === 'clock' ? 'Step one hour' : 'Step one month';
-    button.hidden = temporal ? !($('lane').value === 'clock' ? ['shiftClock', 'step', 'materialize'] : ['shift', 'step', 'materialize', ...($('lane').value === 'datetime' ? ['shiftClock'] : [])]).includes(op) : !['multiply', 'materialize', ...($('lane').value === 'rational' ? ['quantize'] : [])].includes(op);
+    button.hidden = temporal ? !($('lane').value === 'anchor' ? [] : $('lane').value === 'clock' ? ['shiftClock', 'step', 'materialize'] : ['shift', 'step', 'materialize', ...($('lane').value === 'datetime' ? ['shiftClock'] : [])]).includes(op) : !['multiply', 'materialize', ...($('lane').value === 'rational' ? ['quantize'] : [])].includes(op);
   }
+  $('anchor-result').hidden = !['temporal', 'clock'].includes($('lane').value);
+  $('anchor-result').textContent = $('lane').value === 'clock' ? 'Anchor this clock' : 'Use as anchor date';
+  $('datetime-result').hidden = $('lane').value !== 'anchor';
   $('description').textContent = describeArithmeticInput($('lane').value, $('request').value);
 }
 function load(example) {
@@ -52,14 +55,14 @@ function render(result) {
     box.append(facts([...(result.step ? [['Failed step', result.step]] : []), ['Stage', String(result.context.stage)], ['Path', result.context.path ?? 'Operation root']]));
     return;
   }
-  const temporal = ['temporal', 'datetime', 'clock'].includes($('lane').value);
+  const temporal = ['temporal', 'datetime', 'clock', 'anchor'].includes($('lane').value);
   const symbol = result.value.category === 'symbol';
   state.value = symbol ? null : result.value;
-  const display = temporal ? ($('lane').value === 'clock' ? clockDisplay(result.value) : $('lane').value === 'datetime' ? dateTimeDisplay(result.value) : temporalDisplay(result.value)) : arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
+  const display = temporal ? ($('lane').value === 'clock' ? clockDisplay(result.value) : ['datetime', 'anchor'].includes($('lane').value) ? dateTimeDisplay(result.value) : temporalDisplay(result.value)) : arithmeticDisplay(result.value.number), number = element('p', display.length > 300 ? display.slice(0, 300) + '…' : display);
   number.className = 'number'; box.append(number);
-  const kind = element('p', temporal ? (symbol ? ($('lane').value === 'clock' ? 'Symbolic clock-set outcome' : 'Symbolic date-set outcome') : ($('lane').value === 'clock' ? 'Exact civil-clock bundle' : $('lane').value === 'datetime' ? 'Exact civil-date-time bundle' : 'Exact civil-date bundle')) : { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
+  const kind = element('p', temporal ? (symbol ? ($('lane').value === 'clock' ? 'Symbolic clock-set outcome' : 'Symbolic date-set outcome') : ($('lane').value === 'clock' ? 'Exact civil-clock bundle' : ['datetime', 'anchor'].includes($('lane').value) ? 'Exact civil-date-time bundle' : 'Exact civil-date bundle')) : { finiteNumber: 'Materialized AEON Number', exactNumber: 'Exact derived decimal', exactRational: 'Exact derived rational · no fraction literal' }[result.value.number.category]); kind.className = 'kind'; box.append(kind);
   const steps = result.metadata.steps;
-  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ...($('lane').value === 'clock' ? clockFacts(result) : $('lane').value === 'datetime' ? dateTimeFacts(result) : temporal ? [['Current clamping', result.metadata.clamping], ...(symbol ? [['Left history', result.metadata.operandHistory.left], ['Right history', result.metadata.operandHistory.right]] : [['Origin granularity', result.value.originGranularity], ['Clamping history', result.value.history]])] : [['Approximation history', result.value.history]])]));
+  box.append(facts([...(steps ? steps.map(step => [step.step, step.metadata.evaluation]) : [['Current operation', result.metadata.evaluation]]), ...($('lane').value === 'clock' ? clockFacts(result) : ['datetime', 'anchor'].includes($('lane').value) ? dateTimeFacts(result) : temporal ? [['Current clamping', result.metadata.clamping], ...(symbol ? [['Left history', result.metadata.operandHistory.left], ['Right history', result.metadata.operandHistory.right]] : [['Origin granularity', result.value.originGranularity], ['Clamping history', result.value.history]])] : [['Approximation history', result.value.history]])]));
   const details = document.createElement('details'); details.append(element('summary', steps ? 'Step policies & evaluation' : 'Effective policy'), element('pre', JSON.stringify(steps ?? result.metadata.effectivePolicy, null, 2))); box.append(details);
   $('continue').hidden = symbol;
 }
@@ -87,11 +90,21 @@ for (const id of ['request', 'output-policy', 'result-mode']) $(id).addEventList
 $('lane').addEventListener('change', () => load(VALUE_EXAMPLES.find(item => item.lane === $('lane').value)));
 $('run').addEventListener('click', run);
 $('cancel').addEventListener('click', () => { clear('Cancelled. No value retained.'); $('run-state').textContent = 'Cancelled'; });
+// Prepared requests stay compact so indentation cannot consume an API's
+// logical request allowance. Full bundles and explicit policies are retained.
 for (const button of document.querySelectorAll('[data-continue]')) button.addEventListener('click', () => {
   if (!state.value) return;
   const request = continueArithmetic(state.value, $('lane').value, button.dataset.continue);
-  clear('Continuation prepared. Review its explicit policy, then run.'); $('request').value = JSON.stringify(request, null, 2);
+  clear('Continuation prepared. Review its explicit policy, then run.'); $('request').value = JSON.stringify(request);
   $('result-mode').value = 'exact'; controls(); $('run-state').textContent = 'Ready · using returned bundle'; $('request').focus();
+});
+for (const [id, lane, prepare] of [['anchor-result', 'anchor', prepareAnchoring], ['datetime-result', 'datetime', continueAnchoredDateTime]]) $(id).addEventListener('click', () => {
+  if (!state.value) return;
+  const request = prepare(state.value);
+  load(VALUE_EXAMPLES.find(item => item.lane === lane));
+  $('request').value = JSON.stringify(request);
+  clear('Continuation prepared. Review the receiving profile and request, then run.');
+  controls(); $('run-state').textContent = 'Ready · using returned bundle'; $('request').focus();
 });
 document.addEventListener('keydown', event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); if (!state.worker) run(); } });
 load(VALUE_EXAMPLES.find(item => item.id === 'third'));
