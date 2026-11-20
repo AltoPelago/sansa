@@ -80,6 +80,19 @@ pub trait Namespace {
         None
     }
 
+    /// Select one positional child. The default preserves explicit-position
+    /// lookup followed by the existing ordinal fallback. Sparse source adapters
+    /// may override this lookup without inventing position metadata or changing
+    /// range semantics.
+    fn positional_child(&self, binding: &Self::Binding, index: usize) -> Option<Self::Binding> {
+        let children = self.children(binding);
+        children
+            .iter()
+            .find(|child| self.position(child) == Some(index))
+            .cloned()
+            .or_else(|| children.get(index).cloned())
+    }
+
     fn semantic_type(&self, _binding: &Self::Binding) -> Option<String> {
         None
     }
@@ -711,7 +724,7 @@ fn apply_selector<N: Namespace>(
         }
         Selector::Position { index } => Ok(bindings
             .iter()
-            .filter_map(|binding| select_position(namespace, binding, *index))
+            .filter_map(|binding| namespace.positional_child(binding, *index))
             .collect()),
         Selector::PositionRange { start, end } => {
             Ok(collect_bounded(bindings, options.max_bindings, |binding| {
@@ -759,19 +772,6 @@ fn apply_selector<N: Namespace>(
             .cloned()
             .collect()),
     }
-}
-
-fn select_position<N: Namespace>(
-    namespace: &N,
-    binding: &N::Binding,
-    index: usize,
-) -> Option<N::Binding> {
-    let children = namespace.children(binding);
-    children
-        .iter()
-        .find(|child| namespace.position(child) == Some(index))
-        .cloned()
-        .or_else(|| children.get(index).cloned())
 }
 
 fn select_position_range<N: Namespace>(
@@ -1228,5 +1228,80 @@ mod tests {
         assert!(glob_matches(r"a\?b", "a?b"));
         assert!(glob_matches(r"a\\b", r"a\b"));
         assert!(!glob_matches(r"a\*b", "axxb"));
+    }
+    struct SparsePositions {
+        explicit_only: bool,
+    }
+    impl Namespace for SparsePositions {
+        type Binding = usize;
+        fn root(&self) -> Option<usize> {
+            Some(0)
+        }
+        fn children(&self, binding: &usize) -> Vec<usize> {
+            match binding {
+                0 => vec![1, 2],
+                _ => vec![],
+            }
+        }
+        fn position(&self, binding: &usize) -> Option<usize> {
+            (*binding == 2).then_some(4)
+        }
+        fn positional_child(&self, binding: &usize, index: usize) -> Option<usize> {
+            let children = self.children(binding);
+            children
+                .iter()
+                .copied()
+                .find(|child| self.position(child) == Some(index))
+                .or_else(|| {
+                    if self.explicit_only {
+                        None
+                    } else {
+                        children.get(index).copied()
+                    }
+                })
+        }
+    }
+    #[test]
+    fn explicit_single_lookup_does_not_change_named_or_sparse_ranges() {
+        let namespace = SparsePositions {
+            explicit_only: true,
+        };
+        for (source, expected) in [
+            ("$[0]", vec![]),
+            ("$[4]", vec![2]),
+            ("$[1..]", vec![2]),
+            ("$[0..]", vec![1, 2]),
+            ("$[0..0]", vec![1]),
+        ] {
+            let result = resolve_address(source, &namespace, &ResolveOptions::default());
+            assert!(result.is_ok(), "{source}: {:?}", result.errors);
+            assert_eq!(result.bindings, expected, "{source}");
+        }
+    }
+    #[test]
+    fn default_single_lookup_retains_ordinal_fallback() {
+        struct DefaultPositions;
+        impl Namespace for DefaultPositions {
+            type Binding = usize;
+            fn root(&self) -> Option<usize> {
+                Some(0)
+            }
+            fn children(&self, binding: &usize) -> Vec<usize> {
+                if *binding == 0 { vec![1, 2] } else { vec![] }
+            }
+            fn position(&self, binding: &usize) -> Option<usize> {
+                (*binding == 2).then_some(4)
+            }
+        }
+        for (source, expected) in [
+            ("$[0]", vec![1]),
+            ("$[1]", vec![2]),
+            ("$[4]", vec![2]),
+            ("$[3]", vec![]),
+        ] {
+            let result = resolve_address(source, &DefaultPositions, &ResolveOptions::default());
+            assert!(result.is_ok());
+            assert_eq!(result.bindings, expected, "{source}");
+        }
     }
 }
