@@ -52,8 +52,8 @@ function configured(options) {
     if (!Object.hasOwn(AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS, k) || !Number.isSafeInteger(v) || v < 0) throw new TypeError('Invalid resource limit: ' + k);
   }
   const capabilities = Object.hasOwn(options, 'capabilities') ? options.capabilities : ['anchoring'];
-  if (!Array.isArray(capabilities) || !capabilities.length || capabilities.some(k => typeof k !== 'string' || k !== 'anchoring') || new Set(capabilities).size !== capabilities.length) throw new TypeError('Invalid trusted capabilities');
-  return { limits: { ...AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS, ...supplied }, available: new Set(capabilities.map(() => 'anchor')) };
+  if (!Array.isArray(capabilities) || capabilities.length !== 1 || !Object.hasOwn(capabilities, 0) || capabilities[0] !== 'anchoring') throw new TypeError('Invalid trusted capabilities');
+  return { limits: { ...AEONIC_TEMPORAL_CIVIL_ANCHOR_DEFAULT_RESOURCE_LIMITS, ...supplied }, available: new Set(['anchor']) };
 }
 
 // Pure civil calendar: no host Date, timezone or floating-point epoch conversion.
@@ -138,8 +138,12 @@ function fields(text, path, limits, authored = false) {
   const m = pattern.exec(text); if (!m) stop('invalid_operand', 4, path);
   const [_, hh, mm, ss, raw = ''] = m;
   if (raw.length > limits.maxFractionDigits) stop('resource_limit', 4, path);
-  const f = raw.replace(/0+$/u, '');
-  if (!authored && f !== raw) stop('invalid_operand', 4, path);
+  // Derived fractions must already be canonical. Authored trailing zeroes
+  // normalize in one backward pass, without repeated suffix regex searches.
+  if (!authored && raw.endsWith('0')) stop('invalid_operand', 4, path);
+  let end = raw.length;
+  if (authored) while (end > 0 && raw.charCodeAt(end - 1) === 48) end--;
+  const f = end === raw.length ? raw : raw.slice(0, end);
   if (Number(hh) > 23 || Number(mm ?? 0) > 59 || Number(ss ?? 0) > 59) stop('invalid_operand', 4, path);
   return { seconds: Number(hh) * 3600 + Number(mm ?? 0) * 60 + Number(ss ?? 0), f,
     clock: ss !== undefined ? 'second' : mm !== undefined ? 'minute' : 'hour' };

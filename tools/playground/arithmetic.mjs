@@ -90,17 +90,19 @@ for (const id of ['request', 'output-policy', 'result-mode']) $(id).addEventList
 $('lane').addEventListener('change', () => load(VALUE_EXAMPLES.find(item => item.lane === $('lane').value)));
 $('run').addEventListener('click', run);
 $('cancel').addEventListener('click', () => { clear('Cancelled. No value retained.'); $('run-state').textContent = 'Cancelled'; });
+// Prepared requests stay compact so indentation cannot consume an API's
+// logical request allowance. Full bundles and explicit policies are retained.
 for (const button of document.querySelectorAll('[data-continue]')) button.addEventListener('click', () => {
   if (!state.value) return;
   const request = continueArithmetic(state.value, $('lane').value, button.dataset.continue);
-  clear('Continuation prepared. Review its explicit policy, then run.'); $('request').value = JSON.stringify(request, null, 2);
+  clear('Continuation prepared. Review its explicit policy, then run.'); $('request').value = JSON.stringify(request);
   $('result-mode').value = 'exact'; controls(); $('run-state').textContent = 'Ready · using returned bundle'; $('request').focus();
 });
 for (const [id, lane, prepare] of [['anchor-result', 'anchor', prepareAnchoring], ['datetime-result', 'datetime', continueAnchoredDateTime]]) $(id).addEventListener('click', () => {
   if (!state.value) return;
   const request = prepare(state.value);
   load(VALUE_EXAMPLES.find(item => item.lane === lane));
-  $('request').value = JSON.stringify(request, null, 2);
+  $('request').value = JSON.stringify(request);
   clear('Continuation prepared. Review the receiving profile and request, then run.');
   controls(); $('run-state').textContent = 'Ready · using returned bundle'; $('request').focus();
 });
