@@ -1,5 +1,13 @@
 # SANSA Query Tool
 
+The CLI and legacy Query Workbench use their own namespace adapters. Those
+adapters do not supply the property facet: a valid `&key`, `&tag` or `&headTag`
+expression can parse, but evaluation returns
+`SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE`. This does not affect ordinary or
+previously admitted identity queries. Use the SDK-backed source playground or
+a capable SDK namespace for property evaluation; see the
+[provider/host matrix](property-selector-support.md).
+
 The package includes a standalone query tool for exercising SANSA.Query against
 AEON source, portable Telex AES, reader-only Film AES, or a host-neutral JSON
 namespace fixture:

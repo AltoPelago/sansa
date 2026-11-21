@@ -5,9 +5,11 @@ Date: 16 November 2026. Scope: first implementation slice of
 specs #58, SANSA #48 and CTS #72. Releases and deployment remain held.
 
 This is the historical Addressing-only checkpoint. The later
-[standalone Resolve checkpoint](property-resolve-implementation.md) supersedes its
-execution-closed statements only for explicitly capable standalone Resolve hosts.
-Query and all other consumer denials remain in place.
+[Resolve/Query guide](property-resolve-implementation.md) and
+[provider/host matrix](property-selector-support.md) supersede the execution-closed
+statements below for the explicitly admitted SDK, native Pytonic and portable
+AEOS entry points. The original snapshot, counts and pending checklist below
+retain their historical Addressing-only scope; they are not current support guidance.
 
 JavaScript and Rust Addressing now recognize exact `&key("...")` and
 `&tag("...")` suffixes, retain a `propertyFilter` AST variant and render canonical

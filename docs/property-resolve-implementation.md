@@ -1,13 +1,17 @@
 # Read-only property Resolve and Query implementation
 
-Date:16 November2026. Unreleased candidate; no profile promotion or release.
+Initial implementation: 16 November 2026. Support boundaries updated 22 November
+2026. Unreleased candidate; no profile promotion or release. See the
+[provider/host matrix](property-selector-support.md) for delivered owning APIs and
+intentional host denials.
 
 JavaScript/TypeScript and Rust execute `&key("...")`, `&tag("...")` and `&headTag("...")` only in
 standalone read-only Resolve and direct read-only Query with an explicitly capable namespace. Public types
 are `PropertyAccess`, `PropertyAccessContext` and checked `PropertyAccessFault`
 (TypeScript), or `property::PropertyAccess` and its context/scope/kind/error types
-(Rust). `Namespace.properties()` defaults to `None`. Existing adapters remain
-unchanged and unsupported for property inspection.
+(Rust). `Namespace.properties()` defaults to `None`. An adapter must explicitly
+implement the facet; bare or legacy adapters do not acquire support from metadata.
+The owning AEON SDK and pure-Python namespaces implement the documented facet.
 
 The adapter must prove authorized topology and direct-head ownership, without
 inferring authority from paths, display names, ordinary `tag` fields or cached
@@ -39,8 +43,9 @@ Earlier execution-closed standalone placeholders now test this approved opt-in
 contract. Prohibited consumers retain pre-traversal denials.
 
 `maxPropertyInspections` defaults to10000 and accepts finite integer numbers
-0..1000000. Rust enforces the same ceiling through `u32`; JSON/Python conversions
-remain owning-bridge work. Invalid limits fail before roots even without a
+0..1000000. Rust enforces the same ceiling through `u32`; existing native Pytonic
+and portable AEOS bridges validate their documented numeric inputs before that
+field. Pure Python has its own checked allowance conversion. Invalid limits fail before roots even without a
 predicate. Charge each predicate candidate before scope/metadata, including
 misses and hidden roots. NodeLiteral tag predicates additionally charge each
 yielded direct head before scope/ownership/kind/tag checks. Return the original
@@ -56,7 +61,7 @@ adapter streams existing identifiers without cloning the head vector during
 acquisition. Logical inspections do not bound all adapter work, old navigation,
 input preparation, elapsed time or allocation.
 
-Regression mirrors preserve exact prepared CTS fixture bytes:83 JavaScript
+The initial 16 November Resolve mirrors preserved prepared CTS fixture bytes:83 JavaScript
 Resolve vectors and67 selected Rust text vectors, asserting every present
 expected field/counter. Rust native types cannot encode JS getter/cycle ASTs or
 boolean/negative/fractional `u32` allowances; those16 vectors are not claimed by
@@ -83,10 +88,14 @@ mutable counters. The 15 byte-identical prepared Query vectors check every prese
 field and callback count in text and native AST forms, alongside local regressions.
 They are regression mirrors, not full CTS protocol/profile claims.
 
-Activation (including trusted), Graph, Instruction/Mutate/SO, AEOS selectors,
-Type Transpiler, structural/reference/event/storage consumers stay closed. Direct
-Query support does not admit Query-shaped mutation/precondition callers. Pure
-Python has no Query evaluator; Core/native/WASM literal APIs remain inert.
+Activation (including trusted), Graph, Instruction/Mutate/SO and structural/
+reference/event/storage consumers stay closed. Direct Query does not admit
+Query-shaped mutation/precondition callers. The separately implemented portable
+AEOS rule-selector profile is admitted only through its explicit AES/Telex APIs;
+legacy native-event validation and the LSP path remain closed. The Type Transpiler
+is deferred. Pure Python has no Query evaluator, while the existing native
+Pytonic `Document.query()` is admitted through the Rust SDK. Core/native/WASM
+literal APIs remain inert; WASM gains no Query API.
 
 Rust source porting includes new `ResolveOptions`/`Diagnostic` fields for clients
 using exhaustive struct literals, alongside the prior selector enum/QualifierTerm
