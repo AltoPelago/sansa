@@ -114,6 +114,13 @@ test('applies explicit same-base radix numeric semantics', () => {
   assert.equal(base16.ok, true);
   assert.equal(base16.value, true);
 
+  const custom = evaluateValueSemanticsOperation('equal', {
+    left: { category: 'radix', semanticType: 'Radix16', value: 'F' },
+    right: { category: 'radix', value: 'F' },
+  }, { valueSemantics: profile });
+  assert.equal(custom.ok, false);
+  assert.equal(custom.reason, 'radix_base_required');
+
   const ordering = evaluateValueSemanticsOperation('compare', {
     left: { category: 'radix', semanticType: 'radix[2]', value: '10.01' },
     right: { category: 'radix', radixBase: 2, value: '10.1' },

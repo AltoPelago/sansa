@@ -6688,7 +6688,7 @@ function normalizeRadixBase(value) {
 
 function radixBaseFromSemanticType(semanticType) {
   if (typeof semanticType !== 'string') return undefined;
-  const normalized = semanticType.trim().toLowerCase();
+  const normalized = semanticType.trim();
   if (normalized === 'decimal') return 10;
   const alias = /^radix(2|6|8|12|16)$/u.exec(normalized);
   if (alias !== null) return Number(alias[1]);

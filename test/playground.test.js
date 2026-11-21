@@ -94,6 +94,18 @@ test('website source composer keeps structural IDs on member, list and attribute
   assert.equal(rows.find(r => r.identity === 'unit1')?.identity, 'unit1');
 });
 
+test('source composer preserves custom Radix16 strings and reserved radix16 literals', () => {
+  const context = vm.createContext({window: {}, Map});
+  vm.runInContext(readFileSync(new URL('../tools/playground/aeon-source-composer.js', import.meta.url), 'utf8'), context);
+  context.input = {aes: [
+    {path: '$.custom', datatype: 'Radix16', value: {type: 'StringLiteral', value: 'BEEF'}},
+    {path: '$.reserved', datatype: 'radix16', value: {type: 'RadixLiteral', value: 'BEEF'}},
+  ]};
+  const rows = vm.runInContext('sourceRowsFromRuntimeResult(input)', context);
+  assert.equal(rows.find(row => row.path === '$.custom').type, 'StringLiteral');
+  assert.equal(rows.find(row => row.path === '$.reserved').type, 'RadixLiteral');
+});
+
 test('shipped playground examples load and have valid address and Query expressions', () => {
   const context = vm.createContext({window: {}, document: {querySelector: () => ({innerHTML: ''})}});
   vm.runInContext(readFileSync(new URL('../tools/playground/examples.mjs', import.meta.url), 'utf8'), context);

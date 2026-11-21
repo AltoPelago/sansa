@@ -46,13 +46,13 @@
     },
     {
       "surface": "sansa-instruction",
-      "snapshot_id": "sansa-instruction-cts-v1-snapshot-0.2",
+      "snapshot_id": "sansa-instruction-next-cts-v1-snapshot-0.1",
       "status": "experimental",
       "command": "npm run cts:instruction"
     },
     {
       "surface": "sansa-mutate",
-      "snapshot_id": "sansa-mutate-cts-v1-snapshot-0.1",
+      "snapshot_id": "sansa-mutate-next-cts-v1-snapshot-0.1",
       "status": "experimental",
       "command": "npm run cts:mutate"
     },
