@@ -133,9 +133,11 @@ return no partial results. Parser limit diagnostics retain limitKind too.
 **Property Query: current row** selects the row's tagged container using `.`.
 **Property Query: scope root** uses `?` to establish the row as a scope root,
 whose incoming key is hidden: the Query retains one candidate with an empty
-Binding Set. Direct read-only property Query is admitted; mutation, AEOS policies,
-structural references and stored-address activation retain their admission
-boundaries. The SANSA Composer accepts manually entered property suffixes through
+Binding Set. Direct read-only property Query is admitted. Portable AEOS validation
+has separate explicit owning APIs; this UI does not turn its other policy or
+mutation paths into that profile. Structural references and stored-address
+activation remain closed. The [support matrix](../../docs/property-selector-support.md)
+distinguishes this SDK-backed UI from the incapable legacy Query Workbench. The SANSA Composer accepts manually entered property suffixes through
 the real parser; automatic property suggestions are not supplied yet.
 
 Run the explicit cross-repository integration check after building AEON:

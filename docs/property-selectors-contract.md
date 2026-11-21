@@ -3,7 +3,9 @@
 Status: **unreleased candidate; core direct read-only Resolve and Query implemented**.
 JavaScript/TypeScript and Rust expose the optional facet. Owning AEON SDK namespaces
 supply authoritative metadata; pure Python remains Resolve-only because it has no
-Query evaluator. Native/WASM ports expose Core literals, not a new Resolve/Query API.
+Query evaluator. Core/WASM literal ports remain inert; existing native Pytonic
+Query is a separately delivered SDK consumer. No generic callback bridge or
+new WASM Query API is introduced.
 The `.d.ts`, `.rs` and `.pyi` siblings retain original review sketches; current
 exported types/modules and the [implementation checkpoint](property-resolve-implementation.md)
 describe delivered support and limits. No profile promotion or release.
@@ -105,17 +107,23 @@ and Rust Drop. An unvisited suffix is not validated after success. Rust iterator
 JavaScript/Python next failure. Cleanup failures also fail the invocation; host
 panic/abort behavior is not a portable checked-error guarantee.
 
-## Provider and consumer plan
+<a id="provider-and-consumer-plan"></a>
 
-| Provider | Implementation obligation, not delivered support |
+## Delivered providers and consumer admission
+
+| Provider | Delivered development support |
 | --- | --- |
-| JS/TypeScript SANSA + AEON SDK | Add the optional facet and validated read-only contexts. Back metadata with exposed authoritative topology, not `.name`, display paths or a cached container tag. |
-| Rust SANSA + SDK/AEOS | Add default-None `Namespace.properties`; implement the fallible streaming facet in owning adapters. Preserve opaque `Binding: Clone + Eq`; no owned-document or borrowed-string API migration is required. |
-| Pure Python AEON | Optional `properties` mapping follows the same camelCase callback/context keys and error domain. Resolve only until a separate Query implementation exists. |
-| Native/Python/WASM bridges | Preserve error/absent/scope/ownership distinctions and counters through actual existing entry points. No new native/WASM API is implied by these sketches. |
+| JavaScript/TypeScript and Rust SANSA | Addressing, standalone read-only Resolve and direct Query through an explicitly capable namespace; existing adapters do not opt in automatically |
+| AEON TypeScript/Rust SDK | Authoritative document property facets with validated scope/direct-head ownership and streaming inspection |
+| Pure Python AEON | Addressing and standalone Resolve through the optional `properties` mapping; no pure-Python Query evaluator |
+| Existing native Pytonic | `Document.query()` uses the Rust SDK facet and its bounded allowance/diagnostics; no generic Python callback bridge |
+| Core/native/WASM literal APIs | Existing inert parsing/representation/transport ports; no new standalone Resolve or WASM Query API |
+| Portable AEOS | Explicit portable AES/Telex rule-selector APIs under the separately implemented `aeos-properties-0.1` development profile |
 
-Candidate 0.2 intends Addressing, read-only Resolve and direct read-only Query.
-AEOS selector and Type Transpiler require separate integration admission. Activation
+The [provider/host matrix](property-selector-support.md) distinguishes these APIs
+from the incapable built-in CLI/workbench adapters and native-event LSP validator.
+Legacy native-event AEOS validation and structural AEOS paths remain closed.
+The AES Type Transpiler is deferred. Activation
 (including trusted), Graph, mutation/Instruction/SO, structural AEOS paths,
 references and event/storage paths stay closed. Query-shaped mutation entry points
 must deny properties before traversal; a generic Query parser/evaluator must not
@@ -137,8 +145,8 @@ change public capability manifests or claim CTS support just because this ABI ex
    measure the new work under an approved protocol. No inherited heap waiver.
 
 Local positions keep their separate group/candidate/buffer/cost gate. Official
-release, deployment and publication stay held. No tests here establish implemented
-property-selector conformance.
+release, deployment and publication stay held. This guide does not establish complete experimental-profile or stable
+conformance; selected runtime regressions and full release qualification are separate.
 
 Owning specification input: [`ec43f7996d3d44d86e1a7639bb26d98b4fb829c1`](https://github.com/aeonite-org/aeonite-specs/commit/ec43f7996d3d44d86e1a7639bb26d98b4fb829c1). This pins the proposal, not an adopted or published profile.
 

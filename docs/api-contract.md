@@ -29,11 +29,13 @@ npm run cts:instruction
 npm run cts:mutate
 ```
 
-## Unreleased property Addressing and standalone Resolve
+<a id="unreleased-property-addressing-and-standalone-resolve"></a>
+
+## Unreleased property Addressing, Resolve and direct Query
 
 JavaScript/TypeScript and Rust support property Addressing and opt-in standalone
-read-only Resolve through the optional authoritative property facet. Current
-exports include `PropertyAccess`, read-only `PropertyAccessContext`, checked
+read-only Resolve and direct read-only Query through the optional authoritative
+property facet. Current exports include `PropertyAccess`, read-only `PropertyAccessContext`, checked
 faults and `maxPropertyInspections` (default10000, maximum1000000). Hosts must
 prove authorized scope and direct-head ownership; ordinary names, paths and
 cached tags are not authority. Existing adapters do not opt in automatically.
@@ -44,11 +46,15 @@ support, private occurrence frames, diagnostics, accounting and Rust source-port
 considerations. The adjacent declaration sketches are historical API preparation
 artifacts, rather than the current exported declarations.
 
-Query properties and owning AEON SDK/AEOS/Python/native/WASM/provider integration
-remain pending. Activation, Graph, Instruction/Mutate/SO, references and structural
-paths retain their separate prohibitions. The capability manifest and released
-CTS claims remain unchanged; runtime regression mirrors do not establish the full
-149-case experimental property profile, provider or performance qualification.
+Owning AEON SDK namespaces supply the facet. Pure Python supports standalone
+Resolve; existing native Pytonic `Document.query()` is separately admitted.
+Core/native/WASM literal ports remain inert. Explicit portable AES/Telex AEOS
+selectors are admitted through their owning profile, while native-event AEOS and
+the LSP validator retain their denial. Built-in CLI/workbench adapters remain
+incapable. See the [delivered provider/host matrix](property-selector-support.md).
+Activation, Graph, Instruction/Mutate/SO, references and structural paths retain
+their prohibitions. Capability manifests and stable CTS claims are unchanged;
+regression mirrors do not establish full profile, platform or performance acceptance.
 
 ## Entry Points
 
@@ -867,7 +873,7 @@ Parent traversal, position ranges, expansion selectors, filters, and name patter
 { type: "namePattern", pattern }
 { type: "semanticTypeFilter", name }
 { type: "representationKindFilter", name }
-{ type: "propertyFilter", property: "key", value } // property may also be "tag"
+{ type: "propertyFilter", property: "key", value } // property may also be "tag" or "headTag"
 ```
 
 Selector names and patterns are decoded string values. Renderers choose the shortest unambiguous canonical form.
@@ -1526,7 +1532,16 @@ The supported [selector cursor subpath](selector-cursor.md) shares native gramma
 
 ## Experimental child identity candidate
 
-The implementation-local `sansa.resolve.child-identity.candidate.v1` metadata advertises JavaScript standalone parser/render/Resolve only. See [candidate contract](child-identity-candidate.md). It is not a new normative registry allocation, a released feature claim, or Rust/Python parity. Query, activation, AEOS rules, Instruction, mutation, SO, identity references and recursive extensions remain unadmitted.
+The implementation-local `sansa.resolve.child-identity.candidate.v1` metadata records the original JavaScript standalone parser/render/Resolve slice. See [candidate contract](child-identity-candidate.md). That metadata is not a complete delivered-provider matrix, a normative registry allocation or a release claim.
+
+Later direct read-only Query is documented in the [current package guide](../README.md).
+For AEOS child-identity rule selectors, including native-event validation, use the
+[owning AEOS child-identity guide](https://github.com/AltoPelago/aeon/blob/main/docs/aeos-child-identity-selectors.md).
+That selector-only integration retains the structural `path` restriction; it is
+distinct from the portable-only property-selector profile. These integrations do
+not change the original metadata or broaden the separate constrained activation
+policy. Instruction/Mutate/SO, identity references and recursive extensions remain
+outside this integration.
 
 Run the experimental candidates explicitly with `npm run cts:address:child-identity` and `npm run cts:resolve:child-identity`, setting `AEONITE_CTS_ROOT` to the owning CTS directory when needed. Default CTS commands retain their existing targets. The Resolve fixture adapter exposes an identity accessor only for `supportsIdentity: true` and verifies actual accessor-call counts; metadata fields alone do not grant capability.
 

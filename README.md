@@ -115,7 +115,7 @@ The Instruction and Mutate CTS lanes are experimental and are not included in `n
 Unreleased property selectors have opt-in read-only Resolve and direct Query support
 in the JavaScript/TypeScript and Rust cores. Hosts must implement the authoritative
 facet. Current-row `.&key("x")` retains its originating scope; explicit `?` starts
-a boundary at the row. Mutation and literal activation remain closed. See [implementation and limits](docs/property-resolve-implementation.md).
+a boundary at the row. Mutation and literal activation remain closed. See the [provider/host support matrix](docs/property-selector-support.md) and [implementation limits](docs/property-resolve-implementation.md).
 
 Run the website-derived playground directly against this checkout's SANSA source:
 
@@ -164,6 +164,11 @@ materialization and comparison. The hook receives the active value-semantics
 profile and must decline profiles it cannot implement. This lets retained
 binary document models compare native container handles without making their
 storage topology part of SANSA.Query.
+
+The CLI adapters do not expose the property facet: property expressions can parse,
+but evaluation returns `SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE`. Use a capable
+SDK namespace or the [source playground](#source-playground) for property evaluation.
+See the [host boundaries](docs/property-selector-support.md#hosts-are-separate-entry-points).
 
 For browser-based technical testing, run the Query Workbench:
 
