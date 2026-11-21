@@ -35,7 +35,7 @@
     "report": "results/aeonic-arithmetic-snapshot-0.1.json",
     "report_normalization": "cwd is recorded as .; normative verdict/hashes/counts unchanged",
     "implementation_files_sha256": {
-      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.js": "f14364b55ad7e83e10b7ac7af9dd10c58b05e4e438cb60b9e88547767475eefe",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-arithmetic.js": "65e4195ab6421a498157657d00452b459640a98e7e421a2b873282fd43a2ac9c",
       "src/aeonic-arithmetic.d.ts": "e03421a44d0f8164165bd37603b91809e0a5131d560d12054a78baa6963f4df6",
@@ -46,6 +46,7 @@
       "scripts/cts-aeonic-arithmetic.mjs": "d456c8652acd49316d1c5d44b573ab4d094c73e42417816002ff70babdb1a1d3"
     },
     "limits": [
+      "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "The CTS supplies explicit baseline and per-boundary companion settings; no Cartesian machine-capacity guarantee.",
       "Native graph hardening and optional work budgets are separate implementation evidence.",
       "Conformance applies to JavaScript source, not Rust or a package release.",

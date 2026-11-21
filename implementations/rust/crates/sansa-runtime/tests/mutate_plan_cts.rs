@@ -164,7 +164,7 @@ fn passes_every_experimental_target_validation_case() {
             )
         })
         .collect::<BTreeMap<_, _>>();
-    // The development target replaces two historical empty-key rejections.
+    // The development target replaces historical empty-key and radix16 rejections.
     // Keep the historical suite intact and take exclusions from its manifest.
     let manifest: JsonValue = serde_json::from_str(
         &fs::read_to_string(cts_root().join("sansa/v1/sansa-mutate-cts.v1.next.json"))
@@ -180,7 +180,7 @@ fn passes_every_experimental_target_validation_case() {
     let excluded = selected["exclude_tests"]
         .as_array()
         .expect("explicit exclusions");
-    assert_eq!(excluded.len(), 2);
+    assert_eq!(excluded.len(), 3);
     for id in excluded {
         assert!(
             suite["tests"]
@@ -197,7 +197,7 @@ fn passes_every_experimental_target_validation_case() {
         .filter(|test| test["input"]["mode"] == "plan" && test["input"].get("target").is_some())
         .filter(|test| !excluded.contains(&test["id"]))
         .collect::<Vec<_>>();
-    assert_eq!(cases.len(), 34, "{path:?}");
+    assert_eq!(cases.len(), 33, "{path:?}");
 
     let mut failures = Vec::new();
     for test in cases {
