@@ -74,7 +74,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.js": "f14364b55ad7e83e10b7ac7af9dd10c58b05e4e438cb60b9e88547767475eefe",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
@@ -88,6 +88,7 @@
       "src/property-resolve.js": "a36e5ab03bafe4f443f250ea5a28ec2ed3bfc28babd8f34bed5b42e167acaab8"
     },
     "limits": [
+      "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",
       "18independent default-capacity probes retain companion limits and do not promise a Cartesian product, heap/time/process bounds or whole-chain budgets.",
       "Logical JSON and text guarantees exclude arbitrary native accessors/proxies/container subclasses and eager key enumeration; full STDIO envelope/process/transport budgets are separate.",

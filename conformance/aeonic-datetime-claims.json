@@ -83,7 +83,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.js": "f14364b55ad7e83e10b7ac7af9dd10c58b05e4e438cb60b9e88547767475eefe",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-datetime.js": "0c976a8375e5d170d2ca12cb9c9af2f89ee46aba6c7b9eab081f2d53e397d757",
       "src/aeonic-temporal-civil-datetime.d.ts": "6818ae1850044b44b29aa1dd3c4277db0f4db9062bc7f68637372d7000ea6e98",
@@ -95,6 +95,7 @@
       "scripts/calibrate-aeonic-datetime-capacity.py": "16db1a8a4e763b658516230b0a4113e9b520dbb70fbdf7416530ddfd30a4f68f"
     },
     "limits": [
+      "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "Combined 355 SUT executions / 380 assertions; independently restricted Relations 229 / 254 and Arithmetic 124 / 124. Actual results feed chains; no semantic case opt-outs.",
       "32 native-default capacity probes isolate 15 dimensions with recorded companion limits. No Cartesian-product, process/heap, transport or whole-chain guarantee.",
       "Native logical JSON and text exclude arbitrary getters/proxies/custom subclasses and eager key enumeration costs. Outer framing is a separate host boundary.",

@@ -1183,7 +1183,7 @@ Current comparison policy:
 | --- | --- | --- | --- |
 | number and number | allowed | allowed | numeric comparison |
 | numeric subtype and numeric subtype | allowed | allowed | `int`, `uint`, and `float` datatype labels remain visible to semantic filters; comparison uses finite numeric values once exposed by the host |
-| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `radix2`/`radix6`/`radix8`/`radix12` as radix, `base64`/`embed`/`inline` as encoding, `kadot` as separator, and `obj`/`o`/`envelope` as object containers |
+| datatype aliases and their literal family | follows family | follows family | aliases remain visible to semantic filters: `n` as number, `bool` as Boolean, `trimtick`/`prose` as string, `radix2`/`radix6`/`radix8`/`radix12`/`radix16` as radix, `base64`/`embed`/`inline` as encoding, `kadot` as separator, and `obj`/`o`/`envelope` as object containers |
 | string and string | allowed | allowed | Unicode scalar-value ordering |
 | boolean and boolean | allowed | error | ordering emits `SANSA_QUERY_EVALUATE_INVALID_COMPARISON` |
 | toggle and toggle | allowed | error | exact token equality; `yes` does not equal `on` |
