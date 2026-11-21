@@ -43,7 +43,7 @@
       "commit": "64347f19181041f86135e958da5a16ecc4b60b57"
     },
     "implementation_files_sha256": {
-      "src/index.js": "23e4e47919f0b66b2bf48cbce29594fda12e821963b98f8f9599a9cb3817c807",
+      "src/index.js": "1cc8bfdab74bb59102022ed44fab804e8ff56dcfc67e1ea536bc37cddeb5cb7f",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-rational-arithmetic.js": "acacf42d666446b5a59fa2c92b15f1c34cf7c01a4bef6f8622a715ce44a1c914",
       "src/aeonic-rational-arithmetic.d.ts": "0d99a86a2f604cbcfcad2148e6de8ad755d8251a1e1b1e36503d946dd904d73a",
@@ -56,6 +56,8 @@
       "scripts/calibrate-aeonic-rational-capacity.py": "68601eace94f6d601c3ba569f80c1fc90480f7beff72ca071aa7a4c488a77551"
     },
     "limits": [
+      "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",
+      "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "Complete six-operation logical JSON capability; actual frozen run passes 514 executions/606 assertions. No per-operation semantic opt-outs.",
       "The CTS supplies explicit baseline and companion limits. Seventeen independent native default-capacity probes are separate evidence, not Cartesian or machine-time/memory guarantees.",
       "Native getters/proxies/custom subclasses, object-key enumeration, outer CTS transport and whole-chain budgets remain separate from logical JSON conformance.",

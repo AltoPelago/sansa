@@ -2306,7 +2306,7 @@ function validateAeonReservedDatatypeSurface(datatype, base, operationIndex) {
   const source = String(datatype).trim();
   const lowered = source.toLowerCase();
   const loweredBase = typeof base === 'string' ? base.toLowerCase() : base;
-  if (/^radix\d+$/.test(lowered) && !['radix2', 'radix6', 'radix8', 'radix12'].includes(lowered)) {
+  if (/^radix\d+$/.test(lowered) && !['radix2', 'radix6', 'radix8', 'radix12', 'radix16'].includes(lowered)) {
     return {
       ok: false,
       error: mutationTargetSurfaceError(
@@ -6688,9 +6688,9 @@ function normalizeRadixBase(value) {
 
 function radixBaseFromSemanticType(semanticType) {
   if (typeof semanticType !== 'string') return undefined;
-  const normalized = semanticType.trim().toLowerCase();
+  const normalized = semanticType.trim();
   if (normalized === 'decimal') return 10;
-  const alias = /^radix(2|6|8|12)$/u.exec(normalized);
+  const alias = /^radix(2|6|8|12|16)$/u.exec(normalized);
   if (alias !== null) return Number(alias[1]);
   const clarified = /^radix\[(\d+)\]$/u.exec(normalized);
   if (clarified === null) return undefined;

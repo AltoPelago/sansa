@@ -501,7 +501,7 @@ test('validates mutation plans against built-in target surfaces', () => {
     op: 'create',
     parent: '$.inventory',
     name: 'badRadixAlias',
-    datatype: 'radix16',
+    datatype: 'radix10',
     kind: 'radix',
     value: '10',
   }, namespace);
@@ -509,7 +509,7 @@ test('validates mutation plans against built-in target surfaces', () => {
   assert.equal(aeonUnsupportedRadixAliasResult.ok, false);
   assert.equal(aeonUnsupportedRadixAliasResult.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonUnsupportedRadixAliasResult.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonUnsupportedRadixAliasResult.errors[0].datatype, 'radix16');
+  assert.equal(aeonUnsupportedRadixAliasResult.errors[0].datatype, 'radix10');
 
   const aeonInvalidEncodingPayload = planOk({
     op: 'create',

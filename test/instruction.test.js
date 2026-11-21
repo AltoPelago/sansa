@@ -310,8 +310,8 @@ test('parses instruction value literal families', () => {
   assert.equal(radixMetadata.mutation.value.kind, 'radix');
   assert.equal(radixMetadata.mutation.value.value, '101');
 
-  const radixAlias = parseOk('create $.inventory.badRadixAlias with :radix16, %10');
-  assert.equal(radixAlias.mutation.value.datatype, 'radix16');
+  const radixAlias = parseOk('create $.inventory.badRadixAlias with :radix10, %10');
+  assert.equal(radixAlias.mutation.value.datatype, 'radix10');
   assert.equal(radixAlias.mutation.value.kind, 'radix');
   assert.equal(radixAlias.mutation.value.value, '10');
 
@@ -1141,12 +1141,15 @@ test('validates instruction plans against target surfaces after planning', () =>
   assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].targetFormat, 'aeon');
   assert.equal(aeonInvalidRadixDatatypeTarget.errors[0].datatype, 'radix[65]');
 
-  const aeonUnsupportedRadixAlias = planOk('create $.inventory.badRadixAlias with :radix16, %10', namespace);
+  const aeonRadix16 = planOk('create $.inventory.mask with :radix16, %BEEF', namespace);
+  assert.equal(validateMutationPlanTarget(aeonRadix16.plan, 'aeon').ok, true);
+
+  const aeonUnsupportedRadixAlias = planOk('create $.inventory.badRadixAlias with :radix10, %10', namespace);
   const aeonUnsupportedRadixAliasTarget = validateMutationPlanTarget(aeonUnsupportedRadixAlias.plan, 'aeon');
   assert.equal(aeonUnsupportedRadixAliasTarget.ok, false);
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].code, 'SANSA_MUTATE_TARGET_UNSUPPORTED_DATATYPE');
   assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].targetFormat, 'aeon');
-  assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].datatype, 'radix16');
+  assert.equal(aeonUnsupportedRadixAliasTarget.errors[0].datatype, 'radix10');
 
   const aeonQuotedSeparatorCompatible = planOk('create $.inventory.parts with :sep["|"], ^"hello world"|"this, [is] fine"', namespace);
   const aeonQuotedSeparatorTarget = validateMutationPlanTarget(aeonQuotedSeparatorCompatible.plan, 'aeon');

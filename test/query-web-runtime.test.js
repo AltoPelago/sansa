@@ -922,6 +922,26 @@ testAeonRuntime('query web runtime applies exact same-base radix numeric semanti
   assert.equal(result.results[0].binding.radixBase, 10);
 });
 
+testAeonRuntime('query web runtime requires base metadata for custom Radix16', async () => {
+  for (const datatype of ['radix16', 'Radix16']) {
+    const source = 'mask:' + datatype + ' = %F';
+    const result = await evaluateQueryForWorkbench({
+      sourceKind: 'aeon',
+      source,
+      query: 'from $.mask where . == %F select .',
+      valueSemantics: 'radix-numeric',
+    });
+    if (datatype === 'radix16') {
+      assert.equal(result.ok, true, JSON.stringify(result.errors ?? []));
+      assert.equal(result.count, 1);
+      assert.equal(result.results[0].binding.radixBase, 16);
+    } else {
+      assert.equal(result.ok, false);
+      assert.match(result.errors[0].message, /requires a resolved base/u);
+    }
+  }
+});
+
 testAeonRuntime('query web runtime applies natural ASCII value semantics profiles', async () => {
   const source = readFileSync(new URL('../fixtures/query-inventory.aeon', import.meta.url), 'utf8');
   const query = 'from $.parts.*\norder by .value asc\nselect .value';

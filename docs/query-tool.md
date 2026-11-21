@@ -237,7 +237,7 @@ value, comparison uses the shared numeric value semantics; range, width,
 integer-only, unsigned, and precision checks remain profile or schema concerns.
 The same label-vs-family split applies to reserved aliases: `n` compares as a
 number, `bool` compares as a Boolean, `trimtick` and `prose` compare as strings,
-`radix2`, `radix6`, `radix8`, and `radix12` remain radix-family labels,
+`radix2`, `radix6`, `radix8`, `radix12`, and `radix16` remain radix-family labels,
 `base64`, `embed`, and `inline` compare as encoded payloads, and `kadot`
 compares as a separator payload when the host exposes those representation
 families. `hex` remains distinct from radix, including `radix[16]`; no numeric

@@ -354,7 +354,7 @@ fn validate_reserved_aeon_datatype(
     if let Some(alias) = lowered.strip_prefix("radix")
         && !alias.is_empty()
         && alias.bytes().all(|byte| byte.is_ascii_digit())
-        && !matches!(alias, "2" | "6" | "8" | "12")
+        && !matches!(alias, "2" | "6" | "8" | "12" | "16")
     {
         return Err(invalid_aeon_datatype(
             format!("Target 'aeon' does not define reserved radix alias '{datatype}'"),
@@ -1256,6 +1256,21 @@ mod tests {
         assert!(valid_reference_target("[\"target.key\"]"));
         assert!(valid_reference_target("\"target.key\".child"));
         assert!(!valid_reference_target("target.*"));
+    }
+
+    #[test]
+    fn aeon_target_accepts_radix16_metadata() {
+        validate_aeon_value(
+            &scalar(Value::Radix {
+                payload: "BEEF".into(),
+                semantic_type: "radix16".into(),
+            }),
+            None,
+            None,
+            "value",
+            0,
+        )
+        .expect("radix16 is representable");
     }
 
     #[test]
