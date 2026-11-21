@@ -1532,7 +1532,16 @@ The supported [selector cursor subpath](selector-cursor.md) shares native gramma
 
 ## Experimental child identity candidate
 
-The implementation-local `sansa.resolve.child-identity.candidate.v1` metadata records the original JavaScript standalone parser/render/Resolve slice. See [candidate contract](child-identity-candidate.md). That metadata is not a complete delivered-provider matrix, a normative registry allocation or a release claim. Later direct read-only Query and explicitly selected owning AEOS integrations are documented in the [current package guide](../README.md); they do not change this metadata or admit activation, Instruction/Mutate/SO, identity references or recursive extensions.
+The implementation-local `sansa.resolve.child-identity.candidate.v1` metadata records the original JavaScript standalone parser/render/Resolve slice. See [candidate contract](child-identity-candidate.md). That metadata is not a complete delivered-provider matrix, a normative registry allocation or a release claim.
+
+Later direct read-only Query is documented in the [current package guide](../README.md).
+For AEOS child-identity rule selectors, including native-event validation, use the
+[owning AEOS child-identity guide](https://github.com/AltoPelago/aeon/blob/main/docs/aeos-child-identity-selectors.md).
+That selector-only integration retains the structural `path` restriction; it is
+distinct from the portable-only property-selector profile. These integrations do
+not change the original metadata or broaden the separate constrained activation
+policy. Instruction/Mutate/SO, identity references and recursive extensions remain
+outside this integration.
 
 Run the experimental candidates explicitly with `npm run cts:address:child-identity` and `npm run cts:resolve:child-identity`, setting `AEONITE_CTS_ROOT` to the owning CTS directory when needed. Default CTS commands retain their existing targets. The Resolve fixture adapter exposes an identity accessor only for `supportsIdentity: true` and verifies actual accessor-call counts; metadata fields alone do not grant capability.
 
