@@ -5,7 +5,47 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
-## Unreleased
+## 0.15.0-rc.2 - 2026-11-23
+
+Release-candidate preparation; publication and stable acceptance are pending
+independent QA and the normal release gates. This version advances the unpublished
+rc.1 metadata; no existing immutable version is replaced.
+
+### Added and clarified
+
+- Read-only direct-child identity selection in Addressing/Resolve and explicitly
+  admitted Query/AEOS consumers, preserving original structural paths, scope,
+  ordering, ambiguity and whole-invocation inspection accounting.
+- Opt-in authoritative property Resolve and direct Query in capable JS/TS and
+  Rust namespaces. `&key` tests member keys, `&tag` selects node containers, and
+  `&headTag` selects direct node heads. Reduced or incapable providers fail closed.
+- Empty ordinary quoted members, exact Unicode identity/name-pattern handling,
+  source-linked playgrounds and property/identity presentation integration.
+- Shared selector cursor for constrained structural-path consumers. Parsing a
+  selector does not admit AEON references, mutation or other closed surfaces.
+
+### Migration and limits
+
+- See [0.15 migration and RC scope](docs/migration-0.15.0.md) for provider/host
+  support, one-call budgets, native API porting and the tag/headTag distinction.
+- Newline clarification/warnings and local first/last/fromFirst/fromLast
+  selectors are deferred to tentative AEON0.17.1; this RC does not implement them.
+- Existing experimental Aeonic, Transform, Instruction and Mutate APIs retain
+  their own documented status and capability boundaries. No claim is promoted
+  merely by advancing the package version; immutable CTS snapshots are unchanged.
+- The root package version is the only changed package-manifest field. Refresh
+  only its fingerprints in the anchoring/clock source-provenance records; frozen
+  CTS artifacts, helpers, historical reports and their claims remain unchanged.
+- Compatibility and target checks and1.15x latency/1.20x memory budgets remain
+  unchanged. The recorded identity V8 heap qualification stays deferred/unqualified;
+  this is not a new waiver for property costs or a platform-wide performance claim.
+
+## Earlier development checkpoints (historical)
+
+The following entries retain their original preparation status. Current admitted
+property/identity surfaces are described by the RC scope and owning support matrix;
+older statements that Query/provider integration was pending are historical.
+
 
 - Standalone Aeonic civil-clock snapshot 0.1 APIs in JavaScript/TypeScript:
   exact relative-day point/interval sets, finite-decimal clock shifts,

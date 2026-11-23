@@ -1,5 +1,18 @@
 # Releasing SANSA
 
+## Current0.15 preparation
+
+The0.15.0-rc.2 branch advances the unpublishedrc.1 metadata through the normal
+forward setter. The23November npm/crates.io observation found neither0.15 line
+published; refresh registry/tag availability before cutting. Source/packed checks,
+independent behavior/resource QA, owning review/main checks and exact registry
+consumers remain required. Newline/local-position work is deferred to tentative
+AEON0.17.1. See[release scope and migration](docs/migration-0.15.0.md).
+
+The current setter owns package/capability/Rust workspace metadata. Review the
+matching CTS implementation_version and Cargo.lock workspace version explicitly,
+without altering claim statuses/snapshot bytes or unrelated dependency pins.
+
 ## Release stages
 
 Publish `X.Y.Z-beta.N` while intended scope is landing. Publish `X.Y.Z-rc.N`

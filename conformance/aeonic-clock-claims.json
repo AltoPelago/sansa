@@ -101,7 +101,7 @@
       "tools/playground/arithmetic.mjs": "3fc9ae099d3290d3bdb554e09ad7d5eb80027be36caa1832a63520799db259fc",
       "tools/playground/arithmetic.html": "a9854d5493bf896a5625fd4992618c39e0137cecb198593b6f83e65a587c574e",
       "tools/playground/clock-examples.mjs": "e7f27ddc647fff67aa7a137a46115026e724d62e075c691a398a73d2e62910a4",
-      "package.json": "79b093429b426b21843d1180347ed7234c250dd17f7ebdbe37928da632c8d6c1"
+      "package.json": "d35e1c69b641a080699bb927e12d8aa217add37c88e1b3c8fc34fe3e05ce42ab"
     },
     "limits": [
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",
