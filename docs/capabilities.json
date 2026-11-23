@@ -1,6 +1,6 @@
 {
   "implementation": "@altopelago/sansa",
-  "version": "0.15.0-rc.1",
+  "version": "0.15.0-rc.2",
   "profiles": [
     "aeonic.operations.arithmetic.rational.v1",
     "aeonic.operations.arithmetic.exact.v1",

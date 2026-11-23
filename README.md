@@ -8,6 +8,17 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 
 CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/cts-claims.json).
 
+## 0.15 release-candidate preparation
+
+The0.15.0-rc.2 preparation includes read-only child identities, capable-provider
+property Resolve/direct Query, ordinary empty keys and Unicode fixes. Read the
+[migration and support boundaries](docs/migration-0.15.0.md) before upgrading.
+Newline warnings and local positional selectors are deferred to tentative
+AEON0.17.1. RC/stable publication requires independent QA, owning checks and
+exact registry/downstream acceptance; source metadata alone establishes none.
+Experimental APIs described below retain their separate documented status.
+
+
 The unreleased JavaScript [Aeonic comparison entry points](docs/aeonic-comparison.md)
 implement frozen comparison snapshot 0.1's baseline through
 `evaluateAeonicComparison` and `evaluateAeonicComparisonText`. They return
