@@ -1,15 +1,23 @@
 # Releasing SANSA
 
-## Current 0.15.0 stable preparation
+## Current 0.15.0 stable publication
 
-RC3 is published, registry verified and accepted with the selected downstream
-combination. Stable 0.15.0 uses the normal forward setter and preserves RC3
-runtime/API/default/target behavior. Independent stable-delta QA, owning
-approval/main checks and fresh stable registry artifacts/consumers remain
-required before dependents adopt it. Refresh registry/tag availability before
-cutting; never replace an immutable RC. Newline/local-position work stays
-deferred to tentative AEON 0.17.1. See the [release scope and migration](docs/migration-0.15.0.md)
-and [accepted RC3 combination](https://github.com/AltoPelago/roadmap/blob/main/aeon/work-in-progress/release-0.17.0-rc3-acceptance-2026-11-25.md).
+SANSA 0.15.0 is published from checked main
+`56381b7cfe57c188b43dcabbf74bcfec0144fa9e`, whose complete tree equals independently
+reviewed preparation `94790518a1229635ddc1d0081d2a1871b5e9e9c9`. Signed
+`v0.15.0` and `rust/v0.15.0` tags verify locally/on GitHub. The
+[npm publication](https://github.com/AltoPelago/sansa/actions/runs/45409410967)
+and [Rust publication/consumer](https://github.com/AltoPelago/sansa/actions/runs/45409307527)
+pass. Actual stable archive/source/metadata checks, official npm
+signature/attestation verification and fresh exact npm/Rust consumers pass.
+`latest` is 0.15.0; `next` retains 0.15.0-rc.3. Existing immutable RCs stay intact.
+
+This releases the selected package scope, not new experimental-profile or CTS
+claims. Coordinated AEON stable artifacts and downstream adoption are separate.
+Production deployment remains held; existing budgets and narrow identity
+qualification limits are unchanged. Newline/local positions stay deferred to
+tentative AEON 0.17.1. See [migration](docs/migration-0.15.0.md) and the
+[shared publication plan](https://github.com/AltoPelago/roadmap/blob/main/aeon/work-in-progress/release-0.17.0-publication.md).
 
 The current setter owns package/capability/Rust workspace metadata. Review the
 matching CTS implementation_version and Cargo.lock workspace version explicitly,

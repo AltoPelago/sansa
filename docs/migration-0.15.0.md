@@ -1,9 +1,12 @@
 # Migrating to SANSA0.15
 
-Status: 0.15.0 stable preparation, 25 November 2026. RC3 registry and selected
-downstream/combined acceptance are complete. The stable metadata delta still
-requires independent QA, owning checks/merge and actual stable publication plus
-exact installed consumers. No runtime/API/default/target change from RC3.
+Status: SANSA 0.15.0 published, 25 November 2026. Independent stable-delta QA,
+owning/exact-main checks, signed npm/Rust publication and actual stable
+artifact/provenance/clean-consumer checks pass. Runtime/API/default/target
+behavior is unchanged from accepted RC3. Coordinated AEON stable publication
+and downstream adoption remain separate; experimental profiles/claims are not
+promoted by the stable package version. Embedded preparation checkpoints retain
+their dated source-freeze scope; this current guide records publication status.
 
 ## Included addressing and evaluation behavior
 

@@ -5,6 +5,18 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
+## Unreleased
+
+### Documentation
+
+- Update current release/migration/provider guidance after verified 0.15.0
+  npm/Rust publication. Replace stale prepublication holds and "unreleased"
+  descriptions of shipped APIs while preserving experimental profile/CTS statuses,
+  consumer denials, resource qualifications and the deployment hold.
+- Embedded guides in the immutable 0.15.0 artifacts retain their source-freeze
+  preparation wording. Current repository guidance and GitHub release notes
+  record actual publication; no existing archive, version or tag is rewritten.
+
 ## 0.15.0 - 2026-11-25
 
 ### Stable release preparation
