@@ -1,7 +1,9 @@
 # Read-only property Resolve and Query implementation
 
-Initial implementation: 16 November 2026. Support boundaries updated 22 November
-2026. Unreleased candidate; no profile promotion or release. See the
+Initial implementation: 16 November 2026; provider boundaries audited 22 November.
+Publication status updated 25 November 2026: the described opt-in runtime APIs
+ship in SANSA 0.15.0. Package publication does not promote experimental profiles
+or CTS claims. Coordinated AEON stable delivery remains separate. See the
 [provider/host matrix](property-selector-support.md) for delivered owning APIs and
 intentional host denials.
 
@@ -99,7 +101,9 @@ literal APIs remain inert; WASM gains no Query API.
 
 Rust source porting includes new `ResolveOptions`/`Diagnostic` fields for clients
 using exhaustive struct literals, alongside the prior selector enum/QualifierTerm
-Drop considerations. No version or capability manifest changes. Original
-compatibility/target checks and1.15x latency/1.20x memory ceilings stay unchanged.
-New cost qualification, provider matrices and the positional gate remain open.
-Official releases and deployment stay held.
+Drop considerations. SANSA's stable package version advances; capability/profile
+and CTS claim statuses do not. Original compatibility/target checks and 1.15x
+latency/1.20x memory ceilings remain unchanged. New cost qualification, broader
+host/platform matrices and the existing narrow identity qualification limitation
+remain separate from runtime support. Newline/local positions stay deferred to
+tentative AEON 0.17.1. Production deployment remains held.

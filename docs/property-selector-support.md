@@ -1,8 +1,10 @@
 # Property selector support by provider and host
 
-Unreleased development support, checked against the delivered APIs on 22 November
-2026. Parsing a selector, exposing ordinary metadata, or coloring its text does
-not authorize evaluation. Capability manifests and stable CTS claims are unchanged.
+Delivered support in the published SANSA 0.15.0 package; publication status
+updated 25 November 2026 from the 22 November provider audit. Coordinated AEON
+stable delivery remains separate. Parsing a selector, exposing ordinary metadata
+or coloring its text does not authorize evaluation. Capability/profile statuses
+and stable CTS claims are unchanged by package publication.
 
 `&key("name")` tests an authorized incoming member/attribute key. Empty and Unicode
 keys remain literal; positions are not keys. `&tag("book")` returns a NodeLiteral
@@ -57,9 +59,11 @@ shares one private allowance across its clauses. Native Pytonic uses
 These names belong to different entry points. Logical inspections do not bound
 namespace construction, ancestry, old navigation, all adapter work, time or heap.
 
-Complete experimental-profile/cost/platform/registry and final artifact acceptance
-remain separate from implemented support. No new native/WASM rebuild, exhaustive
-conformance, performance acceptance or exact WASM reproducibility follows from
-this guide. Compatibility/target checks, defaults and the existing 1.15x latency /
-1.20x memory budgets are unchanged. Releases, deployment and stable promotion
-remain on hold. Positional selectors retain their separate resource/scope gate.
+SANSA 0.15.0 registry artifacts and clean consumers are verified. Coordinated
+AEON stable artifacts/adoption, broader host/platform qualification and experimental
+profile/CTS promotion remain separate. This support guide itself establishes no
+new native/WASM rebuild, exhaustive conformance, performance acceptance or exact
+WASM reproducibility. Compatibility/target checks, defaults and existing 1.15x
+latency / 1.20x memory budgets are unchanged; the recorded identity qualification
+limitation stays narrow. Deployment remains held. Newline/local positions stay
+deferred to tentative AEON 0.17.1 with their own resource/scope gate.

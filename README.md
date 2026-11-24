@@ -8,27 +8,28 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 
 CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/cts-claims.json).
 
-## 0.15 stable release preparation
+## 0.15 stable release
 
-The accepted 0.15.0-rc.3 scope advances to 0.15.0 metadata: read-only child
-identities, capable-provider property Resolve/direct Query, ordinary empty keys,
-Unicode fixes and bounded JavaScript wildcard expansion. RC3 registry consumers
-and selected downstream/combined acceptance are complete. Read the
+SANSA 0.15.0 is published on npm and as the Rust runtime crate, retaining the
+accepted RC3 scope: read-only child identities, capable-provider property
+Resolve/direct Query, ordinary empty keys, Unicode fixes and bounded JavaScript
+wildcard expansion. Exact stable registry artifacts, signatures/source provenance
+and clean consumers are verified. Read the
 [migration and support boundaries](docs/migration-0.15.0.md) before upgrading.
-Stable publication still requires independent delta QA, owning checks and exact
-stable registry consumers; source metadata alone establishes none. Newline
-warnings and local positions remain deferred to tentative AEON 0.17.1.
-Experimental APIs described below retain their separate documented status.
+Coordinated AEON stable publication and downstream adoption remain separate;
+select an explicitly compatible provider graph. Newline warnings/local positions
+remain deferred to tentative AEON 0.17.1. Experimental APIs and snapshot claims
+retain their separate status; a stable package does not promote those profiles.
 
 
-The unreleased JavaScript [Aeonic comparison entry points](docs/aeonic-comparison.md)
+The experimental JavaScript [Aeonic comparison entry points](docs/aeonic-comparison.md)
 implement frozen comparison snapshot 0.1's baseline through
 `evaluateAeonicComparison` and `evaluateAeonicComparisonText`. They return
 symbolic outcomes and staged fail-closed diagnostics, with a separate
 [comparison claim](conformance/aeonic-comparison-claims.json). Historical
 value-semantics profiles and Query behavior retain their existing contracts.
 
-The separate unreleased JavaScript [Aeonic arithmetic API](docs/aeonic-arithmetic.md)
+The separate experimental JavaScript [Aeonic arithmetic API](docs/aeonic-arithmetic.md)
 adds exact finite-number operations and explicit materialization against arithmetic
 snapshot 0.1. It returns exact value/history bundles and fail-closed diagnostics.
 
@@ -37,7 +38,7 @@ adds exact division, rational chaining, seven explicit quantization modes and
 snapshot 0.2 conformance. Finite/rational convenience helpers can calculate and
 materialize in one call with explicit policies and per-step metadata. Try the
 linked [arithmetic playground](tools/playground/arithmetic.html) from the source
-playground. These are unreleased JavaScript APIs; Query and Rust retain their
+playground. These are experimental JavaScript APIs; Query and Rust retain their
 own capability boundaries.
 
 The separately selected [civil-date API](docs/aeonic-temporal-civil-date.md) adds
@@ -45,7 +46,7 @@ The separately selected [civil-date API](docs/aeonic-temporal-civil-date.md) add
 0.1. Exact date-range bundles preserve origin and clamping history for chaining;
 Relations and Calendar are independently complete capabilities. The source
 playground includes twelve civil-date examples and explicit bundle continuations.
-These are unreleased JavaScript APIs; Query's temporal completion-set relations,
+These are experimental JavaScript APIs; Query's temporal completion-set relations,
 Rust and timezone/WTC resolution keep their separate boundaries.
 
 The standalone [civil date-time API](docs/aeonic-temporal-civil-datetime.md)
@@ -125,7 +126,7 @@ The Instruction and Mutate CTS lanes are experimental and are not included in `n
 
 ## Source playground
 
-Unreleased property selectors have opt-in read-only Resolve and direct Query support
+Property selectors have opt-in read-only Resolve and direct Query support
 in the JavaScript/TypeScript and Rust cores. Hosts must implement the authoritative
 facet. Current-row `.&key("x")` retains its originating scope; explicit `?` starts
 a boundary at the row. Mutation and literal activation remain closed. See the [provider/host support matrix](docs/property-selector-support.md) and [implementation limits](docs/property-resolve-implementation.md).
