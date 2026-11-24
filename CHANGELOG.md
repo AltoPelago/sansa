@@ -5,7 +5,12 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
-## Unreleased
+## 0.15.0-rc.3 - 2026-11-24
+
+Fresh candidate preparation following the merged bounded-expansion fix. RC2 has
+already been published; this version will not replace it. Independent preparation
+QA, normal owning approval/checks and actual new registry/consumer verification
+remain required before this candidate is accepted. Rust runtime code is unchanged.
 
 ### Fixed
 

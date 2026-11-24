@@ -1,0 +1,136 @@
+{
+  "status": "passed",
+  "checks": 18,
+  "sut": "node scripts/cts-aeonic-temporal-civil-date-adapter.mjs",
+  "cases": [
+    {
+      "name": "request-bytes-at-16384",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "request-bytes-over-16384",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "depth-32",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "depth-33",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "input-ranges-at-128",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "input-ranges-over-128",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "count-characters-at-32",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "count-characters-over-32",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "output-ranges-0524-12-31",
+      "status": "passed",
+      "companion_limits": {
+        "maxCalendarWork": 7000
+      }
+    },
+    {
+      "name": "output-ranges-0528-12-31",
+      "status": "passed",
+      "companion_limits": {
+        "maxCalendarWork": 7000
+      }
+    },
+    {
+      "name": "calendar-work-0342-04-30",
+      "status": "passed",
+      "companion_limits": {
+        "maxOutputRanges": 4096,
+        "maxResultBytes": 524288
+      }
+    },
+    {
+      "name": "calendar-work-0342-05-31",
+      "status": "passed",
+      "companion_limits": {
+        "maxOutputRanges": 4096,
+        "maxResultBytes": 524288
+      }
+    },
+    {
+      "name": "output-characters-at-10",
+      "status": "passed",
+      "companion_limits": {}
+    },
+    {
+      "name": "output-characters-below-10",
+      "status": "passed",
+      "companion_limits": {
+        "maxOutputCharacters": 9
+      }
+    },
+    {
+      "name": "native-result-bytes-below-16384",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputRanges": 383,
+        "maxOutputRanges": 383,
+        "maxCalendarWork": 383,
+        "maxRequestBytes": 65536
+      }
+    },
+    {
+      "name": "native-result-bytes-over-16384",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputRanges": 383,
+        "maxOutputRanges": 383,
+        "maxCalendarWork": 383,
+        "maxRequestBytes": 65536
+      }
+    },
+    {
+      "name": "exact-result-byte-boundary",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputRanges": 383,
+        "maxOutputRanges": 383,
+        "maxCalendarWork": 383,
+        "maxRequestBytes": 65536,
+        "maxResultBytes": 16350
+      }
+    },
+    {
+      "name": "exact-result-byte-boundary-minus-one",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputRanges": 383,
+        "maxOutputRanges": 383,
+        "maxCalendarWork": 383,
+        "maxRequestBytes": 65536,
+        "maxResultBytes": 16349
+      }
+    }
+  ],
+  "result_byte_probe": {
+    "last_reachable_below_default": 16350,
+    "next_reachable": 16392
+  },
+  "limits": "Companion limits isolate dimensions. Count32 admits syntax then rejects domain at stage6. Date spellings have at most10characters. No Cartesian-product, elapsed-time, heap or process-capacity guarantee."
+}
