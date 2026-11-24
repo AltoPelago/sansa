@@ -23,11 +23,11 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-18",
+    "verified_on": "2026-11-24",
     "node": "v24.22.2",
-    "source_base_commit": "da76789aff29025affe180196e79ba5749c9e0a2",
-    "specification_commit": "29b3a0b52d9709a9937d9b48f23eefcab0e35aea",
-    "cts_commit": "042b0e9c51680a95fda1dbba57bd8f014b3e628e",
+    "source_base_commit": "f115de1e8d18e260e8c6c546ad8ab62e3e99c9de",
+    "specification_commit": "a6948968e4e2741f2342249024b266ca6adbfeb7",
+    "cts_commit": "3918c78b6650446da59550c2da43c87510625831",
     "specification_snapshot_id": "aeonic-temporal-civil-clock-specs-v1-snapshot-0.1",
     "profile": "aeonic.operations.temporal.civil-clock.v1",
     "artifact_sha256": {
@@ -62,11 +62,11 @@
       "maxResultBytes": 131072
     },
     "reports": {
-      "all": "results/aeonic-clock-all-snapshot-0.1.json",
-      "relations": "results/aeonic-clock-relations-snapshot-0.1.json",
-      "arithmetic": "results/aeonic-clock-arithmetic-snapshot-0.1.json"
+      "all": "results/aeonic-clock-all-bounded-expansion-2026-11-24.json",
+      "relations": "results/aeonic-clock-relations-bounded-expansion-2026-11-24.json",
+      "arithmetic": "results/aeonic-clock-arithmetic-bounded-expansion-2026-11-24.json"
     },
-    "capacity_report": "results/aeonic-clock-capacity.json",
+    "capacity_report": "results/aeonic-clock-capacity-bounded-expansion-2026-11-24.json",
     "report_normalization": "cwd recorded as .; actual verdicts, values, metadata, counts, limits and fingerprints unchanged",
     "adapted_from": {
       "repository": "AltoPelago/aeonic",
@@ -85,7 +85,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "1cc8bfdab74bb59102022ed44fab804e8ff56dcfc67e1ea536bc37cddeb5cb7f",
+      "src/index.js": "8b5b80d1418677575bea3b9207d628d722db72019928c66eab32eb125bf1df3a",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-clock.js": "3bbc0cbcbb5251939e144859a9d567c3e89571d3291dc24a3034daf1057f6f49",
       "src/aeonic-temporal-civil-clock.d.ts": "59020c5124a25b8ef79b3c79109fc88207c7c01062183c351f49bb6b2d2f5f05",
