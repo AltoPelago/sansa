@@ -14,11 +14,11 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-20",
+    "verified_on": "2026-11-24",
     "node": "v24.22.2",
-    "source_base_commit": "52995f62b7e0322c1990f550440ec68645e7f4df",
-    "specification_commit": "1433b69315d8cdcb6ede9c7fbdb348f9ba80dab9",
-    "cts_commit": "4cdf710daaf7385e75f49b07097853aa8698339e",
+    "source_base_commit": "f115de1e8d18e260e8c6c546ad8ab62e3e99c9de",
+    "specification_commit": "a6948968e4e2741f2342249024b266ca6adbfeb7",
+    "cts_commit": "3918c78b6650446da59550c2da43c87510625831",
     "specification_snapshot_id": "aeonic-temporal-civil-anchor-specs-v1-snapshot-0.1",
     "profile": "aeonic.operations.temporal.civil-anchor.v1",
     "artifact_sha256": {
@@ -46,8 +46,8 @@
       "maxOutputPieces": 512,
       "maxResultBytes": 131072
     },
-    "report": "results/aeonic-anchor-snapshot-0.1.json",
-    "capacity_report": "results/aeonic-anchor-capacity.json",
+    "report": "results/aeonic-anchor-bounded-expansion-2026-11-24.json",
+    "capacity_report": "results/aeonic-anchor-capacity-bounded-expansion-2026-11-24.json",
     "calibrator_sha256": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8",
     "report_normalization": "cwd recorded as .; actual verdicts, counts, limits and fingerprints unchanged",
     "adapted_from": {
@@ -68,7 +68,7 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "1cc8bfdab74bb59102022ed44fab804e8ff56dcfc67e1ea536bc37cddeb5cb7f",
+      "src/index.js": "8b5b80d1418677575bea3b9207d628d722db72019928c66eab32eb125bf1df3a",
       "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
       "src/aeonic-temporal-civil-anchor.js": "9982e379894b09ed3187291c66dd92d835fbbe44792eb8413f6c1f363f454f2c",
       "src/aeonic-temporal-civil-anchor.d.ts": "85929993d1fc33b39f41c7263b73021f7bb71788c63979b5d205b75e2d585ba9",

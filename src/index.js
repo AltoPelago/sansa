@@ -7185,7 +7185,7 @@ function applyResolveSelector(selector, bindings, namespace, selectorIndex, poli
     case 'parent':
       return selectParents(namespace, bindings, selectorIndex, policy);
     case 'directExpansion':
-      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => getChildren(namespace, binding), policy.maxBindings) };
+      return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateChildren(namespace, binding), policy.maxBindings) };
     case 'descendantExpansion':
       return { ok: true, bindings: collectSelectedBindings(bindings, (binding) => iterateDescendants(namespace, binding), policy.maxBindings) };
     case 'namePattern': {
@@ -7399,13 +7399,37 @@ function getDescendants(namespace, binding) {
   return Array.from(iterateDescendants(namespace, binding));
 }
 
+function* iterateChildren(namespace, binding) {
+  if (typeof namespace.children === 'function') {
+    yield* namespace.children(binding) ?? [];
+  } else if (Array.isArray(binding.children)) {
+    yield* binding.children;
+  }
+}
+
 function* iterateDescendants(namespace, binding) {
-  const stack = [...getChildren(namespace, binding)].reverse();
-  while (stack.length > 0) {
-    const child = stack.pop();
-    yield child;
-    const children = getChildren(namespace, child);
-    for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
+  const stack = [iterateChildren(namespace, binding)];
+  try {
+    while (stack.length > 0) {
+      const next = stack[stack.length - 1].next();
+      if (next.done) {
+        stack.pop();
+      } else {
+        yield next.value;
+        stack.push(iterateChildren(namespace, next.value));
+      }
+    }
+  } finally {
+    let failed = false;
+    let failure;
+    while (stack.length > 0) {
+      try {
+        stack.pop().return();
+      } catch (error) {
+        if (!failed) { failed = true; failure = error; }
+      }
+    }
+    if (failed) throw failure;
   }
 }
 

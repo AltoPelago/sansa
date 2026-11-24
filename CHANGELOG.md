@@ -5,6 +5,16 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
+## Unreleased
+
+### Fixed
+
+- Direct and recursive Resolve expansion consume child iterators incrementally
+  under `maxBindings`, including when called by Query. Stop at the first
+  over-limit candidate without partial results, preserve depth-first order and
+  repeated binding occurrences, and close active iterators on early termination.
+  This does not bound namespace construction or arbitrary adapter callback work.
+
 ## 0.15.0-rc.2 - 2026-11-23
 
 Release-candidate preparation; publication and stable acceptance are pending
