@@ -5,6 +5,24 @@ All notable changes to this package are documented here.
 This project follows Semantic Versioning while it remains pre-1.0. Minor
 versions may still include breaking changes when the SANSA specifications move.
 
+## 0.15.0 - 2026-11-25
+
+### Stable release preparation
+
+- Promote the accepted RC3 scope to stable metadata: read-only child identities,
+  capable-provider property Resolve/direct Query, empty ordinary keys, Unicode
+  hardening, explicit tag/headTag semantics and bounded wildcard expansion.
+- RC3 registry and selected downstream/combined acceptance are complete. Runtime
+  code, public API, defaults, claim statuses, immutable CTS snapshots, compatibility
+  and physical-target checks are unchanged. Source-linked reports are rerun for
+  the stable package fingerprint; no performance benchmark is introduced.
+- Independent stable-delta QA, owning checks/merge and the normal protected
+  publication plus exact stable registry consumers remain required. This entry
+  is preparation, not evidence that stable packages have been published.
+- Existing experimental APIs and the narrow identity V8 qualification limitation
+  retain their documented status. Newline/local positions stay deferred to AEON
+  0.17.1; mutation/SO and identity references are outside the retained cut.
+
 ## 0.15.0-rc.3 - 2026-11-24
 
 Fresh candidate preparation following the merged bounded-expansion fix. RC2 has

@@ -1,0 +1,452 @@
+{
+  "status": "passed",
+  "checks": 26,
+  "defaults": {
+    "maxRequestBytes": 65536,
+    "maxRequestDepth": 32,
+    "maxTemporalCharacters": 1024,
+    "maxInputRanges": 128,
+    "maxInputPieces": 512,
+    "maxRelativeDayDigits": 256,
+    "maxFractionDigits": 256,
+    "maxWork": 16384,
+    "maxIntermediatePieces": 4096,
+    "maxOutputPieces": 512,
+    "maxResultBytes": 131072
+  },
+  "covered_dimensions": [
+    "maxFractionDigits",
+    "maxInputPieces",
+    "maxInputRanges",
+    "maxIntermediatePieces",
+    "maxOutputPieces",
+    "maxRelativeDayDigits",
+    "maxRequestBytes",
+    "maxRequestDepth",
+    "maxResultBytes",
+    "maxTemporalCharacters",
+    "maxWork"
+  ],
+  "calibrator_sha256": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8",
+  "sut": "node scripts/cts-aeonic-temporal-civil-anchor-adapter.mjs",
+  "cases": [
+    {
+      "id": "maxRequestBytes-at-default",
+      "dimension": "maxRequestBytes",
+      "role": "at-default",
+      "observed_quantity": 65536,
+      "companion_limits": {},
+      "expected_outcome": "value",
+      "expected_sha256": "d90e229e19a7560ea2cc00567d9f27d6779a58628611a8fdad14776be5efda02",
+      "expected_result_bytes": 400,
+      "status": "passed",
+      "actual_sha256": "d90e229e19a7560ea2cc00567d9f27d6779a58628611a8fdad14776be5efda02"
+    },
+    {
+      "id": "maxRequestBytes-over-default",
+      "dimension": "maxRequestBytes",
+      "role": "over-default",
+      "observed_quantity": 65537,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 1,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12"
+    },
+    {
+      "id": "maxRequestBytes-at-default-structured",
+      "dimension": "maxRequestBytes",
+      "role": "at-default",
+      "observed_quantity": 65536,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "be3feb7fed46bf0cde9efabe81c9c62a746385d94e182cd2c79bdd9560c97073",
+      "expected_reason": "unsupported_domain",
+      "expected_context": {
+        "stage": 5,
+        "path": "/input/anchor/temporal/category"
+      },
+      "status": "passed",
+      "actual_sha256": "be3feb7fed46bf0cde9efabe81c9c62a746385d94e182cd2c79bdd9560c97073"
+    },
+    {
+      "id": "maxRequestBytes-over-default-structured",
+      "dimension": "maxRequestBytes",
+      "role": "over-default",
+      "observed_quantity": 65537,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 1,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12"
+    },
+    {
+      "id": "maxRequestDepth-at-default",
+      "dimension": "maxRequestDepth",
+      "role": "at-default",
+      "observed_quantity": 32,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "be3feb7fed46bf0cde9efabe81c9c62a746385d94e182cd2c79bdd9560c97073",
+      "expected_reason": "unsupported_domain",
+      "expected_context": {
+        "stage": 5,
+        "path": "/input/anchor/temporal/category"
+      },
+      "status": "passed",
+      "actual_sha256": "be3feb7fed46bf0cde9efabe81c9c62a746385d94e182cd2c79bdd9560c97073"
+    },
+    {
+      "id": "maxRequestDepth-over-default",
+      "dimension": "maxRequestDepth",
+      "role": "over-default",
+      "observed_quantity": 33,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 1,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "fe86c7d218e127c43b7a2c88bbd1d417333fa6d75c126a1ea6c9d02e7c3dcf12"
+    },
+    {
+      "id": "maxTemporalCharacters-at-default",
+      "dimension": "maxTemporalCharacters",
+      "role": "at-default",
+      "observed_quantity": 1024,
+      "companion_limits": {
+        "maxFractionDigits": 1016
+      },
+      "expected_outcome": "value",
+      "expected_sha256": "da43eccabc13066e318218b51217ab4098485a01d90f0ee0d5b2dd9d81ba81df",
+      "expected_result_bytes": 1416,
+      "status": "passed",
+      "actual_sha256": "da43eccabc13066e318218b51217ab4098485a01d90f0ee0d5b2dd9d81ba81df"
+    },
+    {
+      "id": "maxTemporalCharacters-over-default",
+      "dimension": "maxTemporalCharacters",
+      "role": "over-default",
+      "observed_quantity": 1025,
+      "companion_limits": {
+        "maxFractionDigits": 1016
+      },
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/clock/temporal/value"
+      },
+      "status": "passed",
+      "actual_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c"
+    },
+    {
+      "id": "maxInputRanges-at-default",
+      "dimension": "maxInputRanges",
+      "role": "at-default",
+      "observed_quantity": 128,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "c44e715506c707c03a07ae5ca44cec908ddc949ea14d22648477280959978492",
+      "expected_reason": "incompatible_operand",
+      "expected_context": {
+        "stage": 6,
+        "path": "/input/anchor/temporal"
+      },
+      "status": "passed",
+      "actual_sha256": "c44e715506c707c03a07ae5ca44cec908ddc949ea14d22648477280959978492"
+    },
+    {
+      "id": "maxInputRanges-over-default",
+      "dimension": "maxInputRanges",
+      "role": "over-default",
+      "observed_quantity": 129,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "90e7d5b470d46120ec0f13434df62a08b7a6f9afb87c7c6f99d3be9661987dfe",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/anchor/temporal/ranges"
+      },
+      "status": "passed",
+      "actual_sha256": "90e7d5b470d46120ec0f13434df62a08b7a6f9afb87c7c6f99d3be9661987dfe"
+    },
+    {
+      "id": "maxInputPieces-at-default",
+      "dimension": "maxInputPieces",
+      "role": "at-default",
+      "observed_quantity": 512,
+      "companion_limits": {},
+      "expected_outcome": "value",
+      "expected_sha256": "f80a1b37dac114703eed4e1ae146aec5254521d0a7170ebe3c1bf3fc4803f876",
+      "expected_result_bytes": 22888,
+      "status": "passed",
+      "actual_sha256": "f80a1b37dac114703eed4e1ae146aec5254521d0a7170ebe3c1bf3fc4803f876"
+    },
+    {
+      "id": "maxInputPieces-over-default",
+      "dimension": "maxInputPieces",
+      "role": "over-default",
+      "observed_quantity": 513,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "0da0655e2b0a2028d939da69308f6c5487fc4d0a583d7a08fc97a5c1d524ed64",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/clock/temporal/pieces"
+      },
+      "status": "passed",
+      "actual_sha256": "0da0655e2b0a2028d939da69308f6c5487fc4d0a583d7a08fc97a5c1d524ed64"
+    },
+    {
+      "id": "maxIntermediatePieces-at-default",
+      "dimension": "maxIntermediatePieces",
+      "role": "at-default",
+      "observed_quantity": 4096,
+      "companion_limits": {
+        "maxInputPieces": 4097,
+        "maxOutputPieces": 4097,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 1048576
+      },
+      "expected_outcome": "value",
+      "expected_sha256": "66d65e05375371045b56997585d7984af1b50dcde6d40c8d17b1a8f87b6ca06e",
+      "expected_result_bytes": 180584,
+      "status": "passed",
+      "actual_sha256": "66d65e05375371045b56997585d7984af1b50dcde6d40c8d17b1a8f87b6ca06e"
+    },
+    {
+      "id": "maxIntermediatePieces-over-default",
+      "dimension": "maxIntermediatePieces",
+      "role": "over-default",
+      "observed_quantity": 4097,
+      "companion_limits": {
+        "maxInputPieces": 4097,
+        "maxOutputPieces": 4097,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 1048576
+      },
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "ff788c860cb253cff317480ce38edd0375e315c625a2a6e21cbd9a394219d0ba",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 6,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "ff788c860cb253cff317480ce38edd0375e315c625a2a6e21cbd9a394219d0ba"
+    },
+    {
+      "id": "maxOutputPieces-at-default",
+      "dimension": "maxOutputPieces",
+      "role": "at-default",
+      "observed_quantity": 512,
+      "companion_limits": {
+        "maxInputPieces": 513
+      },
+      "expected_outcome": "value",
+      "expected_sha256": "f80a1b37dac114703eed4e1ae146aec5254521d0a7170ebe3c1bf3fc4803f876",
+      "expected_result_bytes": 22888,
+      "status": "passed",
+      "actual_sha256": "f80a1b37dac114703eed4e1ae146aec5254521d0a7170ebe3c1bf3fc4803f876"
+    },
+    {
+      "id": "maxOutputPieces-over-default",
+      "dimension": "maxOutputPieces",
+      "role": "over-default",
+      "observed_quantity": 513,
+      "companion_limits": {
+        "maxInputPieces": 513
+      },
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "548c31d4711123c7dfbf618f9e056375233abc4c86c864b89a5c9d4a17f79240",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 7,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "548c31d4711123c7dfbf618f9e056375233abc4c86c864b89a5c9d4a17f79240"
+    },
+    {
+      "id": "maxRelativeDayDigits-at-default",
+      "dimension": "maxRelativeDayDigits",
+      "role": "at-default",
+      "observed_quantity": 256,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "b9668a9e5c54993b4da3989f2181c43bc032464b743139fad874fe0f3e8e403a",
+      "expected_reason": "unrepresentable_result",
+      "expected_context": {
+        "stage": 7,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "b9668a9e5c54993b4da3989f2181c43bc032464b743139fad874fe0f3e8e403a"
+    },
+    {
+      "id": "maxRelativeDayDigits-over-default",
+      "dimension": "maxRelativeDayDigits",
+      "role": "over-default",
+      "observed_quantity": 257,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "43dcc49c5a01f439026c84cac662b02246131554f2a030ce88b9bd3be420ca82",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/clock/temporal/pieces/0/at/day"
+      },
+      "status": "passed",
+      "actual_sha256": "43dcc49c5a01f439026c84cac662b02246131554f2a030ce88b9bd3be420ca82"
+    },
+    {
+      "id": "maxFractionDigits-at-default",
+      "dimension": "maxFractionDigits",
+      "role": "at-default",
+      "observed_quantity": 256,
+      "companion_limits": {},
+      "expected_outcome": "value",
+      "expected_sha256": "9c3effd28a65e03b58aaf64ba6540e5faaf6a221aecb9c37ac926ae9a67274f7",
+      "expected_result_bytes": 657,
+      "status": "passed",
+      "actual_sha256": "9c3effd28a65e03b58aaf64ba6540e5faaf6a221aecb9c37ac926ae9a67274f7"
+    },
+    {
+      "id": "maxFractionDigits-over-default",
+      "dimension": "maxFractionDigits",
+      "role": "over-default",
+      "observed_quantity": 257,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/clock/temporal/value"
+      },
+      "status": "passed",
+      "actual_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c"
+    },
+    {
+      "id": "maxFractionDigits-at-default-raw-trailing-zeroes",
+      "dimension": "maxFractionDigits",
+      "role": "at-default",
+      "observed_quantity": 256,
+      "companion_limits": {},
+      "expected_outcome": "value",
+      "expected_sha256": "d20301fac8b0e3be6cfbdbeabfc05f5d7a4eb133d4fb742b22dac2483909973d",
+      "expected_result_bytes": 402,
+      "status": "passed",
+      "actual_sha256": "d20301fac8b0e3be6cfbdbeabfc05f5d7a4eb133d4fb742b22dac2483909973d"
+    },
+    {
+      "id": "maxFractionDigits-over-default-raw-trailing-zeroes",
+      "dimension": "maxFractionDigits",
+      "role": "over-default",
+      "observed_quantity": 257,
+      "companion_limits": {},
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 4,
+        "path": "/input/clock/temporal/value"
+      },
+      "status": "passed",
+      "actual_sha256": "0abdda2ddfb8e4b20019e334766cc74e21f6002d246fd5ae8e4e43c759cc026c"
+    },
+    {
+      "id": "maxWork-at-default",
+      "dimension": "maxWork",
+      "role": "at-default",
+      "observed_quantity": 16384,
+      "companion_limits": {
+        "maxRequestBytes": 2097152,
+        "maxInputPieces": 16384,
+        "maxIntermediatePieces": 16384,
+        "maxOutputPieces": 16384,
+        "maxResultBytes": 2097152
+      },
+      "expected_outcome": "value",
+      "expected_sha256": "19fe0ec81aeb7b8a6d37037ae5722e4ef8945af5cf6df09b101a9c553adce014",
+      "expected_result_bytes": 721212,
+      "status": "passed",
+      "actual_sha256": "19fe0ec81aeb7b8a6d37037ae5722e4ef8945af5cf6df09b101a9c553adce014"
+    },
+    {
+      "id": "maxWork-over-default",
+      "dimension": "maxWork",
+      "role": "over-default",
+      "observed_quantity": 16385,
+      "companion_limits": {
+        "maxRequestBytes": 2097152,
+        "maxInputPieces": 16384,
+        "maxIntermediatePieces": 16384,
+        "maxOutputPieces": 16384,
+        "maxResultBytes": 2097152
+      },
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "ff788c860cb253cff317480ce38edd0375e315c625a2a6e21cbd9a394219d0ba",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 6,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "ff788c860cb253cff317480ce38edd0375e315c625a2a6e21cbd9a394219d0ba"
+    },
+    {
+      "id": "maxResultBytes-at-default",
+      "dimension": "maxResultBytes",
+      "role": "at-default",
+      "observed_quantity": 131072,
+      "companion_limits": {
+        "maxRequestBytes": 262144
+      },
+      "expected_outcome": "value",
+      "expected_sha256": "daff62ab2500a213941582e092db264dfb3707fd434010d232412a62414ca947",
+      "expected_result_bytes": 131072,
+      "status": "passed",
+      "actual_sha256": "daff62ab2500a213941582e092db264dfb3707fd434010d232412a62414ca947"
+    },
+    {
+      "id": "maxResultBytes-over-default",
+      "dimension": "maxResultBytes",
+      "role": "over-default",
+      "observed_quantity": 131073,
+      "companion_limits": {
+        "maxRequestBytes": 262144
+      },
+      "expected_outcome": "diagnostic",
+      "expected_sha256": "548c31d4711123c7dfbf618f9e056375233abc4c86c864b89a5c9d4a17f79240",
+      "expected_reason": "resource_limit",
+      "expected_context": {
+        "stage": 7,
+        "path": null
+      },
+      "status": "passed",
+      "actual_sha256": "548c31d4711123c7dfbf618f9e056375233abc4c86c864b89a5c9d4a17f79240"
+    }
+  ],
+  "failures": [],
+  "stable_conformance_claim": false,
+  "scope": "Individual native default admission thresholds with explicit companion settings. Range-count and relative-day admitted controls reach later semantic diagnostics; each is recorded as such.",
+  "limits": "No Cartesian-product, arbitrary accessor/proxy/subclass, eager-key, outer-frame, process/heap/disk, browser-preparation or whole-chain capacity guarantee. The controller output read cap is not a provider disk quota."
+}

@@ -1,15 +1,15 @@
 # Releasing SANSA
 
-## Current 0.15.0-rc.3 preparation
+## Current 0.15.0 stable preparation
 
-RC2 is published and registry verified. RC3 prepares the JavaScript bounded
-wildcard-expansion fix merged in [#63](https://github.com/AltoPelago/sansa/pull/63),
-using the normal forward setter; no existing version is replaced. Rust source
-code is unchanged, while its coordinated workspace version advances. Refresh
-registry/tag availability before cutting. Independent preparation QA, owning
-approval/main checks, fresh registry artifacts and affected downstream consumers
-remain required. Newline/local-position work stays deferred to tentative AEON
-0.17.1. See [release scope and migration](docs/migration-0.15.0.md).
+RC3 is published, registry verified and accepted with the selected downstream
+combination. Stable 0.15.0 uses the normal forward setter and preserves RC3
+runtime/API/default/target behavior. Independent stable-delta QA, owning
+approval/main checks and fresh stable registry artifacts/consumers remain
+required before dependents adopt it. Refresh registry/tag availability before
+cutting; never replace an immutable RC. Newline/local-position work stays
+deferred to tentative AEON 0.17.1. See the [release scope and migration](docs/migration-0.15.0.md)
+and [accepted RC3 combination](https://github.com/AltoPelago/roadmap/blob/main/aeon/work-in-progress/release-0.17.0-rc3-acceptance-2026-11-25.md).
 
 The current setter owns package/capability/Rust workspace metadata. Review the
 matching CTS implementation_version and Cargo.lock workspace version explicitly,

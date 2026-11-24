@@ -1,8 +1,9 @@
 # Migrating to SANSA0.15
 
-Status: 0.15.0-rc.3 preparation, 24 November 2026. RC2 is already published and
-registry verified. This fresh candidate still requires independent preparation
-QA, its own publication/installed consumers and final affected-host acceptance.
+Status: 0.15.0 stable preparation, 25 November 2026. RC3 registry and selected
+downstream/combined acceptance are complete. The stable metadata delta still
+requires independent QA, owning checks/merge and actual stable publication plus
+exact installed consumers. No runtime/API/default/target change from RC3.
 
 ## Included addressing and evaluation behavior
 
@@ -51,7 +52,7 @@ activation does not enable it implicitly.
 
 ## API and resource migration
 
-RC3 includes the merged JavaScript wildcard stabilization: `$.*` and `$.**`
+The stable scope retains RC3's merged JavaScript wildcard stabilization: `$.*` and `$.**`
 consume adapter child iterables incrementally under `maxBindings`, stop at the
 first over-limit candidate without partial results, and close active iterators.
 Successful traversal keeps depth-first order, original binding handles and
