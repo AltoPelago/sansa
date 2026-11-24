@@ -1,13 +1,15 @@
 # Releasing SANSA
 
-## Current0.15 preparation
+## Current 0.15.0-rc.3 preparation
 
-The0.15.0-rc.2 branch advances the unpublishedrc.1 metadata through the normal
-forward setter. The23November npm/crates.io observation found neither0.15 line
-published; refresh registry/tag availability before cutting. Source/packed checks,
-independent behavior/resource QA, owning review/main checks and exact registry
-consumers remain required. Newline/local-position work is deferred to tentative
-AEON0.17.1. See[release scope and migration](docs/migration-0.15.0.md).
+RC2 is published and registry verified. RC3 prepares the JavaScript bounded
+wildcard-expansion fix merged in [#63](https://github.com/AltoPelago/sansa/pull/63),
+using the normal forward setter; no existing version is replaced. Rust source
+code is unchanged, while its coordinated workspace version advances. Refresh
+registry/tag availability before cutting. Independent preparation QA, owning
+approval/main checks, fresh registry artifacts and affected downstream consumers
+remain required. Newline/local-position work stays deferred to tentative AEON
+0.17.1. See [release scope and migration](docs/migration-0.15.0.md).
 
 The current setter owns package/capability/Rust workspace metadata. Review the
 matching CTS implementation_version and Cargo.lock workspace version explicitly,
@@ -29,10 +31,10 @@ native feature delivery or publication.
 
 ## Preparation and publication
 
-1. Select the exact source revision and scope. Reconcile the existing local
-   `0.15.0-rc.1` preparation with registry availability before choosing the next
-   beta. The version setter requires increasing SemVer precedence; preserve
-   historical evidence and do not bypass that guard to relabel a candidate.
+1. Select the exact merged source revision and scope. Confirm that the proposed
+   immutable version is absent from the relevant registries and tags. The version
+   setter requires increasing SemVer precedence; preserve historical evidence
+   and do not bypass that guard to relabel a candidate.
 2. Use `npm run version:set -- X.Y.Z-beta.N` (or the accepted RC/stable version)
    for a normal forward version change. Add dated `CHANGELOG.md` notes and run
    `npm run version:check`, `npm test`, `npm run validate:cts-claims`,
@@ -59,7 +61,11 @@ native feature delivery or publication.
 Unfinished features may be documented in a beta, but required publication,
 security, package and existing conformance checks are not optional.
 
-## Shared browser highlighter candidate
+## Earlier shared browser highlighter development checkpoints (historical)
+
+The observations below retain their earlier development scope. They do not
+override the current authorized, conditional publication process above or provide
+fresh qualification for this candidate. Production deployment remains separate.
 
 The playground's AEON panel delegates to `@altopelago/aeon-highlight` from the
 selected AEON source checkout. Build that checkout's highlight package alongside

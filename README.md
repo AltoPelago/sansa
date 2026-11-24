@@ -10,8 +10,10 @@ CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/ct
 
 ## 0.15 release-candidate preparation
 
-The0.15.0-rc.2 preparation includes read-only child identities, capable-provider
-property Resolve/direct Query, ordinary empty keys and Unicode fixes. Read the
+The 0.15.0-rc.3 preparation retains read-only child identities, capable-provider
+property Resolve/direct Query, ordinary empty keys and Unicode fixes, and includes
+the merged JavaScript bounded-wildcard fix. RC2 is already published; RC3 still
+needs its own registry and affected-consumer acceptance. Read the
 [migration and support boundaries](docs/migration-0.15.0.md) before upgrading.
 Newline warnings and local positional selectors are deferred to tentative
 AEON0.17.1. RC/stable publication requires independent QA, owning checks and

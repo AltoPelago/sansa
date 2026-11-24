@@ -1,7 +1,8 @@
 # Migrating to SANSA0.15
 
-Status:0.15.0-rc.2 preparation,23November2026. Independent QA, registry publication,
-exact installed consumers and final platform acceptance remain pending.
+Status: 0.15.0-rc.3 preparation, 24 November 2026. RC2 is already published and
+registry verified. This fresh candidate still requires independent preparation
+QA, its own publication/installed consumers and final affected-host acceptance.
 
 ## Included addressing and evaluation behavior
 
@@ -49,6 +50,16 @@ Existing constrained child-identity activation remains separately gated; trusted
 activation does not enable it implicitly.
 
 ## API and resource migration
+
+RC3 includes the merged JavaScript wildcard stabilization: `$.*` and `$.**`
+consume adapter child iterables incrementally under `maxBindings`, stop at the
+first over-limit candidate without partial results, and close active iterators.
+Successful traversal keeps depth-first order, original binding handles and
+repeated occurrences. RC2 may enumerate every child before rejecting the same
+small allowance. The corresponding pure Python source fix belongs to
+[AEON #217](https://github.com/AltoPelago/aeon/pull/217); it does not imply a new
+native-wheel or standalone Python publication here. Namespace construction and
+arbitrary adapter/iterator work remain separate from this expansion guard.
 
 Rust enum/option/diagnostic changes may require downstream source updates; follow
 the implementation notes rather than copying metadata fields from an opaque

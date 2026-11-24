@@ -51,11 +51,11 @@
       "maxResultBytes": 16384
     },
     "reports": {
-      "all": "results/aeonic-temporal-all-bounded-expansion-2026-11-24.json",
-      "relations": "results/aeonic-temporal-relations-bounded-expansion-2026-11-24.json",
-      "calendar": "results/aeonic-temporal-calendar-bounded-expansion-2026-11-24.json"
+      "all": "results/aeonic-temporal-all-rc3-2026-11-24.json",
+      "relations": "results/aeonic-temporal-relations-rc3-2026-11-24.json",
+      "calendar": "results/aeonic-temporal-calendar-rc3-2026-11-24.json"
     },
-    "capacity_report": "results/aeonic-temporal-capacity-bounded-expansion-2026-11-24.json",
+    "capacity_report": "results/aeonic-temporal-capacity-rc3-2026-11-24.json",
     "report_normalization": "cwd recorded as .; verdicts, outcomes, metadata, limits, target hashes and counts unchanged",
     "adapted_from": {
       "repository": "AltoPelago/aeonic",
@@ -100,6 +100,6 @@
       "2026-11-18: standalone civil-clock exports/types and playground lane added. Shared entry/type/package fingerprints refreshed; prior numerical/date/date-time engines, bindings and defaults unchanged. No Query/Rust/host-capacity expansion or release.",
       "2026-11-20 anchoring addition refreshes only shared src/index.js, src/index.d.ts fingerprints. Previous engines/adapters/defaults and historical reports remain byte-identical; full source regressions cover shared exports and playground. Complete anchoring evidence is separate in aeonic-anchor-claims.json."
     ],
-    "source_base_commit": "f115de1e8d18e260e8c6c546ad8ab62e3e99c9de"
+    "source_base_commit": "d1d1087b9ea545183598bd563b454d78f0baa91d"
   }
 }

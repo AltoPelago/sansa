@@ -50,7 +50,13 @@ npm run test:rust
 Set `AEONITE_CTS_ROOT` to the `cts` directory of an `aeonite-cts` checkout when
 it is not available at the normal aeon-family sibling path.
 
-## Local child-identity candidate
+## Earlier local child-identity candidate (historical)
+
+For current prepared 0.15 APIs and consumer admission, see the
+[migration and support boundaries](../../docs/migration-0.15.0.md). The RC1
+receipt below retains its earlier local scope: its closed-Query statement and
+registry checklist do not describe current read-only Query support or actual
+registry versions, and do not add current host/performance qualification.
 
 The unpublished 0.15.0-rc.1 candidate adds `Selector::ChildIdentity`, canonical identity expressions and read-only Resolve. Implement `supports_structural_identity` and `structural_identity` explicitly; the defaults deny support. Override `identity_children` to stream rather than allocate the default child Vec. `max_identity_inspections` defaults to 10,000; logical inspections do not measure adapter I/O/allocation. Scope admission and caller-AST bounds are checked before metadata access. Query, activation and mutation remain closed.
 
