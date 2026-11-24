@@ -8,16 +8,16 @@ Implementation capability metadata is recorded in [docs/capabilities.json](docs/
 
 CTS snapshot claims are recorded in [conformance/cts-claims.json](conformance/cts-claims.json).
 
-## 0.15 release-candidate preparation
+## 0.15 stable release preparation
 
-The 0.15.0-rc.3 preparation retains read-only child identities, capable-provider
-property Resolve/direct Query, ordinary empty keys and Unicode fixes, and includes
-the merged JavaScript bounded-wildcard fix. RC2 is already published; RC3 still
-needs its own registry and affected-consumer acceptance. Read the
+The accepted 0.15.0-rc.3 scope advances to 0.15.0 metadata: read-only child
+identities, capable-provider property Resolve/direct Query, ordinary empty keys,
+Unicode fixes and bounded JavaScript wildcard expansion. RC3 registry consumers
+and selected downstream/combined acceptance are complete. Read the
 [migration and support boundaries](docs/migration-0.15.0.md) before upgrading.
-Newline warnings and local positional selectors are deferred to tentative
-AEON0.17.1. RC/stable publication requires independent QA, owning checks and
-exact registry/downstream acceptance; source metadata alone establishes none.
+Stable publication still requires independent delta QA, owning checks and exact
+stable registry consumers; source metadata alone establishes none. Newline
+warnings and local positions remain deferred to tentative AEON 0.17.1.
 Experimental APIs described below retain their separate documented status.
 
 

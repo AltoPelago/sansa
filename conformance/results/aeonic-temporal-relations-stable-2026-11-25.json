@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "target": "aeonic-temporal-civil-date-cts-v1-snapshot-0.1",
+  "target_status": "immutable-local",
+  "stable_conformance_claim": true,
+  "semantic_execution": true,
+  "capabilities": [
+    "relations"
+  ],
+  "excluded_unclaimed_capability_cases": 120,
+  "operation_cases": 63,
+  "chains": 0,
+  "law_groups": 1,
+  "sut_executions": 171,
+  "assertions": 185,
+  "manifest_sha256": "a4492f02990fe915cbf6eacf571c85cd5c79412e52ee97cef532904c616c47f3",
+  "runner_sha256": "51365d57a3060357fcfabdc9345a96188659d5acdd96e72410b066ca00ba18cd",
+  "specification_source_sha256": "3bd2ddebc945fc0ddc2f2fcc9f993d7b88ba0ec8cf55f78ac34036ab8c1fbfc8",
+  "specification_schema_sha256": "34f516c6a131c886f9482bf703020b193ed205de6eb7f66136e22d3447a7fd93",
+  "helper_hashes": {
+    "runners/run_aeonic_arithmetic.py": "4688056a3753d67dbaa03902d2b39e760b385153869a646cf75c6ae43bcfc5e2",
+    "runners/run_aeonic_rational_arithmetic.py": "e1c74ff3f46d6d6ff9bbefd81eee44d2eddd14a664b97cf62eb983e98d78de90",
+    "runners/temporal_civil_date_checks.py": "ff2f4a00155874eb5c0b546e934fb3320dbf2e4c18c69db89bdba14ec0968489"
+  },
+  "resource_limits": {
+    "maxRequestBytes": 16384,
+    "maxRequestDepth": 32,
+    "maxInputRanges": 128,
+    "maxCountCharacters": 32,
+    "maxOutputRanges": 128,
+    "maxCalendarWork": 4096,
+    "maxOutputCharacters": 10,
+    "maxResultBytes": 16384
+  },
+  "sut": "node scripts/cts-aeonic-temporal-civil-date-adapter.mjs --capability-set relations",
+  "cwd": ".",
+  "failures": []
+}

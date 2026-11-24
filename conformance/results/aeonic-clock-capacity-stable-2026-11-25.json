@@ -1,0 +1,326 @@
+{
+  "status": "passed",
+  "checks": 34,
+  "sut": "node scripts/cts-aeonic-temporal-civil-clock-adapter.mjs",
+  "cases": [
+    {
+      "name": "request-bytes-65536",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "request-bytes-65537",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        1
+      ]
+    },
+    {
+      "name": "request-depth-32",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "unsupported_domain",
+        5
+      ]
+    },
+    {
+      "name": "request-depth-33",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        1
+      ]
+    },
+    {
+      "name": "temporal-characters-1024",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 1025
+      },
+      "expected": "value"
+    },
+    {
+      "name": "temporal-characters-1025",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 1025
+      },
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "input-pieces-512",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "input-pieces-513",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "intermediate-pieces-4096",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 4097,
+        "maxOutputPieces": 4097,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 1048576
+      },
+      "expected": "value"
+    },
+    {
+      "name": "intermediate-pieces-4097",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 4097,
+        "maxOutputPieces": 4097,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 1048576
+      },
+      "expected": [
+        "resource_limit",
+        6
+      ]
+    },
+    {
+      "name": "output-pieces-512",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 513
+      },
+      "expected": "value"
+    },
+    {
+      "name": "output-pieces-513",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 513
+      },
+      "expected": [
+        "resource_limit",
+        7
+      ]
+    },
+    {
+      "name": "work-16384",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 8193,
+        "maxRequestBytes": 2097152
+      },
+      "expected": "value"
+    },
+    {
+      "name": "work-16385",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 8193,
+        "maxRequestBytes": 2097152
+      },
+      "expected": [
+        "resource_limit",
+        6
+      ]
+    },
+    {
+      "name": "fraction-digits-256",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "fraction-digits-257",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "relative-day-digits-256",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "relative-day-digits-257",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "count-characters-32",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "count-characters-33",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        3
+      ]
+    },
+    {
+      "name": "numeric-characters-4096",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "numeric-characters-4097",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "coefficient-digits-1024",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 1025
+      },
+      "expected": "value"
+    },
+    {
+      "name": "coefficient-digits-1025",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 1025
+      },
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "authored-exponent-1000000",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": "value"
+    },
+    {
+      "name": "authored-exponent-1000001",
+      "status": "passed",
+      "companion_limits": {},
+      "expected": [
+        "resource_limit",
+        4
+      ]
+    },
+    {
+      "name": "workspace-4096",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 4090
+      },
+      "expected": "value"
+    },
+    {
+      "name": "workspace-4097",
+      "status": "passed",
+      "companion_limits": {
+        "maxFractionDigits": 4090
+      },
+      "expected": [
+        "resource_limit",
+        6
+      ]
+    },
+    {
+      "name": "output-characters-1024",
+      "status": "passed",
+      "companion_limits": {
+        "maxTemporalCharacters": 1025,
+        "maxFractionDigits": 1016
+      },
+      "expected": "value"
+    },
+    {
+      "name": "output-characters-1025",
+      "status": "passed",
+      "companion_limits": {
+        "maxTemporalCharacters": 1025,
+        "maxFractionDigits": 1016
+      },
+      "expected": [
+        "resource_limit",
+        7
+      ]
+    },
+    {
+      "name": "native-result-bytes-last-admitted",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 2516,
+        "maxOutputPieces": 2516,
+        "maxRequestBytes": 1048576
+      },
+      "expected": "value"
+    },
+    {
+      "name": "native-result-bytes-next-rejected",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 2516,
+        "maxOutputPieces": 2516,
+        "maxRequestBytes": 1048576
+      },
+      "expected": [
+        "resource_limit",
+        7
+      ]
+    },
+    {
+      "name": "exact-result-byte-boundary",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 2516,
+        "maxOutputPieces": 2516,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 131036
+      },
+      "expected": "value"
+    },
+    {
+      "name": "exact-result-byte-boundary-minus-one",
+      "status": "passed",
+      "companion_limits": {
+        "maxInputPieces": 2516,
+        "maxOutputPieces": 2516,
+        "maxRequestBytes": 1048576,
+        "maxResultBytes": 131035
+      },
+      "expected": [
+        "resource_limit",
+        7
+      ]
+    }
+  ],
+  "result_byte_probe": {
+    "last_reachable_below_default": 131036,
+    "next_reachable": 131088
+  },
+  "limits": "All16 dimensions isolated using recorded companion limits. No Cartesian-product, process/heap, transport, native accessor/proxy or whole-chain guarantee."
+}

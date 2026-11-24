@@ -23,9 +23,9 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-24",
+    "verified_on": "2026-11-25",
     "node": "v24.22.2",
-    "source_base_commit": "d1d1087b9ea545183598bd563b454d78f0baa91d",
+    "source_base_commit": "0b9316f6e31814377220ab3e5821d8457857d16c",
     "specification_commit": "a6948968e4e2741f2342249024b266ca6adbfeb7",
     "cts_commit": "3918c78b6650446da59550c2da43c87510625831",
     "specification_snapshot_id": "aeonic-temporal-civil-clock-specs-v1-snapshot-0.1",
@@ -62,11 +62,11 @@
       "maxResultBytes": 131072
     },
     "reports": {
-      "all": "results/aeonic-clock-all-rc3-2026-11-24.json",
-      "relations": "results/aeonic-clock-relations-rc3-2026-11-24.json",
-      "arithmetic": "results/aeonic-clock-arithmetic-rc3-2026-11-24.json"
+      "all": "results/aeonic-clock-all-stable-2026-11-25.json",
+      "relations": "results/aeonic-clock-relations-stable-2026-11-25.json",
+      "arithmetic": "results/aeonic-clock-arithmetic-stable-2026-11-25.json"
     },
-    "capacity_report": "results/aeonic-clock-capacity-rc3-2026-11-24.json",
+    "capacity_report": "results/aeonic-clock-capacity-stable-2026-11-25.json",
     "report_normalization": "cwd recorded as .; actual verdicts, values, metadata, counts, limits and fingerprints unchanged",
     "adapted_from": {
       "repository": "AltoPelago/aeonic",
@@ -101,7 +101,7 @@
       "tools/playground/arithmetic.mjs": "3fc9ae099d3290d3bdb554e09ad7d5eb80027be36caa1832a63520799db259fc",
       "tools/playground/arithmetic.html": "a9854d5493bf896a5625fd4992618c39e0137cecb198593b6f83e65a587c574e",
       "tools/playground/clock-examples.mjs": "e7f27ddc647fff67aa7a137a46115026e724d62e075c691a398a73d2e62910a4",
-      "package.json": "6104c699e8ccec55fc202e433c83318e8b1b56ca89ff722e1fa7a24ecd42b896"
+      "package.json": "e816d15e526e4fa52e629523dfa61353ff7a2d8951b1f31c12224f8979088ea6"
     },
     "limits": [
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",

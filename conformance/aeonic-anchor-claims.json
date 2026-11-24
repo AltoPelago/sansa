@@ -14,9 +14,9 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-24",
+    "verified_on": "2026-11-25",
     "node": "v24.22.2",
-    "source_base_commit": "d1d1087b9ea545183598bd563b454d78f0baa91d",
+    "source_base_commit": "0b9316f6e31814377220ab3e5821d8457857d16c",
     "specification_commit": "a6948968e4e2741f2342249024b266ca6adbfeb7",
     "cts_commit": "3918c78b6650446da59550c2da43c87510625831",
     "specification_snapshot_id": "aeonic-temporal-civil-anchor-specs-v1-snapshot-0.1",
@@ -46,8 +46,8 @@
       "maxOutputPieces": 512,
       "maxResultBytes": 131072
     },
-    "report": "results/aeonic-anchor-rc3-2026-11-24.json",
-    "capacity_report": "results/aeonic-anchor-capacity-rc3-2026-11-24.json",
+    "report": "results/aeonic-anchor-stable-2026-11-25.json",
+    "capacity_report": "results/aeonic-anchor-capacity-stable-2026-11-25.json",
     "calibrator_sha256": "6d26310e97b3a48c6b7fe54d2f4742a9f91eb1059759c7357bbce1e7e0ac0ab8",
     "report_normalization": "cwd recorded as .; actual verdicts, counts, limits and fingerprints unchanged",
     "adapted_from": {
@@ -84,7 +84,7 @@
       "tools/playground/arithmetic.mjs": "3fc9ae099d3290d3bdb554e09ad7d5eb80027be36caa1832a63520799db259fc",
       "tools/playground/arithmetic.html": "a9854d5493bf896a5625fd4992618c39e0137cecb198593b6f83e65a587c574e",
       "tools/playground/anchor-examples.mjs": "57ad2b7076ef7732fa10fb09aa95e899e1d9034ff3fde2ec7073da92c9715fbc",
-      "package.json": "6104c699e8ccec55fc202e433c83318e8b1b56ca89ff722e1fa7a24ecd42b896"
+      "package.json": "e816d15e526e4fa52e629523dfa61353ff7a2d8951b1f31c12224f8979088ea6"
     },
     "limits": [
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",

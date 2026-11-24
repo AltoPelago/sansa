@@ -23,9 +23,9 @@
     }
   ],
   "verification": {
-    "verified_on": "2026-11-24",
+    "verified_on": "2026-11-25",
     "node": "v24.22.2",
-    "source_base_commit": "d1d1087b9ea545183598bd563b454d78f0baa91d",
+    "source_base_commit": "0b9316f6e31814377220ab3e5821d8457857d16c",
     "specification_commit": "a6948968e4e2741f2342249024b266ca6adbfeb7",
     "cts_commit": "3918c78b6650446da59550c2da43c87510625831",
     "specification_snapshot_id": "aeonic-temporal-civil-datetime-specs-v1-snapshot-0.1",
@@ -60,11 +60,11 @@
       "maxResultBytes": 131072
     },
     "reports": {
-      "all": "results/aeonic-datetime-all-rc3-2026-11-24.json",
-      "relations": "results/aeonic-datetime-relations-rc3-2026-11-24.json",
-      "arithmetic": "results/aeonic-datetime-arithmetic-rc3-2026-11-24.json"
+      "all": "results/aeonic-datetime-all-stable-2026-11-25.json",
+      "relations": "results/aeonic-datetime-relations-stable-2026-11-25.json",
+      "arithmetic": "results/aeonic-datetime-arithmetic-stable-2026-11-25.json"
     },
-    "capacity_report": "results/aeonic-datetime-capacity-rc3-2026-11-24.json",
+    "capacity_report": "results/aeonic-datetime-capacity-stable-2026-11-25.json",
     "report_normalization": "cwd recorded as .; actual verdicts, values, metadata, counts, limits and fingerprints unchanged",
     "adapted_from": {
       "repository": "AltoPelago/aeonic",
