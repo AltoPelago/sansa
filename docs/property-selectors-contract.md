@@ -1,6 +1,8 @@
 # Property selectors: candidate API contract 0.2
 
-Status: **unreleased candidate; core direct read-only Resolve and Query implemented**.
+Status: **experimental contract candidate 0.2; opt-in runtime APIs shipped in
+SANSA 0.15.0**. The package release does not adopt this candidate as a published
+specification/profile or promote its CTS claims.
 JavaScript/TypeScript and Rust expose the optional facet. Owning AEON SDK namespaces
 supply authoritative metadata; pure Python remains Resolve-only because it has no
 Query evaluator. Core/WASM literal ports remain inert; existing native Pytonic
@@ -8,7 +10,8 @@ Query is a separately delivered SDK consumer. No generic callback bridge or
 new WASM Query API is introduced.
 The `.d.ts`, `.rs` and `.pyi` siblings retain original review sketches; current
 exported types/modules and the [implementation checkpoint](property-resolve-implementation.md)
-describe delivered support and limits. No profile promotion or release.
+describe delivered support and limits. No experimental profile or specification
+release is established by the package version.
 Existing capability manifests are unchanged.
 
 ## Address and Query model
@@ -144,9 +147,12 @@ change public capability manifests or claim CTS support just because this ABI ex
 5. Retain original reference/target checks and 1.15x latency/1.20x memory budgets;
    measure the new work under an approved protocol. No inherited heap waiver.
 
-Local positions keep their separate group/candidate/buffer/cost gate. Official
-release, deployment and publication stay held. This guide does not establish complete experimental-profile or stable
-conformance; selected runtime regressions and full release qualification are separate.
+Local positions keep their separate group/candidate/buffer/cost gate and remain
+deferred to tentative AEON 0.17.1. SANSA 0.15.0 package publication is complete;
+future experimental-profile/specification promotion and new selector scope require
+their own review. This candidate guide establishes neither complete experimental-
+profile nor stable conformance. Selected runtime regressions, exact package/host
+qualification and normative contract adoption are separate. Deployment remains held.
 
 Owning specification input: [`ec43f7996d3d44d86e1a7639bb26d98b4fb829c1`](https://github.com/aeonite-org/aeonite-specs/commit/ec43f7996d3d44d86e1a7639bb26d98b4fb829c1). This pins the proposal, not an adopted or published profile.
 
