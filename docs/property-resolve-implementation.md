@@ -1,5 +1,9 @@
 # Read-only property Resolve and Query implementation
 
+This document describes SANSA 0.15.0 and the head-based Rust provider. The
+[JavaScript/TypeScript API contract](api-contract.md#unreleased-property-addressing-and-standalone-resolve)
+describes the revised intrinsic-tag development provider.
+
 Initial implementation: 16 November 2026; provider boundaries audited 22 November.
 Publication status updated 25 November 2026: the described opt-in runtime APIs
 ship in SANSA 0.15.0. Package publication does not promote experimental profiles

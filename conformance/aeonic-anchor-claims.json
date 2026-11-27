@@ -68,8 +68,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "8b5b80d1418677575bea3b9207d628d722db72019928c66eab32eb125bf1df3a",
-      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
+      "src/index.js": "4a15e87855eb2d4aa79065ff39161a149e197dfd2cc6457a049f55125eacfbdd",
+      "src/index.d.ts": "43359d46248f1e62662afd8c0ec5ea0b8dd013d6eb193c1decace6fb9a149d38",
       "src/aeonic-temporal-civil-anchor.js": "9982e379894b09ed3187291c66dd92d835fbbe44792eb8413f6c1f363f454f2c",
       "src/aeonic-temporal-civil-anchor.d.ts": "85929993d1fc33b39f41c7263b73021f7bb71788c63979b5d205b75e2d585ba9",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -87,6 +87,7 @@
       "package.json": "e816d15e526e4fa52e629523dfa61353ff7a2d8951b1f31c12224f8979088ea6"
     },
     "limits": [
+      "Rechecked the pinned frozen capability on 2026-11-27 after revising SANSA node-tag selection. 234 executions and 234 assertions passed.",
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",
       "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "All234 frozen mandatory cases execute against the actual SANSA adapter, with complete values/metadata or reason/stage/pointer assertions. No fixture replay is used as implementation evidence.",

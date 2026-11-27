@@ -85,8 +85,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "8b5b80d1418677575bea3b9207d628d722db72019928c66eab32eb125bf1df3a",
-      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
+      "src/index.js": "4a15e87855eb2d4aa79065ff39161a149e197dfd2cc6457a049f55125eacfbdd",
+      "src/index.d.ts": "43359d46248f1e62662afd8c0ec5ea0b8dd013d6eb193c1decace6fb9a149d38",
       "src/aeonic-temporal-civil-clock.js": "3bbc0cbcbb5251939e144859a9d567c3e89571d3291dc24a3034daf1057f6f49",
       "src/aeonic-temporal-civil-clock.d.ts": "59020c5124a25b8ef79b3c79109fc88207c7c01062183c351f49bb6b2d2f5f05",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -104,6 +104,7 @@
       "package.json": "e816d15e526e4fa52e629523dfa61353ff7a2d8951b1f31c12224f8979088ea6"
     },
     "limits": [
+      "Rechecked the pinned frozen capability on 2026-11-27 after revising SANSA node-tag selection. 378 executions and 420 assertions passed.",
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",
       "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "Genuine frozen combined378 SUT executions/420 assertions; independently restricted Relations261/303 and Arithmetic116/116. Actual outputs feed chains, no semantic case opt-outs.",

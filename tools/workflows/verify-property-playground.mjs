@@ -36,7 +36,8 @@ for (const [id, example] of Object.entries(examples).filter(([id]) => id.startsW
       assert.deepEqual(example.view === 'query' ? selected.results : selected.bindings, []);
       if (id === 'propertyBudget') {
         assert.equal(selected.errors[0].budget, 'maxPropertyInspections');
-        assert.equal(selected.errors[0].limit, 1); assert.equal(selected.errors[0].observed, 2);
+        assert.equal(selected.errors[0].limit, example.propertyInspections);
+        assert.equal(selected.errors[0].observed, example.propertyInspections + 1);
       }
     } else {
       verifyPropertySelection(selected, example, owner, rows, id);
