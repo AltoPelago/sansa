@@ -40,9 +40,10 @@ checked faults and `maxPropertyInspections` (default 10,000, maximum 1,000,000).
 Hosts prove authorized scope and supply metadata explicitly. A tag selector
 compares the current node’s intrinsic tag and charges one candidate inspection.
 
-The published 0.15.0 and current Rust head-based contract is described in the
-[previous candidate contract](property-selectors-contract.md) and
-[implementation checkpoint](property-resolve-implementation.md).
+The Rust development provider uses the same intrinsic-tag rule through its
+`property::PropertyAccess` trait. Both development providers reject `&headTag()`.
+The [previous candidate contract](property-selectors-contract.md) describes the
+head-based model shipped in SANSA 0.15.0.
 
 Owning AEON SDK namespaces supply the facet. Pure Python supports standalone
 Resolve; existing native Pytonic `Document.query()` is separately admitted.

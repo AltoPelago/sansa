@@ -282,12 +282,60 @@ impl PropertyAccess for Host {
     }
 }
 
-fn uses_historical_tag_fixture(input: &J) -> bool {
-    let input = input.to_string();
-    ["&tag", "headTag", "nodeHeads", "\"property\":\"tag\""]
-        .iter()
-        .any(|part| input.contains(part))
-}
+// These named fixtures use the retired head topology or account for its callbacks.
+const HISTORICAL_RESOLVE_TAG_CASES: &[&str] = &[
+    "sansa-properties-tag-not-key",
+    "sansa-properties-container-tag",
+    "sansa-properties-head-tag",
+    "sansa-properties-ordinary-tag",
+    "sansa-properties-multiple-matching-heads",
+    "sansa-properties-cached-tag",
+    "sansa-properties-not-retargeted",
+    "sansa-properties-empty-heads",
+    "sansa-properties-empty-tag-does-not-invent-tag",
+    "sansa-properties-scope-root-tag",
+    "sansa-properties-context-tag",
+    "sansa-properties-wrong-owner",
+    "sansa-properties-foreign-head",
+    "sansa-properties-bad-tag",
+    "sansa-properties-wrong-head-kind",
+    "sansa-properties-iterator-throw",
+    "sansa-properties-partial-tag",
+    "sansa-properties-capability-after-empty-filter",
+    "sansa-properties-zero-before-metadata",
+    "sansa-properties-head-budget",
+    "sansa-properties-exact-budget",
+    "sansa-properties-terminal-probe",
+    "sansa-properties-absent-node-tag",
+    "sansa-properties-noniterable-heads",
+    "sansa-properties-repeated-container-tag",
+    "sansa-properties-unvisited-suffix",
+    "sansa-properties-wide-miss-64",
+    "sansa-properties-wide-last-64",
+    "sansa-properties-wide-budget-64",
+    "sansa-properties-wide-miss-128",
+    "sansa-properties-wide-last-128",
+    "sansa-properties-wide-budget-128",
+    "sansa-properties-tag-rejects-head",
+    "sansa-properties-head-tag-rejects-container",
+    "sansa-properties-head-tag-rejects-ordinary",
+    "sansa-properties-head-tag-root",
+    "sansa-properties-head-tag-one-inspection",
+    "sansa-properties-recursive-tag-containers",
+    "sansa-properties-recursive-head-tag-heads",
+    "sansa-properties-head-tag-navigation",
+    "sansa-properties-tag-then-head-tag-misses",
+    "sansa-properties-head-tag-then-tag-misses",
+    "sansa-properties-partial-head-tag",
+    "sansa-properties-head-tag-zero-budget",
+];
+
+const HISTORICAL_QUERY_TAG_CASES: &[&str] = &[
+    "sansa-properties-query-current-tag",
+    "sansa-properties-query-unsupported-empty",
+    "sansa-properties-query-shared-exact",
+    "sansa-properties-query-shared-overflow",
+];
 
 #[test]
 fn intrinsic_tag_resolves_the_same_binding_at_named_indexed_and_scoped_paths() {
@@ -395,6 +443,7 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
     let mut executed = 0;
     for vector in suite["tests"].as_array().expect("tests") {
         let input = &vector["input"];
+        let id = vector["id"].as_str().expect("id");
         // Native Rust Address/options cannot encode JS accessor/cycle ASTs or
         // booleans/negative/fractional u32 allowances. They are not claimed here;
         // JS runs all95, and native AST/typed boundary controls are separate.
@@ -405,12 +454,11 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
             || input["options"]["maxPropertyInspections"].is_boolean()
             || limit < 0.0
             || limit.fract() != 0.0
-            || uses_historical_tag_fixture(input)
+            || HISTORICAL_RESOLVE_TAG_CASES.contains(&id)
         {
             continue;
         }
         executed += 1;
-        let id = vector["id"].as_str().expect("id");
         let host = Host::new(input);
         let options = ResolveOptions {
             max_property_inspections: limit as u32,
@@ -650,10 +698,10 @@ fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
     let mut executed = 0;
     for vector in suite["tests"].as_array().expect("tests") {
         let input = &vector["input"];
-        if uses_historical_tag_fixture(input) {
+        let id = vector["id"].as_str().expect("id");
+        if HISTORICAL_QUERY_TAG_CASES.contains(&id) {
             continue;
         }
-        let id = vector["id"].as_str().expect("id");
         let source = input["source"].as_str().expect("source");
         let parsed = crate::query::parse_query(source).expect(id);
         if input["operation"] == "parse-query" {
