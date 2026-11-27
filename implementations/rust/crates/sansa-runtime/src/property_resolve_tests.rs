@@ -18,6 +18,12 @@ struct Host {
 }
 impl Host {
     fn new(input: &J) -> Self {
+        Self::from_fixture(input, false)
+    }
+    fn tagged(input: &J) -> Self {
+        Self::from_fixture(input, true)
+    }
+    fn from_fixture(input: &J, tagged: bool) -> Self {
         let fixture: J = serde_json::from_str(include_str!(
             "../tests/fixtures/property-namespace-candidate-v1.json"
         ))
@@ -26,22 +32,26 @@ impl Host {
             .as_array()
             .expect("bindings")
             .clone();
-        if let Some(width) = input["wideHeads"]["count"].as_u64() {
-            let mut heads = Vec::new();
-            for i in 0..width {
-                let id = format!("wide{i}");
-                heads.push(J::String(id.clone()));
-                rows.push(json!({"id":id,"address":format!("$.multi[{i}]"),"nodeKind":"NodeHead","children":[],"tag":if input["wideHeads"]["matchAt"]=="last"&&i+1==width {"right"} else {"other"}}));
-            }
-            let multi = rows.iter_mut().find(|r| r["id"] == "multi").expect("multi");
-            multi["children"] = J::Array(heads.clone());
-            multi["heads"] = J::Array(heads);
-        }
-        let ids = rows
+        let ids: HashMap<_, _> = rows
             .iter()
             .enumerate()
             .map(|(i, r)| (r["id"].as_str().expect("id").to_owned(), i))
             .collect();
+        if tagged {
+            rows[ids["doc"]]["tag"] = json!("document");
+            rows[ids["doc"]]["children"] = json!(["apple", "note", "orange"]);
+            for (index, id, tag) in [
+                (0, "apple", "product"),
+                (1, "note", "note"),
+                (2, "orange", "product"),
+            ] {
+                let row = &mut rows[ids[id]];
+                row["address"] = json!(format!("$.document[{index}]"));
+                row["index"] = json!(index);
+                row["tag"] = json!(tag);
+                row["children"] = json!([]);
+            }
+        }
         let mut h = Self {
             parents: vec![None; rows.len()],
             rows,
@@ -194,45 +204,13 @@ impl Namespace for Host {
         }
     }
 }
-struct Heads<'a> {
-    host: &'a Host,
-    owner: usize,
-    heads: &'a [J],
-    position: usize,
-    finished: bool,
-}
-impl Iterator for Heads<'_> {
-    type Item = Result<usize, PropertyAccessError>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Err(e) = self
-            .host
-            .scripted("headNext", self.owner, Some(self.position + 1))
-        {
-            return Some(Err(e));
-        }
-        if self.position >= self.heads.len() {
-            self.finished = true;
-            return None;
-        }
-        let id = self.heads[self.position].as_str().expect("head id");
-        self.position += 1;
-        Some(Ok(self.host.id(id)))
-    }
-}
-impl Drop for Heads<'_> {
-    fn drop(&mut self) {
-        if !self.finished {
-            self.host.bump("headEarlyClose");
-        }
-    }
-}
 impl PropertyAccess for Host {
     type Binding = usize;
     fn supports_key(&self) -> bool {
         !self.omitted("key")
     }
     fn supports_nodes(&self) -> bool {
-        !["nodeKind", "nodeTag", "nodeHeads"]
+        !["nodeKind", "nodeTag"]
             .iter()
             .any(|name| self.omitted(name))
     }
@@ -249,12 +227,7 @@ impl PropertyAccess for Host {
                 _ => Err(PropertyAccessError::InvalidMetadata),
             };
         }
-        let owned = context.direct_head_of.is_none_or(|owner| {
-            self.rows[*owner]["heads"]
-                .as_array()
-                .is_some_and(|heads| heads.contains(&self.rows[*binding]["id"]))
-        });
-        Ok(if !owned || !self.contains(*context.scope_root, *binding) {
+        Ok(if !self.contains(*context.scope_root, *binding) {
             PropertyScopeRole::Outside
         } else if binding == context.scope_root {
             PropertyScopeRole::Root
@@ -297,7 +270,6 @@ impl PropertyAccess for Host {
         match value.as_str() {
             Some("Other") => Ok(PropertyNodeKind::Other),
             Some("NodeLiteral") => Ok(PropertyNodeKind::NodeLiteral),
-            Some("NodeHead") => Ok(PropertyNodeKind::NodeHead),
             _ => Err(PropertyAccessError::InvalidMetadata),
         }
     }
@@ -308,23 +280,155 @@ impl PropertyAccess for Host {
     ) -> Result<Option<String>, PropertyAccessError> {
         self.text("nodeTag", *binding, "tag")
     }
-    fn node_heads<'a>(
-        &'a self,
-        binding: &'a usize,
-        _: &'a PropertyAccessContext<'a, usize>,
-    ) -> Result<PropertyHeads<'a, usize>, PropertyAccessError> {
-        let heads = self
-            .scripted("nodeHeads", *binding, None)?
-            .unwrap_or(&self.rows[*binding]["heads"])
-            .as_array()
-            .ok_or(PropertyAccessError::InvalidMetadata)?;
-        Ok(Box::new(Heads {
-            host: self,
-            owner: *binding,
-            heads,
-            position: 0,
-            finished: false,
-        }))
+}
+
+// These named fixtures use the retired head topology or account for its callbacks.
+const HISTORICAL_RESOLVE_TAG_CASES: &[&str] = &[
+    "sansa-properties-tag-not-key",
+    "sansa-properties-container-tag",
+    "sansa-properties-head-tag",
+    "sansa-properties-ordinary-tag",
+    "sansa-properties-multiple-matching-heads",
+    "sansa-properties-cached-tag",
+    "sansa-properties-not-retargeted",
+    "sansa-properties-empty-heads",
+    "sansa-properties-empty-tag-does-not-invent-tag",
+    "sansa-properties-scope-root-tag",
+    "sansa-properties-context-tag",
+    "sansa-properties-wrong-owner",
+    "sansa-properties-foreign-head",
+    "sansa-properties-bad-tag",
+    "sansa-properties-wrong-head-kind",
+    "sansa-properties-iterator-throw",
+    "sansa-properties-partial-tag",
+    "sansa-properties-capability-after-empty-filter",
+    "sansa-properties-zero-before-metadata",
+    "sansa-properties-head-budget",
+    "sansa-properties-exact-budget",
+    "sansa-properties-terminal-probe",
+    "sansa-properties-absent-node-tag",
+    "sansa-properties-noniterable-heads",
+    "sansa-properties-repeated-container-tag",
+    "sansa-properties-unvisited-suffix",
+    "sansa-properties-wide-miss-64",
+    "sansa-properties-wide-last-64",
+    "sansa-properties-wide-budget-64",
+    "sansa-properties-wide-miss-128",
+    "sansa-properties-wide-last-128",
+    "sansa-properties-wide-budget-128",
+    "sansa-properties-tag-rejects-head",
+    "sansa-properties-head-tag-rejects-container",
+    "sansa-properties-head-tag-rejects-ordinary",
+    "sansa-properties-head-tag-root",
+    "sansa-properties-head-tag-one-inspection",
+    "sansa-properties-recursive-tag-containers",
+    "sansa-properties-recursive-head-tag-heads",
+    "sansa-properties-head-tag-navigation",
+    "sansa-properties-tag-then-head-tag-misses",
+    "sansa-properties-head-tag-then-tag-misses",
+    "sansa-properties-partial-head-tag",
+    "sansa-properties-head-tag-zero-budget",
+];
+
+const HISTORICAL_QUERY_TAG_CASES: &[&str] = &[
+    "sansa-properties-query-current-tag",
+    "sansa-properties-query-unsupported-empty",
+    "sansa-properties-query-shared-exact",
+    "sansa-properties-query-shared-overflow",
+];
+
+#[test]
+fn intrinsic_tag_resolves_the_same_binding_at_named_indexed_and_scoped_paths() {
+    let host = Host::tagged(&json!({}));
+    let options = ResolveOptions {
+        contextual_root: Some(host.id("doc")),
+        ..ResolveOptions::default()
+    };
+    for (source, ids) in [
+        ("$.document&tag(\"document\")", vec!["doc"]),
+        ("$.document.*&tag(\"product\")", vec!["apple", "orange"]),
+        ("$.document[0]&tag(\"product\")", vec!["apple"]),
+        ("$.document.*&key(\"product\")", vec![]),
+        ("$.document.*&tag(\"document\")", vec![]),
+        ("$.ordinary&tag(\"product\")", vec![]),
+        ("?&tag(\"document\")", vec!["doc"]),
+        ("?&key(\"document\")", vec![]),
+    ] {
+        let parsed = crate::address::parse_address(source).expect(source);
+        let expected: Vec<_> = ids.into_iter().map(|id| host.id(id)).collect();
+        for output in [
+            resolve_address(source, &host, &options),
+            resolve_parsed_address(&parsed, &host, &options),
+        ] {
+            assert!(output.is_ok(), "{source}: {:?}", output.errors);
+            assert_eq!(output.bindings, expected, "{source}");
+        }
+    }
+}
+
+#[test]
+fn intrinsic_tag_requires_metadata_and_charges_once_per_inspected_binding() {
+    let source = "$.document&tag(\"document\")";
+    let host = Host::tagged(&json!({}));
+    let options = ResolveOptions {
+        max_property_inspections: 1,
+        ..ResolveOptions::default()
+    };
+    assert_eq!(
+        resolve_address(source, &host, &options).bindings,
+        vec![host.id("doc")]
+    );
+    assert_eq!(*host.calls.borrow().get("nodeTag").expect("tag read"), 1);
+    for value in [J::Null, json!(""), json!(17)] {
+        let host =
+            Host::tagged(&json!({"faults":[{"callback":"nodeTag","binding":"doc","value":value}]}));
+        let output = resolve_address(source, &host, &options);
+        assert_eq!(
+            output.errors[0].code,
+            "SANSA_RESOLVE_INVALID_PROPERTY_METADATA"
+        );
+    }
+    let incapable = Host::tagged(&json!({"omit":["nodeTag"]}));
+    let output = resolve_address("$.missing&tag(\"document\")", &incapable, &options);
+    assert_eq!(output.errors[0].code, "SANSA_RESOLVE_UNSUPPORTED_TAG");
+    assert!(!incapable.calls.borrow().contains_key("children"));
+    let bad = resolve_address("$&headTag(\"document\")", &incapable, &options);
+    assert!(!bad.is_ok());
+    assert!(!incapable.calls.borrow().contains_key("children"));
+}
+
+#[test]
+fn query_shares_the_intrinsic_tag_allowance_across_clauses() {
+    use crate::evaluate::{EvaluateOptions, EvaluatedValue, evaluate_query};
+    let query = "from $.document&tag(\"document\")\nwhere exists(.&tag(\"document\"))\nselect .&tag(\"document\")";
+    for limit in [2, 3] {
+        let host = Host::tagged(&json!({}));
+        let options = EvaluateOptions {
+            resolve: ResolveOptions {
+                max_property_inspections: limit,
+                ..ResolveOptions::default()
+            },
+            ..EvaluateOptions::default()
+        };
+        let output = evaluate_query(query, &host, &options);
+        if limit == 3 {
+            assert!(output.is_ok(), "{:?}", output.errors);
+            assert_eq!(output.results.len(), 1);
+            assert_eq!(
+                output.results[0].value,
+                EvaluatedValue::Bindings(vec![host.id("doc")])
+            );
+        } else {
+            assert_eq!(
+                output.errors[0].code,
+                "SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED"
+            );
+            assert!(output.results.is_empty());
+        }
+        assert_eq!(
+            *host.calls.borrow().get("nodeTag").expect("tag reads"),
+            limit as usize
+        );
     }
 }
 
@@ -339,6 +443,7 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
     let mut executed = 0;
     for vector in suite["tests"].as_array().expect("tests") {
         let input = &vector["input"];
+        let id = vector["id"].as_str().expect("id");
         // Native Rust Address/options cannot encode JS accessor/cycle ASTs or
         // booleans/negative/fractional u32 allowances. They are not claimed here;
         // JS runs all95, and native AST/typed boundary controls are separate.
@@ -349,11 +454,11 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
             || input["options"]["maxPropertyInspections"].is_boolean()
             || limit < 0.0
             || limit.fract() != 0.0
+            || HISTORICAL_RESOLVE_TAG_CASES.contains(&id)
         {
             continue;
         }
         executed += 1;
-        let id = vector["id"].as_str().expect("id");
         let host = Host::new(input);
         let options = ResolveOptions {
             max_property_inspections: limit as u32,
@@ -380,7 +485,7 @@ fn selected_text_expectations_cover_actual_rust_resolve_and_all_present_observat
             }
         }
     }
-    assert_eq!(executed, 79, "selection must not change silently");
+    assert_eq!(executed, 35, "selection must not change silently");
 }
 
 #[test]
@@ -434,8 +539,9 @@ fn native_ast_flags_bounds_and_independent_public_allowances() {
         "SANSA_RESOLVE_INVALID_ADDRESS"
     );
     assert_eq!(*host.calls.borrow(), before);
+    let host = Host::tagged(&json!({}));
     let mut multiple =
-        crate::address::parse_address("$.document[0].*&tag(\"product\")").expect("address");
+        crate::address::parse_address("$.document.*&tag(\"product\")").expect("address");
     multiple.is_exact = true;
     multiple.canonical = "$.wrong".into();
     assert_eq!(
@@ -593,6 +699,9 @@ fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
     for vector in suite["tests"].as_array().expect("tests") {
         let input = &vector["input"];
         let id = vector["id"].as_str().expect("id");
+        if HISTORICAL_QUERY_TAG_CASES.contains(&id) {
+            continue;
+        }
         let source = input["source"].as_str().expect("source");
         let parsed = crate::query::parse_query(source).expect(id);
         if input["operation"] == "parse-query" {
@@ -631,7 +740,7 @@ fn property_query_prepared_mirrors_assert_all_present_fields_and_counters() {
         }
         executed += 1;
     }
-    assert_eq!(executed, 15);
+    assert_eq!(executed, 11);
 }
 
 fn assert_property_query_results(

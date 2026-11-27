@@ -14,7 +14,6 @@ pub enum PropertyScopeRole {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PropertyNodeKind {
     NodeLiteral,
-    NodeHead,
     Other,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,9 +28,7 @@ pub enum PropertyAccessError {
 pub struct PropertyAccessContext<'a, B> {
     pub scope_root: &'a B,
     pub evaluation_root: &'a B,
-    pub direct_head_of: Option<&'a B>,
 }
-pub type PropertyHeads<'a, B> = Box<dyn Iterator<Item = Result<B, PropertyAccessError>> + 'a>;
 
 pub trait PropertyAccess {
     type Binding: Clone + Eq;
@@ -66,13 +63,6 @@ pub trait PropertyAccess {
         _context: &PropertyAccessContext<'_, Self::Binding>,
     ) -> Result<Option<String>, PropertyAccessError> {
         Ok(None)
-    }
-    fn node_heads<'a>(
-        &'a self,
-        _binding: &'a Self::Binding,
-        _context: &'a PropertyAccessContext<'a, Self::Binding>,
-    ) -> Result<PropertyHeads<'a, Self::Binding>, PropertyAccessError> {
-        Ok(Box::new(std::iter::empty()))
     }
 }
 
@@ -115,15 +105,13 @@ impl<'a, B: Clone + Eq> PropertyInspection<'a, B> {
                 };
                 let supported = match property {
                     PropertyName::Key => access.supports_key(),
-                    PropertyName::Tag | PropertyName::HeadTag => access.supports_nodes(),
+                    PropertyName::Tag => access.supports_nodes(),
                 };
                 if !supported {
                     return Err(diagnostic(
                         match property {
                             PropertyName::Key => "SANSA_RESOLVE_UNSUPPORTED_KEY",
-                            PropertyName::Tag | PropertyName::HeadTag => {
-                                "SANSA_RESOLVE_UNSUPPORTED_TAG"
-                            }
+                            PropertyName::Tag => "SANSA_RESOLVE_UNSUPPORTED_TAG",
                         },
                         *property,
                         index,
@@ -187,49 +175,18 @@ impl<'a, B: Clone + Eq> PropertyInspection<'a, B> {
                 .map(|v| v.as_deref() == Some(value))
                 .map_err(|e| fault(e, property, index));
         }
-        match facet
+        if facet
             .node_kind(binding, context)
             .map_err(|e| fault(e, property, index))?
+            != PropertyNodeKind::NodeLiteral
         {
-            PropertyNodeKind::Other => Ok(false),
-            PropertyNodeKind::NodeHead if property == PropertyName::HeadTag => facet
-                .node_tag(binding, context)
-                .map(|v| v.as_deref() == Some(value))
-                .map_err(|e| fault(e, property, index)),
-            PropertyNodeKind::NodeLiteral if property == PropertyName::Tag => {
-                let heads = facet
-                    .node_heads(binding, context)
-                    .map_err(|e| fault(e, property, index))?;
-                for result in heads {
-                    // Iterator failure is not another yielded candidate; charge
-                    // only successful yields, before any head metadata access.
-                    let head = result.map_err(|e| fault(e, property, index))?;
-                    self.charge(property, index)?;
-                    let head_context = PropertyAccessContext {
-                        scope_root: context.scope_root,
-                        evaluation_root: context.evaluation_root,
-                        direct_head_of: Some(binding),
-                    };
-                    self.authorize(&head, &head_context, property, index)?;
-                    if facet
-                        .node_kind(&head, &head_context)
-                        .map_err(|e| fault(e, property, index))?
-                        != PropertyNodeKind::NodeHead
-                    {
-                        return Err(fault(PropertyAccessError::InvalidMetadata, property, index));
-                    }
-                    if facet
-                        .node_tag(&head, &head_context)
-                        .map_err(|e| fault(e, property, index))?
-                        .as_deref()
-                        == Some(value)
-                    {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            }
-            _ => Ok(false),
+            return Ok(false);
         }
+        let tag = facet
+            .node_tag(binding, context)
+            .map_err(|e| fault(e, property, index))?
+            .filter(|tag| !tag.is_empty())
+            .ok_or_else(|| fault(PropertyAccessError::InvalidMetadata, property, index))?;
+        Ok(tag == value)
     }
 }
