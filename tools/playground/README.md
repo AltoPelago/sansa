@@ -113,19 +113,19 @@ requests; diagnostics retain no reusable value. See the
 
 ## Property selectors (development)
 
-Use the coordinated AEON #207 build (or a later build retaining that integration).
+Use an AEON TypeScript build that implements the revised node model.
 The property examples use the same `createAeonNamespace` metadata facet and
 `resolveAddress` / `evaluateQuery` engines as the SDK;
 this UI has no property parser, tag-field inference or alternate resolver.
 `&key("...")` compares the literal incoming member/attribute key. Empty keys,
 `*` in a key, and Unicode remain literal. Positions are not keys. A selected
-scope root hides its incoming key but retains its intrinsic/direct-head tags;
-`&tag("...")` matches node containers only. `&headTag("...")` matches heads only; neither treats an ordinary field named `tag` as metadata.
+scope root hides its incoming key and retains its intrinsic node tag.
+`&tag("...")` compares the selected node’s tag. An ordinary field named `tag` supplies no property metadata.
 
 **Property inspections** is independent of identity inspections: default 10,000,
 maximum 1,000,000, with zero permitted. The value goes to Resolve, or Query's
 shared Resolve allowance, unchanged;
-logical work includes candidates and yielded direct heads, including misses and
+logical work includes candidates, including misses and
 repeated occurrences. Construction, ancestry and other navigation have separate
 costs. Budget failures show the real property/budget/limit/observed fields and
 return no partial results. Parser limit diagnostics retain limitKind too.
@@ -149,14 +149,14 @@ node tools/workflows/verify-property-playground.mjs /absolute/path/to/consumer -
 ```
 
 It checks all 15 property examples as text and parsed AST, scope roots, original
-candidate and selected binding handles, direct heads, inspection diagnostics,
+candidate and selected binding handles, indexed tags, inspection diagnostics,
 Query selection and empty Binding Sets. No
 installation, index, mutation or release is performed. Official releases,
 deployment, stable profile promotion and final performance qualification remain
 held; the 1.15x latency / 1.20x memory budgets are unchanged.
 
-Results label their actual representation kind. Use the recursive container/head
-examples to compare `&tag` and `&headTag`; add `.*` explicitly to visit head children.
+Results label their actual representation kind. Use the indexed tag and key
+examples to compare the same occurrence. Append `.*` to visit a node’s children.
 
 Date anchoring uses frozen snapshot 0.1. Select **Date anchoring** in Value
 operations, edit either authored or derived input in the request JSON, and run.

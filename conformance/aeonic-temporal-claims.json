@@ -74,8 +74,8 @@
       ]
     },
     "implementation_files_sha256": {
-      "src/index.js": "8b5b80d1418677575bea3b9207d628d722db72019928c66eab32eb125bf1df3a",
-      "src/index.d.ts": "94a4b8bd0db803b1d6372f65f68d3a5e9622adcce750986ccadc9bf9c38667a7",
+      "src/index.js": "4a15e87855eb2d4aa79065ff39161a149e197dfd2cc6457a049f55125eacfbdd",
+      "src/index.d.ts": "43359d46248f1e62662afd8c0ec5ea0b8dd013d6eb193c1decace6fb9a149d38",
       "src/aeonic-temporal-civil-date.js": "d71904f4f504db0e053efcb67578232a25c208575012fbdae26d4b6fc399ea8f",
       "src/aeonic-temporal-civil-date.d.ts": "1c096e141942653457d0b731afb472b7eaff361c467470720b143339cc27c3a3",
       "src/aeonic-json.js": "96f4a8dbfa8b3f2f6411dae87e9cec74f9f5268209f787c5aae5b60df5f0db1c",
@@ -84,10 +84,11 @@
       "scripts/cts-aeonic-temporal-civil-date-adapter.mjs": "2b97c037527a02171a6e9cd9bed214a2183e6203e6eae2c83193ba51745bca5a",
       "scripts/cts-aeonic-temporal.mjs": "e93c83ad16410342b729632ca16efa3f02d3115c87b9fab1ed3f7bd8bc6b356f",
       "scripts/calibrate-aeonic-temporal-capacity.py": "f07262a4520608a693a00837a6118a2b92f58241bdc2135d16db33061f48fa76",
-      "src/property-address.js": "030add5cd4f27800fc3d0cc192ac867976b4c2dfa65684db0186f099924087e2",
-      "src/property-resolve.js": "a36e5ab03bafe4f443f250ea5a28ec2ed3bfc28babd8f34bed5b42e167acaab8"
+      "src/property-address.js": "f88d857a0f073d3a1056cdfe89d87165140708a105feb81def3f12a37fe23ce3",
+      "src/property-resolve.js": "4604c2063b8bcdee63f40403d70ed776462b1c0606f0b877b7ca9be3f98722d9"
     },
     "limits": [
+      "Rechecked the pinned frozen capability on 2026-11-27 after revising SANSA node-tag selection. 296 executions and 310 assertions passed.",
       "Rechecked the pinned frozen capability selections on 2026-11-22 after making reserved radix base lookup case-sensitive.",
       "Rechecked the pinned frozen capability selections on 2026-11-21 after adding radix16 handling to the shared JavaScript entry point.",
       "All native frozen selections pass: combined296executions/310assertions, Relations171/185, Calendar125/125. Each selected capability is complete; combined chains feed actual checked date bundles.",

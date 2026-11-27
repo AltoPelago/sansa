@@ -11,7 +11,6 @@ class PropertyFailure {
   constructor(code) { this.code = code; internalFailures.add(this); }
 }
 const invalid = () => { throw new PropertyFailure('SANSA_RESOLVE_INVALID_PROPERTY_METADATA'); };
-const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 function faultCode(error) {
   if (internalFailures.has(error)) return error.code;
   // Explicit checked faults are plain data; never evaluate fault accessors or
@@ -43,7 +42,7 @@ export function prepareProperties(namespace, selectors) {
       const selector = selectors[selectorIndex];
       if (selector.type !== 'propertyFilter') continue;
       if (typeof method('scope') !== 'function') return {error: diagnostic('SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE', selector, selectorIndex)};
-      const required = selector.property === 'key' ? ['key'] : ['nodeKind', 'nodeTag', 'nodeHeads'];
+      const required = selector.property === 'key' ? ['key'] : ['nodeKind', 'nodeTag'];
       for (const name of required) if (typeof method(name) !== 'function') return {error: diagnostic(selector.property === 'key' ? 'SANSA_RESOLVE_UNSUPPORTED_KEY' : 'SANSA_RESOLVE_UNSUPPORTED_TAG', selector, selectorIndex)};
     }
     // Snapshot requested callback references once: capability checking performs
@@ -63,8 +62,8 @@ function scalar(value) {
   }
   return value;
 }
-export function propertyContext(scopeRoot, evaluationRoot, directHeadOf) {
-  return Object.freeze({scopeRoot, evaluationRoot, ...(directHeadOf === undefined ? {} : {directHeadOf})});
+export function propertyContext(scopeRoot, evaluationRoot) {
+  return Object.freeze({scopeRoot, evaluationRoot});
 }
 export function selectProperty(binding, context, prepared, selector, selectorIndex, budget) {
   const {facet, methods} = prepared;
@@ -81,50 +80,17 @@ export function selectProperty(binding, context, prepared, selector, selectorInd
   };
   const kind = (candidate, ctx) => {
     const value = call('nodeKind', candidate, ctx);
-    if (!['NodeLiteral', 'NodeHead', 'Other'].includes(value)) invalid();
+    if (value !== 'NodeLiteral' && value !== 'Other') invalid();
     return value;
   };
   try {
     charge();
     const role = authorize(binding, context);
     if (selector.property === 'key') return {match: role === 'root' ? false : scalar(call('key', binding, context)) === selector.value};
-    const nodeKind = kind(binding, context);
-    if (selector.property === 'headTag') return {match: nodeKind === 'NodeHead' && scalar(call('nodeTag', binding, context)) === selector.value};
-    if (nodeKind !== 'NodeLiteral') return {match: false};
-    let iterator, finished = false, match = false;
-    try {
-      const iterable = call('nodeHeads', binding, context);
-      const create = iterable?.[Symbol.iterator];
-      if (typeof create !== 'function') invalid();
-      iterator = create.call(iterable);
-      if (!objectLike(iterator)) invalid();
-      const next = iterator.next;
-      if (typeof next !== 'function') invalid();
-      while (true) {
-        const step = next.call(iterator);
-        if (!objectLike(step)) invalid();
-        if (step.done) { finished = true; break; }
-        charge();
-        const head = step.value;
-        if (!objectLike(head)) invalid();
-        const headContext = propertyContext(context.scopeRoot, context.evaluationRoot, binding);
-        authorize(head, headContext);
-        if (kind(head, headContext) !== 'NodeHead') invalid();
-        if (scalar(call('nodeTag', head, headContext)) === selector.value) { match = true; break; }
-      }
-    } finally {
-      // Also close after next() faults. Standard for-of does not cover that
-      // case, while the checked property contract explicitly requires it.
-      if (iterator && !finished) {
-        const close = iterator.return;
-        if (close !== undefined) {
-          if (typeof close !== 'function') invalid();
-          const closed = close.call(iterator);
-          if (!objectLike(closed)) invalid();
-        }
-      }
-    }
-    return {match};
+    if (kind(binding, context) !== 'NodeLiteral') return {match: false};
+    const tag = scalar(call('nodeTag', binding, context));
+    if (tag === undefined || tag.length === 0) invalid();
+    return {match: tag === selector.value};
   } catch (error) {
     const code = faultCode(error);
     return {error: diagnostic(code, selector, selectorIndex, code === 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED' ? {budget: 'maxPropertyInspections', limit: budget.limit, observed: budget.limit + 1} : {})};

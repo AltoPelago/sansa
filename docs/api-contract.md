@@ -33,18 +33,16 @@ npm run cts:mutate
 
 ## Unreleased property Addressing, Resolve and direct Query
 
-JavaScript/TypeScript and Rust support property Addressing and opt-in standalone
-read-only Resolve and direct read-only Query through the optional authoritative
-property facet. Current exports include `PropertyAccess`, read-only `PropertyAccessContext`, checked
-faults and `maxPropertyInspections` (default10000, maximum1000000). Hosts must
-prove authorized scope and direct-head ownership; ordinary names, paths and
-cached tags are not authority. Existing adapters do not opt in automatically.
+JavaScript/TypeScript supports property Addressing, standalone read-only
+Resolve and direct read-only Query through the authoritative property facet.
+Current exports include `PropertyAccess`, read-only `PropertyAccessContext`,
+checked faults and `maxPropertyInspections` (default 10,000, maximum 1,000,000).
+Hosts prove authorized scope and supply metadata explicitly. A tag selector
+compares the current node’s intrinsic tag and charges one candidate inspection.
 
-The [candidate contract](property-selectors-contract.md) and
-[implementation checkpoint](property-resolve-implementation.md) describe delivered
-support, private occurrence frames, diagnostics, accounting and Rust source-porting
-considerations. The adjacent declaration sketches are historical API preparation
-artifacts, rather than the current exported declarations.
+The published 0.15.0 and current Rust head-based contract is described in the
+[previous candidate contract](property-selectors-contract.md) and
+[implementation checkpoint](property-resolve-implementation.md).
 
 Owning AEON SDK namespaces supply the facet. Pure Python supports standalone
 Resolve; existing native Pytonic `Document.query()` is separately admitted.
@@ -873,7 +871,7 @@ Parent traversal, position ranges, expansion selectors, filters, and name patter
 { type: "namePattern", pattern }
 { type: "semanticTypeFilter", name }
 { type: "representationKindFilter", name }
-{ type: "propertyFilter", property: "key", value } // property may also be "tag" or "headTag"
+{ type: "propertyFilter", property: "key", value } // property may also be "tag"
 ```
 
 Selector names and patterns are decoded string values. Renderers choose the shortest unambiguous canonical form.
@@ -933,10 +931,10 @@ For simple hosts, bindings may expose fields directly:
 
 These ordinary binding fields are not a fallback for the authoritative property
 facet. `properties.scope` is required; key support additionally requires `key`,
-and tag support requires `nodeKind`, `nodeTag` and incremental `nodeHeads`.
-Root keys remain hidden and direct-head ownership must be proven by the facet.
-The current [property types and implementation](property-resolve-implementation.md)
-define read-only contexts, checked faults and finite inspection accounting.
+and tag support requires `nodeKind` and `nodeTag`. Kind reports `NodeLiteral`
+or `Other`. A node’s tag is a nonempty Unicode-scalar string. A scoped root
+retains its tag and hides its incoming key. An indexed node exposes its
+position and tag.
 
 Query also recognizes the portable scalar representation names directly, including
 `DateLiteral`, `TimeLiteral`, `DateTimeLiteral`, `WTCDateTimeLiteral` and
@@ -948,7 +946,10 @@ Exact member and position selectors select direct children. This implementation 
 
 `#name` filters the current binding set by semantic type. The default matcher accepts exact semantic type names and base names before `<...>` or `[...]`. `%name` filters the current binding set by representation kind.
 
-Representation-kind names use the ordinary identifier grammar. An AES-backed namespace exposes normative AEON representation names directly, so `%NodeHead` selects node heads without a separate SANSA vocabulary. A portable `NodeLiteral` exposes its indexed `NodeHead` values as direct children, and each head exposes its indexed content as direct children: `NodeLiteral[head-index][content-index]`. It must not collapse content directly beneath the outer node. Parent traversal exposes the inverse hierarchy. SANSA traverses the structure supplied by the host adapter; AES topology validation remains the host's responsibility.
+Representation-kind names use the ordinary identifier grammar. Revised portable
+AES supplies a `NodeLiteral` with direct indexed children. SANSA follows the
+structure supplied by the host adapter, including inverse parent traversal.
+The host remains responsible for validating its AES version’s topology.
 
 `?` uses a binding supplied through `options.contextualRoot` or `namespace.contextualRoot`. Unlike `root`, `contextualRoot` is a binding value, not a callback. Hosts that need a dynamic contextual root should resolve it before calling `resolveAddress`. Attribute and local address-space traversal are explicit transitions through `.@` and `.<"name">`. They fail explicitly unless exposed by the namespace adapter or binding model. When local-space traversal is supported but a binding does not expose the named local space, normal resolution returns an empty binding set.
 

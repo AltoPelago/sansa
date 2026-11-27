@@ -21,17 +21,16 @@ test('property-free resolution does not access the optional facet',()=>{
   assert.deepEqual(resolveAddress('$',namespace,{maxPropertyInspections:0}).bindings,[root]);
 });
 
-test('over-budget yielded heads are not inspected even through iterator value accessors',()=>{
-  const {namespace,bindings}=propertyHost();let reads=0,closed=0;
-  namespace.properties.nodeHeads=()=>({[Symbol.iterator](){return this;},next(){return {done:false,get value(){reads++;return bindings.get('right');}};},return(){closed++;return {done:true};}});
-  const result=resolveAddress('$.multi&tag("right")',namespace,{maxPropertyInspections:1});
-  assert.equal(result.errors[0].code,'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED');
-  assert.equal(reads,0);assert.equal(closed,1);
-  // Iterator protocol records are objects, including callable objects. They
-  // are not caller ASTs and do not have the plain-data AST restriction.
-  namespace.properties.nodeHeads=()=>({[Symbol.iterator](){return this;},next(){return Object.assign(()=>{},{done:false,value:bindings.get('right')});},return(){return Object.assign(()=>{},{done:true});}});
-  const callable=resolveAddress('$.multi&tag("right")',namespace,{maxPropertyInspections:2});
-  assert.equal(callable.ok,true);assert.deepEqual(callable.bindings,[bindings.get('multi')]);
+test('tag budgets count candidate occurrences before reading metadata', () => {
+  const {namespace, bindings, calls} = propertyHost();
+  const source = '$.document.*&tag("product")';
+  const limited = resolveAddress(source, namespace, {maxPropertyInspections: 1});
+  assert.equal(limited.errors[0].code, 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED');
+  assert.deepEqual(limited.bindings, []);
+  assert.deepEqual([calls.scope, calls.nodeKind, calls.nodeTag], [1, 1, 1]);
+  const complete = resolveAddress(source, namespace, {maxPropertyInspections: 3});
+  assert.equal(complete.ok, true);
+  assert.deepEqual(complete.bindings, [bindings.get('apple'), bindings.get('orange')]);
 });
 
 test('capable adapters do not admit Instruction, mutation or literal activation', () => {
@@ -80,7 +79,7 @@ test('public/reentrant calls have private allowances; options cannot grant scope
   assert.equal(result.errors[0].code,'SANSA_RESOLVE_PROPERTY_SCOPE_VIOLATION');
 });
 
-test('checked faults and iterator acquisition/next/cleanup failures are sanitized and close resources', () => {
+test('checked faults are sanitized and invalid intrinsic tags fail closed', () => {
   for(const [kind,code]of [['invalidMetadata','SANSA_RESOLVE_INVALID_PROPERTY_METADATA'],['scopeViolation','SANSA_RESOLVE_PROPERTY_SCOPE_VIOLATION'],['adapterFailure','SANSA_RESOLVE_PROPERTY_ADAPTER_ERROR']]){
     const {namespace}=propertyHost();namespace.properties.key=()=>{throw {type:'SansaPropertyAccessFault',kind,message:'foreign secret',address:'$.hidden'};};
     const result=resolveAddress('$.document&key("x")',namespace);assert.equal(result.errors[0].code,code);assert.ok(!JSON.stringify(result).includes('secret'));assert.ok(!JSON.stringify(result).includes('hidden'));
@@ -95,15 +94,12 @@ test('checked faults and iterator acquisition/next/cleanup failures are sanitize
     const result=resolveAddress('$.document&key("x")',namespace);assert.equal(result.errors[0].code,'SANSA_RESOLVE_PROPERTY_ADAPTER_ERROR');assert.ok(!JSON.stringify(result).includes('secret'));
   }
   assert.equal(coercions,0);
-  for(const fault of ['acquire','next','done','close','badClose']){
-    const {namespace,bindings}=propertyHost();let closes=0;
-    namespace.properties.nodeHeads=()=>{
-      if(fault==='acquire')throw Error('secret');
-      return {[Symbol.iterator](){return this;},next(){if(fault==='next')throw Error('secret');if(fault==='done')return {get done(){throw Error('secret');}};return {done:false,value:bindings.get('right')};},return(){closes++;if(fault==='close')throw Error('secret');return fault==='badClose'?undefined:{done:true};}};
-    };
-    const result=resolveAddress('$.multi&tag("right")',namespace);assert.equal(result.ok,false);
-    assert.equal(result.errors[0].code,fault==='badClose'?'SANSA_RESOLVE_INVALID_PROPERTY_METADATA':'SANSA_RESOLVE_PROPERTY_ADAPTER_ERROR');
-    assert.equal(closes,fault==='acquire'?0:1);assert.ok(!JSON.stringify(result).includes('secret'));
+  for (const tag of [undefined, '', 42, '\ud800']) {
+    const {namespace} = propertyHost();
+    namespace.properties.nodeTag = () => tag;
+    const result = resolveAddress('$.document&tag("document")', namespace);
+    assert.equal(result.errors[0].code, 'SANSA_RESOLVE_INVALID_PROPERTY_METADATA');
+    assert.deepEqual(result.bindings, []);
   }
 });
 
@@ -113,5 +109,5 @@ test('capability callbacks are snapshotted once and binding limits remain global
   assert.equal(resolveAddress('$.document&key("document")&key("document")',namespace).ok,true);
   assert.deepEqual(counts,{scope:1,key:1});assert.equal(calls.key,2);
   const result=resolveAddress('$.*.^.document&key("document")',namespace,{maxBindings:13});assert.equal(result.ok,true);assert.equal(result.bindings.length,13);
-  const limited=resolveAddress('$.document[0].*&tag("product")',namespace,{maxBindings:2});assert.equal(limited.errors[0].code,'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED');assert.equal(limited.errors[0].limit,2);
+  const limited=resolveAddress('$.document.*&tag("product")',namespace,{maxBindings:2});assert.equal(limited.errors[0].code,'SANSA_RESOLVE_BINDING_LIMIT_EXCEEDED');assert.equal(limited.errors[0].limit,2);
 });

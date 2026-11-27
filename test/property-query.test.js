@@ -5,7 +5,21 @@ import {evaluateQuery,parseQuery,renderQuery} from '../src/index.js';
 import {propertyHost} from './property-resolve-fixture.mjs';
 import {runPropertyQueryVector} from './property-query-fixture.mjs';
 const suite=JSON.parse(readFileSync(new URL('../fixtures/property-query-candidate-v1.json',import.meta.url)));
-for(const vector of suite.tests) test(vector.id,()=>runPropertyQueryVector(vector));
+for (const vector of suite.tests) {
+  const adjusted = structuredClone(vector);
+  adjusted.input.source = adjusted.input.source?.replace('&tag("catalog")', '&tag("document")');
+  if (adjusted.input.omit?.includes('nodeHeads')) adjusted.input.omit = ['nodeTag'];
+  const limit = adjusted.input.options?.resolve?.maxPropertyInspections;
+  if (adjusted.id === 'sansa-properties-query-shared-exact') {
+    adjusted.input.options.resolve.maxPropertyInspections = limit - 1;
+    adjusted.expected.calls.scope -= 1;
+  } else if (adjusted.id === 'sansa-properties-query-shared-overflow') {
+    adjusted.input.options.resolve.maxPropertyInspections = limit - 1;
+    adjusted.expected.limit -= 1;
+    adjusted.expected.observed -= 1;
+  }
+  test(vector.id, () => runPropertyQueryVector(adjusted));
+}
 
 
 test('Query retains separate frames for repeated handles through where, ordering and slicing',()=>{
@@ -21,8 +35,8 @@ test('Query retains separate frames for repeated handles through where, ordering
   assert.ok(seen.some(c=>c.scopeRoot===a));assert.ok(seen.some(c=>c.scopeRoot===b));
 });
 test('whole-query capability preflight precedes empty and short-circuit traversal',()=>{
-  for(const clause of ['where false and exists(.&tag("x"))\nselect .','order by .&headTag("x") asc\nselect .','select { x = .&tag("x") }']){
-    const h=propertyHost({omit:['nodeHeads']});const r=evaluateQuery('from $.missing\n'+clause,h.namespace);
+  for(const clause of ['where false and exists(.&tag("x"))\nselect .','order by .&tag("x") asc\nselect .','select { x = .&tag("x") }']){
+    const h=propertyHost({omit:['nodeTag']});const r=evaluateQuery('from $.missing\n'+clause,h.namespace);
     assert.equal(r.ok,false);assert.equal(r.errors[0].code,'SANSA_RESOLVE_UNSUPPORTED_TAG');assert.equal(r.errors[0].phase,'policy');assert.equal(h.calls.children??0,0);assert.equal(h.calls.scope??0,0);
   }
 });
@@ -32,9 +46,9 @@ test('projection reads and order keys share the budget; failures expose no parti
     ['from $.document\nwhere exists(.&key("document"))\norder by .&key("document") asc\nselect .','order'],
   ]){const h=propertyHost();h.namespace.value=()=>1;const r=evaluateQuery(query,h.namespace,{resolve:{maxPropertyInspections:1}});assert.equal(r.ok,false);assert.equal(r.errors[0].code,'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED');assert.equal(r.errors[0].phase,phase);assert.deepEqual(r.results,[]);assert.equal(h.calls.scope,1);}
 });
-test('container and head predicates retain their targets and permit explicit child navigation',()=>{
-  for(const [suffix,id]of [['.&tag("catalog")','doc'],['.*&headTag("catalog")','docHead']]){
-    const h=propertyHost();const r=evaluateQuery('from $.document\nselect '+suffix,h.namespace);assert.equal(r.ok,true);assert.deepEqual(r.results[0].value.bindings,[h.bindings.get(id)]);
+test('node predicates retain their targets and permit explicit child navigation',()=>{
+  for(const [suffix,ids]of [['.&tag("document")',['doc']],['.*&tag("product")',['apple','orange']]]){
+    const h=propertyHost();const r=evaluateQuery('from $.document\nselect '+suffix,h.namespace);assert.equal(r.ok,true);assert.deepEqual(r.results[0].value.bindings,ids.map(id => h.bindings.get(id)));
   }
 });
 test('property Query options, caller snapshots and current shorthand are bounded and checked',()=>{

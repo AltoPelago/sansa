@@ -1,5 +1,9 @@
 # Property selectors: candidate API contract 0.2
 
+This document describes SANSA 0.15.0 and the head-based Rust provider. The
+[JavaScript/TypeScript API contract](api-contract.md#unreleased-property-addressing-and-standalone-resolve)
+describes the revised intrinsic-tag development provider.
+
 Status: **experimental contract candidate 0.2; opt-in runtime APIs shipped in
 SANSA 0.15.0**. The package release does not adopt this candidate as a published
 specification/profile or promote its CTS claims.

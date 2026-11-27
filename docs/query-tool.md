@@ -1,9 +1,10 @@
 # SANSA Query Tool
 
 The CLI and legacy Query Workbench use their own namespace adapters. Those
-adapters do not supply the property facet: a valid `&key`, `&tag` or `&headTag`
-expression can parse, but evaluation returns
-`SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE`. This does not affect ordinary or
+adapters do not supply the property facet. Valid `&key` and `&tag`
+expressions parse and return `SANSA_RESOLVE_UNSUPPORTED_PROPERTY_SCOPE` on
+evaluation. The former `&headTag` expression returns
+`SANSA_UNKNOWN_PROPERTY_SELECTOR` at parse time. This does not affect ordinary or
 previously admitted identity queries. Use the SDK-backed source playground or
 a capable SDK namespace for property evaluation; see the
 [provider/host matrix](property-selector-support.md).
@@ -39,7 +40,7 @@ and scalar values through `value` or `scalar`.
 `.telex.aes` fixtures are parsed and validated with an optional AEON AES
 runtime, then adapted directly from the complete portable event stream. The
 adapter preserves record order, flat attribute spaces, structural occurrence
-identity, datatype components, and the explicit `NodeLiteral` → `NodeHead` →
+identity, datatype components, and the published 0.15.0 adapter’s `NodeLiteral` → `NodeHead` →
 content hierarchy. Partial streams are rejected because this tool has no
 external namespace state with which to complete them.
 
