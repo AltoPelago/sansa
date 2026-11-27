@@ -11,6 +11,11 @@ function generated({kind,count,scalar='x',encoding='raw'}) {
 for(const vector of suite.tests) test(vector.id,()=>{
   const source=vector.input.source??generated(vector.input.generate);
   const result=parseAddress(source,vector.input.options?.parse);
+  if (vector.input.source?.includes('&headTag(')) {
+    assert.equal(result.ok, false);
+    assert.equal(result.errors[0].code, 'SANSA_UNKNOWN_PROPERTY_SELECTOR');
+    return;
+  }
   assert.equal(result.ok,vector.expected.ok,JSON.stringify(result));
   if(result.ok){
     assert.equal(result.address.isExact,vector.expected.isExact);
@@ -80,10 +85,11 @@ test('malformed caller property ASTs fail through Query and Instruction result e
   assert.equal(lowered.ok,false);assert.equal(lowered.errors[0].code,'SANSA_RESOLVE_INVALID_ADDRESS');assert.equal(reads,0);
 });
 
-test('headTag stays closed to mutation and Instruction before traversal',()=>{
+test('removed headTag syntax is rejected before mutation and Instruction traverse',()=>{
   let reads=0;
   const host={get root(){reads++;throw Error('unadmitted traversal');}};
-  const address=parseAddress('$&headTag("book")').address;
+  const address='$&headTag("book")';
+  assert.equal(parseAddress(address).ok,false);
   assert.equal(planMutation({op:'remove',target:address},host).ok,false);
   assert.equal(planInstruction('remove $&headTag("book")',host).ok,false);
   assert.equal(reads,0);

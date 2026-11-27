@@ -7,14 +7,12 @@ export function propertyHost(input = {}) {
   const bindings = new Map(structuredClone(model.bindings).map(b => [b.id, b]));
   const calls = {};
   const count = name => { calls[name] = (calls[name] ?? 0) + 1; };
-  if (input.wideHeads) {
-    const {count: width, matchAt} = input.wideHeads;
-    const heads = Array.from({length: width}, (_, i) => {
-      const id = `wide${i}`;
-      bindings.set(id, {id, address: `$.multi[${i}]`, nodeKind: 'NodeHead', tag: matchAt === 'last' && i === width - 1 ? 'right' : 'other', children: []});
-      return id;
-    });
-    Object.assign(bindings.get('multi'), {heads, children: heads});
+  const document = bindings.get('doc');
+  document.tag = 'document';
+  document.children = ['apple', 'note', 'orange'];
+  for (const [index, id, tag] of [[0, 'apple', 'product'], [1, 'note', 'note'], [2, 'orange', 'product']]) {
+    const node = bindings.get(id);
+    Object.assign(node, {address: `$.document[${index}]`, index, tag, children: []});
   }
   const get = id => bindings.get(id);
   const parents = new Map();
@@ -39,19 +37,12 @@ export function propertyHost(input = {}) {
   const properties = {
     scope(b, context) {
       assert.ok(Object.isFrozen(context));
-      return invoke('scope', b, () => !contains(context.scopeRoot, b) || context.directHeadOf && !context.directHeadOf.heads?.includes(b.id) ? 'outside' : b === context.scopeRoot ? 'root' : 'inside');
+      return invoke('scope', b, () => !contains(context.scopeRoot, b) ? 'outside' : b === context.scopeRoot ? 'root' : 'inside');
     },
     key(b) { return invoke('key', b, () => b.key); },
     nodeKind(b) { return invoke('nodeKind', b, () => b.nodeKind); },
     nodeTag(b) { return invoke('nodeTag', b, () => b.tag); },
-    nodeHeads(b) {
-      const heads = invoke('nodeHeads', b, () => b.heads ?? []);
-      if (!Array.isArray(heads)) return heads;
-      let index = 0;
-      return {[Symbol.iterator]() { return this; }, next() {
-        return invoke('headNext', b, () => index >= heads.length ? {done:true} : {done:false,value:get(heads[index++])}, index + 1);
-      }, return() { return invoke('headEarlyClose', b, () => ({done:true})); }};
-    },
+
   };
   for (const omit of input.omit ?? []) delete properties[omit];
   const namespace = {

@@ -13,6 +13,15 @@ container with a matching direct head. `&headTag("book")` returns a NodeHead;
 original binding handles and structural paths. See the [API contract](property-selectors-contract.md)
 and [execution/accounting guide](property-resolve-implementation.md).
 
+## TypeScript development for the revised node model
+
+In the JavaScript provider source, `&tag("book")` inspects the selected
+`NodeLiteral` directly. A tag inspection charges one candidate against the
+property allowance. A scoped root retains its tag and hides its incoming key.
+The provider rejects the former `&headTag()` syntax. Use this source with
+an AEON SDK that exposes tags on nodes and publishes its children at direct
+indexes. The published SANSA 0.15.0 behavior is described above.
+
 ## Delivered providers
 
 | Provider | Property support | Boundary |

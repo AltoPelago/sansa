@@ -257,7 +257,7 @@ export interface SansaResolveDiagnostic {
   readonly selectorIndex?: number;
   /** Authored identity selected by an identity-related resolution failure. */
   readonly identity?: string;
-  readonly property?: 'key' | 'tag' | 'headTag';
+  readonly property?: 'key' | 'tag';
   readonly budget?: 'maxPropertyInspections';
   readonly causeCode?: string;
   readonly limit?: number;
@@ -350,14 +350,12 @@ export interface SansaDatatypeNumberComponent {
 export type SansaDatatypeGenericComponent = SansaDatatypeDescriptor | SansaDatatypeNumberComponent;
 export type SansaDatatypeClarifierComponent = SansaDatatypeStringComponent | SansaDatatypeNumberComponent;
 
-export type PropertyName = 'key' | 'tag' | 'headTag';
+export type PropertyName = 'key' | 'tag';
 export type PropertyScopeRole = 'root' | 'inside' | 'outside';
-export type PropertyNodeKind = 'NodeLiteral' | 'NodeHead' | 'Other';
+export type PropertyNodeKind = 'NodeLiteral' | 'Other';
 export interface PropertyAccessContext<B extends object> {
   readonly scopeRoot: B;
   readonly evaluationRoot: B;
-  /** Present only while validating a yielded direct head of this owner. */
-  readonly directHeadOf?: B;
 }
 export interface PropertyAccessFault {
   readonly type: 'SansaPropertyAccessFault';
@@ -369,7 +367,6 @@ export interface PropertyAccess<B extends object> {
   readonly key?: (binding: B, context: PropertyAccessContext<B>) => string | undefined;
   readonly nodeKind?: (binding: B, context: PropertyAccessContext<B>) => PropertyNodeKind;
   readonly nodeTag?: (binding: B, context: PropertyAccessContext<B>) => string | undefined;
-  readonly nodeHeads?: (binding: B, context: PropertyAccessContext<B>) => Iterable<B>;
 }
 export interface SansaResolveNamespace<TBinding extends object = SansaResolveBinding> {
   /** Explicit authoritative property capability; no name/tag field fallback. */
@@ -1536,7 +1533,7 @@ export interface ChildIdentitySelector {
 
 export interface PropertyFilterSelector {
   readonly type: 'propertyFilter';
-  readonly property: 'key' | 'tag' | 'headTag';
+  readonly property: 'key' | 'tag';
   readonly value: string;
 }
 

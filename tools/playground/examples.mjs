@@ -5,7 +5,7 @@ const inventory = String.raw`inventory:object = {
   ]
 }`;
 const propertySource = String.raw`group = { "" = "empty", "a*" = "literal", "😀" = "Unicode" }
-value = <widget("hello")>
+<widget("hello", <part>)>
 plain = { tag = "widget" }
 reading@{"" = "unit"} = 42`;
 const examples = {
@@ -24,18 +24,18 @@ const examples = {
   propertyKey: {label: 'Property: empty key', source: propertySource, address: '$.group.*&key("")', expectedPaths: ['$.group.[""]']},
   propertyLiteral: {label: 'Property: literal key', source: propertySource, address: '$.group.*&key("a*")', expectedPaths: ['$.group.["a*"]']},
   propertyUnicode: {label: 'Property: Unicode key', source: propertySource, address: '$.group.*&key("😀")', expectedPaths: ['$.group.["😀"]']},
-  propertyTag: {label: 'Property: node tag', source: propertySource, address: '$.*&key("value")&tag("widget")', expectedPaths: ['$.value']},
-  propertyHead: {label: 'Property: direct head', source: propertySource, address: '$.value[0]&headTag("widget")', expectedPaths: ['$.value[0]']},
-  propertyRecursive: {label: 'Property: recursive containers', source: propertySource, address: '$.**&tag("widget")', expectedPaths: ['$.value']},
-  propertyRecursiveHeads: {label: 'Property: recursive heads', source: propertySource, address: '$.**&headTag("widget")', expectedPaths: ['$.value[0]']},
-  propertyWrongKind: {label: 'Property: heads are not containers', source: propertySource, address: '$.value[0]&tag("widget")', expectedPaths: []},
+  propertyTag: {label: 'Property: node tag', source: propertySource, address: '$.*&key("widget")&tag("widget")', expectedPaths: ['$.widget']},
+  propertyIndexedTag: {label: 'Property: indexed node tag', source: propertySource, address: '$.widget[1]&tag("part")', expectedPaths: ['$.widget[1]']},
+  propertyRecursive: {label: 'Property: recursive containers', source: propertySource, address: '$.**&tag("widget")', expectedPaths: ['$.widget']},
+  propertyIndexedKey: {label: 'Property: indexed nodes have no key', source: propertySource, address: '$.widget[1]&key("part")', expectedPaths: []},
+  propertyWrongKind: {label: 'Property: scalar child', source: propertySource, address: '$.widget[0]&tag("widget")', expectedPaths: []},
   propertyNoField: {label: 'Property: fields are not tags', source: propertySource, address: '$.plain&tag("widget")', expectedPaths: []},
-  propertyRoot: {label: 'Property: root key hidden', source: propertySource, scope: '$.value', address: '$&key("value")', expectedPaths: []},
-  propertyRootTag: {label: 'Property: root tag', source: propertySource, scope: '$.value', address: '$&tag("widget")', expectedPaths: ['$.value']},
+  propertyRoot: {label: 'Property: root key hidden', source: propertySource, scope: '$.widget', address: '$&key("widget")', expectedPaths: []},
+  propertyRootTag: {label: 'Property: root tag', source: propertySource, scope: '$.widget', address: '$&tag("widget")', expectedPaths: ['$.widget']},
   propertyAttribute: {label: 'Property: attribute space', source: propertySource, address: '$.reading.@.*&key("")', expectedPaths: ['$.reading.@.[""]']},
-  propertyBudget: {label: 'Property: inspection limit', source: propertySource, propertyInspections: 1, address: '$.value&tag("widget")', expectedCode: 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED'},
-  propertyQuery: {label: 'Property Query: current row', source: propertySource, address: '$', view: 'query', query: 'from $.*&key("value")\nselect .&tag("widget")', expectedCandidatePaths: ['$.value'], expectedQueryPaths: ['$.value']},
-  propertyQueryContext: {label: 'Property Query: scope root', source: propertySource, address: '$', view: 'query', query: 'from $.value\nselect ?&key("value")', expectedCandidatePaths: ['$.value'], expectedQueryPaths: []},
+  propertyBudget: {label: 'Property: inspection limit', source: propertySource, propertyInspections: 0, address: '$.widget&tag("widget")', expectedCode: 'SANSA_RESOLVE_PROPERTY_LIMIT_EXCEEDED'},
+  propertyQuery: {label: 'Property Query: current row', source: propertySource, address: '$', view: 'query', query: 'from $.*&key("widget")\nselect .&tag("widget")', expectedCandidatePaths: ['$.widget'], expectedQueryPaths: ['$.widget']},
+  propertyQueryContext: {label: 'Property Query: scope root', source: propertySource, address: '$', view: 'query', query: 'from $.widget\nselect ?&key("widget")', expectedCandidatePaths: ['$.widget'], expectedQueryPaths: []},
   query: {label: 'Query', source: inventory, address: '$.inventory.items', view: 'query', query: 'from $.inventory.items.*\nwhere .qty >= 6\nselect .name'},
   queryIdentity: {label: 'Query child identities', source: inventory, address: '$.inventory.items', view: 'query', query: "from $.inventory.items.\\item1\\\nselect .\\name1\\"},
 };
