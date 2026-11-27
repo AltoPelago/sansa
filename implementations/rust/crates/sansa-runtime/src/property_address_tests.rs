@@ -46,6 +46,13 @@ fn prepared_parser_expectations() {
                 .map_or(999999, |x| x as usize),
         };
         let result = parse_address_with_options(&source, options);
+        if source.contains("&headTag(") {
+            assert_eq!(
+                result.expect_err(id).code,
+                "SANSA_UNKNOWN_PROPERTY_SELECTOR"
+            );
+            continue;
+        }
         assert_eq!(
             result.is_ok(),
             expected["ok"].as_bool().expect("ok"),

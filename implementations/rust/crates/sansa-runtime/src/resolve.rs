@@ -576,7 +576,6 @@ fn resolve_property_address<N: Namespace>(
                 let context = PropertyAccessContext {
                     scope_root: &frame.scope_root,
                     evaluation_root: &frame.evaluation_root,
-                    direct_head_of: None,
                 };
                 match properties.matches(&occurrence.binding, &context, *property, value, index) {
                     Ok(true) => next.push(occurrence),
