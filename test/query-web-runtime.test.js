@@ -7,6 +7,7 @@ import test from 'node:test';
 import { firstQueryExampleName, queryExampleGroups, queryExamples } from '../tools/query-web/examples.mjs';
 import {
   evaluateQueryForWorkbench,
+  loadAeonAesRuntime,
   namespaceFromAeonSource,
   namespaceFromFilmSource,
   namespaceFromTelexSource,
@@ -323,6 +324,35 @@ testTelexRuntime('portable namespace rejects partial streams without external st
 
   assert.equal(result.ok, false);
   assert.equal(result.errors[0].code, 'SANSA_QUERY_WORKBENCH_PARTIAL_AES_UNSUPPORTED');
+});
+
+testTelexRuntime('workbench portable equality retains intrinsic tags at indexed occurrences', async t => {
+  const different = [
+    'telex.aes=1',
+    'path=$.xml\nkind=NodeLiteral\ntag=xml',
+    'path=$.xml[0]\nkind=NodeLiteral\ntag=first',
+    'path=$.xml[1]\nkind=NodeLiteral\ntag=second',
+  ].join('\n\n') + '\n';
+  const { module: aes } = await loadAeonAesRuntime();
+  const validation = aes.validateTelex(different);
+  if (validation.diagnostics.some(({code, field}) => code === 'AES_UNKNOWN_FIELD' && field === 'tag')) {
+    t.skip('The loaded AES reader is the pre-revision portable runtime');
+    return;
+  }
+  assert.deepEqual(validation.diagnostics, []);
+  const mounted = await namespaceFromTelexSource(different);
+  assert.equal(mounted.ok, true, JSON.stringify(mounted.errors));
+  assert.deepEqual(mounted.namespace.root.children[0].children.map(binding => [binding.address, binding.nodeTag]),
+    [['$.xml[0]', 'first'], ['$.xml[1]', 'second']]);
+  for (const [source, expected] of [[different, 0], [different.replace('tag=second', 'tag=first'), 1]]) {
+    const result = await evaluateQueryForWorkbench({
+      sourceKind: 'telex',
+      source,
+      query: 'from $.xml where ?[0] == ?[1] select ?',
+    });
+    assert.equal(result.ok, true, JSON.stringify(result.errors));
+    assert.equal(result.count, expected);
+  }
 });
 
 testFilmRuntime('query web runtime dispatches Film bytes through the portable namespace', async () => {
