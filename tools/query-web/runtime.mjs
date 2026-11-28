@@ -194,8 +194,7 @@ export async function namespaceFromAeonSource(source, { identityAware = false } 
 
 /**
  * Build a SANSA namespace directly from a complete portable AES stream.
- * The adapter retains portable paths and occurrence identities; it does not
- * reconstruct the implementation-specific AEON parser AST.
+ * The adapter retains portable paths, occurrence identities and intrinsic tags.
  */
 export async function namespaceFromTelexSource(source) {
   const loaded = await loadAeonAesRuntime();
@@ -934,7 +933,11 @@ function portableBinding(record, finalSelector) {
   const scalar = scalarFromPortableRecord(record);
   if (scalar.ok) binding.value = scalar.value;
   if (record.kind === 'NullLiteral') binding.nullReason = record.value;
-  if (record.kind === 'NodeHead' && typeof record.value === 'string') binding.nodeTag = record.value;
+  if (record.kind === 'NodeLiteral' && typeof record.tag === 'string') {
+    binding.nodeTag = record.tag;
+  } else if (record.kind === 'NodeHead' && typeof record.value === 'string') {
+    binding.nodeTag = record.value;
+  }
   return binding;
 }
 
